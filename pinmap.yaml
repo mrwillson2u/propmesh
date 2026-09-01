@@ -1,0 +1,113 @@
+# PropMesh pin assignments — SINGLE SOURCE OF TRUTH
+#
+# Edit this file, then run:  python3 tools/genpins.py
+# Never hand-edit firmware/common/pins_*.h
+#
+# Keep in sync with docs/hardware-spec.md in the same commit.
+
+boards:
+
+  pro:
+    mcu: ESP32-S3-WROOM-1U-N8R2
+    notes: >
+      31 of ~33 usable GPIO allocated. GPIO 45/46 broken out on the
+      expansion header. GPIO 33/34 are free on N8R2 (quad PSRAM) but are
+      consumed by octal PSRAM on R8/R16 variants — verify before layout.
+
+    gpio:
+      BOOT_BUTTON:        {pin: 0,  dir: in,  note: "strapping"}
+      ANALOG_IN_1:        {pin: 1,  dir: adc, note: "ADC1 — ADC2 unusable with WiFi"}
+      ANALOG_IN_2:        {pin: 2,  dir: adc, note: "ADC1"}
+      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX; strapping, internal pulldown"}
+      LED_STRIP_1_DATA:   {pin: 4,  dir: out, note: "RMT TX, via 74AHCT125"}
+      LED_STRIP_2_DATA:   {pin: 5,  dir: out, note: "RMT TX; APA102 DATA in 4-wire mode"}
+      LED_STRIP_2_CLK:    {pin: 6,  dir: out, note: "APA102 CLK; solder jumper selects mode"}
+      I2S_BCLK:           {pin: 7,  dir: out}
+      I2C_SDA:            {pin: 8,  dir: bidir, note: "PCA9685 + Qwiic"}
+      I2C_SCL:            {pin: 9,  dir: out}
+      DIGITAL_IN_1:       {pin: 10, dir: in,  note: "pull-up, clamp diodes, 1k series"}
+      DIGITAL_IN_2:       {pin: 11, dir: in}
+      DIGITAL_IN_3:       {pin: 12, dir: in}
+      STEPPER_1_STEP:     {pin: 13, dir: out, note: "LEDC-capable — required for DC socket mode"}
+      STEPPER_1_DIR:      {pin: 14, dir: out, note: "LEDC-capable"}
+      I2S_LRCLK:          {pin: 15, dir: out}
+      I2S_DOUT:           {pin: 16, dir: out}
+      TMC_UART_TX:        {pin: 17, dir: out, note: "shared bus, MS1/MS2 address strapping"}
+      TMC_UART_RX:        {pin: 18, dir: in}
+      USB_DM:             {pin: 19, dir: bidir, note: "native USB — console lives here"}
+      USB_DP:             {pin: 20, dir: bidir}
+      STEPPER_2_STEP:     {pin: 21, dir: out, note: "LEDC-capable"}
+      MOTOR_B_IN1:        {pin: 33, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
+      MOTOR_B_IN2:        {pin: 34, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
+      STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini"}
+      SD_CLK:             {pin: 39, dir: out, note: "SDMMC 1-bit"}
+      SD_CMD:             {pin: 40, dir: bidir}
+      SD_D0:              {pin: 41, dir: bidir}
+      STEPPER_1_DIAG:     {pin: 42, dir: in,  note: "StallGuard; JP1 frees it for expansion"}
+      STEPPER_2_DIAG:     {pin: 43, dir: in,  note: "StallGuard; JP2 frees it for expansion"}
+      MOTOR_A_IN1:        {pin: 44, dir: out, note: "LEDC 25 kHz"}
+      EXPANSION_1:        {pin: 45, dir: out, note: "STRAPPING — must be LOW at reset. 10k pulldown + 100R series."}
+      EXPANSION_2:        {pin: 46, dir: out, note: "STRAPPING — must be LOW at reset. 10k pulldown + 100R series."}
+      STEPPER_2_DIR:      {pin: 47, dir: out, note: "LEDC-capable"}
+      MOTOR_A_IN2:        {pin: 48, dir: out, note: "LEDC 25 kHz"}
+
+    pca9685:
+      addr: 0x40
+      channels:
+        SERVO_1: 0
+        SERVO_2: 1
+        SERVO_3: 2
+        SERVO_4: 3
+        SERVO_5: 4
+        SERVO_6: 5
+        LED_1:   6
+        LED_2:   7
+        LED_3:   8
+        LED_4:   9
+        LED_5:   10
+        LED_6:   11
+        RELAY_1: 12
+        RELAY_2: 13
+        RELAY_3: 14
+        STEPPER_ENABLE: 15
+
+  mini:
+    mcu: ESP32-C3-MINI-1U-N4
+    notes: >
+      All 15 exposed GPIO allocated — no expansion header. Qwiic is the
+      entire expansion path. Audio lives in flash, not on SD: the C3 has
+      no SDMMC and SPI SD would cost 4 GPIO the board cannot spare.
+
+    gpio:
+      ANALOG_IN_1:        {pin: 0,  dir: adc, note: "ADC1"}
+      BATTERY_SENSE:      {pin: 1,  dir: adc, note: "1M divider + FET disconnect for sleep"}
+      RAIL_5V_ENABLE:     {pin: 2,  dir: out, note: "STRAPPING — pull-up so rail defaults ON at boot. MANDATORY for sleep current."}
+      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX"}
+      I2S_BCLK:           {pin: 4,  dir: out}
+      I2S_LRCLK:          {pin: 5,  dir: out}
+      I2S_DOUT:           {pin: 6,  dir: out}
+      LED_STRIP_1_DATA:   {pin: 7,  dir: out, note: "RMT TX, via 74AHCT1G125"}
+      I2C_SDA:            {pin: 8,  dir: bidir, note: "STRAPPING — I2C pull-up holds it high at boot"}
+      BOOT_BUTTON:        {pin: 9,  dir: in,  note: "strapping"}
+      I2C_SCL:            {pin: 10, dir: out}
+      USB_DM:             {pin: 18, dir: bidir, note: "console over native USB Serial/JTAG"}
+      USB_DP:             {pin: 19, dir: bidir}
+      DIGITAL_IN_1:       {pin: 20, dir: in,  note: "UART0 TX repurposed"}
+      DIGITAL_IN_2:       {pin: 21, dir: in,  note: "UART0 RX repurposed"}
+
+    pca9685:
+      addr: 0x40
+      channels:
+        SERVO_1: 0
+        SERVO_2: 1
+        SERVO_3: 2
+        LED_1:   3
+        LED_2:   4
+        LED_3:   5
+        LED_4:   6
+        RELAY_1: 7
+
+constants:
+  MOTOR_PWM_HZ: 25000     # never below 20 kHz — audible
+  SERVO_PWM_HZ: 50
+  LED_PWM_HZ: 1000
