@@ -429,6 +429,15 @@ def render(sheet, parts, nets, blocks, res=None):
             idx = [str(k) for k, e in enumerate(edges) if e == key]
             if idx: lines.append(f"  linkStyle {','.join(idx)} {style}")
         out.append((title, ns, "\n".join(lines)))
+    # parts that live ONLY on annotated rails (pure decoupling) appear in no
+    # block above — draw them anyway, or the drawing guide silently drops them
+    in_blocks = {ref for ns in blocks.values() for n in ns for ref, _ in nets[n]}
+    orphans = [r for r in parts if r not in in_blocks]
+    if orphans:
+        lines = ["graph LR", CLASSES]
+        for r in orphans: lines.append("  " + plabel(r))
+        out.append((f"Rail-only parts ×{len(orphans)} — decoupling; wire each pin to its rail symbol, place beside its chip",
+                    [], "\n".join(lines)))
     return out
 
 

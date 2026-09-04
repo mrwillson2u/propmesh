@@ -85,6 +85,20 @@ community-contributed: check pin numbers and the footprint's pad pitch
 and pin-1 corner against the datasheet before layout.** A wrong symbol
 shows up in ERC; a wrong footprint shows up when the board arrives.
 
+**Why import-and-verify beats hand-drawing symbols** (asked and
+settled 2026-09-04, with this project's own tally: 9 symbols + 15
+footprints imported, defects found = 2 land patterns, 3 plated
+mechanical holes, 1 inverted-pin symbol, universal missing pin types —
+and **zero pin-number→pad mapping errors, the only class that kills a
+board**). A hand-drawn 41-pin symbol has its author's typo rate and no
+usage history; verification, not authorship, is what makes a symbol
+trustworthy. Trust tier: KiCad-official > high-volume EasyEDA parts
+(TF-01A, PJ-320A — millions of boards) > low-volume vendor imports
+(both real land-pattern errors were SXN inductors). And "just respin
+if it's wrong" prices the board, not the calendar: a quick-turn cycle
+is 10–14 October days plus the debugging evening a silent error costs
+first — against five scripted minutes of inspection per part.
+
 **This is not theoretical — measure every imported land pattern.** Of
 the four footprints imported on 2026-09-03, **the two inductors were
 wrong** (L1's pads 27 % undersized and 1.46 mm too far apart, L2's
@@ -116,6 +130,14 @@ wires drawn to the visible tip connect to nothing (HK4100F arrived this
 way, caught by Colin 2026-09-04). In the Symbol Editor the circle must
 sit at the OUTER end of every pin; if not, flip each pin 180° about its
 own stub before first use.
+
+**An import's pad numbers may not be the datasheet's contact numbers.**
+The PJ-320A jack numbers its four contacts 1–4 in the datasheet
+schematic; the EasyEDA part numbers the same contacts 2–5. Any pin
+mapping quoted from the datasheet is then wrong on the real part.
+When schemes disagree, derive the mapping from GEOMETRY (contact depth,
+slot positions) and say so in the sheet doc. (Caught by Colin on the
+line-out jack, 2026-09-04 — the fifth known way an import lies.)
 
 **Every imported symbol arrives with all pins typed "Unspecified"**, so
 ERC throws a "Unspecified and Passive pins are connected" warning for

@@ -64,11 +64,11 @@
   N_RELAY_1([&quot;RELAY_1&quot;]):::net
   P_U_PCA[&quot;&lt;b&gt;U_PCA&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin ~{OE} → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
   P_U_PCA --&quot;LED12&quot;--&gt; N_RELAY_1
-  P_U_REL[&quot;&lt;b&gt;U_REL&lt;/b&gt;&lt;br/&gt;ULN2003A&lt;br/&gt;&lt;i&gt;pin COM → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_U_REL[&quot;&lt;b&gt;U_REL&lt;/b&gt;&lt;br/&gt;ULN2003A&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin COM → +5V&lt;/i&gt;&quot;]:::part
   N_RELAY_1 --&quot;I1&quot;--&gt; P_U_REL
   N_REL1_COIL([&quot;REL1_COIL&quot;]):::net
   P_U_REL --&quot;O1&quot;--&gt; N_REL1_COIL
-  P_K1[&quot;&lt;b&gt;K1&lt;/b&gt;&lt;br/&gt;HK4100F&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  P_K1[&quot;&lt;b&gt;K1&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
   N_REL1_COIL --&quot;3&quot;--&gt; P_K1
   N_REL1_NO([&quot;REL1_NO&quot;]):::net
   P_K1 --&quot;1&quot;--&gt; N_REL1_NO
@@ -86,7 +86,7 @@
   P_U_REL --&quot;I2&quot;--&gt; N_RELAY_2
   N_REL2_COIL([&quot;REL2_COIL&quot;]):::net
   P_U_REL --&quot;O2&quot;--&gt; N_REL2_COIL
-  P_K2[&quot;&lt;b&gt;K2&lt;/b&gt;&lt;br/&gt;HK4100F&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  P_K2[&quot;&lt;b&gt;K2&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
   N_REL2_COIL --&quot;3&quot;--&gt; P_K2
   N_REL2_NO([&quot;REL2_NO&quot;]):::net
   P_K2 --&quot;1&quot;--&gt; N_REL2_NO
@@ -104,7 +104,7 @@
   P_U_REL --&quot;I3&quot;--&gt; N_RELAY_3
   N_REL3_COIL([&quot;REL3_COIL&quot;]):::net
   P_U_REL --&quot;O3&quot;--&gt; N_REL3_COIL
-  P_K3[&quot;&lt;b&gt;K3&lt;/b&gt;&lt;br/&gt;HK4100F&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  P_K3[&quot;&lt;b&gt;K3&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
   N_REL3_COIL --&quot;3&quot;--&gt; P_K3
   N_REL3_NO([&quot;REL3_NO&quot;]):::net
   P_K3 --&quot;1&quot;--&gt; N_REL3_NO
@@ -197,27 +197,27 @@
   N_SERVO_1([&quot;SERVO_1&quot;]):::net
   P_U_PCA[&quot;&lt;b&gt;U_PCA&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin ~{OE} → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
   P_U_PCA --&quot;LED0&quot;--&gt; N_SERVO_1
-  P_J_SRV1[&quot;&lt;b&gt;J_SRV1&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV1[&quot;&lt;b&gt;J_SRV1&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_1 --&quot;3&quot;--&gt; P_J_SRV1
   N_SERVO_2([&quot;SERVO_2&quot;]):::net
   P_U_PCA --&quot;LED1&quot;--&gt; N_SERVO_2
-  P_J_SRV2[&quot;&lt;b&gt;J_SRV2&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV2[&quot;&lt;b&gt;J_SRV2&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_2 --&quot;3&quot;--&gt; P_J_SRV2
   N_SERVO_3([&quot;SERVO_3&quot;]):::net
   P_U_PCA --&quot;LED2&quot;--&gt; N_SERVO_3
-  P_J_SRV3[&quot;&lt;b&gt;J_SRV3&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV3[&quot;&lt;b&gt;J_SRV3&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_3 --&quot;3&quot;--&gt; P_J_SRV3
   N_SERVO_4([&quot;SERVO_4&quot;]):::net
   P_U_PCA --&quot;LED3&quot;--&gt; N_SERVO_4
-  P_J_SRV4[&quot;&lt;b&gt;J_SRV4&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV4[&quot;&lt;b&gt;J_SRV4&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_4 --&quot;3&quot;--&gt; P_J_SRV4
   N_SERVO_5([&quot;SERVO_5&quot;]):::net
   P_U_PCA --&quot;LED4&quot;--&gt; N_SERVO_5
-  P_J_SRV5[&quot;&lt;b&gt;J_SRV5&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV5[&quot;&lt;b&gt;J_SRV5&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_5 --&quot;3&quot;--&gt; P_J_SRV5
   N_SERVO_6([&quot;SERVO_6&quot;]):::net
   P_U_PCA --&quot;LED5&quot;--&gt; N_SERVO_6
-  P_J_SRV6[&quot;&lt;b&gt;J_SRV6&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_SRV6[&quot;&lt;b&gt;J_SRV6&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&quot;]:::part
   N_SERVO_6 --&quot;3&quot;--&gt; P_J_SRV6</pre>
 <h2>GND</h2><p><code>U_PCA.VSS</code>, <code>U_PCA.~{OE}</code>, <code>U_PCA.EXTCLK</code>, <code>U_REL.GND</code>, <code>R_A0.2</code>, <code>R_A1.2</code>, <code>R_A2.2</code>, <code>R_A3.2</code>, <code>R_A4.2</code>, <code>R_A5.2</code>, <code>C_P1.2</code>, <code>C_P2.2</code>, <code>Q_LED1.S</code>, <code>Q_LED2.S</code>, <code>Q_LED3.S</code>, <code>Q_LED4.S</code>, <code>Q_LED5.S</code>, <code>Q_LED6.S</code>, <code>J_SRV1.1</code>, <code>J_SRV2.1</code>, <code>J_SRV3.1</code>, <code>J_SRV4.1</code>, <code>J_SRV5.1</code>, <code>J_SRV6.1</code></p>
 <h2>+5V</h2><p><code>K1.4</code>, <code>K2.4</code>, <code>K3.4</code>, <code>U_REL.COM</code>, <code>J_SRV1.2</code>, <code>J_SRV2.2</code>, <code>J_SRV3.2</code>, <code>J_SRV4.2</code>, <code>J_SRV5.2</code>, <code>J_SRV6.2</code></p>

@@ -661,7 +661,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "J_LED2-6,L1-2,D1-11,#PWR1-70,U1-6,C1-17,SW1-2,K1-3,Q1-7,J1-13,#FLG1-5,F1,TP1,R_G1,R1-4,R6-21",
+    "used_designators": "C_SD3-8,J_LED2-6,Card1,CN1,L1-2,D1-11,#PWR1-105,FB1-2,C1-31,U1-8,SW1-2,K1-3,J1-13,#FLG1-5,F1,TP1-2,R_G1,Q1-7,FB_P1,R1-4,R6-28",
     "variants": []
   },
   "sheets": [

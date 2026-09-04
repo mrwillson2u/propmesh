@@ -85,11 +85,11 @@ graph LR
   N_RELAY_1(["RELAY_1"]):::net
   P_U_PCA["<b>U_PCA</b><br/>PCA9685PW<br/><i>pin VSS → GND</i><br/><i>pin ~{OE} → GND</i><br/><i>pin EXTCLK → GND</i>"]:::part
   P_U_PCA --"LED12"--> N_RELAY_1
-  P_U_REL["<b>U_REL</b><br/>ULN2003A<br/><i>pin COM → +5V</i><br/><i>pin GND → GND</i>"]:::part
+  P_U_REL["<b>U_REL</b><br/>ULN2003A<br/><i>pin GND → GND</i><br/><i>pin COM → +5V</i>"]:::part
   N_RELAY_1 --"I1"--> P_U_REL
   N_REL1_COIL(["REL1_COIL"]):::net
   P_U_REL --"O1"--> N_REL1_COIL
-  P_K1["<b>K1</b><br/>HK4100F<br/><i>pin 4 → +5V</i>"]:::part
+  P_K1["<b>K1</b><br/>HK4100F-DC5V-SHG<br/><i>pin 4 → +5V</i>"]:::part
   N_REL1_COIL --"3"--> P_K1
   N_REL1_NO(["REL1_NO"]):::net
   P_K1 --"1"--> N_REL1_NO
@@ -107,7 +107,7 @@ graph LR
   P_U_REL --"I2"--> N_RELAY_2
   N_REL2_COIL(["REL2_COIL"]):::net
   P_U_REL --"O2"--> N_REL2_COIL
-  P_K2["<b>K2</b><br/>HK4100F<br/><i>pin 4 → +5V</i>"]:::part
+  P_K2["<b>K2</b><br/>HK4100F-DC5V-SHG<br/><i>pin 4 → +5V</i>"]:::part
   N_REL2_COIL --"3"--> P_K2
   N_REL2_NO(["REL2_NO"]):::net
   P_K2 --"1"--> N_REL2_NO
@@ -125,7 +125,7 @@ graph LR
   P_U_REL --"I3"--> N_RELAY_3
   N_REL3_COIL(["REL3_COIL"]):::net
   P_U_REL --"O3"--> N_REL3_COIL
-  P_K3["<b>K3</b><br/>HK4100F<br/><i>pin 4 → +5V</i>"]:::part
+  P_K3["<b>K3</b><br/>HK4100F-DC5V-SHG<br/><i>pin 4 → +5V</i>"]:::part
   N_REL3_COIL --"3"--> P_K3
   N_REL3_NO(["REL3_NO"]):::net
   P_K3 --"1"--> N_REL3_NO
@@ -261,27 +261,27 @@ graph LR
   N_SERVO_1(["SERVO_1"]):::net
   P_U_PCA["<b>U_PCA</b><br/>PCA9685PW<br/><i>pin VSS → GND</i><br/><i>pin ~{OE} → GND</i><br/><i>pin EXTCLK → GND</i>"]:::part
   P_U_PCA --"LED0"--> N_SERVO_1
-  P_J_SRV1["<b>J_SRV1</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV1["<b>J_SRV1</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_1 --"3"--> P_J_SRV1
   N_SERVO_2(["SERVO_2"]):::net
   P_U_PCA --"LED1"--> N_SERVO_2
-  P_J_SRV2["<b>J_SRV2</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV2["<b>J_SRV2</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_2 --"3"--> P_J_SRV2
   N_SERVO_3(["SERVO_3"]):::net
   P_U_PCA --"LED2"--> N_SERVO_3
-  P_J_SRV3["<b>J_SRV3</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV3["<b>J_SRV3</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_3 --"3"--> P_J_SRV3
   N_SERVO_4(["SERVO_4"]):::net
   P_U_PCA --"LED3"--> N_SERVO_4
-  P_J_SRV4["<b>J_SRV4</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV4["<b>J_SRV4</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_4 --"3"--> P_J_SRV4
   N_SERVO_5(["SERVO_5"]):::net
   P_U_PCA --"LED4"--> N_SERVO_5
-  P_J_SRV5["<b>J_SRV5</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV5["<b>J_SRV5</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_5 --"3"--> P_J_SRV5
   N_SERVO_6(["SERVO_6"]):::net
   P_U_PCA --"LED5"--> N_SERVO_6
-  P_J_SRV6["<b>J_SRV6</b><br/>SERVO<br/><i>pin 2 → +5V</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_SRV6["<b>J_SRV6</b><br/>SERVO<br/><i>pin 1 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_SERVO_6 --"3"--> P_J_SRV6
 ```
 

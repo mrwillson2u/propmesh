@@ -1,0 +1,144 @@
+<!doctype html><meta charset="utf-8"><title>04-audio wiring</title>
+<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
+<h1>04-audio — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box.</p>
+<h2>I²S amp → speaker (mono mix, 12 dB)</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_I2S_DOUT([&quot;I2S_DOUT&quot;]):::net
+  P_U_AMP[&quot;&lt;b&gt;U_AMP&lt;/b&gt;&lt;br/&gt;MAX98357AETE+T&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GAIN_SLOT → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EP → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin VDD → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin VDD → +5V&lt;/i&gt;&quot;]:::part
+  P_U_AMP --&quot;DIN&quot;--&gt; N_I2S_DOUT
+  P_U_DAC[&quot;&lt;b&gt;U_DAC&lt;/b&gt;&lt;br/&gt;PCM5102APWR&lt;br/&gt;&lt;i&gt;pin DGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin AGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin CPGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin FLT → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin FMT → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin DEMP → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin SCK → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin DVDD → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin AVDD → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin CPVDD → +3V3&lt;/i&gt;&quot;]:::part
+  N_I2S_DOUT --&quot;DIN&quot;--&gt; P_U_DAC
+  N_I2S_BCLK([&quot;I2S_BCLK&quot;]):::net
+  P_U_AMP --&quot;BCLK&quot;--&gt; N_I2S_BCLK
+  P_U_DAC --&quot;BCK&quot;--&gt; N_I2S_BCLK
+  N_I2S_LRCLK([&quot;I2S_LRCLK&quot;]):::net
+  P_U_AMP --&quot;LRCLK&quot;--&gt; N_I2S_LRCLK
+  P_U_DAC --&quot;LRCK&quot;--&gt; N_I2S_LRCLK
+  N_SDM([&quot;SDM&quot;]):::net
+  P_U_AMP --&quot;~{SD_MODE}&quot;--&gt; N_SDM
+  P_R_SDM[&quot;&lt;b&gt;R_SDM&lt;/b&gt;&lt;br/&gt;620k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
+  N_SDM --&quot;1&quot;--&gt; P_R_SDM
+  N_AMP_P([&quot;AMP_P&quot;]):::net
+  P_U_AMP --&quot;OUTP&quot;--&gt; N_AMP_P
+  P_FB_P[&quot;&lt;b&gt;FB_P&lt;/b&gt;&lt;br/&gt;BLM21PG221SN1D&quot;]:::part
+  N_AMP_P --&quot;1&quot;--&gt; P_FB_P
+  N_SPK_P([&quot;SPK_P&quot;]):::net
+  P_FB_P --&quot;2&quot;--&gt; N_SPK_P
+  P_C_FBP[&quot;&lt;b&gt;C_FBP&lt;/b&gt;&lt;br/&gt;100pF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_SPK_P --&quot;1&quot;--&gt; P_C_FBP
+  P_J_SPK[&quot;&lt;b&gt;J_SPK&lt;/b&gt;&lt;br/&gt;SPEAKER&quot;]:::part
+  N_SPK_P --&quot;1&quot;--&gt; P_J_SPK
+  N_AMP_N([&quot;AMP_N&quot;]):::net
+  P_U_AMP --&quot;OUTN&quot;--&gt; N_AMP_N
+  P_FB_N[&quot;&lt;b&gt;FB_N&lt;/b&gt;&lt;br/&gt;BLM21PG221SN1D&quot;]:::part
+  N_AMP_N --&quot;1&quot;--&gt; P_FB_N
+  N_SPK_N([&quot;SPK_N&quot;]):::net
+  P_FB_N --&quot;2&quot;--&gt; N_SPK_N
+  P_C_FBN[&quot;&lt;b&gt;C_FBN&lt;/b&gt;&lt;br/&gt;100pF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_SPK_N --&quot;1&quot;--&gt; P_C_FBN
+  P_J_SPK --&quot;2&quot;--&gt; N_SPK_N</pre>
+<h2>Line-out DAC (PCM5102A) → 3.5 mm jack</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_XSMT([&quot;XSMT&quot;]):::net
+  P_U_DAC[&quot;&lt;b&gt;U_DAC&lt;/b&gt;&lt;br/&gt;PCM5102APWR&lt;br/&gt;&lt;i&gt;pin DGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin AGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin CPGND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin FLT → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin FMT → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin DEMP → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin SCK → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin DVDD → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin AVDD → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin CPVDD → +3V3&lt;/i&gt;&quot;]:::part
+  P_U_DAC --&quot;XSMT&quot;--&gt; N_XSMT
+  P_R_XSMT[&quot;&lt;b&gt;R_XSMT&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
+  N_XSMT --&quot;1&quot;--&gt; P_R_XSMT
+  N_CP_FLY_P([&quot;CP_FLY_P&quot;]):::net
+  P_U_DAC --&quot;CAPP&quot;--&gt; N_CP_FLY_P
+  P_C_CP[&quot;&lt;b&gt;C_CP&lt;/b&gt;&lt;br/&gt;2.2uF&quot;]:::part
+  N_CP_FLY_P --&quot;1&quot;--&gt; P_C_CP
+  N_CP_FLY_M([&quot;CP_FLY_M&quot;]):::net
+  P_U_DAC --&quot;CAPM&quot;--&gt; N_CP_FLY_M
+  P_C_CP --&quot;2&quot;--&gt; N_CP_FLY_M
+  N_VNEG_N([&quot;VNEG_N&quot;]):::net
+  P_U_DAC --&quot;VNEG&quot;--&gt; N_VNEG_N
+  P_C_VNEG[&quot;&lt;b&gt;C_VNEG&lt;/b&gt;&lt;br/&gt;2.2uF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_VNEG_N --&quot;1&quot;--&gt; P_C_VNEG
+  N_LDO_N([&quot;LDO_N&quot;]):::net
+  P_U_DAC --&quot;LDOO&quot;--&gt; N_LDO_N
+  P_C_LDO1[&quot;&lt;b&gt;C_LDO1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_LDO_N --&quot;1&quot;--&gt; P_C_LDO1
+  P_C_LDO2[&quot;&lt;b&gt;C_LDO2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_LDO_N --&quot;1&quot;--&gt; P_C_LDO2
+  N_OUT_L([&quot;OUT_L&quot;]):::net
+  P_U_DAC --&quot;OUTL&quot;--&gt; N_OUT_L
+  P_R_OL[&quot;&lt;b&gt;R_OL&lt;/b&gt;&lt;br/&gt;470R&quot;]:::part
+  N_OUT_L --&quot;1&quot;--&gt; P_R_OL
+  N_LINE_L([&quot;LINE_L&quot;]):::net
+  P_R_OL --&quot;2&quot;--&gt; N_LINE_L
+  P_C_OL[&quot;&lt;b&gt;C_OL&lt;/b&gt;&lt;br/&gt;2.2nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_LINE_L --&quot;1&quot;--&gt; P_C_OL
+  P_J_LINE[&quot;&lt;b&gt;J_LINE&lt;/b&gt;&lt;br/&gt;LINE_OUT&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 5 → GND&lt;/i&gt;&quot;]:::part
+  N_LINE_L --&quot;4&quot;--&gt; P_J_LINE
+  N_OUT_R([&quot;OUT_R&quot;]):::net
+  P_U_DAC --&quot;OUTR&quot;--&gt; N_OUT_R
+  P_R_OR[&quot;&lt;b&gt;R_OR&lt;/b&gt;&lt;br/&gt;470R&quot;]:::part
+  N_OUT_R --&quot;1&quot;--&gt; P_R_OR
+  N_LINE_R([&quot;LINE_R&quot;]):::net
+  P_R_OR --&quot;2&quot;--&gt; N_LINE_R
+  P_C_OR[&quot;&lt;b&gt;C_OR&lt;/b&gt;&lt;br/&gt;2.2nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_LINE_R --&quot;1&quot;--&gt; P_C_OR
+  P_J_LINE --&quot;3&quot;--&gt; N_LINE_R</pre>
+<h2>microSD — SDMMC 1-bit</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_SD_CLK([&quot;SD_CLK&quot;]):::net
+  P_U_SD[&quot;&lt;b&gt;U_SD&lt;/b&gt;&lt;br/&gt;TF-01A&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin VDD → +3V3&lt;/i&gt;&quot;]:::part
+  P_U_SD --&quot;CLK(SCLK)&quot;--&gt; N_SD_CLK
+  N_SD_CMD([&quot;SD_CMD&quot;]):::net
+  P_U_SD --&quot;CMD(DI)&quot;--&gt; N_SD_CMD
+  P_R_CMD[&quot;&lt;b&gt;R_CMD&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
+  N_SD_CMD --&quot;1&quot;--&gt; P_R_CMD
+  N_SD_D0([&quot;SD_D0&quot;]):::net
+  P_U_SD --&quot;DAT0(D0)&quot;--&gt; N_SD_D0
+  P_R_D0[&quot;&lt;b&gt;R_D0&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
+  N_SD_D0 --&quot;1&quot;--&gt; P_R_D0
+  N_SD_D3([&quot;SD_D3&quot;]):::net
+  P_U_SD --&quot;CDDAT3(CS)&quot;--&gt; N_SD_D3
+  P_R_D3[&quot;&lt;b&gt;R_D3&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
+  N_SD_D3 --&quot;1&quot;--&gt; P_R_D3
+  N_CARD_DET([&quot;CARD_DET&quot;]):::net
+  P_U_SD --&quot;CD&quot;--&gt; N_CARD_DET
+  P_TP_CD[&quot;&lt;b&gt;TP_CD&lt;/b&gt;&lt;br/&gt;TP_CD&quot;]:::part
+  N_CARD_DET --&quot;1&quot;--&gt; P_TP_CD</pre>
+<h2>Rail-only parts ×10 — decoupling; wire each pin to its rail symbol, place beside its chip</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  P_C_A1[&quot;&lt;b&gt;C_A1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&quot;]:::part
+  P_C_A2[&quot;&lt;b&gt;C_A2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&quot;]:::part
+  P_C_SD1[&quot;&lt;b&gt;C_SD1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_SD2[&quot;&lt;b&gt;C_SD2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_DV1[&quot;&lt;b&gt;C_DV1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_DV2[&quot;&lt;b&gt;C_DV2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_AV1[&quot;&lt;b&gt;C_AV1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_AV2[&quot;&lt;b&gt;C_AV2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_CPV1[&quot;&lt;b&gt;C_CPV1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_C_CPV2[&quot;&lt;b&gt;C_CPV2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part</pre>
+<h2>GND</h2><p><code>U_AMP.GND</code>, <code>U_AMP.GND</code>, <code>U_AMP.GND</code>, <code>U_AMP.GAIN_SLOT</code>, <code>U_AMP.EP</code>, <code>C_FBP.2</code>, <code>C_FBN.2</code>, <code>C_A1.2</code>, <code>C_A2.2</code>, <code>U_SD.VSS</code>, <code>U_SD.GND</code>, <code>U_SD.GND</code>, <code>U_SD.GND</code>, <code>U_SD.GND</code>, <code>C_SD1.2</code>, <code>C_SD2.2</code>, <code>U_DAC.DGND</code>, <code>U_DAC.AGND</code>, <code>U_DAC.CPGND</code>, <code>U_DAC.FLT</code>, <code>U_DAC.FMT</code>, <code>U_DAC.DEMP</code>, <code>U_DAC.SCK</code>, <code>C_VNEG.2</code>, <code>C_OL.2</code>, <code>C_OR.2</code>, <code>C_DV1.2</code>, <code>C_DV2.2</code>, <code>C_LDO1.2</code>, <code>C_LDO2.2</code>, <code>C_AV1.2</code>, <code>C_AV2.2</code>, <code>C_CPV1.2</code>, <code>C_CPV2.2</code>, <code>J_LINE.2</code>, <code>J_LINE.5</code></p>
+<h2>+5V</h2><p><code>U_AMP.VDD</code>, <code>U_AMP.VDD</code>, <code>C_A1.1</code>, <code>C_A2.1</code></p>
+<h2>+3V3</h2><p><code>U_SD.VDD</code>, <code>C_SD1.1</code>, <code>C_SD2.1</code>, <code>R_CMD.2</code>, <code>R_D0.2</code>, <code>R_D3.2</code>, <code>R_SDM.2</code>, <code>U_DAC.DVDD</code>, <code>U_DAC.AVDD</code>, <code>U_DAC.CPVDD</code>, <code>R_XSMT.2</code>, <code>C_DV1.1</code>, <code>C_DV2.1</code>, <code>C_AV1.1</code>, <code>C_AV2.1</code>, <code>C_CPV1.1</code>, <code>C_CPV2.1</code></p>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>

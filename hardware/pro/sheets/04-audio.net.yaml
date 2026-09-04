@@ -1,0 +1,124 @@
+# Sheet 04 — Audio + microSD: connection spec.  ONE LINE PER NET.
+#
+# Drawing guide: open 04-audio.diagram.html.  Checker after capture:
+#   python3 tools/checknet.py hardware/pro/sheets/04-audio.net.yaml
+#
+# Config pins resolved against the MAX98357A datasheet (2026-09-04):
+#   GAIN_SLOT -> GND direct         = 12 dB (Table 8; zero parts)
+#   SD_MODE   -> +3V3 via 620 k     = (L+R)/2 mono (Table 5/6:
+#     RLARGE = 222.2*VDDIO-100 = 633 k at 3.3 V; safe window vs the
+#     internal 92-108 k pulldown and B0/B1 trip limits is 324-763 k,
+#     so stocked 620 k sits mid-window. NEVER direct-tie: that selects
+#     Left only.)
+# Line-out KEPT (Colin, 2026-09-04): PCM5102A second DAC on the same
+# I2S bus — TI Fig.33 hookup exactly (FLT/FMT/DEMP/SCK all to GND, SCK
+# grounded = internal PLL from BCK; 470R + 2.2nF on each output).
+# Jack PJ-320A — mapping settled by GEOMETRY, twice over (2026-09-04,
+# Colin's depth argument): the sleeve bar wires to pin 5 (= GND), and the
+# three springs' contact depths order identically in the schematic (tips
+# at increasing distance from the bar: 2, 3, 4) and in the footprint
+# (slots at x -4.0 / -1.0 / +3.0 from the barrel opening). Deepest = tip:
+#   4 = TIP = L,  3 = RING1 = R,  2 = RING2 (a TRS plug's sleeve rides
+#   it -> tie to GND),  5 = SLEEVE = GND.
+# Three numbering schemes met here (datasheet contacts 1-4, import pads
+# 2-5, and an unnumbered PCB layout) — none connect on paper; geometry
+# arbitrates. Confirm with a meter at bring-up; wrong = silent channel.
+# No-connect flags: U_AMP pins 5,6,12,13; U_SD DAT1, DAT2.
+
+sheet: 04-audio
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+
+parts:
+  U_AMP:  {value: MAX98357AETE+T, lcsc: C910544, symbol: "propmesh:MAX98357AETE+T", footprint: "propmesh:TQFN-16_L3.0-W3.0-P0.50-BL-EP1.5",
+           note: "GENUINE ADI — $0.88@100 makes the clone question moot. TQFN, hot-air. EP not internally connected; tie to GND plane per DS p15. Import inspected: pins oriented OK"}
+  FB_P:   {value: BLM21PG221SN1D, lcsc: C85840, symbol: "Device:FerriteBead", footprint: "Inductor_SMD:L_0805_2012Metric",
+           note: "220R@100MHz, 2A — the Basic beads (GZ2012: 0.5/0.8A) FAIL saturation at speaker current, exactly the trap the criteria warned about. Murata, Extended, earned"}
+  FB_N:   {value: BLM21PG221SN1D, lcsc: C85840, symbol: "Device:FerriteBead", footprint: "Inductor_SMD:L_0805_2012Metric"}
+  C_FBP:  {value: 100pF,   lcsc: C14858, symbol: "Device:C", footprint: *c0603, note: "C0G, at the bead's speaker side, to GND — EMI snubber pair"}
+  C_FBN:  {value: 100pF,   lcsc: C14858, symbol: "Device:C", footprint: *c0603}
+  R_SDM:  {value: 620k,    lcsc: C23219, symbol: "Device:R", footprint: *r0603, note: "SD_MODE mono-mix pullup to +3V3 — see header math. Why 3V3 not the amp's 5V: trip points are FIXED voltages, so the rail is free — 3V3 gives a proportionally wider tolerance window, references this high-impedance comparator node to the QUIET rail (5V carries servo/relay/class-D hash), and keeps every config strap on one rail. 634k is DS-nominal but 2k stock; 620k = 110k stock, equal margin"}
+  C_A1:   {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric"}
+  C_A2:   {value: 100nF,   lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  J_SPK:  {value: SPEAKER, lcsc: C723982, symbol: "Connector:Screw_Terminal_01x02", footprint: "propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H",
+           note: "3W/4R max. Same thin-stock part as the LED-channel terminals (82 pcs total, 7 used per board)"}
+  U_SD:   {value: TF-01A,  lcsc: C91145, symbol: "propmesh:TF-01A", footprint: "propmesh:TF-SMD_TF-01A",
+           note: "the ubiquitous push-push microSD. Import inspected: pins OK; 2 locating pegs were plated zero-ring holes -> fixed to NPTH in library"}
+  R_CMD:  {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "pull-ups to +3V3. CMD + DAT0 per pinmap, PLUS DAT3: ESP-IDF requires D3 held high in 1-bit mode or the card drops into SPI mode"}
+  R_D0:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_D3:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  C_SD1:  {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "cards pull sharp current spikes"}
+  C_SD2:  {value: 100nF,   lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  TP_CD:  {value: TP_CD,   lcsc: ~,      symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm",
+           note: "card-detect switch to a pad — no GPIO free today, firmware option tomorrow (§2.6)"}
+  U_DAC:  {value: PCM5102APWR, lcsc: C107671, symbol: "propmesh:PCM5102APWR", footprint: "propmesh:TSSOP-20_L6.5-W4.4-P0.65-LS6.4-BL",
+           note: "GENUINE TI, $0.93@100 — the line-out done right: ground-centred 2.1 Vrms, no DC block needed. Shares the I2S bus; SCK grounded = internal PLL from BCK. Import inspected: pins OK"}
+  J_LINE: {value: LINE_OUT, lcsc: C2884926, symbol: "propmesh:PJ-320A", footprint: "propmesh:AUDIO-TH_XKB_PJ-320A",
+           note: "XKB PJ-320A 3.5mm — see header: L=4 (tip, deepest), R=3 (ring1), GND=5 (sleeve) + 2 (ring2). Meter-confirm at bring-up. 30V/0.5A"}
+  R_OL:   {value: 470R,   lcsc: C23179, symbol: "Device:R", footprint: *r0603, note: "TI Fig.33 output RC: 470R + 2.2nF per channel"}
+  R_OR:   {value: 470R,   lcsc: C23179, symbol: "Device:R", footprint: *r0603}
+  C_OL:   {value: 2.2nF,  lcsc: C16033, symbol: "Device:C", footprint: *c0603}
+  C_OR:   {value: 2.2nF,  lcsc: C16033, symbol: "Device:C", footprint: *c0603}
+  C_CP:   {value: 2.2uF,  lcsc: C513691, symbol: "Device:C", footprint: *c0603, note: "charge-pump flying cap CAPP-CAPM. Yageo X7R/10V — no dielectric exception needed"}
+  C_VNEG: {value: 2.2uF,  lcsc: C513691, symbol: "Device:C", footprint: *c0603}
+  R_XSMT: {value: 10k,    lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "XSMT (unmute) pulled to +3V3; bodgeable to a GPIO later"}
+  C_DV1:  {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "TI Fig.33: 10u+100n at EACH of DVDD, LDOO, AVDD, CPVDD — followed literally"}
+  C_DV2:  {value: 100nF,  lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  C_LDO1: {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric"}
+  C_LDO2: {value: 100nF,  lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  C_AV1:  {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric"}
+  C_AV2:  {value: 100nF,  lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  C_CPV1: {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric"}
+  C_CPV2: {value: 100nF,  lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+
+blocks:
+  "I²S amp → speaker (mono mix, 12 dB)": [I2S_DOUT, I2S_BCLK, I2S_LRCLK, SDM, AMP_P, SPK_P, AMP_N, SPK_N]
+  "Line-out DAC (PCM5102A) → 3.5 mm jack": [XSMT, CP_FLY_P, CP_FLY_M, VNEG_N, LDO_N, OUT_L, LINE_L, OUT_R, LINE_R]
+  "microSD — SDMMC 1-bit":               [SD_CLK, SD_CMD, SD_D0, SD_D3, CARD_DET]
+
+named: [I2S_BCLK, I2S_LRCLK, I2S_DOUT, SD_CLK, SD_CMD, SD_D0]
+
+nets:
+  # --- amp -----------------------------------------------------------
+  I2S_DOUT:  [U_AMP.DIN, U_DAC.DIN]
+  I2S_BCLK:  [U_AMP.BCLK, U_DAC.BCK]
+  I2S_LRCLK: [U_AMP.LRCLK, U_DAC.LRCK]
+  SDM:       ["U_AMP.~{SD_MODE}", R_SDM.1]
+  AMP_P:     [U_AMP.OUTP, FB_P.1]
+  SPK_P:     [FB_P.2, C_FBP.1, J_SPK.1]
+  AMP_N:     [U_AMP.OUTN, FB_N.1]
+  SPK_N:     [FB_N.2, C_FBN.1, J_SPK.2]
+  +5V:       [U_AMP.VDD, U_AMP.VDD, C_A1.1, C_A2.1]
+
+  # --- line-out DAC ---------------------------------------------------
+  XSMT:     [U_DAC.XSMT, R_XSMT.1]
+  CP_FLY_P: [U_DAC.CAPP, C_CP.1]
+  CP_FLY_M: [U_DAC.CAPM, C_CP.2]
+  VNEG_N:   [U_DAC.VNEG, C_VNEG.1]
+  LDO_N:    [U_DAC.LDOO, C_LDO1.1, C_LDO2.1]
+  OUT_L:    [U_DAC.OUTL, R_OL.1]
+  LINE_L:   [R_OL.2, C_OL.1, J_LINE.4]
+  OUT_R:    [U_DAC.OUTR, R_OR.1]
+  LINE_R:   [R_OR.2, C_OR.1, J_LINE.3]
+
+  # --- microSD --------------------------------------------------------
+  SD_CLK:   ["U_SD.CLK(SCLK)"]
+  SD_CMD:   ["U_SD.CMD(DI)", R_CMD.1]
+  SD_D0:    ["U_SD.DAT0(D0)", R_D0.1]
+  SD_D3:    ["U_SD.CDDAT3(CS)", R_D3.1]
+  CARD_DET: [U_SD.CD, TP_CD.1]
+  +3V3:     [U_SD.VDD, C_SD1.1, C_SD2.1, R_CMD.2, R_D0.2, R_D3.2, R_SDM.2,
+             U_DAC.DVDD, U_DAC.AVDD, U_DAC.CPVDD, R_XSMT.2,
+             C_DV1.1, C_DV2.1, C_AV1.1, C_AV2.1, C_CPV1.1, C_CPV2.1]
+
+  # --- ground ---------------------------------------------------------
+  GND: [U_AMP.GND, U_AMP.GND, U_AMP.GND, U_AMP.GAIN_SLOT, U_AMP.EP,
+        C_FBP.2, C_FBN.2, C_A1.2, C_A2.2,
+        U_SD.VSS, U_SD.GND, U_SD.GND, U_SD.GND, U_SD.GND,
+        C_SD1.2, C_SD2.2,
+        U_DAC.DGND, U_DAC.AGND, U_DAC.CPGND, U_DAC.FLT, U_DAC.FMT,
+        U_DAC.DEMP, U_DAC.SCK, C_VNEG.2, C_OL.2, C_OR.2,
+        C_DV1.2, C_DV2.2, C_LDO1.2, C_LDO2.2, C_AV1.2, C_AV2.2,
+        C_CPV1.2, C_CPV2.2, J_LINE.2, J_LINE.5]

@@ -259,17 +259,28 @@ parts alone.
 > suffix), not the 70 mA once assumed. PCA9685 real price $1.84@100
 > vs the $0.85 guess — the old table's biggest miss.
 
-#### Audio
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| MAX98357AETE+T, 3.2 W class-D | 1 | SMT | $1.90 | $1.90 |
-| microSD push-push socket | 1 | SMT | $0.30 | $0.30 |
-| 3.5 mm line-out jack (PJ-320A) | 1 | **T** | $0.15 | $0.15 |
-| Speaker screw terminal 2-pos | 1 | **T** | $0.20 | $0.20 |
-| Output ferrite + caps | — | SMT | — | $0.10 |
-| | | | | **$2.65** |
+#### Audio — $3.28 ✅ verified
 
-> **Sourcing decision required.** $1.90 reflects genuine Analog Devices / Maxim silicon at qty 100. Chinese functional equivalents run ~$0.60 and are generally fine for this application. Choosing the clone saves **$1.30/board** but is a call you should make deliberately, not by accident — document whichever you pick in the public BOM.
+**Itemised in `hardware/pro/sheets/04-audio.md`, the single source**
+(sourced + datasheet-resolved 2026-09-04). Rollup only:
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| MAX98357A `C910544` + config, decoupling, EMI beads | $1.02 | $1.44 |
+| microSD TF-01A `C91145` + pull-ups ×3 + decoupling | $0.33 | $0.44 |
+| Speaker terminal | $0.28 | $0.35 |
+| **Line-out: PCM5102A `C107671` + PJ-320A jack + support** | $1.65 | $2.25 |
+| **Audio total** | **$3.28** | **$4.47** |
+
+> **Clone question dissolved:** genuine ADI is **$0.88 @100** — cheaper
+> than this table's old $1.90 estimate and only $0.28 over the clone.
+> Genuine, in the public BOM.
+> **Line-out KEPT, done right** (dropped then reversed same day, 2026-09-04):
+> never off the BTL speaker pins — a PCM5102A second DAC on the shared
+> I²S bus gives real ground-centred line level for ~$1.65. Feeds FM
+> transmitters / powered speakers — an xLights-community staple.
+> GAIN = 12 dB (direct tie), SD_MODE = mono via 620 k — datasheet-exact,
+> see the sheet.
 
 #### Addressable LED
 | Part | Qty | Mount | Unit | Ext |
@@ -401,7 +412,7 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (power, MCU, slow-output blocks verified) | **$29.71** |
+| **Parts subtotal** | sum of §2.4 (power, MCU, outputs, audio verified) | **$30.34** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -409,11 +420,11 @@ MCU boots → one subsystem at a time.
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $1.02 |
+| Scrap allowance | 3% of parts + assembly | $1.04 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$37.12** |
-| US import duty | at 25% on ~$34.35 PCBA value | +$8.59 |
-| **Duty-paid landed** | | **~$45.68** |
+| **Ex-duty landed** | | **$37.77** |
+| US import duty | at 25% on ~$34.98 PCBA value | +$8.75 |
+| **Duty-paid landed** | | **~$46.52** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 
