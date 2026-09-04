@@ -1,0 +1,23 @@
+/* PropMesh Console — base chrome. Visual design per the Claude Design
+   handoff (reference/design_handoff_propmesh_console): dark
+   mission-control, IBM Plex Mono for data, system-ui for names/body.
+   Note for flash serving: self-host the two Plex Mono woff2 weights
+   instead of the Google Fonts link in index.html. */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #0b0d10;
+  color: #e6e9ed;
+  font-family: system-ui, sans-serif;
+}
+#root { height: 100vh; display: flex; }
+button { font-family: inherit; cursor: pointer; }
+a { color: #ff8a4d; }
+a:hover { color: #ffa470; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #232833; border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes pmblink { 0% { opacity: 0.9; } 100% { opacity: 0.05; } }
+@keyframes livedot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
