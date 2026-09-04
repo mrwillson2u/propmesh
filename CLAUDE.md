@@ -38,7 +38,7 @@ original reasoning no longer holds rather than re-deriving it.
 
 ## Open verification items — before layout
 
-- [ ] **GPIO 33/34 free on the exact WROOM-1 variant.** Available on N8R2 (quad PSRAM); consumed by octal PSRAM on R8/R16.
+- [x] ~~GPIO 33/34 free on the exact WROOM-1 variant~~ **RESOLVED 2026-09-03, and the premise was wrong: GPIO 33/34 are not bonded out on ANY WROOM-1** (Espressif DS v1.8 pin table). MOTOR_B moved to GPIO 35/36 — which ARE the octal-PSRAM casualties, so the N8R2 (quad) variant is still load-bearing. `C3013944` verified in stock.
 - [ ] **WS2812B-mini and TSOP38238 checked for "Standard Only" flags** in JLCPCB's parts library. Either one forces the board off Economic PCBA and roughly doubles prototype assembly cost. Fix by moving to hand-soldered THT.
 - [ ] **StepStick control-side pinouts cross-referenced** — MP6603, the specific vendor's TMC2209, and A4988. Power and coil pins are universal; MS/UART/SPREAD assignments are not.
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.

@@ -12,6 +12,52 @@
 	)
 	(lib_symbols)
 	(sheet
+		(at 24.13 22.86)
+		(size 97.79 49.53)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "0f32bd3b-d69f-46e3-8384-0dd06a686621")
+		(property "Sheetname" "MCU and USB"
+			(at 24.13 22.1484 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "mcu+usb.kicad_sch"
+			(at 24.13 72.9746 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "propmesh"
+				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
 		(at 180.34 26.67)
 		(size 88.9 48.26)
 		(exclude_from_sim no)

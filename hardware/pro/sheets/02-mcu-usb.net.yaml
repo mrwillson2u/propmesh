@@ -1,0 +1,108 @@
+# Sheet 02 — MCU + USB: connection spec.  ONE LINE PER NET.
+#
+# Drawing guide before capture (open 02-mcu-usb.diagram.html), checker after:
+#   python3 tools/checknet.py hardware/pro/sheets/02-mcu-usb.net.yaml
+#
+# Pin ids are KiCad pin NAMES as the netlist reports them. The module's
+# oddballs: GPIO19/20 are called USB_D-/USB_D+, GPIO43 is TXD0, GPIO44 is
+# RXD0. Multi-pad pins (the USB-C's 4x VBUS, USBLC6's paired I/O) repeat.
+
+sheet: 02-mcu-usb
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+
+parts:
+  MCU:    {value: ESP32-S3-WROOM-1U-N8R2, lcsc: C3013944, symbol: "RF_Module:ESP32-S3-WROOM-1", footprint: "RF_Module:ESP32-S3-WROOM-1U",
+           note: "KiCad has one WROOM-1 SYMBOL for both antenna variants; the -1U is a FOOTPRINT choice. N8R2 is load-bearing: octal-PSRAM variants eat IO35-37"}
+  J_USB:  {value: TYPE-C-31-M-12, lcsc: C165948,  symbol: "Connector:USB_C_Receptacle_USB2.0_16P", footprint: "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12",
+           note: "KiCad ships the vendor-exact HRO footprint. SBU1/SBU2 get no-connect flags"}
+  U_ESD:  {value: USBLC6-2SC6,    lcsc: C7519,    symbol: "Power_Protection:USBLC6-2SC6", footprint: "Package_TO_SOT_SMD:SOT-23-6"}
+  D_VBUS: {value: SS34,           lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA", note: "VBUS -> +5V, blocks bench-supply backfeed into the laptop. JLC BASIC"}
+  SW_BOOT: {value: TS-1187A,      lcsc: C318884,  symbol: "Switch:SW_Push", footprint: "Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A", note: "JLC BASIC; KiCad ships this exact XKB footprint"}
+  SW_RST: {value: TS-1187A,       lcsc: C318884,  symbol: "Switch:SW_Push", footprint: "Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A"}
+  R_EN:   {value: 10k,            lcsc: C25804,   symbol: "Device:R", footprint: *r0603, note: "same part as sheet 01's R_FB2/R_G"}
+  R_BOOT: {value: 10k,            lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  R_CC1:  {value: 5.1k,           lcsc: C23186,   symbol: "Device:R", footprint: *r0603, note: "0603WAF5101T5E — BASIC. Without CC pulldowns a USB-C host never enables VBUS"}
+  R_CC2:  {value: 5.1k,           lcsc: C23186,   symbol: "Device:R", footprint: *r0603}
+  C_EN:   {value: 1uF,            lcsc: C15849,   symbol: "Device:C", footprint: *c0603, note: "CL10A105KB8NNNC, X5R — documented exception to the X7R rule: POR delay tolerates any 0.5-2 uF, and no X7R 1 uF 0603 exists in Basic"}
+  C_VDD1: {value: 10uF/16V,       lcsc: C95841,   symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "same part as sheet 01's C_in"}
+  C_VDD2: {value: 100nF,          lcsc: C14663,   symbol: "Device:C", footprint: *c0603, note: "same part as sheet 01's C3"}
+  TP37:   {value: TP37,           lcsc: ~,        symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm", note: "IO37 is the board's only spare GPIO"}
+
+blocks:
+  "USB: connector → ESD → module":       [VBUS, +5V, USB_DM, USB_DP, CC1, CC2]
+  "Module core: power, reset, boot":     [+3V3, EN, BOOT_BUTTON]
+  "GPIO fan-out — every label EXACTLY as pinmap.yaml": [
+    ANALOG_IN_1, ANALOG_IN_2, IR_RX, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
+    LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL, DIGITAL_IN_1, DIGITAL_IN_2,
+    DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
+    TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
+    STATUS_LED, SD_CLK, SD_CMD, SD_D0, STEPPER_1_DIAG, STEPPER_2_DIAG,
+    MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR, TP37]
+
+# Global labels — the checker verifies these NAMES exist verbatim in the
+# netlist (the #1 bug class: schematic disagreeing with pinmap.yaml).
+named: [USB_DM, USB_DP, BOOT_BUTTON,
+  ANALOG_IN_1, ANALOG_IN_2, IR_RX, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
+  LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL, DIGITAL_IN_1, DIGITAL_IN_2,
+  DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
+  TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
+  STATUS_LED, SD_CLK, SD_CMD, SD_D0, STEPPER_1_DIAG, STEPPER_2_DIAG,
+  MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR]
+
+nets:
+  # --- USB ------------------------------------------------------------
+  VBUS:        [J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, U_ESD.VBUS, D_VBUS.A]
+  +5V:         [D_VBUS.K]
+  USB_DM:      [J_USB.D-, J_USB.D-, U_ESD.I/O1, U_ESD.I/O1, MCU.USB_D-]
+  USB_DP:      [J_USB.D+, J_USB.D+, U_ESD.I/O2, U_ESD.I/O2, MCU.USB_D+]
+  CC1:         [J_USB.CC1, R_CC1.1]
+  CC2:         [J_USB.CC2, R_CC2.1]
+
+  # --- module core ----------------------------------------------------
+  +3V3:        [MCU.3V3, C_VDD1.1, C_VDD2.1, R_EN.2, R_BOOT.2]
+  EN:          [MCU.EN, R_EN.1, C_EN.1, SW_RST.1]
+  BOOT_BUTTON: [MCU.IO0, R_BOOT.1, SW_BOOT.1]
+
+  # --- GPIO fan-out (single global label each; sheets 03-07 consume) --
+  ANALOG_IN_1:      [MCU.IO1]
+  ANALOG_IN_2:      [MCU.IO2]
+  IR_RX:            [MCU.IO3]
+  LED_STRIP_1_DATA: [MCU.IO4]
+  LED_STRIP_2_DATA: [MCU.IO5]
+  LED_STRIP_2_CLK:  [MCU.IO6]
+  I2S_BCLK:         [MCU.IO7]
+  I2C_SDA:          [MCU.IO8]
+  I2C_SCL:          [MCU.IO9]
+  DIGITAL_IN_1:     [MCU.IO10]
+  DIGITAL_IN_2:     [MCU.IO11]
+  DIGITAL_IN_3:     [MCU.IO12]
+  STEPPER_1_STEP:   [MCU.IO13]
+  STEPPER_1_DIR:    [MCU.IO14]
+  I2S_LRCLK:        [MCU.IO15]
+  I2S_DOUT:         [MCU.IO16]
+  TMC_UART_TX:      [MCU.IO17]
+  TMC_UART_RX:      [MCU.IO18]
+  STEPPER_2_STEP:   [MCU.IO21]
+  MOTOR_B_IN1:      [MCU.IO35]
+  MOTOR_B_IN2:      [MCU.IO36]
+  TP37:             [MCU.IO37, TP37.1]
+  STATUS_LED:       [MCU.IO38]
+  SD_CLK:           [MCU.IO39]
+  SD_CMD:           [MCU.IO40]
+  SD_D0:            [MCU.IO41]
+  STEPPER_1_DIAG:   [MCU.IO42]
+  STEPPER_2_DIAG:   [MCU.TXD0]
+  MOTOR_A_IN1:      [MCU.RXD0]
+  EXPANSION_1:      [MCU.IO45]
+  EXPANSION_2:      [MCU.IO46]
+  STEPPER_2_DIR:    [MCU.IO47]
+  MOTOR_A_IN2:      [MCU.IO48]
+
+  # --- ground ---------------------------------------------------------
+  GND: [MCU.GND, MCU.GND, MCU.GND,
+        J_USB.GND, J_USB.GND, J_USB.GND, J_USB.GND, J_USB.SHIELD,
+        U_ESD.GND, R_CC1.2, R_CC2.2, C_EN.2, C_VDD1.2, C_VDD2.2,
+        SW_RST.2, SW_BOOT.2]

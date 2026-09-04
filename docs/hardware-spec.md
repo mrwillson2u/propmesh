@@ -187,14 +187,23 @@ Estimated LCSC pricing at qty 100. **T** = through-hole (drives manual assembly 
 > self-contained document per schematic sheet (map:
 > `hardware/pro/README.md`) — never from these tables alone.
 
-#### MCU and USB
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| ESP32-S3-WROOM-1U-N8R2 | 1 | SMT | $3.40 | $3.40 |
-| USB-C receptacle, 16-pin | 1 | SMT | $0.12 | $0.12 |
-| USBLC6-2SC6 ESD | 1 | SMT | $0.10 | $0.10 |
-| Tactile switch 6×6 (boot/reset) | 2 | SMT | $0.05 | $0.10 |
-| | | | | **$3.72** |
+#### MCU and USB — $4.11 ✅ verified
+
+**Itemised in `hardware/pro/sheets/02-mcu-usb.md`, the single source** —
+12 part numbers with verified LCSC numbers and prices (2026-09-03).
+This is the rollup only.
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| Module (ESP32-S3-WROOM-1U-N8R2, `C3013944`) | $3.69 | $4.98 |
+| USB (Type-C `C165948`, USBLC6, SS34, CC pulldowns) | $0.33 | $0.41 |
+| Buttons, EN/boot network, decoupling | $0.09 | $0.14 |
+| **MCU + USB total** | **$4.11** | **$5.53** |
+
+> **GPIO 33/34 do not exist on the WROOM-1** (any variant — Espressif
+> DS v1.8). MOTOR_B moved to GPIO 35/36, which makes the **N8R2 suffix
+> load-bearing**: octal-PSRAM variants (R8/R16V) consume IO35–37.
+> Closes open verification item #1, 2026-09-03.
 
 #### Power — $6.73 ✅ verified
 
@@ -382,7 +391,7 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (power block now verified) | **$27.96** |
+| **Parts subtotal** | sum of §2.4 (power + MCU blocks now verified) | **$28.35** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -390,11 +399,11 @@ MCU boots → one subsystem at a time.
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $0.97 |
+| Scrap allowance | 3% of parts + assembly | $0.98 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$35.32** |
-| US import duty | at 25% on ~$32.60 PCBA value | +$8.15 |
-| **Duty-paid landed** | | **~$43.47** |
+| **Ex-duty landed** | | **$35.72** |
+| US import duty | at 25% on ~$32.99 PCBA value | +$8.25 |
+| **Duty-paid landed** | | **~$43.97** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 

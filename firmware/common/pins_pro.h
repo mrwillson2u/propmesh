@@ -28,8 +28,8 @@
 #define PIN_USB_DM                19  // native USB — console lives here
 #define PIN_USB_DP                20
 #define PIN_STEPPER_2_STEP        21  // LEDC-capable
-#define PIN_MOTOR_B_IN1           33  // LEDC 25 kHz; VERIFY on module variant
-#define PIN_MOTOR_B_IN2           34  // LEDC 25 kHz; VERIFY on module variant
+#define PIN_MOTOR_B_IN1           35  // LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V
+#define PIN_MOTOR_B_IN2           36  // LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1
 #define PIN_STATUS_LED            38  // WS2812B-mini @ 5V — data via spare 74AHCT125 gate
 #define PIN_SD_CLK                39  // SDMMC 1-bit
 #define PIN_SD_CMD                40  // 10k pull-up

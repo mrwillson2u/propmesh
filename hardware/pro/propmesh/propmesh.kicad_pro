@@ -661,7 +661,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "U1-2,F1,L1-2,R1-4,R6-9,#PWR1-26,C1-12,Q1-2,D1-4,J1-2,#FLG1-5,R_G1",
+    "used_designators": "SW1-2,C1-16,U1-4,F1,L1-2,R1-4,R6-13,D1-6,#PWR1-41,Q1-2,J1-4,#FLG1-5,TP1,R_G1",
     "variants": []
   },
   "sheets": [
@@ -672,6 +672,10 @@
     [
       "376b6ef9-5aee-48e3-aa0a-56d23c2f33f8",
       "Power"
+    ],
+    [
+      "0f32bd3b-d69f-46e3-8384-0dd06a686621",
+      "MCU and USB"
     ]
   ],
   "text_variables": {},

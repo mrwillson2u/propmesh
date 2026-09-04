@@ -28,8 +28,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
 DEFAULT_SCH = ROOT / "hardware/pro/propmesh/propmesh.kicad_sch"
 
-# Nets whose NAME must appear in the schematic (power symbols / global labels)
-NAMED = {"GND", "+5V", "+3V3", "VIN_RAW", "VIN_PROT"}
+# Nets whose NAME must appear in the schematic (power symbols / global labels).
+# These span sheets, so the spec lists only THIS sheet's members and the checker
+# treats them as a SUBSET of the schematic net — extra members belong to other
+# sheets. A sheet's yaml adds its own with a top-level `named:` list (GPIO nets
+# carried by global labels). Internal nets stay exact-membership.
+POWER_RAILS = frozenset({"GND", "+5V", "+3V3", "VIN_RAW", "VIN_PROT"})
+NAMED = set(POWER_RAILS)
 DNP_VALUES = {"dnp", "open", "nc", "", "~"}
 
 
@@ -67,8 +72,8 @@ def load_spec(path):
             ref, _, pin = item.partition(".")
             if ref not in parts:
                 errs.append(f"net {net}: unknown part '{ref}'"); continue
-            if item in seen:
-                errs.append(f"{item} is on both {seen[item]} and {net}")
+            if seen.get(item, net) != net:      # same item twice in ONE net is fine
+                errs.append(f"{item} is on both {seen[item]} and {net}")  # (multi-pad pins like a USB-C's 4x VBUS)
             seen[item] = net
             members.append((ref, pin.upper()))
         nets[net] = members
@@ -76,7 +81,10 @@ def load_spec(path):
     for title, ns in blocks.items():
         for n in ns:
             if n not in nets: errs.append(f"block '{title}': unknown net '{n}'")
-    return d["sheet"], parts, nets, blocks, errs
+    named = set(d.get("named") or [])
+    for n in named:
+        if n not in nets: errs.append(f"named: unknown net '{n}'")
+    return d["sheet"], parts, nets, blocks, named, errs
 
 
 def export_netlist(sch):
@@ -93,17 +101,21 @@ def load_schematic(xml_path):
     comps = {}
     for c in root.findall(".//components/comp"):
         ls = c.find("libsource")
+        sp = c.find("sheetpath")
         raw = c.findtext("value") or ""
         comps[c.get("ref")] = {"raw": raw, "value": norm(raw), "footprint": c.findtext("footprint") or "",
+                               "sheet": sp.get("names") if sp is not None else "/",
                                "lib": f'{ls.get("lib")}:{ls.get("part")}' if ls is not None else ""}
     nets = {}
     for n in root.findall(".//nets/net"):
         members = []
         for node in n.findall("node"):
-            ref = node.get("ref"); pin = (node.get("pinfunction") or node.get("pin") or "").upper()
-            # KiCad 10 emits pinfunction as NAME_NUMBER ('GND_7', '1_1', 'RT/CLK_4', 'S_S', 'PIN_1_1')
-            head, _, tail = pin.rpartition("_")
-            if head and (tail.isdigit() or tail == head): pin = head
+            ref = node.get("ref"); num = (node.get("pin") or "").upper()
+            pin = (node.get("pinfunction") or "").upper()
+            # KiCad 10 emits pinfunction as NAME_<PADNUMBER> ('GND_7', 'VBUS_A4',
+            # 'SHIELD_SH', 'S_S') — strip exactly the pad-number suffix, nothing else
+            if pin.endswith("_" + num) and len(pin) > len(num) + 1: pin = pin[:-(len(num) + 1)]
+            if not pin: pin = num
             if pin.startswith("PIN_") and pin[4:].isdigit(): pin = pin[4:]
             if comps.get(ref, {}).get("value", "") in DNP_VALUES:
                 continue                         # unpopulated pads are not connections
@@ -150,16 +162,38 @@ def resolve_parts(parts, spec_nets, comps, sch_nets):
     return eff, renamed
 
 
-def compare(parts, spec_nets, comps, sch_nets):
+# two-terminal parts with no orientation: spec pin 1/2 may land either way round
+SYMMETRIC = {"device:r", "device:c", "device:l", "device:fuse", "switch:sw_push"}
+
+
+def compare(parts, spec_nets, all_comps, sch_nets):
     """Pair every spec part with ONE schematic part, then compare pin by pin.
     Same-value parts (two 100 k, ten 100 nF) are paired by which assignment puts the
     most pins on the right nets — so a finding names the actual part, not the first
-    one with that value."""
+    one with that value. Pairing is SCOPED to the spec's home KiCad sheet (found by
+    voting with parts whose value is unique in the schematic), so one sheet's spec
+    never pairs with — or reports on — another sheet's components."""
+    spec_vals_all = {p["value"] for p in parts.values() if not p.get("dnp")}
+    val_count = Counter(c["value"] for c in all_comps.values())
+    votes = Counter(c["sheet"] for c in all_comps.values()
+                    if c["value"] in spec_vals_all and val_count[c["value"]] <= 2)
+    home = votes.most_common(1)[0][0] if votes else None
+    comps = {r: c for r, c in all_comps.items() if home is None or c["sheet"] == home}
+
     eff, renamed = resolve_parts(parts, spec_nets, comps, sch_nets)
-    pin_net = {(r, p): n for n, mem in sch_nets.items() for r, p in mem}
+    pin_locs = {}                    # (ref, pin-name) -> [net, ...]  (multi-pad pins collect several)
+    for n, mem in sch_nets.items():
+        if n.startswith("unconnected-"): continue
+        for r, p in mem: pin_locs.setdefault((r, p), []).append(n)
+    pin_net = {k: v[0] for k, v in pin_locs.items()}
     spec_pins = {}
     for net, want in spec_nets.items():
         for r, p in want: spec_pins.setdefault(r, []).append((net, p))
+
+    def find_named(net):
+        """A NAMED net is looked up by its label, exact first, then as a sheet-local path."""
+        if net in sch_nets: return net
+        return next((n for n in sch_nets if n.endswith("/" + net)), None)
 
     # value-level guess of which schematic net each spec net is (assignment-independent)
     sch_counters = {n: Counter((eff.get(r, "?"), p) for r, p in mem) for n, mem in sch_nets.items()}
@@ -172,8 +206,15 @@ def compare(parts, spec_nets, comps, sch_nets):
             if s > score or (s == score and name == net): best, score = name, s
         vclosest[net] = best
 
+    def flip(r, p):
+        return ("2" if p == "1" else "1") if parts[r]["symbol"].lower() in SYMMETRIC and p in ("1", "2") else None
+
     def pscore(r, c):
-        return sum(1 for net, p in spec_pins.get(r, []) if pin_net.get((c, p)) == vclosest[net])
+        ok = 0
+        for net, p in spec_pins.get(r, []):
+            tgt = vclosest[net]
+            if pin_net.get((c, p)) == tgt or (flip(r, p) and pin_net.get((c, flip(r, p))) == tgt): ok += 1
+        return ok
 
     assign = {}                                   # spec ref -> sch ref | None
     for v in {p["value"] for p in parts.values() if not p.get("dnp")}:
@@ -207,24 +248,35 @@ def compare(parts, spec_nets, comps, sch_nets):
 
     claimed = {(assign[r], p) for r, pl in spec_pins.items() if assign.get(r) for _, p in pl}
     res = {}
+    budget = {k: Counter(v) for k, v in pin_locs.items()}   # consumed as spec pins claim locations
     for net, want in spec_nets.items():
-        cnt = Counter(pin_net.get((assign[r], p)) for r, p in want if not parts[r].get("dnp") and assign.get(r))
-        cnt.pop(None, None)
-        best = max(cnt, key=lambda n: (cnt[n], n == net)) if cnt else (net if net in sch_nets else None)
-        pins = []
+        if net in NAMED:
+            best = find_named(net)
+        else:
+            cnt = Counter(pin_net.get((assign[r], p)) for r, p in want if not parts[r].get("dnp") and assign.get(r))
+            cnt.pop(None, None)
+            best = max(cnt, key=lambda n: (cnt[n], n == net)) if cnt else (net if net in sch_nets else None)
+        pins, score = [], 0
         for r, p in want:
             if parts[r].get("dnp"): pins.append((r, p, "dnp", "")); continue
             c = assign.get(r)
             if not c: pins.append((r, p, "absent", "")); continue
-            at = pin_net.get((c, p))
-            if best is not None and at == best:
+            pool = budget.get((c, p), Counter())
+            if best is not None and pool[best] <= 0 and flip(r, p) and budget.get((c, flip(r, p)), Counter())[best] > 0:
+                pool = budget[(c, flip(r, p))]        # orientation-free two-terminal part
+            if best is not None and pool[best] > 0:
+                pool[best] -= 1; score += 1
                 if r in valued: pins.append((r, p, "value", f"{c} is {comps[c]['raw']}, spec says {parts[r]['label']}"))
                 else: pins.append((r, p, "ok", ""))
             else:
+                at = next((n for n, k in pool.items() if k > 0), None)
+                if at: pool[at] -= 1
                 pins.append((r, p, "wrong", f"on {short(at)}" if at else "unconnected"))
-        extras = [] if net == "GND" or best is None else \
+        # extras: only meaningful on exact-membership (unnamed) nets — a NAMED net's
+        # surplus members belong to other sheets by design
+        extras = [] if net in NAMED or best is None else \
                  [(c, eff.get(c, "?"), p) for c, p in sch_nets[best] if (c, p) not in claimed]
-        res[net] = {"closest": best, "score": cnt[best] if best in cnt else 0, "pins": pins, "extras": extras}
+        res[net] = {"closest": best, "score": score, "pins": pins, "extras": extras}
 
     absent = {r for r, c in assign.items() if not c}
     foreign = [c for c in comps if c not in assign.values() and comps[c]["value"] not in DNP_VALUES]
@@ -256,7 +308,8 @@ def tag(res, ref):
 def label_problem(net, closest):
     if closest is None: return "no such net"
     if closest.endswith("/" + net): return "LOCAL label — make it global (Ctrl+L)"
-    return f"drawn as {closest} — use the {net} symbol"
+    if net in POWER_RAILS: return f"drawn as {closest} — use the {net} symbol"
+    return f"drawn as {closest} — global label must read exactly {net}"
 
 
 def net_ok(net, r):
@@ -351,7 +404,7 @@ def render(sheet, parts, nets, blocks, res=None):
         def edge(a, b, text, key): lines.append(f'  {a} --"{text}"--> {b}'); edges.append(key)
         for i, n in enumerate(ns):
             lab = n + (f"<br/>✗ {netnote[n]}" if n in netnote else "")
-            lines.append(f'  N_{nid(n)}(["{lab}"]):::{"badnet" if n in netnote else "rail" if n in NAMED else "net"}')
+            lines.append(f'  N_{nid(n)}(["{lab}"]):::{"badnet" if n in netnote else "rail" if n in POWER_RAILS else "net"}')
             for j, (ref, pin) in enumerate(nets[n]):
                 if ref not in declared: lines.append("  " + plabel(ref)); declared.add(ref)
                 st, note = status.get((n, ref, pin), (None, ""))
@@ -416,7 +469,8 @@ def main():
     a = ap.parse_args()
     spec = pathlib.Path(a.spec).resolve()
 
-    sheet, parts, nets, blocks, errs = load_spec(spec)
+    sheet, parts, nets, blocks, named, errs = load_spec(spec)
+    NAMED.update(named)          # this sheet's global-label nets join the by-name set
     if errs:
         print("spec errors:"); [print("  -", e) for e in errs]; return 1
     live = sum(1 for n in nets.values() for r, _ in n if not parts[r].get("dnp"))

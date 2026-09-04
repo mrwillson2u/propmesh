@@ -1,0 +1,155 @@
+<!doctype html><meta charset="utf-8"><title>02-mcu-usb wiring</title>
+<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
+<h1>02-mcu-usb — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's ground pin is written inside its box.</p>
+<h2>USB: connector → ESD → module</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_VBUS([&quot;VBUS&quot;]):::net
+  P_J_USB[&quot;&lt;b&gt;J_USB&lt;/b&gt;&lt;br/&gt;TYPE-C-31-M-12&lt;br/&gt;&lt;i&gt;pin SHIELD → GND&lt;/i&gt;&quot;]:::part
+  P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
+  P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
+  P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
+  P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
+  P_U_ESD[&quot;&lt;b&gt;U_ESD&lt;/b&gt;&lt;br/&gt;USBLC6-2SC6&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  N_VBUS --&quot;VBUS&quot;--&gt; P_U_ESD
+  P_D_VBUS[&quot;&lt;b&gt;D_VBUS&lt;/b&gt;&lt;br/&gt;SS34&quot;]:::part
+  N_VBUS --&quot;A&quot;--&gt; P_D_VBUS
+  N__5V([&quot;+5V&quot;]):::rail
+  P_D_VBUS --&quot;K&quot;--&gt; N__5V
+  N_USB_DM([&quot;USB_DM&quot;]):::net
+  P_J_USB --&quot;D-&quot;--&gt; N_USB_DM
+  P_J_USB --&quot;D-&quot;--&gt; N_USB_DM
+  P_U_ESD --&quot;I/O1&quot;--&gt; N_USB_DM
+  P_U_ESD --&quot;I/O1&quot;--&gt; N_USB_DM
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  N_USB_DM --&quot;USB_D-&quot;--&gt; P_MCU
+  N_USB_DP([&quot;USB_DP&quot;]):::net
+  P_J_USB --&quot;D+&quot;--&gt; N_USB_DP
+  P_J_USB --&quot;D+&quot;--&gt; N_USB_DP
+  P_U_ESD --&quot;I/O2&quot;--&gt; N_USB_DP
+  P_U_ESD --&quot;I/O2&quot;--&gt; N_USB_DP
+  P_MCU --&quot;USB_D+&quot;--&gt; N_USB_DP
+  N_CC1([&quot;CC1&quot;]):::net
+  P_J_USB --&quot;CC1&quot;--&gt; N_CC1
+  P_R_CC1[&quot;&lt;b&gt;R_CC1&lt;/b&gt;&lt;br/&gt;5.1k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_CC1 --&quot;1&quot;--&gt; P_R_CC1
+  N_CC2([&quot;CC2&quot;]):::net
+  P_J_USB --&quot;CC2&quot;--&gt; N_CC2
+  P_R_CC2[&quot;&lt;b&gt;R_CC2&lt;/b&gt;&lt;br/&gt;5.1k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_CC2 --&quot;1&quot;--&gt; P_R_CC2</pre>
+<h2>Module core: power, reset, boot</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N__3V3([&quot;+3V3&quot;]):::rail
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_MCU --&quot;3V3&quot;--&gt; N__3V3
+  P_C_VDD1[&quot;&lt;b&gt;C_VDD1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_VDD1
+  P_C_VDD2[&quot;&lt;b&gt;C_VDD2&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_VDD2
+  P_R_EN[&quot;&lt;b&gt;R_EN&lt;/b&gt;&lt;br/&gt;10k&quot;]:::part
+  N__3V3 --&quot;2&quot;--&gt; P_R_EN
+  P_R_BOOT[&quot;&lt;b&gt;R_BOOT&lt;/b&gt;&lt;br/&gt;10k&quot;]:::part
+  N__3V3 --&quot;2&quot;--&gt; P_R_BOOT
+  N_EN([&quot;EN&quot;]):::net
+  P_MCU --&quot;EN&quot;--&gt; N_EN
+  P_R_EN --&quot;1&quot;--&gt; N_EN
+  P_C_EN[&quot;&lt;b&gt;C_EN&lt;/b&gt;&lt;br/&gt;1uF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_EN --&quot;1&quot;--&gt; P_C_EN
+  P_SW_RST[&quot;&lt;b&gt;SW_RST&lt;/b&gt;&lt;br/&gt;TS-1187A&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_EN --&quot;1&quot;--&gt; P_SW_RST
+  N_BOOT_BUTTON([&quot;BOOT_BUTTON&quot;]):::net
+  P_MCU --&quot;IO0&quot;--&gt; N_BOOT_BUTTON
+  P_R_BOOT --&quot;1&quot;--&gt; N_BOOT_BUTTON
+  P_SW_BOOT[&quot;&lt;b&gt;SW_BOOT&lt;/b&gt;&lt;br/&gt;TS-1187A&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_BOOT_BUTTON --&quot;1&quot;--&gt; P_SW_BOOT</pre>
+<h2>GPIO fan-out — every label EXACTLY as pinmap.yaml</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_ANALOG_IN_1([&quot;ANALOG_IN_1&quot;]):::net
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_MCU --&quot;IO1&quot;--&gt; N_ANALOG_IN_1
+  N_ANALOG_IN_2([&quot;ANALOG_IN_2&quot;]):::net
+  P_MCU --&quot;IO2&quot;--&gt; N_ANALOG_IN_2
+  N_IR_RX([&quot;IR_RX&quot;]):::net
+  P_MCU --&quot;IO3&quot;--&gt; N_IR_RX
+  N_LED_STRIP_1_DATA([&quot;LED_STRIP_1_DATA&quot;]):::net
+  P_MCU --&quot;IO4&quot;--&gt; N_LED_STRIP_1_DATA
+  N_LED_STRIP_2_DATA([&quot;LED_STRIP_2_DATA&quot;]):::net
+  P_MCU --&quot;IO5&quot;--&gt; N_LED_STRIP_2_DATA
+  N_LED_STRIP_2_CLK([&quot;LED_STRIP_2_CLK&quot;]):::net
+  P_MCU --&quot;IO6&quot;--&gt; N_LED_STRIP_2_CLK
+  N_I2S_BCLK([&quot;I2S_BCLK&quot;]):::net
+  P_MCU --&quot;IO7&quot;--&gt; N_I2S_BCLK
+  N_I2C_SDA([&quot;I2C_SDA&quot;]):::net
+  P_MCU --&quot;IO8&quot;--&gt; N_I2C_SDA
+  N_I2C_SCL([&quot;I2C_SCL&quot;]):::net
+  P_MCU --&quot;IO9&quot;--&gt; N_I2C_SCL
+  N_DIGITAL_IN_1([&quot;DIGITAL_IN_1&quot;]):::net
+  P_MCU --&quot;IO10&quot;--&gt; N_DIGITAL_IN_1
+  N_DIGITAL_IN_2([&quot;DIGITAL_IN_2&quot;]):::net
+  P_MCU --&quot;IO11&quot;--&gt; N_DIGITAL_IN_2
+  N_DIGITAL_IN_3([&quot;DIGITAL_IN_3&quot;]):::net
+  P_MCU --&quot;IO12&quot;--&gt; N_DIGITAL_IN_3
+  N_STEPPER_1_STEP([&quot;STEPPER_1_STEP&quot;]):::net
+  P_MCU --&quot;IO13&quot;--&gt; N_STEPPER_1_STEP
+  N_STEPPER_1_DIR([&quot;STEPPER_1_DIR&quot;]):::net
+  P_MCU --&quot;IO14&quot;--&gt; N_STEPPER_1_DIR
+  N_I2S_LRCLK([&quot;I2S_LRCLK&quot;]):::net
+  P_MCU --&quot;IO15&quot;--&gt; N_I2S_LRCLK
+  N_I2S_DOUT([&quot;I2S_DOUT&quot;]):::net
+  P_MCU --&quot;IO16&quot;--&gt; N_I2S_DOUT
+  N_TMC_UART_TX([&quot;TMC_UART_TX&quot;]):::net
+  P_MCU --&quot;IO17&quot;--&gt; N_TMC_UART_TX
+  N_TMC_UART_RX([&quot;TMC_UART_RX&quot;]):::net
+  P_MCU --&quot;IO18&quot;--&gt; N_TMC_UART_RX
+  N_STEPPER_2_STEP([&quot;STEPPER_2_STEP&quot;]):::net
+  P_MCU --&quot;IO21&quot;--&gt; N_STEPPER_2_STEP
+  N_MOTOR_B_IN1([&quot;MOTOR_B_IN1&quot;]):::net
+  P_MCU --&quot;IO35&quot;--&gt; N_MOTOR_B_IN1
+  N_MOTOR_B_IN2([&quot;MOTOR_B_IN2&quot;]):::net
+  P_MCU --&quot;IO36&quot;--&gt; N_MOTOR_B_IN2
+  N_STATUS_LED([&quot;STATUS_LED&quot;]):::net
+  P_MCU --&quot;IO38&quot;--&gt; N_STATUS_LED
+  N_SD_CLK([&quot;SD_CLK&quot;]):::net
+  P_MCU --&quot;IO39&quot;--&gt; N_SD_CLK
+  N_SD_CMD([&quot;SD_CMD&quot;]):::net
+  P_MCU --&quot;IO40&quot;--&gt; N_SD_CMD
+  N_SD_D0([&quot;SD_D0&quot;]):::net
+  P_MCU --&quot;IO41&quot;--&gt; N_SD_D0
+  N_STEPPER_1_DIAG([&quot;STEPPER_1_DIAG&quot;]):::net
+  P_MCU --&quot;IO42&quot;--&gt; N_STEPPER_1_DIAG
+  N_STEPPER_2_DIAG([&quot;STEPPER_2_DIAG&quot;]):::net
+  P_MCU --&quot;TXD0&quot;--&gt; N_STEPPER_2_DIAG
+  N_MOTOR_A_IN1([&quot;MOTOR_A_IN1&quot;]):::net
+  P_MCU --&quot;RXD0&quot;--&gt; N_MOTOR_A_IN1
+  N_MOTOR_A_IN2([&quot;MOTOR_A_IN2&quot;]):::net
+  P_MCU --&quot;IO48&quot;--&gt; N_MOTOR_A_IN2
+  N_EXPANSION_1([&quot;EXPANSION_1&quot;]):::net
+  P_MCU --&quot;IO45&quot;--&gt; N_EXPANSION_1
+  N_EXPANSION_2([&quot;EXPANSION_2&quot;]):::net
+  P_MCU --&quot;IO46&quot;--&gt; N_EXPANSION_2
+  N_STEPPER_2_DIR([&quot;STEPPER_2_DIR&quot;]):::net
+  P_MCU --&quot;IO47&quot;--&gt; N_STEPPER_2_DIR
+  N_TP37([&quot;TP37&quot;]):::net
+  P_MCU --&quot;IO37&quot;--&gt; N_TP37
+  P_TP37[&quot;&lt;b&gt;TP37&lt;/b&gt;&lt;br/&gt;TP37&quot;]:::part
+  N_TP37 --&quot;1&quot;--&gt; P_TP37</pre>
+<h2>GND</h2><p><code>MCU.GND</code>, <code>MCU.GND</code>, <code>MCU.GND</code>, <code>J_USB.GND</code>, <code>J_USB.GND</code>, <code>J_USB.GND</code>, <code>J_USB.GND</code>, <code>J_USB.SHIELD</code>, <code>U_ESD.GND</code>, <code>R_CC1.2</code>, <code>R_CC2.2</code>, <code>C_EN.2</code>, <code>C_VDD1.2</code>, <code>C_VDD2.2</code>, <code>SW_RST.2</code>, <code>SW_BOOT.2</code></p>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>

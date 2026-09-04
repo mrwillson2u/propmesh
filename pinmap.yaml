@@ -10,12 +10,14 @@ boards:
   pro:
     mcu: ESP32-S3-WROOM-1U-N8R2
     notes: >
-      35 of 38 module GPIO allocated. Only GPIO 35-37 are spare — route
-      to test points. GPIO 45/46 broken out on the expansion header.
-      GPIO 33-37 are free on N8R2 (quad PSRAM) but consumed by octal
-      PSRAM on R8/R16 variants — verify before layout.
+      35 of 36 module GPIO allocated; only GPIO 37 is spare — test
+      point. GPIO 45/46 broken out on the expansion header.
+      GPIO 33/34 DO NOT EXIST on WROOM-1 modules (any variant) —
+      verified against Espressif DS v1.8, 2026-09-03. GPIO 35-37 are
+      free on N8R2 (quad PSRAM) but go to the octal PSRAM on R8/R16V:
+      the module variant is load-bearing.
 
-    valid_pins: ["0-21", "33-48"]   # exposed on the WROOM-1 module
+    valid_pins: ["0-21", "35-48"]   # exposed on the WROOM-1 module (33/34 are not bonded out)
     adc_pins: ["1-10"]              # ADC1 — ADC2 unusable with WiFi
 
     gpio:
@@ -41,8 +43,8 @@ boards:
       USB_DM:             {pin: 19, dir: bidir, note: "native USB — console lives here"}
       USB_DP:             {pin: 20, dir: bidir}
       STEPPER_2_STEP:     {pin: 21, dir: out, note: "LEDC-capable"}
-      MOTOR_B_IN1:        {pin: 33, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
-      MOTOR_B_IN2:        {pin: 34, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
+      MOTOR_B_IN1:        {pin: 35, dir: out, note: "LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V"}
+      MOTOR_B_IN2:        {pin: 36, dir: out, note: "LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1"}
       STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini @ 5V — data via spare 74AHCT125 gate"}
       SD_CLK:             {pin: 39, dir: out, note: "SDMMC 1-bit"}
       SD_CMD:             {pin: 40, dir: bidir, note: "10k pull-up"}
