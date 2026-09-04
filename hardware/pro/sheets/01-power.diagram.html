@@ -1,0 +1,137 @@
+<!doctype html><meta charset="utf-8"><title>01-power wiring</title>
+<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
+<h1>01-power — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's ground pin is written inside its box.</p>
+<h2>Protection stage: J1 → VIN_PROT</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_VIN_RAW([&quot;VIN_RAW&quot;]):::rail
+  P_J1[&quot;&lt;b&gt;J1&lt;/b&gt;&lt;br/&gt;DC_IN&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  P_J1 --&quot;1&quot;--&gt; N_VIN_RAW
+  P_J2[&quot;&lt;b&gt;J2&lt;/b&gt;&lt;br/&gt;DC_JACK&lt;br/&gt;&lt;i&gt;pin 3 → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_RAW --&quot;1&quot;--&gt; P_J2
+  P_F1[&quot;&lt;b&gt;F1&lt;/b&gt;&lt;br/&gt;7.5A&quot;]:::part
+  N_VIN_RAW --&quot;1&quot;--&gt; P_F1
+  N_VIN_FUSED([&quot;VIN_FUSED&quot;]):::net
+  P_F1 --&quot;2&quot;--&gt; N_VIN_FUSED
+  P_Q1[&quot;&lt;b&gt;Q1&lt;/b&gt;&lt;br/&gt;AOD4185&quot;]:::part
+  N_VIN_FUSED --&quot;D&quot;--&gt; P_Q1
+  N_VIN_PROT([&quot;VIN_PROT&quot;]):::rail
+  P_Q1 --&quot;S&quot;--&gt; N_VIN_PROT
+  P_D_Z[&quot;&lt;b&gt;D_Z&lt;/b&gt;&lt;br/&gt;BZT52C10&quot;]:::part
+  N_VIN_PROT --&quot;K&quot;--&gt; P_D_Z
+  P_D1[&quot;&lt;b&gt;D1&lt;/b&gt;&lt;br/&gt;SMAJ33A&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_PROT --&quot;K&quot;--&gt; P_D1
+  P_C1a[&quot;&lt;b&gt;C1a&lt;/b&gt;&lt;br/&gt;10uF/100V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_PROT --&quot;1&quot;--&gt; P_C1a
+  P_C1b[&quot;&lt;b&gt;C1b&lt;/b&gt;&lt;br/&gt;10uF/100V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_PROT --&quot;1&quot;--&gt; P_C1b
+  P_C_bulk[&quot;&lt;b&gt;C_bulk&lt;/b&gt;&lt;br/&gt;100uF/63V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_PROT --&quot;1&quot;--&gt; P_C_bulk
+  P_U1[&quot;&lt;b&gt;U1&lt;/b&gt;&lt;br/&gt;AP64350SP-13&lt;br/&gt;&lt;i&gt;pin EP → GND&lt;/i&gt;&quot;]:::part
+  N_VIN_PROT --&quot;VIN&quot;--&gt; P_U1
+  P_U1 --&quot;EN&quot;--&gt; N_VIN_PROT
+  N_Q1_GATE([&quot;Q1_GATE&quot;]):::net
+  P_Q1 --&quot;G&quot;--&gt; N_Q1_GATE
+  P_D_Z --&quot;A&quot;--&gt; N_Q1_GATE
+  P_R_G[&quot;&lt;b&gt;R_G&lt;/b&gt;&lt;br/&gt;100k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_Q1_GATE --&quot;1&quot;--&gt; P_R_G</pre>
+<h2>Rail 1: AP64350, VIN_PROT → +5V</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_BST_5V([&quot;BST_5V&quot;]):::net
+  P_U1[&quot;&lt;b&gt;U1&lt;/b&gt;&lt;br/&gt;AP64350SP-13&lt;br/&gt;&lt;i&gt;pin EP → GND&lt;/i&gt;&quot;]:::part
+  P_U1 --&quot;BST&quot;--&gt; N_BST_5V
+  P_C3[&quot;&lt;b&gt;C3&lt;/b&gt;&lt;br/&gt;100nF&quot;]:::part
+  N_BST_5V --&quot;1&quot;--&gt; P_C3
+  N_SW_5V([&quot;SW_5V&quot;]):::net
+  P_U1 --&quot;SW&quot;--&gt; N_SW_5V
+  P_C3 --&quot;2&quot;--&gt; N_SW_5V
+  P_L1[&quot;&lt;b&gt;L1&lt;/b&gt;&lt;br/&gt;6.8uH&quot;]:::part
+  N_SW_5V --&quot;1&quot;--&gt; P_L1
+  N__5V([&quot;+5V&quot;]):::rail
+  P_L1 --&quot;2&quot;--&gt; N__5V
+  P_C2a[&quot;&lt;b&gt;C2a&lt;/b&gt;&lt;br/&gt;22uF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_C2a
+  P_C2b[&quot;&lt;b&gt;C2b&lt;/b&gt;&lt;br/&gt;22uF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_C2b
+  P_R1[&quot;&lt;b&gt;R1&lt;/b&gt;&lt;br/&gt;115k&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_R1
+  P_C4[&quot;&lt;b&gt;C4&lt;/b&gt;&lt;br/&gt;DNP&quot;]:::dnp
+  N__5V --&quot;1&quot;--&gt; P_C4
+  P_R_5V[&quot;&lt;b&gt;R_5V&lt;/b&gt;&lt;br/&gt;680R&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_R_5V
+  P_U2[&quot;&lt;b&gt;U2&lt;/b&gt;&lt;br/&gt;TLV62569DBV&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  N__5V --&quot;VIN&quot;--&gt; P_U2
+  P_U2 --&quot;EN&quot;--&gt; N__5V
+  P_C_in[&quot;&lt;b&gt;C_in&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_C_in
+  N_FB_5V([&quot;FB_5V&quot;]):::net
+  P_R1 --&quot;2&quot;--&gt; N_FB_5V
+  P_R2[&quot;&lt;b&gt;R2&lt;/b&gt;&lt;br/&gt;22.1k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_FB_5V --&quot;1&quot;--&gt; P_R2
+  P_C4 --&quot;2&quot;--&gt; N_FB_5V
+  P_U1 --&quot;FB&quot;--&gt; N_FB_5V
+  N_RT_5V([&quot;RT_5V&quot;]):::net
+  P_U1 --&quot;RT/CLK&quot;--&gt; N_RT_5V
+  P_RT[&quot;&lt;b&gt;RT&lt;/b&gt;&lt;br/&gt;200k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_RT_5V --&quot;1&quot;--&gt; P_RT
+  N_COMP_5V([&quot;COMP_5V&quot;]):::net
+  P_U1 --&quot;COMP&quot;--&gt; N_COMP_5V
+  P_R5[&quot;&lt;b&gt;R5&lt;/b&gt;&lt;br/&gt;14k&quot;]:::part
+  N_COMP_5V --&quot;1&quot;--&gt; P_R5
+  P_C6[&quot;&lt;b&gt;C6&lt;/b&gt;&lt;br/&gt;47pF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_COMP_5V --&quot;1&quot;--&gt; P_C6
+  N_COMP_RC([&quot;COMP_RC&quot;]):::net
+  P_R5 --&quot;2&quot;--&gt; N_COMP_RC
+  P_C5[&quot;&lt;b&gt;C5&lt;/b&gt;&lt;br/&gt;3.3nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_COMP_RC --&quot;1&quot;--&gt; P_C5
+  N_LED_5V([&quot;LED_5V&quot;]):::net
+  P_R_5V --&quot;2&quot;--&gt; N_LED_5V
+  P_D_5V[&quot;&lt;b&gt;D_5V&lt;/b&gt;&lt;br/&gt;LED_BLUE&lt;br/&gt;&lt;i&gt;pin K → GND&lt;/i&gt;&quot;]:::part
+  N_LED_5V --&quot;A&quot;--&gt; P_D_5V</pre>
+<h2>Rail 2: TLV62569, +5V → +3V3</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_SW_3V3([&quot;SW_3V3&quot;]):::net
+  P_U2[&quot;&lt;b&gt;U2&lt;/b&gt;&lt;br/&gt;TLV62569DBV&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_U2 --&quot;SW&quot;--&gt; N_SW_3V3
+  P_L2[&quot;&lt;b&gt;L2&lt;/b&gt;&lt;br/&gt;2.2uH&quot;]:::part
+  N_SW_3V3 --&quot;1&quot;--&gt; P_L2
+  N__3V3([&quot;+3V3&quot;]):::rail
+  P_L2 --&quot;2&quot;--&gt; N__3V3
+  P_C_out[&quot;&lt;b&gt;C_out&lt;/b&gt;&lt;br/&gt;22uF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_out
+  P_R_FB1[&quot;&lt;b&gt;R_FB1&lt;/b&gt;&lt;br/&gt;453k&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_R_FB1
+  P_C_FF[&quot;&lt;b&gt;C_FF&lt;/b&gt;&lt;br/&gt;6.8pF&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_FF
+  P_R_3V3[&quot;&lt;b&gt;R_3V3&lt;/b&gt;&lt;br/&gt;680R&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_R_3V3
+  N_FB_3V3([&quot;FB_3V3&quot;]):::net
+  P_U2 --&quot;FB&quot;--&gt; N_FB_3V3
+  P_R_FB1 --&quot;2&quot;--&gt; N_FB_3V3
+  P_R_FB2[&quot;&lt;b&gt;R_FB2&lt;/b&gt;&lt;br/&gt;100k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_FB_3V3 --&quot;1&quot;--&gt; P_R_FB2
+  P_C_FF --&quot;2&quot;--&gt; N_FB_3V3
+  N_LED_3V3([&quot;LED_3V3&quot;]):::net
+  P_R_3V3 --&quot;2&quot;--&gt; N_LED_3V3
+  P_D_3V3[&quot;&lt;b&gt;D_3V3&lt;/b&gt;&lt;br/&gt;LED_YELLOW&lt;br/&gt;&lt;i&gt;pin K → GND&lt;/i&gt;&quot;]:::part
+  N_LED_3V3 --&quot;A&quot;--&gt; P_D_3V3</pre>
+<h2>GND</h2><p><code>J1.2</code>, <code>J2.2</code>, <code>J2.3</code>, <code>R_G.2</code>, <code>D1.A</code>, <code>C1a.2</code>, <code>C1b.2</code>, <code>C_bulk.2</code>, <code>U1.GND</code>, <code>U1.EP</code>, <code>RT.2</code>, <code>R2.2</code>, <code>C5.2</code>, <code>C6.2</code>, <code>C2a.2</code>, <code>C2b.2</code>, <code>D_5V.K</code>, <code>U2.GND</code>, <code>C_in.2</code>, <code>C_out.2</code>, <code>R_FB2.2</code>, <code>D_3V3.K</code></p>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>

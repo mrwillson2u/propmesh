@@ -50,18 +50,18 @@ Two board variants sharing one firmware base and one mesh protocol.
 | USB D− / D+ | GPIO 19, 20 | Native USB; console lives here, so UART0 is free |
 | **Stepper 2 STEP** | **GPIO 21** | |
 | **DC motor B IN1 / IN2** | **GPIO 33, 34** | LEDC @ 25 kHz |
-| Status RGB LED | GPIO 38 | |
-| microSD — SDMMC 1-bit | GPIO 39, 40, 41 | CLK / CMD / D0 |
-| **Stepper DIAG ×2 (StallGuard)** | **GPIO 42, 43** | Stall interrupt. Solder-jumper selectable to expansion header when running non-StallGuard drivers. |
+| Status RGB LED | GPIO 38 | 5 V WS2812 — data through the spare (4th) 74AHCT125 gate |
+| microSD — SDMMC 1-bit | GPIO 39, 40, 41 | CLK / CMD / D0 · 10 kΩ pull-ups on CMD and D0 |
+| **Stepper DIAG ×2 (StallGuard)** | **GPIO 42, 43** | Stall interrupt. Solder-jumper selectable to expansion header when running non-StallGuard drivers. GPIO 43 is U0TXD — the ROM boot log drives it at every reset, so a 1 kΩ series resistor isolates it from the TMC's push-pull DIAG output. |
 | **DC motor A IN1** | **GPIO 44** | LEDC @ 25 kHz |
 | **Expansion header** | **GPIO 45, 46** | Strapping pins — see §2.2. Broken out with pulldowns and series resistors. |
 | **Stepper 2 DIR** | **GPIO 47** | |
 | **DC motor A IN2** | **GPIO 48** | LEDC @ 25 kHz |
-| Stepper shared ENABLE | PCA9685 ch 16 | The last free expander channel |
+| Stepper shared ENABLE | PCA9685 ch 16 | The last free expander channel. **Through a 2N7002 inverter + pull-up** — PCA9685 powers up outputs-LOW and driver EN is active-low, so uninverted, both sockets would energize from power-on until I²C init. Inverted, drivers default disabled; firmware drives the channel HIGH to enable. |
 
 > **Verify against your module variant.** GPIO 33–37 are available on the N8R2 (quad PSRAM) but are consumed by octal PSRAM on R8/R16 parts. If you substitute a different WROOM-1 variant, re-check 33 and 34 before layout.
 
-**Used: 31 of ~33 usable.** All remaining pins are broken out rather than left stranded — see §2.2.
+**Used: 35 of 38 module GPIO.** The only spares are GPIO 35–37 — free on N8R2, consumed by octal PSRAM on R8/R16 (same caveat as 33/34). Route them to test points. GPIO 45/46 are broken out on the expansion header — see §2.2.
 
 ### 2.2 Expansion header
 
@@ -105,15 +105,23 @@ The original 100 × 80 mm target was optimistic. Working from actual footprints:
 | 2× Pololu stepper sockets (17×22 each + heatsink spacing) | ~960 mm² |
 | ESP32-S3-WROOM-1U (18 × 25.5, plus antenna keepout) | ~470 mm² |
 | 3× HK4100F relays | ~490 mm² |
-| Power stage (2 buck ICs, 7×7 inductor, bulk caps) | ~630 mm² |
+| Power stage (2 buck ICs, inductors 11.5×10 + 7.1×6.6, bulk caps, protection) | ~740 mm² |
 | microSD, USB-C, 3.5 mm jack | ~420 mm² |
 | Remaining ICs (PCA9685, MAX98357A, 2× DRV8871, ULN2003, 74AHCT125) | ~320 mm² |
 | Passives + 6 servo headers | ~540 mm² |
 | Connectors (see split below) | ~2,160 mm² |
-| **Raw footprint** | **~5,990 mm²** |
-| **× 2.4 routing / clearance factor** | **~14,400 mm²** |
+| **Raw footprint** | **~6,100 mm²** |
+| **× 2.4 routing / clearance factor** | **~14,640 mm²** |
 
 **Target: 130 × 100 mm.**
+
+> **Updated once real parts were chosen (2026-09-02):** the original
+> estimate assumed a single 7×7 mm inductor. The resolved parts are
+> **11.5×10 mm (L1) and 7.1×6.6 mm (L2)** — 162 mm² instead of 49,
+> i.e. **+271 mm² after the routing factor, ~2 % of the board.**
+> Absorbable. If layout still runs short, the remaining win is a 4×4 mm
+> L2 (−31 mm², see sheets/01); nothing else in the power stage shrinks
+> without a real trade.
 
 The 2.4× multiplier is higher than the usual 2.0× because **Economic PCBA is single-sided** — decoupling caps and small passives can't move to the bottom layer, so they consume top-side area alongside everything else.
 
@@ -157,6 +165,8 @@ Earlier revisions specified 2-position screw terminals for sensor inputs. **That
 
 **All five sensor inputs are now 3-pin JST-XH:** power, ground, signal. This fixes the problem and shrinks the board at the same time.
 
+The power pin carries **5 V** — the HC-SR501 needs a 5–12 V supply (its output is a 3.3 V logic signal). Digital inputs get the pull-up + clamp + 1 kΩ series treatment; analog inputs get a divider sized so a 5 V-powered sensor's full-scale output stays inside the ADC range.
+
 #### Enclosure
 
 130 × 100 mm fits a **150 × 110 × 70 mm IP65 junction box** (~$12, widely available). That leaves room for cable glands along one long edge and the ~20 mm of Z-height the stepper driver heatsinks need.
@@ -168,6 +178,15 @@ Fix the mounting-hole pattern early so a printable bracket and gland template ca
 
 Estimated LCSC pricing at qty 100. **T** = through-hole (drives manual assembly cost, see §4.3).
 
+> **These tables are cost rollups, not orderable specs.** Several lines
+> carry selection criteria the headline number doesn't capture (Isat vs
+> Irms on inductors, AHCT vs HC thresholds, hold vs trip on the
+> polyfuse, resistor-programmed pins on MAX98357A/DRV8871), and each
+> block needs supporting passives that are lumped or omitted here.
+> Schematic capture works from **`hardware/pro/sheets/`** — one
+> self-contained document per schematic sheet (map:
+> `hardware/pro/README.md`) — never from these tables alone.
+
 #### MCU and USB
 | Part | Qty | Mount | Unit | Ext |
 |---|---|---|---|---|
@@ -177,19 +196,36 @@ Estimated LCSC pricing at qty 100. **T** = through-hole (drives manual assembly 
 | Tactile switch 6×6 (boot/reset) | 2 | SMT | $0.05 | $0.10 |
 | | | | | **$3.72** |
 
-#### Power
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| AP64350SP-13 buck, 40 V / 3.5 A | 1 | SMT | $0.80 | $0.80 |
-| TLV62569 buck, 3.3 V | 1 | SMT | $0.35 | $0.35 |
-| Inductor 4.7 µH / 5 A shielded | 1 | SMT | $0.15 | $0.15 |
-| Inductor 2.2 µH / 2 A | 1 | SMT | $0.08 | $0.08 |
-| AO3401A P-FET (reverse polarity) | 1 | SMT | $0.05 | $0.05 |
-| SMAJ33A TVS | 1 | SMT | $0.08 | $0.08 |
-| Polyfuse 3 A | 1 | SMT | $0.15 | $0.15 |
-| Bulk electrolytics + MLCC | — | mixed | — | $0.40 |
-| Screw terminal 2-pos, DC in | 1 | **T** | $0.20 | $0.20 |
-| | | | | **$2.26** |
+#### Power — $6.73 ✅ verified
+
+**Itemised in `hardware/pro/sheets/01-power.md`, which is the single
+source.** Not duplicated here: 21 distinct part numbers, each with its
+LCSC number and selection criteria, live in that sheet's per-section
+tables. This section carries only the rolled-up cost the model needs.
+
+**These are now real prices, not estimates** — every part on the sheet
+has an LCSC number, and the figures below were pulled from JLCPCB's
+parts API on 2026-09-03 (the query is in the sheet's Sourcing status).
+The earlier $6.88 estimate was within 5 %.
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| Regulators + magnetics (AP64350, TLV62569, L1, L2) | $1.67 | $2.41 |
+| Input protection (Q1 + gate clamp, D_Z, D1, F1 holder + fuse, J1, J2 barrel, R_G) | $3.58 | $4.96 |
+| Capacitors (11) | $1.44 | $1.77 |
+| Resistors ×9, rail LEDs ×2 | $0.04 | $0.04 |
+| **Power section total** | **$6.73** | **$9.17** |
+
+The **qty-1 column is the one that matters for the September 2026
+prototype run** — five hand-built boards cost ~$45 in power-section
+parts alone.
+
+> **F1 dominates at $2.85 (qty 100) / $3.95 (qty 1) — 44 % of the
+> whole power section** — a Littelfuse holder chosen for v0.1
+> because footprint certainty beats price while committing to a layout.
+> **Re-source a generic MINI-blade holder before production** (terminal
+> pitch is standardised); expect ~$2.50/board back. Second-largest is
+> C1 at $0.80 for 2× 100 V parts, where a 63 V generic saves ~$0.40.
 
 *Alternate:* MP4560 (55 V / 3 A, ~$0.55) for a cheaper main buck.
 
@@ -219,7 +255,7 @@ Estimated LCSC pricing at qty 100. **T** = through-hole (drives manual assembly 
 #### Addressable LED
 | Part | Qty | Mount | Unit | Ext |
 |---|---|---|---|---|
-| SN74AHCT125N level shifter | 1 | SMT | $0.35 | $0.35 |
+| SN74AHCT125PW level shifter (TSSOP — the "N" suffix is DIP) | 1 | SMT | $0.35 | $0.35 |
 | Screw terminal 3-pos (WS2812) | 1 | **T** | $0.30 | $0.30 |
 | Screw terminal 4-pos (APA102) | 1 | **T** | $0.35 | $0.35 |
 | 1000 µF bulk + 330 Ω series | — | mixed | — | $0.25 |
@@ -297,18 +333,56 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 | Part | Qty | Mount | Unit | Ext |
 |---|---|---|---|---|
 | WS2812B-mini status LED | 1 | SMT | $0.10 | $0.10 |
-| Passives (0402/0603 R&C) | — | SMT | — | $0.80 |
+| Passives (0603 R&C — see §2.6) | — | SMT | — | $0.80 |
 | U.FL antenna + pigtail | 1 | — | $1.20 | $1.20 |
 | PCB, 4-layer 130×100 mm @ qty 100 | 1 | — | $4.30 | $4.30 |
 | | | | | **$6.40** |
 
 *JLCPCB adjusted FR4 pricing in August 2026. Re-quote the bare board before committing.*
 
-### 2.5 Pro board landed cost, qty 100
+### 2.5 Schematic-capture checklist
+
+Board-level requirements that are easy to lose between spec and schematic:
+
+- [ ] **Stepper EN inverted** — 2N7002 + pull-up on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
+- [ ] **1 kΩ series on GPIO 43** (STEPPER_2_DIAG) — ROM boot log drives U0TXD at every reset against the TMC's push-pull DIAG output.
+- [ ] **Status LED data through the spare 74AHCT125 gate** — it's a 5 V WS2812; the strips use 3 of 4 gates, the 4th is free.
+- [ ] **10 kΩ pull-ups on SD CMD and D0.**
+- [ ] **GPIO 45/46: 10 kΩ pulldown + 100 Ω series** (§2.2), silkscreen "KEEP LOW AT RESET".
+- [ ] **Sensor JST power pins carry 5 V**; dividers on the analog inputs (§2.3).
+- [ ] **Level shifter is SN74AHCT125PW (TSSOP)** — the "N" suffix in older BOM drafts is the DIP package.
+- [ ] **GPIO 35–37 to test points** — the only unallocated pins.
+
+### 2.6 v0.1 layout — design for patchability
+
+"Fix it with jumpers" is the v0.1 recovery plan, so the layout must be
+designed for it on purpose. These cost nearly nothing at design time and
+are the difference between a bodge-able board and a scrapped spin:
+
+- [ ] **Test point on every GPIO and every rail.** GPIO 35–37 are spare
+  anyway. Label test points with net names on silkscreen.
+- [ ] **0 Ω series links on unproven nets** — TMC UART bus, DIAG lines,
+  strap-adjacent signals. A cuttable, rewireable link beats a trace.
+- [ ] **Staged power with removable links:** input → 5 V → 3.3 V, a
+  0 Ω / jumper between each stage. First power-on is incremental, and a
+  bad buck can't take the MCU down with it.
+- [ ] **Bottom side stays empty** (the Economic-PCBA single-sided rule
+  already forces this) — that is the bodge-wire canvas. Don't spend it.
+- [ ] **Unpopulated pull-up/pulldown pads** near every boot-sensitive
+  pin (GPIO 0, 3, 45, 46 on the Pro; 2, 8, 9 on the Mini).
+- [ ] **0603 minimum passives and generous annular rings** on v0.1 —
+  hand-rework friendly. Shrink in a later rev if area demands it.
+- [ ] **Rev + date on silkscreen**, and fix the mounting-hole pattern
+  now (it's already an open item — v0.1 is when it locks).
+
+Bring-up order the staged links enable: rails unloaded → rails loaded →
+MCU boots → one subsystem at a time.
+
+### 2.7 Pro board landed cost, qty 100
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 | **$25.88** |
+| **Parts subtotal** | sum of §2.4 (power block now verified) | **$27.96** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -316,15 +390,118 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $0.91 |
+| Scrap allowance | 3% of parts + assembly | $0.97 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$33.18** |
-| US import duty | at 25% on ~$30.50 PCBA value | +$7.63 |
-| **Duty-paid landed** | | **~$40.80** |
+| **Ex-duty landed** | | **$35.32** |
+| US import duty | at 25% on ~$32.60 PCBA value | +$8.15 |
+| **Duty-paid landed** | | **~$43.47** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 
 **SMT-only SKU:** drops THT joints and the hand-solder fee (−$2.69). Ship connectors and sockets loose in a bag. Target $84.
+
+### 2.8 Worked use case: fogger
+
+A pond-fogger mist effect (24 V ultrasonic mister + variable fan + lights) maps onto the Pro with **zero hardware changes** — it is a firmware profile, not a board variant.
+
+| Fogger need | Pro resource | Notes |
+|---|---|---|
+| Mister power, on/off | Relay 1 (dry contact) | Supply-agnostic — pond foggers ship with both 24 VAC and 24 VDC bricks; the contact doesn't care |
+| Variable fan | DC motor channel A, DRV8871 @ 25 kHz | 2-wire brushed fan. Silent PWM |
+| 12 V *or* 24 V fan | Firmware duty-cycle ceiling (§5) | A 12 V fan on the 24 V rail caps near 50% duty — already a v1 firmware feature |
+| Lights | Dimmable + addressable channels | |
+| Power | One 24 V supply | Runs the board, the fan rail, and feeds the mister through the relay contact |
+
+**Current limit:** the HK4100F contact is rated 3 A. Single- and 3-disc misters (~25–50 W at 24 V) fit; a 10-head pond fogger (~250 W → 10 A) does not. For big loads the onboard relay switches the **coil of an external automotive relay or SSR** — consistent with the dry-contact philosophy, and worth stating in user docs before someone welds a contact learning it.
+
+**If demand justifies a cheaper fogger SKU later:** a depopulated BOM variant of the same PCB (no audio, no stepper sockets) — shared Gerbers, shared firmware, no new layout. Do not design a third board for this; decide after shipping, with sales data.
+
+### 2.9 Power budget and input limits
+
+The Mini has had a power budget since §3.4; the Pro never did, which
+left the input fuse rating unfounded. Loads are given as **power**,
+because input current scales inversely with supply voltage — the
+worst case is at the *bottom* of the 12–24 V range, not the top.
+
+| Subsystem | Worst-case power | Basis |
+|---|---|---|
+| 5 V rail | **15 W** | capped by design at 3 A × 5 V — servos, LED channels, relays, audio, logic all share it and cannot collectively exceed it |
+| → input side | **17 W** | 15 W ÷ 88 % buck efficiency |
+| 2× stepper (NEMA17, running) | **24 W** | ~12 W each: I²R in 1.5 A/phase coils plus driver loss. Standstill reduction cuts this to ~2 W each |
+| 2× brushed DC (DRV8871) | **48 W** | ~24 W each at 2 A continuous — **user-dependent and effectively unbounded**; the board cannot budget what someone plugs in |
+| **Worst-case total** | **~89 W** | everything running simultaneously |
+
+**Input current is what sizes the fuse and the input path:**
+
+| Vin | Board only | + steppers | Everything |
+|---|---|---|---|
+| **12 V** (minimum) | 1.4 A | 3.4 A | **7.4 A** |
+| **24 V** | 0.7 A | 1.7 A | 3.7 A |
+| **28 V** (abs max) | 0.6 A | 1.5 A | 3.2 A |
+
+#### Input range narrowed to 12–30 V (was 7–30 V)
+
+At 7 V a fully loaded board would have drawn **12.7 A** — past the 10 A
+screw terminal and past any sane trace width. The 7 V lower bound served
+no documented use case: battery operation is Mini-only by locked
+decision, and no standard prop supply is 7–9 V. **Raising the floor to
+12 V halves every current in the design for free** — FET dissipation,
+fuse rating, trace width, connector stress.
+
+**24 V was considered as a hard requirement and rejected.** It would
+halve currents again (3.7 A worst case), but 12 V is deeply entrenched
+in this hobby — LED strips, fog machines, solenoids, car-battery setups
+— and requiring a new PSU is a real adoption tax for a modest
+engineering convenience. Support both; recommend 24 V.
+
+**User-facing guidance to ship:** *"12–24 V DC, 24 V recommended,
+especially with steppers or DC motors — same power at half the current,
+and TMC drivers give noticeably better torque at speed. Absolute
+maximum 28 V."*
+
+#### Ceiling lowered 30 V → 28 V (2026-09-03)
+
+Nothing on the board uses more than 24 V, and the recommended stepper
+driver cannot take 30: the **TMC2209's operating range ends at 29 V**,
+and `VIN_PROT` feeds the sockets directly, so the old 30 V spec put a
+socketed driver at its limit with zero margin. 28 V clears the TMC2209
+with a volt in hand while still covering a real 24 V supply's unloaded
+excursions (+5 % regulation ≈ 25.2 V) and motor back-EMF on the shared
+rail. **28 V is a damage threshold, not an operating point** — no
+common supply or motor is 28 V nominal.
+
+**Hardware unchanged by design.** The protection parts keep their old
+margins (SMAJ33A TVS, 100 V input ceramics, 63 V bulk): re-sourcing a
+finished sheet to save ~$0.10 was not worth it, and the headroom buys a
+graceful failure — 30 V applied anyway kills a socketed $1 driver, not
+the power section. The barrel jack (DC-044A, 30 V rated) now carries
+2 V of margin over the stated max instead of zero.
+
+#### Fuse: blade holder, not a PPTC
+
+A 30 V-rated 3 A-hold SMD PPTC does not exist (§ sheets/01) — voltage
+and hold current trade against each other in PPTC chemistry, and
+Littelfuse's largest 33 V part is 1.85 A hold. **Use a PCB-mount ATO/ATC
+mini blade fuse holder.**
+
+| Blade fuse | @ 7 V | @ 12 V | @ 24 V |
+|---|---|---|---|
+| 5 A | 35 W | 60 W | 120 W |
+| **7.5 A** | 52 W | **90 W** | **180 W** |
+| 10 A | 70 W | 120 W | 240 W |
+
+**Ship 7.5 A.** It covers the full 89 W worst case at 12 V, sits under
+the 10 A terminal rating, and — the reason it suits v0.1 — **the value
+is a field decision, not a design commitment.** Measure real current at
+bring-up and swap the fuse; users can size it to their own load. That
+is the §2.6 patchability principle applied to protection.
+
+Note what a fuse does *not* do: it is slow (a 7.5 A blade takes seconds
+at 15 A), so it protects **wiring and connectors against a sustained
+short**, not the FET or the regulator against a fast fault. Those are
+covered by the AP64350's cycle-by-cycle current limit and thermal
+shutdown, and by sizing Q1 to survive fault current until the fuse
+clears.
 
 ---
 
@@ -340,9 +517,9 @@ The C3 has ~13 usable pins. This map only closes because audio lives in flash in
 |---|---|---|
 | Analog sensor in | GPIO 0 | ADC1 |
 | Battery voltage sense | GPIO 1 | ADC1, 1 MΩ divider + FET disconnect |
-| 5 V rail load-switch enable | GPIO 2 | **Strapping pin** — needs pull-up, defaults rail ON at boot |
-| IR receiver | GPIO 3 | RMT RX |
-| I²S BCLK | GPIO 4 | |
+| 5 V rail load-switch enable | GPIO 2 | **Strapping pin — ACTIVE-LOW enable.** The pull-up keeps the strap high at boot *and* the rail off in deep sleep with the pin simply released — no GPIO hold, so the wake-reset strap is never violated. Firmware drives it LOW to power the rail. |
+| IR receiver | GPIO 3 | RMT RX. RTC-capable — can wake from deep sleep |
+| Digital input 1 | GPIO 4 | **RTC-capable — the deep-sleep wake input.** The PIR goes here. |
 | I²S LRCLK | GPIO 5 | |
 | I²S DOUT | GPIO 6 | |
 | WS2812 data out | GPIO 7 | RMT TX, through 74AHCT1G125 |
@@ -350,8 +527,10 @@ The C3 has ~13 usable pins. This map only closes because audio lives in flash in
 | Boot button | GPIO 9 | Strapping pin |
 | I²C SCL | GPIO 10 | To PCA9685 + Qwiic |
 | USB D− / D+ | GPIO 18, 19 | Console over native USB Serial/JTAG |
-| Digital input 1 | GPIO 20 | UART0 TX repurposed |
-| Digital input 2 | GPIO 21 | UART0 RX repurposed |
+| I²S BCLK | GPIO 20 | U0RXD repurposed |
+| Digital input 2 | GPIO 21 | U0TXD repurposed — ROM boot log drives it at reset; 1 kΩ series resistor |
+
+**Why digital input 1 lives on GPIO 4:** the C3 only wakes from deep sleep on GPIO 0–5. With both digital inputs on 20/21 the "PIR wake, months of runtime" mode would be impossible — nothing could wake the chip. I²S doesn't care which pins it uses, so BCLK takes GPIO 20 instead.
 
 **Retained via PCA9685:** 3 servo channels, 4 dimmable LED channels, 1 relay. Keeping the expander on the Mini is the single highest-value-per-mm² decision on this board.
 
@@ -423,11 +602,18 @@ Battery: 1× 18650, 3000 mAh, 3.6 V nominal → **10.8 Wh usable**
 |---|---|---|---|
 | Always-listening, 20 px flicker + audio | MCU 0.33 W + LEDs 1.36 W + audio 0.15 W | ~1.84 W | **~6 h** |
 | Always-listening, 8 px candle + audio | MCU 0.33 W + LEDs 0.32 W + audio 0.15 W | ~0.80 W | **~13 h** |
-| Deep sleep, PIR wake (5 V rail switched off) | MCU 5 µA + boost EN low 1 µA + LDO 1 µA | ~15 µA | **months** |
+| Deep sleep, PIR wake on GPIO 4 (5 V rail switched off) | MCU 5 µA + boost EN low 1 µA + LDO 1 µA | ~15 µA | **months** |
 
 **Critical:** without the 5 V load switch, WS2812 quiescent current (~0.7–1 mA per pixel) drops sleep runtime from months to about six days. This part is not optional.
 
 **Solar:** 6 V / 1 W panel through a Schottky into TP4056 VIN yields ~5 Wh/day in good sun. Fully sustains a trigger-mode prop; meaningfully extends an always-on one. A CN3065 is the better-engineered alternative if you want proper solar charge behavior for ~$0.30 more.
+
+### 3.5 Schematic-capture checklist
+
+- [ ] **Rail enable is ACTIVE-LOW on GPIO 2** — pull-up, firmware drives low to power the rail. Never flip this back to active-high: it either violates the GPIO 2 strap on wake (pin held low through the reset) or leaves the rail on through sleep (pin released high) — both fatal to the sleep story.
+- [ ] **1 kΩ series on GPIO 21** (digital input 2) — ROM boot log drives U0TXD at reset against whatever sensor is attached.
+- [ ] **PIR / wake sensor input is GPIO 4** — the only deep-sleep-wake-capable digital input; silkscreen it as the wake input.
+- [ ] **Cap the 5 V rail at ~1.2 A continuous** — the JST-PH battery input is rated 2 A, and the boost pulls roughly 1.5 W from the cell per watt delivered at 5 V. Document the cap; strips beyond ~30 px get external power with data-only from the board.
 
 ---
 
@@ -453,10 +639,10 @@ Battery: 1× 18650, 3000 mAh, 3.6 V nominal → **10.8 Wh usable**
 
 | Board | SMT joints | THT joints | SMT cost | THT cost |
 |---|---|---|---|---|
-| Pro | ~380 | ~96 | $0.65 | **$1.66** |
+| Pro | ~392 | ~153 | $0.67 | **$2.65** |
 | Mini | ~230 | ~35 | $0.39 | $0.61 |
 
-On the Pro, **through-hole labor costs 2.5× the entire SMT placement** despite being a quarter of the joints. The drivers are 13 screw terminals, 6 servo headers, and 3 relays.
+On the Pro, **through-hole labor costs 4× the entire SMT placement** despite being under a third of the joints. The drivers are 13 screw terminals, 6 servo headers, and 3 relays.
 
 **Mitigations, in order of preference:**
 
@@ -515,7 +701,7 @@ At 10 pieces you are under the 30-piece Economic PCBA cap, which removes the $1.
 
 Parts flagged **"Standard Only"** make the entire design ineligible for Economic PCBA. This commonly applies to SMD LEDs with high moisture-sensitivity level, certain sensors, BGA packages, and anything 0201 or smaller.
 
-**Two parts at risk in this BOM:** the WS2812B-mini status LED and the TSOP38238 IR receiver. If either is flagged, the $136 assembly quote becomes roughly $100 in feeder fees plus a $25 setup — **near double**. Check both in JLCPCB's parts library before ordering; if flagged, move them to hand-soldered through-hole footprints.
+**Two parts at risk in this BOM:** the WS2812B-mini status LED and the TSOP38238 IR receiver. If either is flagged, the ~$148 assembly subtotal becomes roughly $100 in feeder fees plus a $25 setup on top of the joints — **near double**. Check both in JLCPCB's parts library before ordering; if flagged, move them to hand-soldered through-hole footprints.
 
 **Also note Economic PCBA is single-sided.** All SMT parts must live on the top layer. Plan for this from the start of layout rather than discovering it at quote time.
 
@@ -546,7 +732,37 @@ Run PCBA on v0.2 in June at 25–30 units, once the design is proven and the fix
 - **E1.31 / Art-Net input.** This is the killer feature. The Halloween and Christmas display community already runs **xLights** and **Vixen**. Speaking sACN means your boards drop into existing shows on day one instead of asking people to learn a new tool.
 - **Node-RED custom nodes** for visual automation
 - **ESPHome custom component** as an alternate firmware path
+- **Named prop profiles** — canned sequencing for common builds. First: **fogger** (mist pulse timing, fan pre-purge and ramp curves, light sync — see §2.8). Fog-chiller builders obsess over fan-vs-mist timing; a profile that sequences it well is a selling point no relay box has.
 
+
+---
+
+## 5.5 Landscape (surveyed 2026-09-02)
+
+**Incumbent prop controllers are single-node, wired-trigger boxes.**
+PicoBoo / BooBox (FrightIdeas) is the industry standard — one PIR in,
+two relays out, sequenced audio, a decade of field reliability. EFX-TEK
+Prop-1/2 and Gilderfluke cover the hobby and theme-park ends.
+**Octobanger** is the open-source analog (Arduino 8-channel sequencer +
+PC app) and its users are the natural early adopters here.
+
+**Adjacent, not competing:** xLights/Vixen with Falcon/Kulp sACN
+controllers (the pixel world PropMesh *joins* via sACN input), WLED
+(ESP32 LED nodes syncing over WiFi — nearest shipping "yard of nodes"
+story, but LED-only and router-dependent), Falcon Player.
+
+**The gap:** nothing productized is battery-powered, mesh-synchronized,
+and multi-actuator. Existing ESP-NOW Halloween builds are one-off
+trigger broadcasts with no time sync. **PicoBoo coordinates a prop;
+PropMesh coordinates a yard** — that is the positioning, and it is
+additive to what haunters already own rather than a replacement.
+
+**Do not compete on single-prop simplicity.** A PicoBoo is the right
+answer for one prop and one sensor, and it will stay that way.
+
+Reference for firmware: **ESPNowMeshClock** (Hemisphere-Project) is a
+mature ESP-NOW mesh-time library for show control — compare against
+`pm_time.h` before the winter firmware push.
 ---
 
 ## 6. Licensing
@@ -563,18 +779,24 @@ Publish **KiCad source**, not just Gerbers. That is the community standard and t
 
 ## 7. Schedule
 
-The recurring failure mode is starting in October. Working backward from Halloween:
+Revised 2026-09-01: **Halloween 2026 is a full-season field test on
+prototype hardware; Halloween 2027 is the launch.** A yard of props
+running for a month is both the best possible shakedown and the launch
+content. The old plan's beta window was one August; this plan's is an
+entire October plus a relaxed 2027.
 
-| Month | Milestone |
+| When | Milestone |
 |---|---|
-| **February** | Schematic capture, both boards |
-| **March** | Layout, DRC, order v0.1 prototypes (5 each, Economic PCBA) |
-| **April** | Bring-up: power rails, then LEDs, then audio, then mesh |
-| **May** | Firmware: ESP-NOW sync, web UI, OTA |
-| **June** | v0.2 spin with bring-up fixes. Get a real JLCPCB quote at qty 100. |
-| **July** | E1.31 / xLights integration, docs, GitHub publish |
-| **August** | Beta boards to a handful of haunters for real-world feedback |
-| **September** | Tindie listing, final firmware polish |
-| **October** | Decorate. Do not design. |
+| **Sep 2026, wk 1–2** | **Pro v0.1 only** — schematic + layout in KiCad, close the open verification items (CLAUDE.md), order by ~Sep 12: bare 4-layer boards + LCSC/Digi-Key parts, hand-populate 2–3 (fastest path; no PCBA queue) |
+| **Sep 2026, wk 3–4** | Boards + parts arrive. Bring-up: rails unloaded → loaded → MCU → one subsystem at a time (§2.6 staged links) |
+| **~Oct 10, 2026** | **Rev-B decision point.** Bodge-able → run it. Fatal flaw → one expedited quick-turn shot, or fall back to devkits + perf board for this year's show. No mid-October redesigns |
+| **Oct 2026** | **Field season.** The yard show runs on the prototype. Keep a bring-up defect log — it is the v0.2 to-do list. Decorating is the test |
+| **Nov–Dec 2026** | **Mini v0.1** design + spin (second KiCad project benefits from the first). Pro v0.2 fixes from the defect log. Mesh firmware on devkits per software plan |
+| **Jan–Feb 2027** | v0.2 spin of both boards, panelized, Economic PCBA at 25–30 pcs (§4.6 lever) |
+| **Mar–Apr 2027** | Real JLCPCB quote at qty 100. E1.31 / xLights integration |
+| **May–Jun 2027** | Beta boards to haunters — months earlier than the old plan. Docs, GitHub publish |
+| **Jul–Aug 2027** | **Promote.** This is when the display community researches next season's builds. 2026 field-season footage is the material |
+| **Sep 2027** | Tindie listing live, fulfill |
+| **Oct 2027** | Decorate. Do not design. |
 
-**Ship a v0.1 that only does LEDs, relay, and sensor input if you have to.** That is still a useful prop controller, it gets community feedback nine months earlier, and it de-risks the harder subsystems.
+**Ship a v0.1 that only does LEDs, relay, and sensor input if you have to.** That is still a useful prop controller, it gets a full field season of feedback, and it de-risks the harder subsystems.
