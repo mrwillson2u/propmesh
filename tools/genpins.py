@@ -12,15 +12,37 @@ PINMAP = ROOT / "pinmap.yaml"
 OUTDIR = ROOT / "firmware" / "common"
 
 
+def expand_pins(spec):
+    """Expand a list of ints and "a-b" range strings into a set of ints."""
+    pins = set()
+    for item in spec or []:
+        if isinstance(item, int):
+            pins.add(item)
+        else:
+            a, b = str(item).split("-")
+            pins.update(range(int(a), int(b) + 1))
+    return pins
+
+
 def validate(name, board):
     """Catch the mistakes that cost an evening at bring-up."""
     errs = []
     seen = {}
+    valid = expand_pins(board.get("valid_pins"))
+    adc = expand_pins(board.get("adc_pins"))
     for sig, d in board["gpio"].items():
         pin = d["pin"]
         if pin in seen:
             errs.append(f"{name}: GPIO {pin} assigned to both {seen[pin]} and {sig}")
         seen[pin] = sig
+        if d["dir"] not in ("in", "out", "bidir", "adc"):
+            errs.append(f"{name}: {sig} has unknown dir '{d['dir']}'")
+        if valid and pin not in valid:
+            errs.append(f"{name}: {sig} on GPIO {pin} — pin does not exist "
+                        f"on {board['mcu']}")
+        if adc and d["dir"] == "adc" and pin not in adc:
+            errs.append(f"{name}: {sig} is dir=adc but GPIO {pin} is not "
+                        f"ADC-capable")
 
     ch = {}
     for sig, c in board.get("pca9685", {}).get("channels", {}).items():

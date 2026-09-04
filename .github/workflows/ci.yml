@@ -1,0 +1,39 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  generated:
+    name: generated files match their sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - name: Headers match pinmap.yaml
+        run: python3 tools/genpins.py --check
+      - name: Bindings match schema/messages.yaml
+        run: python3 tools/genmsg.py --check
+      - name: Connection specs are well-formed
+        run: for f in hardware/*/sheets/*.net.yaml; do python3 tools/checknet.py "$f" --lint || exit 1; done
+
+  firmware:
+    name: firmware tests and builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install platformio
+      - name: Mesh core unit tests (host native)
+        run: pio test -d firmware/test -e native
+      - name: Build devkit testbed
+        run: pio run -d firmware/mesh-node
+
+  console:
+    name: console typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --prefix console || npm install --prefix console
+      - run: npm run typecheck --prefix console
+      - run: npm run build --prefix console

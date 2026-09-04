@@ -30,12 +30,12 @@
 #define PIN_STEPPER_2_STEP        21  // LEDC-capable
 #define PIN_MOTOR_B_IN1           33  // LEDC 25 kHz; VERIFY on module variant
 #define PIN_MOTOR_B_IN2           34  // LEDC 25 kHz; VERIFY on module variant
-#define PIN_STATUS_LED            38  // WS2812B-mini
+#define PIN_STATUS_LED            38  // WS2812B-mini @ 5V — data via spare 74AHCT125 gate
 #define PIN_SD_CLK                39  // SDMMC 1-bit
-#define PIN_SD_CMD                40
-#define PIN_SD_D0                 41
+#define PIN_SD_CMD                40  // 10k pull-up
+#define PIN_SD_D0                 41  // 10k pull-up
 #define PIN_STEPPER_1_DIAG        42  // StallGuard; JP1 frees it for expansion
-#define PIN_STEPPER_2_DIAG        43  // StallGuard; JP2 frees it for expansion
+#define PIN_STEPPER_2_DIAG        43  // StallGuard; JP2 frees it for expansion. U0TXD — ROM boot log drives it at reset; 1k series R
 #define PIN_MOTOR_A_IN1           44  // LEDC 25 kHz
 #define PIN_EXPANSION_1           45  // STRAPPING — must be LOW at reset. 10k pulldown + 100R series.
 #define PIN_EXPANSION_2           46  // STRAPPING — must be LOW at reset. 10k pulldown + 100R series.

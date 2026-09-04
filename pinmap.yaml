@@ -10,9 +10,13 @@ boards:
   pro:
     mcu: ESP32-S3-WROOM-1U-N8R2
     notes: >
-      31 of ~33 usable GPIO allocated. GPIO 45/46 broken out on the
-      expansion header. GPIO 33/34 are free on N8R2 (quad PSRAM) but are
-      consumed by octal PSRAM on R8/R16 variants — verify before layout.
+      35 of 38 module GPIO allocated. Only GPIO 35-37 are spare — route
+      to test points. GPIO 45/46 broken out on the expansion header.
+      GPIO 33-37 are free on N8R2 (quad PSRAM) but consumed by octal
+      PSRAM on R8/R16 variants — verify before layout.
+
+    valid_pins: ["0-21", "33-48"]   # exposed on the WROOM-1 module
+    adc_pins: ["1-10"]              # ADC1 — ADC2 unusable with WiFi
 
     gpio:
       BOOT_BUTTON:        {pin: 0,  dir: in,  note: "strapping"}
@@ -39,12 +43,12 @@ boards:
       STEPPER_2_STEP:     {pin: 21, dir: out, note: "LEDC-capable"}
       MOTOR_B_IN1:        {pin: 33, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
       MOTOR_B_IN2:        {pin: 34, dir: out, note: "LEDC 25 kHz; VERIFY on module variant"}
-      STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini"}
+      STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini @ 5V — data via spare 74AHCT125 gate"}
       SD_CLK:             {pin: 39, dir: out, note: "SDMMC 1-bit"}
-      SD_CMD:             {pin: 40, dir: bidir}
-      SD_D0:              {pin: 41, dir: bidir}
+      SD_CMD:             {pin: 40, dir: bidir, note: "10k pull-up"}
+      SD_D0:              {pin: 41, dir: bidir, note: "10k pull-up"}
       STEPPER_1_DIAG:     {pin: 42, dir: in,  note: "StallGuard; JP1 frees it for expansion"}
-      STEPPER_2_DIAG:     {pin: 43, dir: in,  note: "StallGuard; JP2 frees it for expansion"}
+      STEPPER_2_DIAG:     {pin: 43, dir: in,  note: "StallGuard; JP2 frees it for expansion. U0TXD — ROM boot log drives it at reset; 1k series R"}
       MOTOR_A_IN1:        {pin: 44, dir: out, note: "LEDC 25 kHz"}
       EXPANSION_1:        {pin: 45, dir: out, note: "STRAPPING — must be LOW at reset. 10k pulldown + 100R series."}
       EXPANSION_2:        {pin: 46, dir: out, note: "STRAPPING — must be LOW at reset. 10k pulldown + 100R series."}
@@ -69,6 +73,10 @@ boards:
         RELAY_1: 12
         RELAY_2: 13
         RELAY_3: 14
+        # EN is active-low on all socketed drivers and PCA9685 powers up
+        # outputs-LOW, so the EN net goes through a 2N7002 inverter with
+        # pull-up: drivers default DISABLED, firmware drives ch 15 HIGH
+        # to enable. See hardware-spec §2.5.
         STEPPER_ENABLE: 15
 
   mini:
@@ -77,13 +85,18 @@ boards:
       All 15 exposed GPIO allocated — no expansion header. Qwiic is the
       entire expansion path. Audio lives in flash, not on SD: the C3 has
       no SDMMC and SPI SD would cost 4 GPIO the board cannot spare.
+      Deep-sleep wake only works on GPIO 0-5, which is why DIGITAL_IN_1
+      sits on GPIO 4 — put the PIR there. IR_RX (GPIO 3) can also wake.
+
+    valid_pins: ["0-10", "18-21"]   # exposed on the C3-MINI-1 module
+    adc_pins: ["0-4"]               # ADC1
 
     gpio:
       ANALOG_IN_1:        {pin: 0,  dir: adc, note: "ADC1"}
       BATTERY_SENSE:      {pin: 1,  dir: adc, note: "1M divider + FET disconnect for sleep"}
-      RAIL_5V_ENABLE:     {pin: 2,  dir: out, note: "STRAPPING — pull-up so rail defaults ON at boot. MANDATORY for sleep current."}
-      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX"}
-      I2S_BCLK:           {pin: 4,  dir: out}
+      RAIL_5V_ENABLE:     {pin: 2,  dir: out, note: "STRAPPING — ACTIVE-LOW. Pull-up = strap-safe boot AND rail off in deep sleep with the pin released (no GPIO hold). Drive LOW to enable. MANDATORY for sleep current."}
+      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX; RTC-capable — can wake from deep sleep"}
+      DIGITAL_IN_1:       {pin: 4,  dir: in,  note: "RTC-capable — the deep-sleep wake input (PIR)"}
       I2S_LRCLK:          {pin: 5,  dir: out}
       I2S_DOUT:           {pin: 6,  dir: out}
       LED_STRIP_1_DATA:   {pin: 7,  dir: out, note: "RMT TX, via 74AHCT1G125"}
@@ -92,8 +105,8 @@ boards:
       I2C_SCL:            {pin: 10, dir: out}
       USB_DM:             {pin: 18, dir: bidir, note: "console over native USB Serial/JTAG"}
       USB_DP:             {pin: 19, dir: bidir}
-      DIGITAL_IN_1:       {pin: 20, dir: in,  note: "UART0 TX repurposed"}
-      DIGITAL_IN_2:       {pin: 21, dir: in,  note: "UART0 RX repurposed"}
+      I2S_BCLK:           {pin: 20, dir: out, note: "U0RXD repurposed"}
+      DIGITAL_IN_2:       {pin: 21, dir: in,  note: "U0TXD repurposed — ROM boot log drives it at reset; 1k series R"}
 
     pca9685:
       addr: 0x40

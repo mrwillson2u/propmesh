@@ -1,0 +1,64 @@
+// PropMesh flood mesh core — ESP-NOW broadcast flooding.
+// Design: docs/software-plan.md §3. Connectionless: no peers, no topology
+// state. Frames carry (src, seq, ttl); relay-role nodes rebroadcast once
+// after jitter; everyone dedups on a (src, seq) sliding window.
+#pragma once
+#include <stdint.h>
+#include "proto_gen.h"
+#include "pm_neighbors.h"
+
+// Handler receives every valid, non-duplicate frame addressed to the mesh.
+// `rssi` is the received signal strength of the last hop (dBm).
+typedef void (*pm_rx_handler_t)(const pm_frame_header_t *hdr,
+                                const uint8_t *payload, uint8_t len,
+                                int8_t rssi);
+
+typedef struct {
+  uint32_t rx;            // valid frames delivered to the app
+  uint32_t tx;            // frames originated by this node
+  uint32_t relayed;       // frames rebroadcast for others
+  uint32_t dropped_dupe;  // dedup window hits
+  uint32_t dropped_bad;   // wrong magic / net / version / size
+  uint32_t relay_overrun; // relay queue full — frame not forwarded
+} pm_stats_t;
+
+// Bring up WiFi STA + ESP-NOW on `channel` and join network `net_id`.
+// `role` is pm_node_role_t flags; PM_NODE_ROLE_RELAY enables rebroadcast,
+// PM_NODE_ROLE_CONDUCTOR makes this node the mesh time authority.
+bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role);
+
+// This node's id (last 4 bytes of the efuse MAC).
+uint32_t pm_node_id();
+
+// Roles are runtime state, not a build flag: a node is promoted to
+// conductor (or bridge) by config or election, and a conductor steps
+// down on its own when it hears a higher-id conductor.
+uint8_t pm_role();
+void pm_set_role(uint8_t role);
+
+// Broadcast a message into the flood. `len` <= PM_MAX_PAYLOAD.
+bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
+             uint8_t ttl = PM_DEFAULT_TTL);
+
+void pm_on_receive(pm_rx_handler_t handler);
+
+// Call every loop(): flushes the jittered relay queue, ages the neighbor
+// table, and emits the time beacon when this node is conductor.
+void pm_mesh_loop();
+
+// --- Mesh time -------------------------------------------------------
+// Shared timebase for cue scheduling. Valid only while pm_time_synced().
+int64_t pm_mesh_time_us();
+// Local microseconds at which a given mesh time arrives — turns a cue's
+// scheduled time into a local deadline.
+int64_t pm_local_time_us(int64_t mesh_time_us);
+bool pm_time_synced();
+uint32_t pm_conductor_id();
+uint8_t pm_sync_hop();  // hops from the conductor; 0 = we are it
+
+// --- Topology --------------------------------------------------------
+// Nodes heard directly, strongest first. Fills the heartbeat's neighbor
+// list, which the console renders as the mesh graph.
+uint8_t pm_neighbor_snapshot(pm_neighbor_t *out, uint8_t max);
+
+const pm_stats_t *pm_stats();

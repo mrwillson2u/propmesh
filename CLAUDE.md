@@ -44,15 +44,48 @@ original reasoning no longer holds rather than re-deriving it.
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.
 - [ ] **Mounting-hole pattern fixed** so the printable bracket stays stable across revisions.
 
-## Schedule
+## Schedule (revised 2026-09-01)
 
-Design Feb, prototypes Mar, bring-up Apr, firmware May, v0.2 spin Jun,
-xLights integration Jul, beta Aug, ship Sep. **October is for decorating.**
+**Halloween 2026 = field test on prototypes. Halloween 2027 = launch.**
+
+Pro v0.1 designed and ordered in the first two weeks of Sep 2026
+(hand-populated bare boards — no PCBA queue). Bring-up late Sep.
+**Rev-B decision point ~Oct 10**: bodge it, one quick-turn shot, or fall
+back to devkits for this year's show — never a mid-October redesign.
+Mini v0.1 in Nov–Dec (second KiCad project learns from the first).
+v0.2 both boards Jan–Feb 2027, beta May–Jun, **promote Jul–Aug 2027**
+(when the community researches next season), ship Sep 2027.
 
 The recurring failure mode on this project is starting in October.
-Ship a reduced v0.1 rather than slipping.
+Ship a reduced v0.1 rather than slipping. Full table: hardware-spec §7.
+
+## When reviewing board designs
+
+Any time a schematic or layout is up for review, check — in this order:
+
+1. **Netlist agrees with `pinmap.yaml`** — the #1 bug class. Net names
+   should match pinmap signal names exactly.
+2. **Schematic-capture checklists**: hardware-spec §2.5 (Pro) / §3.5
+   (Mini) — EN inverter, series resistors, strap protection, etc.
+   Plus the sheet's own doc in `hardware/pro/sheets/` (map:
+   `hardware/pro/README.md`): every sheet must include its supporting
+   passives and pass its checklist, and no ⚠-verify item may survive
+   to layout unresolved. New findings go INTO the sheet doc same-day —
+   never left in chat.
+3. **Patchability**: hardware-spec §2.6 — test points on every GPIO and
+   rail, 0 Ω links on unproven nets, staged power, empty bottom side,
+   spare pull-up/down pads, 0603+ passives. v0.1's recovery plan is
+   bodge wires; the layout must make that possible.
+4. **Strapping pins** safe at reset in every population/attachment case.
+5. **Open verification items** (above) actually closed, not deferred.
 
 ## Firmware priorities
+
+Full architecture, mesh protocol, control app, and milestones:
+`docs/software-plan.md`. Two tracks: the Oct 2026 show runs "show
+firmware v0" (hardcoded sequences + the old painlessMesh rig, one last
+season); the real ESP-NOW stack is winter work on devkits and
+field-tested v0.1 boards.
 
 Must-have: ESP-NOW mesh with conductor time sync, OTA, captive portal +
 web UI, deep-sleep mode selector (Mini), battery reporting (Mini).

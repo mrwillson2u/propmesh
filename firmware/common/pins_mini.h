@@ -8,9 +8,9 @@
 
 #define PIN_ANALOG_IN_1           0  // ADC1
 #define PIN_BATTERY_SENSE         1  // 1M divider + FET disconnect for sleep
-#define PIN_RAIL_5V_ENABLE        2  // STRAPPING — pull-up so rail defaults ON at boot. MANDATORY for sleep current.
-#define PIN_IR_RX                 3  // RMT RX
-#define PIN_I2S_BCLK              4
+#define PIN_RAIL_5V_ENABLE        2  // STRAPPING — ACTIVE-LOW. Pull-up = strap-safe boot AND rail off in deep sleep with the pin released (no GPIO hold). Drive LOW to enable. MANDATORY for sleep current.
+#define PIN_IR_RX                 3  // RMT RX; RTC-capable — can wake from deep sleep
+#define PIN_DIGITAL_IN_1          4  // RTC-capable — the deep-sleep wake input (PIR)
 #define PIN_I2S_LRCLK             5
 #define PIN_I2S_DOUT              6
 #define PIN_LED_STRIP_1_DATA      7  // RMT TX, via 74AHCT1G125
@@ -19,8 +19,8 @@
 #define PIN_I2C_SCL               10
 #define PIN_USB_DM                18  // console over native USB Serial/JTAG
 #define PIN_USB_DP                19
-#define PIN_DIGITAL_IN_1          20  // UART0 TX repurposed
-#define PIN_DIGITAL_IN_2          21  // UART0 RX repurposed
+#define PIN_I2S_BCLK              20  // U0RXD repurposed
+#define PIN_DIGITAL_IN_2          21  // U0TXD repurposed — ROM boot log drives it at reset; 1k series R
 
 #define PCA9685_ADDR 0x40
 
