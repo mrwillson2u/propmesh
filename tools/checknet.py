@@ -376,7 +376,13 @@ def render(sheet, parts, nets, blocks, res=None):
     off their net. A part's GND pin is written into its label instead of drawing GND.
     With a compare result, every edge and box is coloured by status."""
     nid = lambda s: re.sub(r"\W", "_", s)
-    gnd = dict(nets.get("GND", []))
+    in_blocks = {n for ns in blocks.values() for n in ns}
+    # any power rail not drawn as a node gets written into each part's box instead
+    rail_pins = {}
+    for rail in POWER_RAILS:
+        if rail in nets and rail not in in_blocks:
+            for ref, pin in nets[rail]:
+                rail_pins.setdefault(ref, []).append((pin, rail))
     status = {(n, x[0], x[1]): (x[2], x[3]) for n, r in (res or {}).get("nets", {}).items() for x in r["pins"]}
     netnote = {n: label_problem(n, r["closest"]) for n, r in (res or {}).get("nets", {}).items()
                if n in NAMED and r["closest"] != n}
@@ -386,11 +392,12 @@ def render(sheet, parts, nets, blocks, res=None):
     def plabel(ref):
         cls = "absent" if ref in absent else "dnp" if parts[ref].get("dnp") else "part"
         g = ""
-        if ref in gnd:
-            st, note = status.get(("GND", ref, gnd[ref]), (None, ""))
-            g = f"<br/><i>pin {gnd[ref]} → GND</i>"
+        for pin, rail in rail_pins.get(ref, []):
+            st, note = status.get((rail, ref, pin), (None, ""))
             if st == "wrong" and ref not in has_value_issue:
-                g = f'<br/><i style="color:#c00">pin {gnd[ref]} → GND ✗ {note}</i>'
+                g += f'<br/><i style="color:#c00">pin {pin} → {rail} ✗ {note}</i>'
+            else:
+                g += f"<br/><i>pin {pin} → {rail}</i>"
         miss = "<br/>✗ not found" if cls == "absent" else ""
         # on a check page the KiCad reference leads — that is what is printed on the sheet
         c = res["sch"].get(ref) if res else None
@@ -429,8 +436,11 @@ def write_pages(spec, sheet, parts, nets, blocks, res=None):
     """--mermaid: NN.diagram.md + NN.diagram.html (clean guide). With res: NN.check.html only."""
     diagrams = render(sheet, parts, nets, blocks, res)
     intro = ("Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes "
-             "are nets, the label on a line is the pin.</b> A part's ground pin is written inside its box.")
-    gnd_items = [f"{r}.{p}" for r, p in nets.get("GND", [])]
+             "are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box.")
+    in_blocks = {n for ns in blocks.values() for n in ns}
+    rail_lists = [(rail, [f"{r}.{p}" for r, p in nets[rail]])
+                  for rail in ("GND", "+5V", "+3V3", "VIN_RAW", "VIN_PROT")
+                  if rail in nets and rail not in in_blocks]
     page = ['<!doctype html><meta charset="utf-8"><title>' + _h.escape(sheet) + (" check" if res else " wiring") + '</title>',
             '<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}'
             'table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}'
@@ -449,8 +459,9 @@ def write_pages(spec, sheet, parts, nets, blocks, res=None):
         md.append("| Net | connect every one of these |\n|---|---|")
         for n in ns: md.append(f"| **{n}** | " + ", ".join(f"`{r}.{p}`" for r, p in nets[n]) + " |")
         md.append("")
-    page.append("<h2>GND</h2><p>" + ", ".join(f"<code>{_h.escape(i)}</code>" for i in gnd_items) + "</p>")
-    md.append("## GND\n\nEvery pin below goes to the ground symbol:\n\n" + ", ".join(f"`{i}`" for i in gnd_items) + "\n")
+    for rail, items in rail_lists:
+        page.append(f"<h2>{_h.escape(rail)}</h2><p>" + ", ".join(f"<code>{_h.escape(i)}</code>" for i in items) + "</p>")
+        md.append(f"## {rail}\n\nEvery pin below goes to the {rail} symbol:\n\n" + ", ".join(f"`{i}`" for i in items) + "\n")
     page.append("<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>")
     if res:
         p = spec.with_name(spec.name.replace(".net.yaml", ".check.html")); p.write_text("\n".join(page)); return [p]

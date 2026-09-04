@@ -1,6 +1,6 @@
 # 01-power — wiring diagrams
 
-Generated from `01-power.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's ground pin is written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `01-power.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
 
 ## Protection stage: J1 → VIN_PROT
 
@@ -16,7 +16,7 @@ graph LR
   N_VIN_RAW(["VIN_RAW"]):::rail
   P_J1["<b>J1</b><br/>DC_IN<br/><i>pin 2 → GND</i>"]:::part
   P_J1 --"1"--> N_VIN_RAW
-  P_J2["<b>J2</b><br/>DC_JACK<br/><i>pin 3 → GND</i>"]:::part
+  P_J2["<b>J2</b><br/>DC_JACK<br/><i>pin 2 → GND</i><br/><i>pin 3 → GND</i>"]:::part
   N_VIN_RAW --"1"--> P_J2
   P_F1["<b>F1</b><br/>7.5A"]:::part
   N_VIN_RAW --"1"--> P_F1
@@ -36,7 +36,7 @@ graph LR
   N_VIN_PROT --"1"--> P_C1b
   P_C_bulk["<b>C_bulk</b><br/>100uF/63V<br/><i>pin 2 → GND</i>"]:::part
   N_VIN_PROT --"1"--> P_C_bulk
-  P_U1["<b>U1</b><br/>AP64350SP-13<br/><i>pin EP → GND</i>"]:::part
+  P_U1["<b>U1</b><br/>AP64350SP-13<br/><i>pin GND → GND</i><br/><i>pin EP → GND</i>"]:::part
   N_VIN_PROT --"VIN"--> P_U1
   P_U1 --"EN"--> N_VIN_PROT
   N_Q1_GATE(["Q1_GATE"]):::net
@@ -65,7 +65,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_BST_5V(["BST_5V"]):::net
-  P_U1["<b>U1</b><br/>AP64350SP-13<br/><i>pin EP → GND</i>"]:::part
+  P_U1["<b>U1</b><br/>AP64350SP-13<br/><i>pin GND → GND</i><br/><i>pin EP → GND</i>"]:::part
   P_U1 --"BST"--> N_BST_5V
   P_C3["<b>C3</b><br/>100nF"]:::part
   N_BST_5V --"1"--> P_C3
@@ -175,6 +175,6 @@ graph LR
 
 ## GND
 
-Every pin below goes to the ground symbol:
+Every pin below goes to the GND symbol:
 
 `J1.2`, `J2.2`, `J2.3`, `R_G.2`, `D1.A`, `C1a.2`, `C1b.2`, `C_bulk.2`, `U1.GND`, `U1.EP`, `RT.2`, `R2.2`, `C5.2`, `C6.2`, `C2a.2`, `C2b.2`, `D_5V.K`, `U2.GND`, `C_in.2`, `C_out.2`, `R_FB2.2`, `D_3V3.K`

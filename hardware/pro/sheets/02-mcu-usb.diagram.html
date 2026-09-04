@@ -1,7 +1,7 @@
 <!doctype html><meta charset="utf-8"><title>02-mcu-usb wiring</title>
 <style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
-<h1>02-mcu-usb — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's ground pin is written inside its box.</p>
+<h1>02-mcu-usb — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box.</p>
 <h2>USB: connector → ESD → module</h2><pre class='mermaid'>graph LR
   classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
   classDef net fill:#fff8e1,stroke:#b7791f,color:#111
@@ -11,7 +11,7 @@
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_VBUS([&quot;VBUS&quot;]):::net
-  P_J_USB[&quot;&lt;b&gt;J_USB&lt;/b&gt;&lt;br/&gt;TYPE-C-31-M-12&lt;br/&gt;&lt;i&gt;pin SHIELD → GND&lt;/i&gt;&quot;]:::part
+  P_J_USB[&quot;&lt;b&gt;J_USB&lt;/b&gt;&lt;br/&gt;TYPE-C-31-M-12&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin SHIELD → GND&lt;/i&gt;&quot;]:::part
   P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
   P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
   P_J_USB --&quot;VBUS&quot;--&gt; N_VBUS
@@ -27,7 +27,7 @@
   P_J_USB --&quot;D-&quot;--&gt; N_USB_DM
   P_U_ESD --&quot;I/O1&quot;--&gt; N_USB_DM
   P_U_ESD --&quot;I/O1&quot;--&gt; N_USB_DM
-  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
   N_USB_DM --&quot;USB_D-&quot;--&gt; P_MCU
   N_USB_DP([&quot;USB_DP&quot;]):::net
   P_J_USB --&quot;D+&quot;--&gt; N_USB_DP
@@ -52,7 +52,7 @@
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N__3V3([&quot;+3V3&quot;]):::rail
-  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
   P_MCU --&quot;3V3&quot;--&gt; N__3V3
   P_C_VDD1[&quot;&lt;b&gt;C_VDD1&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   N__3V3 --&quot;1&quot;--&gt; P_C_VDD1
@@ -83,7 +83,7 @@
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_ANALOG_IN_1([&quot;ANALOG_IN_1&quot;]):::net
-  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  P_MCU[&quot;&lt;b&gt;MCU&lt;/b&gt;&lt;br/&gt;ESP32-S3-WROOM-1U-N8R2&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
   P_MCU --&quot;IO1&quot;--&gt; N_ANALOG_IN_1
   N_ANALOG_IN_2([&quot;ANALOG_IN_2&quot;]):::net
   P_MCU --&quot;IO2&quot;--&gt; N_ANALOG_IN_2

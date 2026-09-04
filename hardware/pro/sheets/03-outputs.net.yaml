@@ -1,0 +1,140 @@
+# Sheet 03 — Slow outputs: connection spec.  ONE LINE PER NET.
+#
+# Drawing guide: open 03-outputs.diagram.html.  Checker after capture:
+#   python3 tools/checknet.py hardware/pro/sheets/03-outputs.net.yaml
+#
+# Channel map (pinmap.yaml pca9685 block): LED0-5 = SERVO_1..6,
+# LED6-11 = LED_1..6, LED12-14 = RELAY_1..3, LED15 = STEPPER_EN_RAW.
+#
+# Relay pads (HK4100F, verified against the Huike drawing 2026-09-04):
+# 3/4 = coil (polarity-free), 5+6 = COM brought out twice (tie both),
+# 1/2 = the two throws. Which of 1/2 is NO vs NC is drawing-ambiguous:
+# WIRED here as 1=NO, 2=NC — CONFIRM BY CONTINUITY at bring-up (NC
+# beeps to COM unpowered) and swap the terminal silkscreen if wrong.
+
+sheet: 03-outputs
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+  sot23: &sot23 "Package_TO_SOT_SMD:SOT-23"
+  led2p: &led2p "propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H"
+  srv:   &srv   "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
+
+parts:
+  U_PCA:  {value: PCA9685PW,  lcsc: C2678753, symbol: "Driver_LED:PCA9685PW", footprint: "Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm", note: "PCA9685PW,118 reel. VDD = +3V3 so ESP32 I2C meets VIH; servos accept 3.3 V pulses"}
+  U_REL:  {value: ULN2003A,   lcsc: C7512,    symbol: "Transistor_Array:ULN2003A", footprint: "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm", note: "JLC BASIC. Relays only; inputs I4-I7 float (safe for Darlingtons). COM pin -> +5V or the flybacks protect nothing"}
+  Q_LED1: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23, note: "JLC BASIC, 1M stock. Low-side switch; no gate R needed at PCA9685 PWM rates"}
+  Q_LED2: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23}
+  Q_LED3: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23}
+  Q_LED4: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23}
+  Q_LED5: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23}
+  Q_LED6: {value: AO3400A,    lcsc: C20917,   symbol: "Transistor_FET:AO3400A", footprint: *sot23}
+  K1:     {value: HK4100F-DC5V-SHG, lcsc: C12072,   symbol: "propmesh:HK4100F-DC5V-SHG", footprint: "propmesh:RELAY-TH_HK4100F-DC5V-SHG", note: "5 V / 0.2 W coil = 40 mA each (not the 70 mA guessed earlier); contacts 3 A @ 30 VDC — matches the locked dry-contact limit"}
+  K2:     {value: HK4100F-DC5V-SHG, lcsc: C12072,   symbol: "propmesh:HK4100F-DC5V-SHG", footprint: "propmesh:RELAY-TH_HK4100F-DC5V-SHG"}
+  K3:     {value: HK4100F-DC5V-SHG, lcsc: C12072,   symbol: "propmesh:HK4100F-DC5V-SHG", footprint: "propmesh:RELAY-TH_HK4100F-DC5V-SHG"}
+  R_SDA:  {value: 4.7k,       lcsc: C23162,   symbol: "Device:R", footprint: *r0603, note: "the board's ONLY I2C pull-ups — serve PCA9685, Qwiic, expansion"}
+  R_SCL:  {value: 4.7k,       lcsc: C23162,   symbol: "Device:R", footprint: *r0603}
+  R_A0:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603, note: "address straps to GND via R (addr 0x40), reworkable if Qwiic conflicts"}
+  R_A1:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  R_A2:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  R_A3:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  R_A4:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  R_A5:   {value: 10k,        lcsc: C25804,   symbol: "Device:R", footprint: *r0603}
+  C_P1:   {value: 100nF,      lcsc: C14663,   symbol: "Device:C", footprint: *c0603}
+  C_P2:   {value: 10uF/16V,   lcsc: C95841,   symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric"}
+  D_FB1:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA", note: "flyback across the load: A -> switched node, K -> VIN_PROT. Makes 12/24 V solenoid valves a first-class load. Same part as sheet 02's D_VBUS"}
+  D_FB2:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA"}
+  D_FB3:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA"}
+  D_FB4:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA"}
+  D_FB5:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA"}
+  D_FB6:  {value: SS34,       lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA"}
+  J_REL1: {value: RELAY_OUT,  lcsc: C691861,  symbol: "Connector:Screw_Terminal_01x03", footprint: "propmesh:CONN-TH_DG128-5.0-03P-14-00A-H", note: "silk NO|COM|NC + DRY CONTACT 30V MAX"}
+  J_REL2: {value: RELAY_OUT,  lcsc: C691861,  symbol: "Connector:Screw_Terminal_01x03", footprint: "propmesh:CONN-TH_DG128-5.0-03P-14-00A-H"}
+  J_REL3: {value: RELAY_OUT,  lcsc: C691861,  symbol: "Connector:Screw_Terminal_01x03", footprint: "propmesh:CONN-TH_DG128-5.0-03P-14-00A-H"}
+  J_LED1: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p, note: "pin1 = VIN_PROT (supply voltage!), pin2 = switched return. Silk V+/SW. STOCK THIN: 82 pcs — fine for v0.1, re-source before v0.2"}
+  J_LED2: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p}
+  J_LED3: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p}
+  J_LED4: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p}
+  J_LED5: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p}
+  J_LED6: {value: LED_OUT,    lcsc: C723982,  symbol: "Connector:Screw_Terminal_01x02", footprint: *led2p}
+  J_SRV1: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv, note: "pin order GND-5V-SIG (universal servo pigtail); B-2100S03P-A110"}
+  J_SRV2: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv}
+  J_SRV3: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv}
+  J_SRV4: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv}
+  J_SRV5: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv}
+  J_SRV6: {value: SERVO,      lcsc: C124376,  symbol: "Connector_Generic:Conn_01x03", footprint: *srv}
+
+blocks:
+  "I²C + PCA9685 core":   [I2C_SDA, I2C_SCL, +3V3, A0_STRAP, A1_STRAP, A2_STRAP, A3_STRAP, A4_STRAP, A5_STRAP, STEPPER_EN_RAW]
+  "Relay channels ×3":    [RELAY_1, REL1_COIL, REL1_NO, REL1_COM, REL1_NC,
+                           RELAY_2, REL2_COIL, REL2_NO, REL2_COM, REL2_NC,
+                           RELAY_3, REL3_COIL, REL3_NO, REL3_COM, REL3_NC]
+  "DC switch/dim channels ×6 (AO3400A low-side, supply-voltage loads)": [LED_1, LED1_K, LED_2, LED2_K, LED_3, LED3_K,
+                           LED_4, LED4_K, LED_5, LED5_K, LED_6, LED6_K]
+  "Servo headers ×6":     [SERVO_1, SERVO_2, SERVO_3, SERVO_4, SERVO_5, SERVO_6]
+
+named: [I2C_SDA, I2C_SCL, STEPPER_EN_RAW]
+
+nets:
+  # --- I2C + core -----------------------------------------------------
+  I2C_SDA:  [U_PCA.SDA, R_SDA.1]
+  I2C_SCL:  [U_PCA.SCL, R_SCL.1]
+  +3V3:     [U_PCA.VDD, R_SDA.2, R_SCL.2, C_P1.1, C_P2.1]
+  A0_STRAP: [U_PCA.A0, R_A0.1]
+  A1_STRAP: [U_PCA.A1, R_A1.1]
+  A2_STRAP: [U_PCA.A2, R_A2.1]
+  A3_STRAP: [U_PCA.A3, R_A3.1]
+  A4_STRAP: [U_PCA.A4, R_A4.1]
+  A5_STRAP: [U_PCA.A5, R_A5.1]
+  STEPPER_EN_RAW: [U_PCA.LED15]
+
+  # --- relays ---------------------------------------------------------
+  RELAY_1:   [U_PCA.LED12, U_REL.I1]
+  REL1_COIL: [U_REL.O1, K1.3]
+  REL1_NO:   [K1.1, J_REL1.1]
+  REL1_COM:  [K1.5, K1.6, J_REL1.2]
+  REL1_NC:   [K1.2, J_REL1.3]
+  RELAY_2:   [U_PCA.LED13, U_REL.I2]
+  REL2_COIL: [U_REL.O2, K2.3]
+  REL2_NO:   [K2.1, J_REL2.1]
+  REL2_COM:  [K2.5, K2.6, J_REL2.2]
+  REL2_NC:   [K2.2, J_REL2.3]
+  RELAY_3:   [U_PCA.LED14, U_REL.I3]
+  REL3_COIL: [U_REL.O3, K3.3]
+  REL3_NO:   [K3.1, J_REL3.1]
+  REL3_COM:  [K3.5, K3.6, J_REL3.2]
+  REL3_NC:   [K3.2, J_REL3.3]
+  +5V: [K1.4, K2.4, K3.4, U_REL.COM,
+        J_SRV1.2, J_SRV2.2, J_SRV3.2, J_SRV4.2, J_SRV5.2, J_SRV6.2]
+  VIN_PROT: [J_LED1.1, J_LED2.1, J_LED3.1, J_LED4.1, J_LED5.1, J_LED6.1,
+             D_FB1.K, D_FB2.K, D_FB3.K, D_FB4.K, D_FB5.K, D_FB6.K]
+
+  # --- LED channels ---------------------------------------------------
+  LED_1:  [U_PCA.LED6,  Q_LED1.G]
+  LED1_K: [Q_LED1.D, J_LED1.2, D_FB1.A]
+  LED_2:  [U_PCA.LED7,  Q_LED2.G]
+  LED2_K: [Q_LED2.D, J_LED2.2, D_FB2.A]
+  LED_3:  [U_PCA.LED8,  Q_LED3.G]
+  LED3_K: [Q_LED3.D, J_LED3.2, D_FB3.A]
+  LED_4:  [U_PCA.LED9,  Q_LED4.G]
+  LED4_K: [Q_LED4.D, J_LED4.2, D_FB4.A]
+  LED_5:  [U_PCA.LED10, Q_LED5.G]
+  LED5_K: [Q_LED5.D, J_LED5.2, D_FB5.A]
+  LED_6:  [U_PCA.LED11, Q_LED6.G]
+  LED6_K: [Q_LED6.D, J_LED6.2, D_FB6.A]
+
+  # --- servos ---------------------------------------------------------
+  SERVO_1: [U_PCA.LED0, J_SRV1.3]
+  SERVO_2: [U_PCA.LED1, J_SRV2.3]
+  SERVO_3: [U_PCA.LED2, J_SRV3.3]
+  SERVO_4: [U_PCA.LED3, J_SRV4.3]
+  SERVO_5: [U_PCA.LED4, J_SRV5.3]
+  SERVO_6: [U_PCA.LED5, J_SRV6.3]
+
+  # --- ground ---------------------------------------------------------
+  GND: [U_PCA.VSS, "U_PCA.~{OE}", U_PCA.EXTCLK, U_REL.GND,
+        R_A0.2, R_A1.2, R_A2.2, R_A3.2, R_A4.2, R_A5.2,
+        C_P1.2, C_P2.2,
+        Q_LED1.S, Q_LED2.S, Q_LED3.S, Q_LED4.S, Q_LED5.S, Q_LED6.S,
+        J_SRV1.1, J_SRV2.1, J_SRV3.1, J_SRV4.1, J_SRV5.1, J_SRV6.1]

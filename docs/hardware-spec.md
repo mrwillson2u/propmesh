@@ -238,16 +238,26 @@ parts alone.
 
 *Alternate:* MP4560 (55 V / 3 A, ~$0.55) for a cheaper main buck.
 
-#### PWM expander and slow outputs
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| PCA9685PW, TSSOP-28 | 1 | SMT | $0.85 | $0.85 |
-| ULN2003A relay driver (built-in flyback) | 1 | SMT | $0.20 | $0.20 |
-| HK4100F-DC5V-SHG relay, 3 A | 3 | **T** | $0.45 | $1.35 |
-| Screw terminal 3-pos (NO/COM/NC) | 3 | **T** | $0.30 | $0.90 |
-| Servo header, 3-pin 2.54 mm | 6 | **T** | $0.05 | $0.30 |
-| Basic LED output terminals | 2 | **T** | $0.25 | $0.50 |
-| | | | | **$4.10** |
+#### PWM expander and slow outputs — $5.46 ✅ verified
+
+**Itemised in `hardware/pro/sheets/03-outputs.md`, the single source**
+(sourced 2026-09-04). Rollup only:
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| PCA9685PW `C2678753` + support | $1.86 | $2.90 |
+| Relays ×3 + ULN2003 + 3-pos terminals ×3 | $1.59 | $2.59 |
+| **6× DC switch/dim channels** (AO3400A + SS34 flyback + terminal, **VIN_PROT rail — 2 A/ch, 5 A total**) | $1.75 | $2.85 |
+| Servo headers ×6 | $0.14 | $0.20 |
+| **Slow-outputs total** | **$5.46** | **$8.67** |
+
+> **LED-channel decision resolved 2026-09-04: all 6 channels kept**,
+> driven by discrete AO3400A FETs (Basic) — no feature trim. The
+> Darlington's ~1 V drop lost 20 % of a 5 V string; the FET loses
+> millivolts. AO3400A also replaces sheet 06's 2N7002 (one MOSFET
+> part number board-wide). Relay coil reality: 40 mA each (H-power
+> suffix), not the 70 mA once assumed. PCA9685 real price $1.84@100
+> vs the $0.85 guess — the old table's biggest miss.
 
 #### Audio
 | Part | Qty | Mount | Unit | Ext |
@@ -353,7 +363,7 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 
 Board-level requirements that are easy to lose between spec and schematic:
 
-- [ ] **Stepper EN inverted** — 2N7002 + pull-up on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
+- [ ] **Stepper EN inverted** — AO3400A + pull-up (consolidated with the LED-channel FETs, one MOSFET part number board-wide) on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
 - [ ] **1 kΩ series on GPIO 43** (STEPPER_2_DIAG) — ROM boot log drives U0TXD at every reset against the TMC's push-pull DIAG output.
 - [ ] **Status LED data through the spare 74AHCT125 gate** — it's a 5 V WS2812; the strips use 3 of 4 gates, the 4th is free.
 - [ ] **10 kΩ pull-ups on SD CMD and D0.**
@@ -391,7 +401,7 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (power + MCU blocks now verified) | **$28.35** |
+| **Parts subtotal** | sum of §2.4 (power, MCU, slow-output blocks verified) | **$29.71** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -399,11 +409,11 @@ MCU boots → one subsystem at a time.
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $0.98 |
+| Scrap allowance | 3% of parts + assembly | $1.02 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$35.72** |
-| US import duty | at 25% on ~$32.99 PCBA value | +$8.25 |
-| **Duty-paid landed** | | **~$43.97** |
+| **Ex-duty landed** | | **$37.12** |
+| US import duty | at 25% on ~$34.35 PCBA value | +$8.59 |
+| **Duty-paid landed** | | **~$45.68** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 
@@ -434,7 +444,7 @@ worst case is at the *bottom* of the 12–24 V range, not the top.
 
 | Subsystem | Worst-case power | Basis |
 |---|---|---|
-| 5 V rail | **15 W** | capped by design at 3 A × 5 V — servos, LED channels, relays, audio, logic all share it and cannot collectively exceed it |
+| 5 V rail | **15 W** | capped by design at 3 A × 5 V — servos, relay coils, audio, logic. (DC switch channels moved OFF this rail to VIN_PROT, 2026-09-04 — they now budget against the input fuse instead) |
 | → input side | **17 W** | 15 W ÷ 88 % buck efficiency |
 | 2× stepper (NEMA17, running) | **24 W** | ~12 W each: I²R in 1.5 A/phase coils plus driver loss. Standstill reduction cuts this to ~2 W each |
 | 2× brushed DC (DRV8871) | **48 W** | ~24 W each at 2 A continuous — **user-dependent and effectively unbounded**; the board cannot budget what someone plugs in |
@@ -463,10 +473,21 @@ in this hobby — LED strips, fog machines, solenoids, car-battery setups
 — and requiring a new PSU is a real adoption tax for a modest
 engineering convenience. Support both; recommend 24 V.
 
-**User-facing guidance to ship:** *"12–24 V DC, 24 V recommended,
-especially with steppers or DC motors — same power at half the current,
-and TMC drivers give noticeably better torque at speed. Absolute
-maximum 28 V."*
+**User-facing guidance to ship:** *"12–24 V DC, absolute maximum 28 V.
+**Match the supply to your lights: the 6 switch/dim channels output
+your input voltage**, so a 12 V supply gives 12 V channels (what most
+prop lighting wants) and 24 V gives 24 V. Choose 24 V only if steppers
+or DC motors dominate — same power at half the current, and TMC drivers
+give noticeably better torque at speed. Mixed voltages are supported:
+feed those loads from their own supply, bring only the switched return
+to the channel terminal, and tie the grounds."*
+
+That coupling is a **consequence of the 2026-09-04 decision to put the
+switch channels on `VIN_PROT`** instead of +5 V — the right trade (5 V
+channels were near-useless for 12 V prop lighting), but it makes the
+supply choice a lighting decision as well as a motor one. See
+`sheets/03-outputs.md` for the full reasoning and the mixed-voltage
+recipe.
 
 #### Ceiling lowered 30 V → 28 V (2026-09-03)
 

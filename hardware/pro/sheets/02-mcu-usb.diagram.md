@@ -1,6 +1,6 @@
 # 02-mcu-usb — wiring diagrams
 
-Generated from `02-mcu-usb.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's ground pin is written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `02-mcu-usb.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
 
 ## USB: connector → ESD → module
 
@@ -14,7 +14,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_VBUS(["VBUS"]):::net
-  P_J_USB["<b>J_USB</b><br/>TYPE-C-31-M-12<br/><i>pin SHIELD → GND</i>"]:::part
+  P_J_USB["<b>J_USB</b><br/>TYPE-C-31-M-12<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin SHIELD → GND</i>"]:::part
   P_J_USB --"VBUS"--> N_VBUS
   P_J_USB --"VBUS"--> N_VBUS
   P_J_USB --"VBUS"--> N_VBUS
@@ -30,7 +30,7 @@ graph LR
   P_J_USB --"D-"--> N_USB_DM
   P_U_ESD --"I/O1"--> N_USB_DM
   P_U_ESD --"I/O1"--> N_USB_DM
-  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i>"]:::part
+  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i>"]:::part
   N_USB_DM --"USB_D-"--> P_MCU
   N_USB_DP(["USB_DP"]):::net
   P_J_USB --"D+"--> N_USB_DP
@@ -69,7 +69,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N__3V3(["+3V3"]):::rail
-  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i>"]:::part
+  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i>"]:::part
   P_MCU --"3V3"--> N__3V3
   P_C_VDD1["<b>C_VDD1</b><br/>10uF/16V<br/><i>pin 2 → GND</i>"]:::part
   N__3V3 --"1"--> P_C_VDD1
@@ -111,7 +111,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_ANALOG_IN_1(["ANALOG_IN_1"]):::net
-  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i>"]:::part
+  P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i>"]:::part
   P_MCU --"IO1"--> N_ANALOG_IN_1
   N_ANALOG_IN_2(["ANALOG_IN_2"]):::net
   P_MCU --"IO2"--> N_ANALOG_IN_2
@@ -219,6 +219,6 @@ graph LR
 
 ## GND
 
-Every pin below goes to the ground symbol:
+Every pin below goes to the GND symbol:
 
 `MCU.GND`, `MCU.GND`, `MCU.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.SHIELD`, `U_ESD.GND`, `R_CC1.2`, `R_CC2.2`, `C_EN.2`, `C_VDD1.2`, `C_VDD2.2`, `SW_RST.2`, `SW_BOOT.2`

@@ -661,7 +661,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "SW1-2,C1-16,U1-4,F1,L1-2,R1-4,R6-13,D1-6,#PWR1-41,Q1-2,J1-4,#FLG1-5,TP1,R_G1",
+    "used_designators": "J_LED2-6,L1-2,D1-11,#PWR1-70,U1-6,C1-17,SW1-2,K1-3,Q1-7,J1-13,#FLG1-5,F1,TP1,R_G1,R1-4,R6-21",
     "variants": []
   },
   "sheets": [
@@ -676,6 +676,14 @@
     [
       "0f32bd3b-d69f-46e3-8384-0dd06a686621",
       "MCU and USB"
+    ],
+    [
+      "2bda7ce8-0115-4f82-8352-98dfad51fb12",
+      "Outputs"
+    ],
+    [
+      "67eb6608-7606-4bb8-9c7d-bad3eb4c3712",
+      "Audio"
     ]
   ],
   "text_variables": {},

@@ -68,7 +68,7 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 |---|---|---|---|
 | 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
 | 02 MCU + USB | `sheets/02-mcu-usb.md` — **fully sourced** | **☑ DONE 2026-09-04** — checknet all nets + footprints green; ERC clean bar the 32 expected one-sided labels | for LAYOUT: USB-C needs its shield vias; TP37 silkscreen |
-| 03 Slow outputs | `sheets/03-outputs.md` | ☐ | **LED-channel drive decision**; relay footprint |
+| 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
 | 04 Audio + SD | `sheets/04-audio.md` | ☐ | GAIN/SD_MODE resistor values; line-out topology |
 | 05 Addressable LED | `sheets/05-led.md` | ☐ | — |
 | 06 Motors | `sheets/06-motors.md` | ☐ | socket row spacing (spec open item #3); ILIM values |

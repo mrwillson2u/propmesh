@@ -110,6 +110,13 @@ a fetch. The actual file is on the mirror —
 header. The `<id>_<MPN>_<Cnum>` string comes from the API's
 `dataManualUrl`.
 
+**Imported symbols can arrive with pins INVERTED** — the connection
+circle on the body side and a dead decorative stub facing outward, so
+wires drawn to the visible tip connect to nothing (HK4100F arrived this
+way, caught by Colin 2026-09-04). In the Symbol Editor the circle must
+sit at the OUTER end of every pin; if not, flip each pin 180° about its
+own stub before first use.
+
 **Every imported symbol arrives with all pins typed "Unspecified"**, so
 ERC throws a "Unspecified and Passive pins are connected" warning for
 every wire on it. Set the pin electrical types **in the library** the

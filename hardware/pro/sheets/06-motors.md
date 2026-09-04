@@ -16,7 +16,7 @@
 | MS1/MS2/MS3 jumper blocks, 3-pin ×6 | MS1/MS2 double as **UART address straps** for the two TMC2209s on the shared bus. Silkscreen the TMC default positions. |
 
 **Shared EN — the inverter (hardware, this sheet):** `STEPPER_EN_RAW`
-from PCA9685 ch 15 drives a **2N7002 gate; drain = the sockets' EN pins
+from PCA9685 ch 15 drives a **AO3400A (`C20917` — consolidated with sheet 03's LED FETs, decided 2026-09-04; was AO3400A) gate; drain = the sockets' EN pins
 with a 10 kΩ pull-up to 3V3**. Uninverted, drivers energize from
 power-on until I²C init (PCA9685 wakes outputs-low, EN is active-low).
 Inverted, they default disabled; firmware drives ch 15 HIGH to enable.
