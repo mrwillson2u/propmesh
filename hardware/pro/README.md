@@ -71,7 +71,7 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 | 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
 | 04 Audio + SD | `sheets/04-audio.md` — **fully sourced**, GAIN/SD_MODE datasheet-exact, line-out via PCM5102A | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: meter the jack tip/ring/sleeve (three numbering schemes collided — see doc); `C723982` shared stock pool |
 | 05 Addressable LED | `sheets/05-led.md` | ☐ | — |
-| 06 Motors | `sheets/06-motors.md` | ☐ | socket row spacing (spec open item #3); ILIM values |
+| 06 Motors | `sheets/06-motors.md` — **fully sourced**, row spacing 12.70 mm (Pololu-verified), ILIM = 2.13 A, RST/SLP-tie = UART bus | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for LAYOUT: socket rows exactly 12.70 mm, DRV8871 EP paste vs TI drawing, silk TMC strap defaults |
 | 07 Sensors + expansion | `sheets/07-sensors-expansion.md` | ☐ | — |
 
 Tick boxes as sheets land; clear ⚠ items before layout, never during.

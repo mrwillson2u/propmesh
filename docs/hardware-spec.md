@@ -291,19 +291,26 @@ parts alone.
 | 1000 µF bulk + 330 Ω series | — | mixed | — | $0.25 |
 | | | | | **$1.25** |
 
-#### Motor drivers
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| Pololu 2×8 socket (8-pin female header ×2) | 2 | **T** | $0.25 | $0.50 |
-| DRV8871DDAR H-bridge, 45 V / 3.6 A pk | 2 | SMT | $1.20 | $2.40 |
-| JST-XH 4-pin (stepper coils) | 2 | **T** | $0.12 | $0.24 |
-| Screw terminal 2-pos (DC motor) | 2 | **T** | $0.20 | $0.40 |
-| Motor rail bulk caps + UART series R | — | mixed | — | $0.22 |
-| Expansion header 2×5 0.1" + strap protection | 1 | **T** | $0.12 | $0.12 |
-| Mode jumper blocks, 3-pin (MS1/2/3 × 2 sockets) | 6 | **T** | $0.033 | $0.20 |
-| | | | | **$4.08** |
+#### Motor drivers — $4.75 ✅ verified
 
-**Stepper drivers are user-supplied.** The socket is the standard Pololu 2×8 footprint.
+**Itemised in `hardware/pro/sheets/06-motors.md`, the single source**
+(sourced + both open items closed 2026-09-04). Rollup only:
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| 2× DRV8871 `C75864` + ILIM, decoupling, terminals | $3.68 | $5.55 |
+| 2× stepper sockets (4× 1×8 female) + MS straps + shunts + DIAG aux | $0.83 | $1.05 |
+| JST-XH coils ×2, bulk electrolytics, EN inverter, UART R | $0.24 | $0.29 |
+| **Motor total** | **$4.75** | **$6.89** |
+
+> **Open item #3 CLOSED** (Pololu drawing md09b): socket rows are
+> 12.70 mm apart exactly, 1×8 at 2.54 mm. RST/SLP positions hardwired
+> together = the TMC2209 PDN_UART bus (the ecosystem's own trick —
+> A4988 needs them tied, TMC puts UART there). DIAG reaches the GPIOs
+> via 2-pin aux headers + jumper wire, because vendors break DIAG out
+> in different places. **ILIM verified from TI's DS: ITRIP = 64000/R;
+> 30 kΩ = 2.13 A per channel.** DRV8871 genuine = $1.84@100, double
+> the old estimate — the sheet's honest cost driver.
 
 #### Driver compatibility — UART vs SPI
 
@@ -412,7 +419,7 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (power, MCU, outputs, audio verified) | **$30.34** |
+| **Parts subtotal** | sum of §2.4 (five of seven blocks verified) | **$32.69** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -420,11 +427,11 @@ MCU boots → one subsystem at a time.
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $1.04 |
+| Scrap allowance | 3% of parts + assembly | $1.11 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$37.77** |
-| US import duty | at 25% on ~$34.98 PCBA value | +$8.75 |
-| **Duty-paid landed** | | **~$46.52** |
+| **Ex-duty landed** | | **$40.19** |
+| US import duty | at 25% on ~$37.33 PCBA value | +$9.33 |
+| **Duty-paid landed** | | **~$49.52** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 

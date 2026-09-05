@@ -203,7 +203,8 @@ def compare(parts, spec_nets, all_comps, sch_nets):
         best, score = None, -1
         for name, c in sch_counters.items():
             s = sum((wc & c).values())
-            if s > score or (s == score and name == net): best, score = name, s
+            if s > score or (s == score and (name == net or short(name) == net)):
+                best, score = name, s
         vclosest[net] = best
 
     def flip(r, p):
@@ -255,7 +256,7 @@ def compare(parts, spec_nets, all_comps, sch_nets):
         else:
             cnt = Counter(pin_net.get((assign[r], p)) for r, p in want if not parts[r].get("dnp") and assign.get(r))
             cnt.pop(None, None)
-            best = max(cnt, key=lambda n: (cnt[n], n == net)) if cnt else (net if net in sch_nets else None)
+            best = max(cnt, key=lambda n: (cnt[n], short(n) == net, n == net)) if cnt else (net if net in sch_nets else None)
         pins, score = [], 0
         for r, p in want:
             if parts[r].get("dnp"): pins.append((r, p, "dnp", "")); continue

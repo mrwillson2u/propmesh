@@ -131,6 +131,16 @@ way, caught by Colin 2026-09-04). In the Symbol Editor the circle must
 sit at the OUTER end of every pin; if not, flip each pin 180° about its
 own stub before first use.
 
+**Two parts can import to the SAME footprint filename.** EasyEDA names
+land patterns generically (two different SO-8-EP chips both arrive as
+`SO-8_L4.9-W3.9-P1.27-LS6.0-BL-EP`), and `--overwrite` silently
+replaces the existing file — nearly clobbered the AP64350's verified
+pattern with the DRV8871's (2026-09-04; geometry happened to be
+identical, only the embedded LCSC property flipped). After every
+import: `git status hardware/lib/` and investigate any MODIFIED
+footprint you didn't expect; fork same-named patterns to per-part
+filenames. The sixth known import lie.
+
 **An import's pad numbers may not be the datasheet's contact numbers.**
 The PJ-320A jack numbers its four contacts 1–4 in the datasheet
 schematic; the EasyEDA part numbers the same contacts 2–5. Any pin

@@ -1,0 +1,141 @@
+# Sheet 06 — Motors: connection spec.  ONE LINE PER NET.
+#
+# Drawing guide: open 06-motors.diagram.html.  Checker after capture:
+#   python3 tools/checknet.py hardware/pro/sheets/06-motors.net.yaml
+#
+# SOCKET GEOMETRY (open item #3 CLOSED, Pololu drawing md09b,
+# 2026-09-04): two 1x8 rows, 2.54 pitch, ROW SPACING 12.70 mm exactly,
+# pins 1.27 mm in from board ends. Logic row top->bottom:
+#   EN MS1 MS2 MS3 RST SLP STEP DIR   (A4988 names)
+# Power row top->bottom:
+#   VMOT GND 2B 2A 1A 1B VDD GND
+# THE ECOSYSTEM TRICK: positions 5+6 (RST/SLP) are HARDWIRED TOGETHER —
+# an A4988 needs them tied to run, and the TMC2209 family puts its
+# single-wire PDN_UART on those same pins. That tied pair IS the UART
+# bus. MS1-3 go to 3-pin straps (3V3 | pin | GND) = TMC UART addresses
+# and A4988 microstepping, silkscreen the TMC defaults.
+#
+# DIAG: vendor modules break DIAG out in DIFFERENT places (BTT: extra
+# top pins; not through the 2x8) -> per socket a 2-pin AUX header takes
+# a jumper wire from the module, behind a bridged solder jumper that
+# frees the GPIO for expansion (JP_D1/JP_D2). GPIO43 gets 1 k series
+# (ROM boot log drives U0TXD at reset).
+#
+# DRV8871 ILIM (verified TI DS 2026-09-04): ITRIP = 64000 / R_ILIM.
+# 30 k -> 2.13 A (DS's own example: 32 k -> 2 A; min legal 15 k).
+
+sheet: 06-motors
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+  sock8: &sock8 "Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical"
+  hdr3:  &hdr3  "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
+  hdr2:  &hdr2  "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical"
+  elec:  &elec  "Capacitor_SMD:CP_Elec_8x10.5"
+  sj:    &sj    "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
+
+parts:
+  J_S1L:  {value: SOCKET_1x8, lcsc: C42431840, symbol: "Connector_Generic:Conn_01x08", footprint: *sock8, note: "stepper 1 LOGIC row. Place the L/R rows exactly 12.70 mm apart, pin 1 to pin 1 (Pololu md09b)"}
+  J_S1R:  {value: SOCKET_1x8, lcsc: C42431840, symbol: "Connector_Generic:Conn_01x08", footprint: *sock8, note: "stepper 1 POWER row"}
+  J_S2L:  {value: SOCKET_1x8, lcsc: C42431840, symbol: "Connector_Generic:Conn_01x08", footprint: *sock8}
+  J_S2R:  {value: SOCKET_1x8, lcsc: C42431840, symbol: "Connector_Generic:Conn_01x08", footprint: *sock8}
+  JP11:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3, note: "straps: pin1=+3V3, pin2=socket MSx, pin3=GND; shunt C100114. MS1/MS2 = TMC2209 UART address, silk the defaults"}
+  JP12:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3}
+  JP13:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3}
+  JP21:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3}
+  JP22:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3}
+  JP23:   {value: MS_SEL, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3}
+  Q_EN:   {value: AO3400A, lcsc: C20917, symbol: "Transistor_FET:AO3400A", footprint: "Package_TO_SOT_SMD:SOT-23", note: "the EN inverter (spec 2.5): drivers default DISABLED until firmware raises PCA9685 ch15"}
+  R_ENP:  {value: 10k,  lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "EN bus pull-up to +3V3"}
+  R_UTX:  {value: 1k,   lcsc: C21190, symbol: "Device:R", footprint: *r0603, note: "TX leg of the half-duplex TMC UART; RX joins the bus directly"}
+  R_DG2:  {value: 1k,   lcsc: C21190, symbol: "Device:R", footprint: *r0603, note: "series on GPIO43/STEPPER_2_DIAG — ROM boot log drives U0TXD every reset"}
+  JP_D1:  {value: SJ,   lcsc: ~, symbol: "Jumper:SolderJumper_2_Bridged", footprint: *sj, note: "cut to free GPIO42 for expansion when no StallGuard"}
+  JP_D2:  {value: SJ,   lcsc: ~, symbol: "Jumper:SolderJumper_2_Bridged", footprint: *sj}
+  J_DIAG1: {value: DIAG_AUX, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: *hdr2, note: "jumper-wire target: vendor modules break DIAG out in different spots (BTT: top pins). Pin2 = GND for the return"}
+  J_DIAG2: {value: DIAG_AUX, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: *hdr2}
+  XH1:    {value: STEPPER_COIL, lcsc: C37815, symbol: "Connector_Generic:Conn_01x04", footprint: "Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical", note: "JST-XH 4P — NEMA17 pigtails plug in. Order 2B 2A 1A 1B follows the socket row"}
+  XH2:    {value: STEPPER_COIL, lcsc: C37815, symbol: "Connector_Generic:Conn_01x04", footprint: "Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical"}
+  C_BS1:  {value: 100uF/63V, lcsc: C7471890, symbol: "Device:C_Polarized", footprint: *elec, note: "per-socket bulk at VMOT, same part as sheet 01 C_bulk. 63 V >= the 50 V floor"}
+  C_BS2:  {value: 100uF/63V, lcsc: C7471890, symbol: "Device:C_Polarized", footprint: *elec}
+  U_MA:   {value: DRV8871DDAR, lcsc: C75864, symbol: "propmesh:DRV8871DDAR", footprint: "propmesh:SO-8EP_DRV8871DDAR", note: "import inspected, pins OK. Footprint forked from the AP64350's identical generic (import lie #6). Internal input pulldowns = safe at boot. Verify EP paste vs TI 2.29x3.05 at layout"}
+  U_MB:   {value: DRV8871DDAR, lcsc: C75864, symbol: "propmesh:DRV8871DDAR", footprint: "propmesh:SO-8EP_DRV8871DDAR"}
+  R_ILA:  {value: 30k,  lcsc: C22984, symbol: "Device:R", footprint: *r0603, note: "ITRIP = 64000/30k = 2.13 A (TI formula, verified)"}
+  R_ILB:  {value: 30k,  lcsc: C22984, symbol: "Device:R", footprint: *r0603}
+  C_MA1:  {value: 100uF/63V, lcsc: C7471890, symbol: "Device:C_Polarized", footprint: *elec}
+  C_MA2:  {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  C_MB1:  {value: 100uF/63V, lcsc: C7471890, symbol: "Device:C_Polarized", footprint: *elec}
+  C_MB2:  {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  J_MA:   {value: MOTOR_OUT, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: "propmesh:CONN-TH_DG128-5.0-02P-14-00A-H"}
+  J_MB:   {value: MOTOR_OUT, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: "propmesh:CONN-TH_DG128-5.0-02P-14-00A-H"}
+
+blocks:
+  "Stepper socket 1 — logic row + straps": [STEPPER_1_STEP, STEPPER_1_DIR, S1_MS1, S1_MS2, S1_MS3, STEPPER_1_DIAG, D1_HDR]
+  "Stepper socket 2 — logic row + straps": [STEPPER_2_STEP, STEPPER_2_DIR, S2_MS1, S2_MS2, S2_MS3, STEPPER_2_DIAG, D2_MID, D2_HDR]
+  "Shared: EN inverter + UART bus":        [STEPPER_EN_RAW, STEPPER_EN, TMC_UART_RX, TMC_UART_TX]
+  "Power rows + coils":                    [VIN_PROT, S1_2B, S1_2A, S1_1A, S1_1B, S2_2B, S2_2A, S2_1A, S2_1B]
+  "Brushed DC ×2 (DRV8871)":               [MOTOR_A_IN1, MOTOR_A_IN2, MA_ILIM, MA_OUT1, MA_OUT2,
+                                            MOTOR_B_IN1, MOTOR_B_IN2, MB_ILIM, MB_OUT1, MB_OUT2]
+
+named: [STEPPER_1_STEP, STEPPER_1_DIR, STEPPER_2_STEP, STEPPER_2_DIR,
+        TMC_UART_TX, TMC_UART_RX, STEPPER_1_DIAG, STEPPER_2_DIAG,
+        MOTOR_A_IN1, MOTOR_A_IN2, MOTOR_B_IN1, MOTOR_B_IN2, STEPPER_EN_RAW]
+
+nets:
+  # --- stepper logic rows ---------------------------------------------
+  STEPPER_1_STEP: [J_S1L.7]
+  STEPPER_1_DIR:  [J_S1L.8]
+  STEPPER_2_STEP: [J_S2L.7]
+  STEPPER_2_DIR:  [J_S2L.8]
+  S1_MS1: [J_S1L.2, JP11.2]
+  S1_MS2: [J_S1L.3, JP12.2]
+  S1_MS3: [J_S1L.4, JP13.2]
+  S2_MS1: [J_S2L.2, JP21.2]
+  S2_MS2: [J_S2L.3, JP22.2]
+  S2_MS3: [J_S2L.4, JP23.2]
+
+  # DIAG: socket-independent AUX headers behind bridged solder jumpers
+  STEPPER_1_DIAG: [JP_D1.A]
+  D1_HDR:  [JP_D1.B, J_DIAG1.1]
+  STEPPER_2_DIAG: [R_DG2.1]
+  D2_MID:  [R_DG2.2, JP_D2.A]
+  D2_HDR:  [JP_D2.B, J_DIAG2.1]
+
+  # --- shared EN + UART ----------------------------------------------
+  STEPPER_EN_RAW: [Q_EN.G]
+  STEPPER_EN:     [Q_EN.D, R_ENP.1, J_S1L.1, J_S2L.1]
+  TMC_UART_TX:    [R_UTX.1]
+  TMC_UART_RX:    [R_UTX.2, J_S1L.5, J_S1L.6, J_S2L.5, J_S2L.6]
+
+  # --- power rows + coils --------------------------------------------
+  VIN_PROT: [J_S1R.1, J_S2R.1, C_BS1.1, C_BS2.1,
+             U_MA.VM, U_MB.VM, C_MA1.1, C_MA2.1, C_MB1.1, C_MB2.1]
+  S1_2B: [J_S1R.3, XH1.1]
+  S1_2A: [J_S1R.4, XH1.2]
+  S1_1A: [J_S1R.5, XH1.3]
+  S1_1B: [J_S1R.6, XH1.4]
+  S2_2B: [J_S2R.3, XH2.1]
+  S2_2A: [J_S2R.4, XH2.2]
+  S2_1A: [J_S2R.5, XH2.3]
+  S2_1B: [J_S2R.6, XH2.4]
+  +3V3: [J_S1R.7, J_S2R.7, R_ENP.2,
+         JP11.1, JP12.1, JP13.1, JP21.1, JP22.1, JP23.1]
+
+  # --- brushed DC -----------------------------------------------------
+  MOTOR_A_IN1: [U_MA.IN1]
+  MOTOR_A_IN2: [U_MA.IN2]
+  MOTOR_B_IN1: [U_MB.IN1]
+  MOTOR_B_IN2: [U_MB.IN2]
+  MA_ILIM: [U_MA.ILIM, R_ILA.1]
+  MA_OUT1: [U_MA.OUT1, J_MA.1]
+  MA_OUT2: [U_MA.OUT2, J_MA.2]
+  MB_ILIM: [U_MB.ILIM, R_ILB.1]
+  MB_OUT1: [U_MB.OUT1, J_MB.1]
+  MB_OUT2: [U_MB.OUT2, J_MB.2]
+
+  # --- ground ---------------------------------------------------------
+  GND: [Q_EN.S, J_S1R.2, J_S1R.8, J_S2R.2, J_S2R.8,
+        JP11.3, JP12.3, JP13.3, JP21.3, JP22.3, JP23.3,
+        J_DIAG1.2, J_DIAG2.2, C_BS1.2, C_BS2.2,
+        U_MA.GND, U_MA.PGND, U_MA.EP, U_MB.GND, U_MB.PGND, U_MB.EP,
+        R_ILA.2, R_ILB.2, C_MA1.2, C_MA2.2, C_MB1.2, C_MB2.2]

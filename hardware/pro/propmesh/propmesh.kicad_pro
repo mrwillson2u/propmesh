@@ -661,7 +661,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "C_SD3-8,J_LED2-6,Card1,CN1,L1-2,D1-11,#PWR1-105,FB1-2,C1-31,U1-8,SW1-2,K1-3,J1-13,#FLG1-5,F1,TP1-2,R_G1,Q1-7,FB_P1,R1-4,R6-28",
+    "used_designators": "R_UTX1,J_S2R1,FB1-2,U_MB1,L1-2,R_ENP1,U_MA1,Card1,C_MA2-3,JXH2,J_S1R1,C_SD3-8,J_MB1,J_LED2-6,C_BS2-3,CN1,J_S1L1,J1-24,JP1-3,R_G1,F1,D1-11,J_S2L1,#PWR1-141,C1-31,U1-9,J_MA1,K1-3,SW1-2,TP1-2,#FLG1-5,Q1-8,FB_P1,R1-4,R6-31",
     "variants": []
   },
   "sheets": [
@@ -684,6 +684,10 @@
     [
       "67eb6608-7606-4bb8-9c7d-bad3eb4c3712",
       "Audio"
+    ],
+    [
+      "4456b476-8247-4fcd-a3f1-d613b0ae9505",
+      "Motors"
     ]
   ],
   "text_variables": {},
