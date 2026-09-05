@@ -1,0 +1,96 @@
+# Sheet 05 — Addressable LED + status LED: connection spec. ONE LINE PER NET.
+#
+# Drawing guide: open 05-led.diagram.html.  Checker after capture:
+#   python3 tools/checknet.py hardware/pro/sheets/05-led.net.yaml
+#
+# THE SUFFIX IS THE POINT: 74AHCT125 — the T = TTL thresholds
+# (VIH 2.0 V), which is what makes 3.3 V data legal into a 5 V buffer.
+# AHC/HC at 5 V need 3.5 V and "mostly work" = random flicker (locked
+# decision). Sourcing 2026-09-04: TSSOP (PW/PWR) is dead at JLC
+# (stock 0/50) -> SN74AHCT125DR, SOIC-14, genuine TI, C155176,
+# $0.40@1 / $0.24@100, 7.8 k stock. Same die, easier to hand-solder.
+#
+# GATE MAP (all four used; OE pins 1/4/10/13 all to GND):
+#   gate A in 2  out 3  -> strip 1 DATA
+#   gate B in 5  out 6  -> strip 2 DATA (APA102 DATA in 4-wire mode)
+#   gate C in 9  out 8  -> strip 2 CLK  (APA102 only)
+#   gate D in 12 out 11 -> onboard status pixel
+#
+# 330 R series AT THE CONNECTOR (damps reflections into the cable, so
+# it sits at the cable end, not the chip end). 1000 uF bulk at each
+# strip connector = hot-plug inrush for the first pixel (radial THT
+# D10 P5, C439782 — GP electrolytic is fine here: it is charge storage,
+# not a switcher output; true low-ESR C165516 has 750 stock, noted as
+# alternate). Strip 2 4th wire (CLK) goes through bridged solder
+# jumper JP_M: cut it for 3-wire WS2812 use to keep the dead clock
+# line off the cable.
+#
+# STRIP 2 CONNECTOR: DG128-5.0-04P is stock-dead -> 2x DG128-02P
+# (the README fallback): one block = 5V/GND, other = DATA/CLK.
+#
+# STATUS PIXEL: WS2812B-MINI-X2 (3.5 mm) — import verified against
+# Worldsemi DS 2026-09-04: symbol pins 1=DIN 2=VDD 3=DOUT 4=GND match
+# the DS table; land pattern is the DS recommendation ~0.1-0.3 mm
+# enlarged, same 0.5 mm gaps — fine. VIH = 0.65*VDD = 3.25 V at 5 V,
+# which is WHY it hangs off gate D and not the bare GPIO.
+# DOUT (pin 3) gets a no-connect X flag.
+
+sheet: 05-led
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+  bulk:  &bulk  "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
+  sj:    &sj    "Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
+  dg2:   &dg2   "propmesh:CONN-TH_DG128-5.0-02P-14-00A-H"
+
+parts:
+  U_LS:   {value: SN74AHCT125, lcsc: C155176, symbol: "74xx:74AHCT125", footprint: "Package_SO:SOIC-14_3.9x8.7mm_P1.27mm", note: "multi-unit symbol: place units A-D (gates) + E (power). AHCT, never AHC/HC — TTL thresholds are the level shift"}
+  C_LS:   {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603, note: "at U_LS pin 14, 5 V rail"}
+  R_S1:   {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603, note: "series Rs live AT THE CONNECTORS, not the chip"}
+  R_S2D:  {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603}
+  R_S2C:  {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603}
+  R_ST:   {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603, note: "status pixel is on-board but keeps its series R — costs nothing, kills ringing"}
+  C_B1:   {value: 1000uF/16V, lcsc: C439782, symbol: "Device:C_Polarized", footprint: *bulk, note: "hot-plug inrush bulk, THT radial D10xL13 P5. Low-ESR alternate: C165516 (NXA, 750 stock)"}
+  C_B2:   {value: 1000uF/16V, lcsc: C439782, symbol: "Device:C_Polarized", footprint: *bulk}
+  J_ST1:  {value: LED_STRIP_1, lcsc: C691861, symbol: "Connector:Screw_Terminal_01x03", footprint: "propmesh:CONN-TH_DG128-5.0-03P-14-00A-H", note: "5V | GND | DATA. Silk: strips beyond ~50 px need external 5 V injection, data-only from the board"}
+  J_ST2A: {value: LED2_PWR, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 2 power half: 5V | GND. (04P is stock-dead; two 02P blocks side by side)"}
+  J_ST2B: {value: LED2_SIG, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 2 signal half: DATA | CLK"}
+  JP_M:   {value: STRIP2_MODE, symbol: "Jumper:SolderJumper_2_Bridged", footprint: *sj, note: "copper only, no LCSC line. Bridged = APA102-capable; cut for 3-wire WS2812"}
+  D_ST:   {value: WS2812B-MINI, lcsc: C4154873, symbol: "propmesh:WS2812B-MINI-X1", footprint: "propmesh:LED-SMD_4P-L3.5-W3.5-TL_WS2812B-1", note: "symbol name is the vendor's; the taped part ordered is -X2. Pin 3 DOUT gets a no-connect X"}
+  C_ST:   {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603, note: "at D_ST VDD"}
+
+blocks:
+  "Level shifter — gate inputs":  [LED_STRIP_1_DATA, LED_STRIP_2_DATA, LED_STRIP_2_CLK, STATUS_LED]
+  "Strip 1 (3-wire)":             [LED1_5V, LED1_OUT]
+  "Strip 2 (3/4-wire + mode SJ)": [LED2_5V, LED2_OUT, CLK_5V, CLK_J, CLK_OUT]
+  "Status pixel":                 [ST_5V, ST_DIN]
+
+named: [LED_STRIP_1_DATA, LED_STRIP_2_DATA, LED_STRIP_2_CLK, STATUS_LED]
+
+nets:
+  # --- gate inputs (MCU drives these from sheet 02) -------------------
+  LED_STRIP_1_DATA: [U_LS.2]
+  LED_STRIP_2_DATA: [U_LS.5]
+  LED_STRIP_2_CLK:  [U_LS.9]
+  STATUS_LED:       [U_LS.12]
+
+  # --- strip 1 --------------------------------------------------------
+  LED1_5V:  [U_LS.3, R_S1.1]
+  LED1_OUT: [R_S1.2, J_ST1.3]
+
+  # --- strip 2 --------------------------------------------------------
+  LED2_5V:  [U_LS.6, R_S2D.1]
+  LED2_OUT: [R_S2D.2, J_ST2B.1]
+  CLK_5V:   [U_LS.8, R_S2C.1]
+  CLK_J:    [R_S2C.2, JP_M.A]
+  CLK_OUT:  [JP_M.B, J_ST2B.2]
+
+  # --- status pixel ---------------------------------------------------
+  ST_5V:  [U_LS.11, R_ST.1]
+  ST_DIN: [R_ST.2, D_ST.1]
+
+  # --- rails ----------------------------------------------------------
+  +5V: [U_LS.14, C_LS.1, J_ST1.1, J_ST2A.1, C_B1.1, C_B2.1, D_ST.2, C_ST.1]
+  GND: [U_LS.7, U_LS.1, U_LS.4, U_LS.10, U_LS.13, C_LS.2,
+        J_ST1.2, J_ST2A.2, C_B1.2, C_B2.2, D_ST.4, C_ST.2]

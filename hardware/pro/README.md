@@ -43,8 +43,8 @@ membership (internal nodes need no labels), and the named rails are
 checked for their label. This closes the "schematic disagrees with the design" bug
 class CLAUDE.md ranks first. The markdown keeps only a **designator
 cross-reference** where the sheet's names differ from the datasheet
-figure's. Sheet 01 is the worked example; **sheets 02–07 need their
-`.net.yaml` written before drawing.**
+figure's. Sheet 01 is the worked example; **all seven `.net.yaml`s are
+written** (05/07 landed 2026-09-04).
 
 **Every part gets a TABLE ROW, never only prose.** A part described in
 a sentence ("plus a 10 kΩ pull-up", "gate network: a zener and 100 kΩ")
@@ -70,14 +70,22 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 | 02 MCU + USB | `sheets/02-mcu-usb.md` — **fully sourced** | **☑ DONE 2026-09-04** — checknet all nets + footprints green; ERC clean bar the 32 expected one-sided labels | for LAYOUT: USB-C needs its shield vias; TP37 silkscreen |
 | 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
 | 04 Audio + SD | `sheets/04-audio.md` — **fully sourced**, GAIN/SD_MODE datasheet-exact, line-out via PCM5102A | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: meter the jack tip/ring/sleeve (three numbering schemes collided — see doc); `C723982` shared stock pool |
-| 05 Addressable LED | `sheets/05-led.md` | ☐ | — |
+| 05 Addressable LED | `sheets/05-led.md` — **fully sourced 2026-09-04**: AHCT125 → SOIC-14 `C155176` (TSSOP dead), strip 2 = 2× DG128-02P (04P dead), status pixel import verified | ☐ spec ready, drawing next | ⚠ layout: silk 5 V-injection note at strip terminals |
 | 06 Motors | `sheets/06-motors.md` — **fully sourced**, row spacing 12.70 mm (Pololu-verified), ILIM = 2.13 A, RST/SLP-tie = UART bus | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for LAYOUT: socket rows exactly 12.70 mm, DRV8871 EP paste vs TI drawing, silk TMC strap defaults |
-| 07 Sensors + expansion | `sheets/07-sensors-expansion.md` | ☐ | — |
+| 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced 2026-09-04**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead), TSOP on 3V3 | **☑ DONE 2026-09-05** — checknet all green, ERC clean bar the 4 LED labels awaiting sheet 05; `D2_MID` global on both sheets | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
 
 Tick boxes as sheets land; clear ⚠ items before layout, never during.
 
 ## Rules that apply to every sheet
 
+- **Reference designators are PROJECT-GLOBAL — a spec ref used on one
+  sheet's yaml must never appear in another sheet's.** KiCad treats a
+  ref as one part across all sheets: reusing `C_A1` on audio *and*
+  sensors (caught 2026-09-04) made Annotate report duplicate-item
+  errors and let one sheet's cap masquerade as the other's in the
+  netlist — the checker can't see it when the double lands on a shared
+  rail. Before writing a new yaml, grep the existing ones for each new
+  ref.
 - **Net names = pinmap signal names, exactly.** That's what lets the
   netlist be checked against `pinmap.yaml` mechanically.
 - **Power rails cross sheets by NAME — one canonical name each.** KiCad
@@ -102,7 +110,7 @@ Tick boxes as sheets land; clear ⚠ items before layout, never during.
   |---|---|---|---|
   | DC in (J1), DC motor ×2 | 5.0 | DG128-5.0-**02P**-14-00A(H) | `C711349` |
   | Relay ×3, WS2812 strip | 5.0 | DG128-5.0-**03P**-14-00A(H) | `C691861` |
-  | APA102 strip | 5.0 | DG128-5.0-**04P** | ⚠ verify stocked; else 2× 02P |
+  | APA102 strip | 5.0 | ~~DG128-5.0-04P~~ **stock-dead 2026-09-04 → 2× 02P** (5V/GND + DATA/CLK, sheet 05) | `C711349` ×2 |
   | Speaker, LED outputs | 3.5 | DG381S-3.5-**02P**-14-00A(H) | `C723982` |
 
   All are **fixed, side-entry, THT, 300 V** — 5.0 mm pitch is

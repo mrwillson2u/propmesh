@@ -282,14 +282,24 @@ parts alone.
 > GAIN = 12 dB (direct tie), SD_MODE = mono via 620 k — datasheet-exact,
 > see the sheet.
 
-#### Addressable LED
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| SN74AHCT125PW level shifter (TSSOP — the "N" suffix is DIP) | 1 | SMT | $0.35 | $0.35 |
-| Screw terminal 3-pos (WS2812) | 1 | **T** | $0.30 | $0.30 |
-| Screw terminal 4-pos (APA102) | 1 | **T** | $0.35 | $0.35 |
-| 1000 µF bulk + 330 Ω series | — | mixed | — | $0.25 |
-| | | | | **$1.25** |
+#### Addressable LED — $1.09 ✅ verified
+
+**Itemised in `hardware/pro/sheets/05-led.md`, the single source**
+(sourced 2026-09-04). Rollup only:
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| SN74AHCT125**DR** `C155176` + decoupling | $0.27 | $0.42 |
+| Strip terminals: 3-pos + 2× 2-pos DG128, 1000 µF ×2, 330 Ω ×4 | $0.72 | $0.97 |
+| Status pixel WS2812B-MINI-X2 `C4154873` + 100 nF (moved from Misc) | $0.10 | $0.13 |
+| **LED total** | **$1.09** | **$1.52** |
+
+> Two sourcing casualties, both resolved: TSSOP AHCT125 is dead at JLC
+> → same TI die in SOIC-14 (AHCT suffix unchanged — it is the level
+> shift); DG128-04P dead → strip 2 = two 02P blocks (5V/GND + DATA/CLK).
+> Status pixel import verified against the Worldsemi DS: pins match,
+> land pattern = DS recommendation slightly enlarged, V_IH 3.25 V at
+> 5 V — the DS's own number for why it needs its shifter gate.
 
 #### Motor drivers — $4.75 ✅ verified
 
@@ -354,26 +364,33 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 
 **DC channels use DRV8871, driven from ESP32 LEDC at 25 kHz.** Do not route these through the PCA9685 — its ~1.6 kHz ceiling sits in the middle of the audible band and will make every motor whine.
 
-#### Sensors and expansion
-| Part | Qty | Mount | Unit | Ext |
-|---|---|---|---|---|
-| TSOP38238 IR receiver | 1 | **T** | $0.25 | $0.25 |
-| JST-XH 3-pin, digital in ×3 | 3 | **T** | $0.10 | $0.30 |
-| JST-XH 3-pin, analog in ×2 | 2 | **T** | $0.10 | $0.20 |
-| BAT54S clamp diodes | 5 | SMT | $0.06 | $0.30 |
-| Qwiic JST-SH 4-pin | 1 | SMT | $0.15 | $0.15 |
-| 0.1" headers (SPI / UART) | 2 | **T** | $0.08 | $0.16 |
-| HC-SR501 PIR footprint header | 1 | **T** | $0.08 | $0.08 |
-| | | | | **$1.44** |
+#### Sensors and expansion — $0.94 ✅ verified
+
+**Itemised in `hardware/pro/sheets/07-sensors-expansion.md`, the
+single source** (sourced 2026-09-04). Rollup only:
+
+| Group | qty 100 | qty 1 |
+|---|---|---|
+| TSOP38238 `C141632` + filter + pull-up | $0.57 | $0.74 |
+| 5× XH-3 + PIR header + 3× BAT54S + input passives | $0.19 | $0.22 |
+| Qwiic (SH-1.0 clone `C7430446`) + 2×5 expansion + strap Rs | $0.18 | $0.22 |
+| **Sensors total** | **$0.94** | **$1.18** |
+
+> The genuine SM04B-SRSS-TB is stock-dead at JLC; a 130 k-stock SH-1.0
+> clone sits on KiCad's official JST-SH footprint (measure at layout).
+> The TSOP runs on **3V3, not 5 V** — its internal pull-up goes to its
+> own supply, and a 5 V supply would idle GPIO 3 at 5 V. Only three
+> BAT54S, not five: analog inputs get halvers, not clamps.
 
 #### Misc and board
 | Part | Qty | Mount | Unit | Ext |
 |---|---|---|---|---|
-| WS2812B-mini status LED | 1 | SMT | $0.10 | $0.10 |
 | Passives (0603 R&C — see §2.6) | — | SMT | — | $0.80 |
 | U.FL antenna + pigtail | 1 | — | $1.20 | $1.20 |
 | PCB, 4-layer 130×100 mm @ qty 100 | 1 | — | $4.30 | $4.30 |
-| | | | | **$6.40** |
+| | | | | **$6.30** |
+
+*(Status LED moved into the verified Addressable LED block 2026-09-04.)*
 
 *JLCPCB adjusted FR4 pricing in August 2026. Re-quote the bare board before committing.*
 
@@ -419,7 +436,7 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (five of seven blocks verified) | **$32.69** |
+| **Parts subtotal** | sum of §2.4 (**all seven blocks verified** 2026-09-04; misc/PCB still estimates) | **$31.93** |
 | SMT joints (~392) | $0.0017/joint | $0.67 |
 | THT joints (~153) | $0.0173/joint | $2.65 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
@@ -427,11 +444,11 @@ MCU boots → one subsystem at a time.
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
 | **Assembly subtotal** | | **$4.29** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $1.11 |
+| Scrap allowance | 3% of parts + assembly | $1.09 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$40.19** |
-| US import duty | at 25% on ~$37.33 PCBA value | +$9.33 |
-| **Duty-paid landed** | | **~$49.52** |
+| **Ex-duty landed** | | **$39.41** |
+| US import duty | at 25% on ~$36.57 PCBA value | +$9.14 |
+| **Duty-paid landed** | | **~$48.55** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 
@@ -749,7 +766,7 @@ At 10 pieces you are under the 30-piece Economic PCBA cap, which removes the $1.
 
 Parts flagged **"Standard Only"** make the entire design ineligible for Economic PCBA. This commonly applies to SMD LEDs with high moisture-sensitivity level, certain sensors, BGA packages, and anything 0201 or smaller.
 
-**Two parts at risk in this BOM:** the WS2812B-mini status LED and the TSOP38238 IR receiver. If either is flagged, the ~$148 assembly subtotal becomes roughly $100 in feeder fees plus a $25 setup on top of the joints — **near double**. Check both in JLCPCB's parts library before ordering; if flagged, move them to hand-soldered through-hole footprints.
+**Two parts at risk in this BOM:** the WS2812B-mini status LED and the TSOP38238 IR receiver. If either is flagged, the ~$148 assembly subtotal becomes roughly $100 in feeder fees plus a $25 setup on top of the joints — **near double**. *Status 2026-09-04 (open item #2):* both parts are now pinned — WS2812B-MINI-X2 `C4154873` (Extended, 20 k stock) and TSOP38238 `C141632` (THT by design, so it is hand-solder either way). The parts API does not expose the "Standard Only" attribute, and v0.1 is hand-populated, so the flag is moot until a PCBA run: **verify both in the JLCPCB order UI before the first assembly order.** If the LED is flagged, fall back to a THT 5 mm WS2812 on the same net.
 
 **Also note Economic PCBA is single-sided.** All SMT parts must live on the top layer. Plan for this from the start of layout rather than discovering it at quote time.
 

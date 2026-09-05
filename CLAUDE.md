@@ -39,7 +39,7 @@ original reasoning no longer holds rather than re-deriving it.
 ## Open verification items — before layout
 
 - [x] ~~GPIO 33/34 free on the exact WROOM-1 variant~~ **RESOLVED 2026-09-03, and the premise was wrong: GPIO 33/34 are not bonded out on ANY WROOM-1** (Espressif DS v1.8 pin table). MOTOR_B moved to GPIO 35/36 — which ARE the octal-PSRAM casualties, so the N8R2 (quad) variant is still load-bearing. `C3013944` verified in stock.
-- [ ] **WS2812B-mini and TSOP38238 checked for "Standard Only" flags** in JLCPCB's parts library. Either one forces the board off Economic PCBA and roughly doubles prototype assembly cost. Fix by moving to hand-soldered THT.
+- [x] **WS2812B-mini and TSOP38238 "Standard Only" flags** — MOSTLY RESOLVED 2026-09-04: parts pinned (WS2812B-MINI-X2 `C4154873`, TSOP38238 `C141632` — THT by design), but the parts API doesn't expose the flag and v0.1 is hand-built, so the residual check is **look in the JLCPCB order UI before the first PCBA run** (hardware-spec §7 note). LED fallback if flagged: THT 5 mm WS2812.
 - [x] ~~StepStick control-side pinouts cross-referenced~~ **RESOLVED 2026-09-04** from the Pololu md09b drawing: rows 12.70 mm apart; RST/SLP hardwired together = both A4988-legal AND the TMC2209 PDN_UART bus; MS1-3 on 3-pin straps; DIAG via per-socket aux headers + jumper wire (vendor positions differ). ILIM: ITRIP=64000/R per TI DS, 30 k = 2.13 A. See sheets/06-motors.md.
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.
 - [ ] **Mounting-hole pattern fixed** so the printable bracket stays stable across revisions.

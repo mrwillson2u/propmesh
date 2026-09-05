@@ -79,7 +79,8 @@ blocks:
 
 named: [STEPPER_1_STEP, STEPPER_1_DIR, STEPPER_2_STEP, STEPPER_2_DIR,
         TMC_UART_TX, TMC_UART_RX, STEPPER_1_DIAG, STEPPER_2_DIAG,
-        MOTOR_A_IN1, MOTOR_A_IN2, MOTOR_B_IN1, MOTOR_B_IN2, STEPPER_EN_RAW]
+        MOTOR_A_IN1, MOTOR_A_IN2, MOTOR_B_IN1, MOTOR_B_IN2, STEPPER_EN_RAW,
+        D2_MID]  # D2_MID went global 2026-09-04: expansion header pin 9 (sheet 07) joins it
 
 nets:
   # --- stepper logic rows ---------------------------------------------

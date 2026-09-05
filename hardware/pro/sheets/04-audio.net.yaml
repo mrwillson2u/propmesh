@@ -48,7 +48,7 @@ parts:
            note: "the ubiquitous push-push microSD. Import inspected: pins OK; 2 locating pegs were plated zero-ring holes -> fixed to NPTH in library"}
   R_CMD:  {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "pull-ups to +3V3. CMD + DAT0 per pinmap, PLUS DAT3: ESP-IDF requires D3 held high in 1-bit mode or the card drops into SPI mode"}
   R_D0:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
-  R_D3:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_DAT3:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
   C_SD1:  {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "cards pull sharp current spikes"}
   C_SD2:  {value: 100nF,   lcsc: C14663, symbol: "Device:C", footprint: *c0603}
   TP_CD:  {value: TP_CD,   lcsc: ~,      symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm",
@@ -107,9 +107,9 @@ nets:
   SD_CLK:   ["U_SD.CLK(SCLK)"]
   SD_CMD:   ["U_SD.CMD(DI)", R_CMD.1]
   SD_D0:    ["U_SD.DAT0(D0)", R_D0.1]
-  SD_D3:    ["U_SD.CDDAT3(CS)", R_D3.1]
+  SD_D3:    ["U_SD.CDDAT3(CS)", R_DAT3.1]
   CARD_DET: [U_SD.CD, TP_CD.1]
-  +3V3:     [U_SD.VDD, C_SD1.1, C_SD2.1, R_CMD.2, R_D0.2, R_D3.2, R_SDM.2,
+  +3V3:     [U_SD.VDD, C_SD1.1, C_SD2.1, R_CMD.2, R_D0.2, R_DAT3.2, R_SDM.2,
              U_DAC.DVDD, U_DAC.AVDD, U_DAC.CPVDD, R_XSMT.2,
              C_DV1.1, C_DV2.1, C_AV1.1, C_AV2.1, C_CPV1.1, C_CPV2.1]
 
