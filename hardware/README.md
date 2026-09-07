@@ -89,8 +89,9 @@ shows up in ERC; a wrong footprint shows up when the board arrives.
 settled 2026-09-04, with this project's own tally: 9 symbols + 15
 footprints imported, defects found = 2 land patterns, 3 plated
 mechanical holes, 1 inverted-pin symbol, universal missing pin types —
-and **zero pin-number→pad mapping errors, the only class that kills a
-board**). A hand-drawn 41-pin symbol has its author's typo rate and no
+and **zero pin-number→pad mapping errors among the imports** — the one
+such error on the board came from a KiCad-official generic symbol, see
+below). A hand-drawn 41-pin symbol has its author's typo rate and no
 usage history; verification, not authorship, is what makes a symbol
 trustworthy. Trust tier: KiCad-official > high-volume EasyEDA parts
 (TF-01A, PJ-320A — millions of boards) > low-volume vendor imports
@@ -141,6 +142,8 @@ import: `git status hardware/lib/` and investigate any MODIFIED
 footprint you didn't expect; fork same-named patterns to per-part
 filenames. The sixth known import lie.
 
+**A STOCK symbol can connect to nothing: symbol pin NUMBERS must equal footprint pad numbers.** KiCad 10's generic `Device:Q_NMOS` / `Q_PMOS` number their pins D/G/S — they match no footprint's 1/2/3, and KiCad raises no ERC or DRC finding; the part is simply left without tracks. Sheet 01's input FET was drawn that way for three days (caught 2026-09-06 by asking "are we sure the right pin reaches the right pad?"). Use a part-specific `Transistor_FET:` symbol with numbered pins. **`checknet.py` now cross-checks every assigned part's pin numbers against its footprint's pad numbers**, so this class is mechanical from here on. The seventh known lie, and the only one from a KiCad-official symbol.
+
 **An import's pad numbers may not be the datasheet's contact numbers.**
 The PJ-320A jack numbers its four contacts 1–4 in the datasheet
 schematic; the EasyEDA part numbers the same contacts 2–5. Any pin
@@ -179,7 +182,10 @@ it *to* the library from the Symbol Editor (File → Save As, choose
 
 Already imported: AP64350SP-13 (`C2071691`), TPS61023DRLR (`C919459`),
 MP4560DN-LF-Z (`C40133`, the alternate buck), ESP32-C3-MINI-1U-N4
-(`C2911374`, for the Mini). **Footprint-only imports** (`--footprint
+(`C2911374`, for the Mini), WS2812B-MINI-X2 (`C4154873`, status pixel —
+symbol arrives named `WS2812B-MINI-X1`, footprint
+`LED-SMD_4P-L3.5-W3.5-TL_WS2812B-1`; pins and land pattern verified
+against the Worldsemi DS 2026-09-04). **Footprint-only imports** (`--footprint
 --3d`, the symbol is a stock KiCad one): L1 SMMS1050 (`C149542` →
 `IND-SMD_L11.5-W10.0`), L2 SMMS0650 (`C149580` → `IND-SMD_L7.1-W6.6`),
 F1 Littelfuse 01530008Z (`C206907` → `01530008Z`), J1 DEGSON DG128

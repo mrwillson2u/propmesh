@@ -80,8 +80,17 @@ Support at the module (criteria):
   (the X7R choices are 25 V/0603 *Extended* `C29936` or 0805 Basic
   `C28323`; the exception keeps package and Basic).
 - **Boot: R_BOOT 10 kΩ to +3V3, SW_BOOT to GND** on `BOOT_BUTTON`.
-- GPIO 3 (`IR_RX`) is a strapping pin (JTAG select) but safe as an
-  input with internal pulldown — nothing to add on this sheet.
+  **No auto-program transistors** (asked 2026-09-07): the HUZZAH32-style
+  DTR/RTS → EN/IO0 pair exists only because a USB-UART bridge chip needs
+  a way to reach those pins. The S3's **native USB Serial/JTAG** resets
+  into the bootloader by itself when esptool toggles DTR/RTS over CDC —
+  PlatformIO does it on every upload, blank board included. The button
+  is the recovery path, not the normal one.
+- GPIO 3 (`LED_STRIP_1_CLK` — was `IR_RX` until 2026-09-05) is a
+  strapping pin (JTAG select) but safe: it drives only a level-shifter
+  input on sheet 05, so nothing external can pull it, and the internal
+  pulldown holds the default strap at reset — nothing to add on this
+  sheet. (Label renamed on the drawn sheet 2026-09-06.)
 - **TP37** on IO37 — `Connector:TestPoint`, pad footprint
   `TestPoint:TestPoint_Pad_1.5x1.5mm`, silkscreen `TP37`.
 

@@ -611,12 +611,48 @@
           "label": "Datasheet",
           "name": "Datasheet",
           "show": true
+        },
+        {
+          "group_by": false,
+          "label": "Sim.Pins",
+          "name": "Sim.Pins",
+          "show": false
+        },
+        {
+          "group_by": false,
+          "label": "Manufacturer",
+          "name": "Manufacturer",
+          "show": false
+        },
+        {
+          "group_by": false,
+          "label": "Description",
+          "name": "Description",
+          "show": false
+        },
+        {
+          "group_by": false,
+          "label": "MPN",
+          "name": "MPN",
+          "show": false
+        },
+        {
+          "group_by": false,
+          "label": "#",
+          "name": "${ITEM_NUMBER}",
+          "show": false
+        },
+        {
+          "group_by": false,
+          "label": "LCSC Part",
+          "name": "LCSC Part",
+          "show": false
         }
       ],
       "filter_string": "",
       "group_symbols": true,
       "include_excluded_from_bom": true,
-      "name": "Default Editing",
+      "name": "",
       "sort_asc": true,
       "sort_field": "Reference"
     },
@@ -661,7 +697,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "U_IR1,R_E2S1,R_E2P1,R_A2B1,J_QW1,C_IR1,#FLG1-5,R_E1S1,R_IR1-2,U1-9,J_DI2-6,R_UTX1,J_S2R1,FB1-2,K1-3,U_MB1,C_SD3-8,L1-2,R_E1P1,R_ENP1,U_MA1,Card1,C_MA2-3,CN1,JXH2,J_S1R1,J_MB1,J_LED2-6,J_EXP1,J1-26,C_BS2-3,J_S1L1,JP1-3,J_PIR1,R_G1,F1,D1-17,C1-31,R_A1B1,J_AN3,J_S2L1,#PWR1-176,R_A1T1,R_A2T1,J_MA1,SW1-2,TP1-2,Q1-8,FB_P1,R1-4,R6-44",
+    "used_designators": "R_ST1,R_S1-5,J_QW1,R_D1-3,J_ST2A1,J_ST1A1,C_AN1-2,C_MB1-2,C_MA1-3,K1-3,U_MB1,JP_M2,R_A2B1,R_E2P1,C_IR1,R_S2C1,U_IR1,R_E1S1,#FLG1-5,R_P1-3,R_E2S1,J_ST1B1,C_CPV1-2,R_IR1-2,J_DI1-6,U1-14,C_AV1-2,R_UTX1,J_S2R1,FB1-2,C_B1-2,C_SD1-8,R_S2D1,L1-2,C_LS1,U_MA1,Card1,J_ST2,CN1,JXH2,J_S1R1,D_C1-3,J_MB1,J_ST2B1-2,J_LED1-6,J1-26,C_BS1-3,C_ST1,J_EXP1,XH1-2,J_S1L1,LED1,JP1-3,D1-17,R_G1,D_ST1,F1,J_PIR1,R_E1P1,C_A1-2,R_ENP1,#PWR1-185,C_DV1-2,J_AN3,J_S2L1,R_A1B1,C1-31,R_A1T1,R_A2T1,J_MA1,SW1-2,TP1-2,Q1-9,FB_P1,R1-44",
     "variants": []
   },
   "sheets": [

@@ -98,15 +98,18 @@ def export_netlist(sch):
 
 def load_schematic(xml_path):
     root = ET.parse(xml_path).getroot()
+    libpins = {f'{lp.get("lib")}:{lp.get("part")}': {p.get("num") for p in lp.findall("pins/pin")}
+               for lp in root.findall(".//libparts/libpart")}
     comps = {}
     for c in root.findall(".//components/comp"):
         ls = c.find("libsource")
         sp = c.find("sheetpath")
         raw = c.findtext("value") or ""
+        lib = f'{ls.get("lib")}:{ls.get("part")}' if ls is not None else ""
         comps[c.get("ref")] = {"raw": raw, "value": norm(raw), "footprint": c.findtext("footprint") or "",
                                "sheet": sp.get("names") if sp is not None else "/",
-                               "lib": f'{ls.get("lib")}:{ls.get("part")}' if ls is not None else ""}
-    nets = {}
+                               "lib": lib, "pins": libpins.get(lib, set())}
+    raw = {}
     for n in root.findall(".//nets/net"):
         members = []
         for node in n.findall("node"):
@@ -119,9 +122,39 @@ def load_schematic(xml_path):
             if pin.startswith("PIN_") and pin[4:].isdigit(): pin = pin[4:]
             if comps.get(ref, {}).get("value", "") in DNP_VALUES:
                 continue                         # unpopulated pads are not connections
-            members.append((ref, pin))
-        nets[n.get("name")] = members
+            members.append((ref, pin, num))
+        raw[n.get("name")] = members
+    # A pin NAME identifies a pad only while it lands on one net per part. Multi-unit
+    # symbols repeat names across gates (74AHCT125: A / Y / ~{OE} four times over),
+    # so a name seen on several nets falls back to its pad number; multi-pad rails
+    # (a USB-C's four GND pads on one net) keep the name and match by multiplicity.
+    # Each part also records pad number -> key, so a spec may write either form.
+    spread = {}
+    for name, mem in raw.items():
+        for ref, pin, num in mem: spread.setdefault((ref, pin), set()).add(name)
+    nets = {}
+    for name, mem in raw.items():
+        keyed = []
+        for ref, pin, num in mem:
+            key = num if len(spread[(ref, pin)]) > 1 else pin
+            comps.setdefault(ref, {}).setdefault("alias", {})[num] = key
+            keyed.append((ref, key))
+        nets[name] = keyed
     return comps, nets
+
+
+KICAD_FP = pathlib.Path("/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints")
+PROJECT_FP = ROOT / "hardware/lib/propmesh.pretty"
+
+
+def footprint_pads(fp):
+    """Pad numbers of a footprint, or None if the file can't be found. easyeda2kicad
+    writes pad numbers unquoted, KiCad quotes them — accept both."""
+    if ":" not in fp: return None
+    lib, name = fp.split(":", 1)
+    f = (PROJECT_FP / f"{name}.kicad_mod") if lib == "propmesh" else (KICAD_FP / f"{lib}.pretty" / f"{name}.kicad_mod")
+    if not f.exists(): return None
+    return {a or b for a, b in re.findall(r'\(pad\s+(?:"([^"]*)"|([^\s()]+))', f.read_text())} - {"", '""'}
 
 
 # --------------------------------------------------------------- compare
@@ -177,6 +210,11 @@ def compare(parts, spec_nets, all_comps, sch_nets):
     val_count = Counter(c["value"] for c in all_comps.values())
     votes = Counter(c["sheet"] for c in all_comps.values()
                     if c["value"] in spec_vals_all and val_count[c["value"]] <= 2)
+    if not votes:          # a sheet just started has no matching VALUES yet: vote by SYMBOL instead
+        spec_syms = {p["symbol"].lower() for p in parts.values() if p.get("symbol")}
+        sym_count = Counter(c["lib"].lower() for c in all_comps.values())
+        votes = Counter(c["sheet"] for c in all_comps.values()
+                        if c["lib"].lower() in spec_syms and sym_count[c["lib"].lower()] <= 2)
     home = votes.most_common(1)[0][0] if votes else None
     comps = {r: c for r, c in all_comps.items() if home is None or c["sheet"] == home}
 
@@ -210,11 +248,16 @@ def compare(parts, spec_nets, all_comps, sch_nets):
     def flip(r, p):
         return ("2" if p == "1" else "1") if parts[r]["symbol"].lower() in SYMMETRIC and p in ("1", "2") else None
 
+    def K(c, p):
+        """The key the schematic uses for spec pin p of part c — a spec may give the pad
+        number where the schematic keys by name (U_LS2.5 -> VCC)."""
+        return comps.get(c, {}).get("alias", {}).get(p, p)
+
     def pscore(r, c):
         ok = 0
         for net, p in spec_pins.get(r, []):
             tgt = vclosest[net]
-            if pin_net.get((c, p)) == tgt or (flip(r, p) and pin_net.get((c, flip(r, p))) == tgt): ok += 1
+            if pin_net.get((c, K(c, p))) == tgt or (flip(r, p) and pin_net.get((c, flip(r, p))) == tgt): ok += 1
         return ok
 
     assign = {}                                   # spec ref -> sch ref | None
@@ -243,18 +286,26 @@ def compare(parts, spec_nets, all_comps, sch_nets):
                  and family(comps[x]["lib"]) == fam]
         best, bs = None, 0
         for x in cands:
-            s = sum(1 for net, p in spec_pins.get(r, []) if pin_net.get((x, p)) == vclosest[net])
+            s = sum(1 for net, p in spec_pins.get(r, []) if pin_net.get((x, K(x, p))) == vclosest[net])
             if s > bs: best, bs = x, s
         if best: assign[r] = best; valued[r] = best
 
-    claimed = {(assign[r], p) for r, pl in spec_pins.items() if assign.get(r) for _, p in pl}
+    claimed = {(assign[r], K(assign[r], p)) for r, pl in spec_pins.items() if assign.get(r) for _, p in pl}
     res = {}
     budget = {k: Counter(v) for k, v in pin_locs.items()}   # consumed as spec pins claim locations
     for net, want in spec_nets.items():
         if net in NAMED:
             best = find_named(net)
         else:
-            cnt = Counter(pin_net.get((assign[r], p)) for r, p in want if not parts[r].get("dnp") and assign.get(r))
+            # vote for the schematic net this spec net is; a two-terminal part's flipped
+            # pin votes too, or a reversed resistor votes for its OTHER net and hides
+            # a correct wire (the status-pixel resistor, 2026-09-06)
+            cnt = Counter()
+            for r, p in want:
+                if parts[r].get("dnp") or not assign.get(r): continue
+                c = assign[r]
+                cnt[pin_net.get((c, K(c, p)))] += 1
+                if flip(r, p): cnt[pin_net.get((c, flip(r, p)))] += 1
             cnt.pop(None, None)
             best = max(cnt, key=lambda n: (cnt[n], short(n) == net, n == net)) if cnt else (net if net in sch_nets else None)
         pins, score = [], 0
@@ -262,7 +313,7 @@ def compare(parts, spec_nets, all_comps, sch_nets):
             if parts[r].get("dnp"): pins.append((r, p, "dnp", "")); continue
             c = assign.get(r)
             if not c: pins.append((r, p, "absent", "")); continue
-            pool = budget.get((c, p), Counter())
+            pool = budget.get((c, K(c, p)), Counter())
             if best is not None and pool[best] <= 0 and flip(r, p) and budget.get((c, flip(r, p)), Counter())[best] > 0:
                 pool = budget[(c, flip(r, p))]        # orientation-free two-terminal part
             if best is not None and pool[best] > 0:
@@ -294,8 +345,18 @@ def compare(parts, spec_nets, all_comps, sch_nets):
             if c: dnp_pool.remove(c); assign[r] = c
         if c and comps[c]["footprint"].lower() != want.lower():
             fps.append((r, c, comps[c]["footprint"], want))
+    # THE SILENT KILLER: a symbol pin whose NUMBER has no pad on the footprint is simply
+    # never connected — no ERC, no DRC, no ratsnest. KiCad 10's generic Device:Q_PMOS
+    # numbers its pins D/G/S against a footprint's 1/2/3 (caught on sheet 01, 2026-09-06).
+    nopad = []
+    for r, c in assign.items():
+        if not c or not comps[c]["footprint"]: continue
+        pads = footprint_pads(comps[c]["footprint"])
+        if pads is None: continue
+        missing = sorted(comps[c]["pins"] - pads, key=lambda s: (len(s), s))
+        if missing: nopad.append((r, c, comps[c]["footprint"], missing))
     return {"nets": res, "renamed": renamed, "absent": absent, "comps": comps, "foreign": foreign,
-            "sch": assign, "footprints": fps}
+            "sch": assign, "footprints": fps, "nopad": nopad}
 
 
 def tag(res, ref):
@@ -335,7 +396,7 @@ def report(parts, res):
             elif st == "value": out.append(f"      {name:<20} ⚠ {note}")
             elif st == "absent": out.append(f"      {name:<20} — {ref} not placed")
         for ref, v, pin in r["extras"]:
-            out.append(f"      extra {ref}.{pin} ({res['comps'][ref]['raw']}) — spec has nothing like it here")
+            out.append(f"      extra {ref}.{pin} ({res['comps'].get(ref, {}).get('raw', 'other sheet')}) — spec has nothing like it here")
     for ref in sorted(res["absent"]):
         out.append(f"✗ {ref} ({parts[ref]['label']}) is not in the schematic — place it")
     for ref in res["foreign"]:
@@ -343,14 +404,19 @@ def report(parts, res):
     fps = res.get("footprints", [])
     for r, c, have, want in fps:
         out.append(f"✗ {tag(res, r):<12} footprint " + (f"missing — set {want}" if not have else f"{have} → should be {want}"))
+    for r, c, fp, missing in res.get("nopad", []):
+        out.append(f"✗ {tag(res, r):<12} symbol pins {missing} have NO PAD on {fp} — the part would be left "
+                   f"unconnected on the board. Use a symbol whose pin NUMBERS match the footprint's pad numbers")
     bad = sum(1 for n, r in res["nets"].items() if not net_ok(n, r))
-    clean = not (bad or res["absent"] or res["renamed"] or fps)
+    nopad = res.get("nopad", [])
+    clean = not (bad or res["absent"] or res["renamed"] or fps or nopad)
     checked_fp = any(p.get("footprint") for p in parts.values())
     out.append("")
     out.append(("ALL NETS MATCH" + (", footprints OK" if checked_fp else "")) if clean
                else f"{bad} net(s) differ" + (f", {len(res['absent'])} part(s) missing" if res["absent"] else "")
                + (f", {len(res['renamed'])} Value(s) unset" if res["renamed"] else "")
-               + (f", {len(fps)} footprint(s) wrong or missing" if fps else ""))
+               + (f", {len(fps)} footprint(s) wrong or missing" if fps else "")
+               + (f", {len(nopad)} part(s) whose symbol pins have NO PAD" if nopad else ""))
     return out, not clean
 
 
@@ -378,22 +444,34 @@ def render(sheet, parts, nets, blocks, res=None):
     With a compare result, every edge and box is coloured by status."""
     nid = lambda s: re.sub(r"\W", "_", s)
     in_blocks = {n for ns in blocks.values() for n in ns}
+    # A multi-unit symbol (a quad gate) is drawn ONCE PER UNIT, the way KiCad places
+    # it: `units: {A: [1, 2, 3], ...}` on the part maps pins to units, and every unit
+    # becomes its own box, "U_LS unit A", carrying only that unit's pins.
+    unit_of = {(ref, str(pin).upper()): u for ref, p in parts.items()
+               for u, pins in (p.get("units") or {}).items() for pin in pins}
+    def disp(ref, pin=None):
+        u = unit_of.get((ref, str(pin).upper()))
+        return f"{ref} unit {u}" if u else ref
+    def base(dref): return dref.split(" unit ")[0]
+    all_disp = [f"{r} unit {u}" for r, p in parts.items() for u in (p.get("units") or {})] + \
+               [r for r, p in parts.items() if not p.get("units")]
     # any power rail not drawn as a node gets written into each part's box instead
     rail_pins = {}
     for rail in POWER_RAILS:
         if rail in nets and rail not in in_blocks:
             for ref, pin in nets[rail]:
-                rail_pins.setdefault(ref, []).append((pin, rail))
+                rail_pins.setdefault(disp(ref, pin), []).append((pin, rail))
     status = {(n, x[0], x[1]): (x[2], x[3]) for n, r in (res or {}).get("nets", {}).items() for x in r["pins"]}
     netnote = {n: label_problem(n, r["closest"]) for n, r in (res or {}).get("nets", {}).items()
                if n in NAMED and r["closest"] != n}
     absent = res["absent"] if res else set()
     has_value_issue = {x[0] for n, r in (res or {}).get("nets", {}).items() for x in r["pins"] if x[2] == "value"}
 
-    def plabel(ref):
+    def plabel(dref):
+        ref = base(dref); unit = dref[len(ref):]            # "" or " unit A"
         cls = "absent" if ref in absent else "dnp" if parts[ref].get("dnp") else "part"
         g = ""
-        for pin, rail in rail_pins.get(ref, []):
+        for pin, rail in rail_pins.get(dref, []):
             st, note = status.get((rail, ref, pin), (None, ""))
             if st == "wrong" and ref not in has_value_issue:
                 g += f'<br/><i style="color:#c00">pin {pin} → {rail} ✗ {note}</i>'
@@ -402,8 +480,8 @@ def render(sheet, parts, nets, blocks, res=None):
         miss = "<br/>✗ not found" if cls == "absent" else ""
         # on a check page the KiCad reference leads — that is what is printed on the sheet
         c = res["sch"].get(ref) if res else None
-        head = f'<b>{c}</b> <span style="color:#666">{ref}</span>' if c and c != ref else f"<b>{ref}</b>"
-        return f'P_{nid(ref)}["{head}<br/>{parts[ref]["label"]}{g}{miss}"]:::{cls}'
+        head = f'<b>{c}{unit}</b> <span style="color:#666">{ref}</span>' if c and c != ref else f"<b>{ref}{unit}</b>"
+        return f'P_{nid(dref)}["{head}<br/>{parts[ref]["label"]}{g}{miss}"]:::{cls}'
 
     out = []
     for title, ns in blocks.items():
@@ -414,12 +492,13 @@ def render(sheet, parts, nets, blocks, res=None):
             lab = n + (f"<br/>✗ {netnote[n]}" if n in netnote else "")
             lines.append(f'  N_{nid(n)}(["{lab}"]):::{"badnet" if n in netnote else "rail" if n in POWER_RAILS else "net"}')
             for j, (ref, pin) in enumerate(nets[n]):
-                if ref not in declared: lines.append("  " + plabel(ref)); declared.add(ref)
+                d = disp(ref, pin)
+                if d not in declared: lines.append("  " + plabel(d)); declared.add(d)
                 st, note = status.get((n, ref, pin), (None, ""))
                 text = pin + {"wrong": f" ✗ {note}", "value": f" ⚠ {note}"}.get(st, "")
-                P, N = f"P_{nid(ref)}", f"N_{nid(n)}"
-                if (i == 0 and j == 0) or ref in entered: edge(P, N, text, st); entered.add(ref)
-                else: edge(N, P, text, st); entered.add(ref)
+                P, N = f"P_{nid(d)}", f"N_{nid(n)}"
+                if (i == 0 and j == 0) or d in entered: edge(P, N, text, st); entered.add(d)
+                else: edge(N, P, text, st); entered.add(d)
             if res and res["nets"][n]["score"] > 0:
                 for ref, v, pin in res["nets"][n]["extras"]:
                     alias = f" (= spec {res['renamed'][ref]})" if ref in res["renamed"] else ""
@@ -432,8 +511,8 @@ def render(sheet, parts, nets, blocks, res=None):
         out.append((title, ns, "\n".join(lines)))
     # parts that live ONLY on annotated rails (pure decoupling) appear in no
     # block above — draw them anyway, or the drawing guide silently drops them
-    in_blocks = {ref for ns in blocks.values() for n in ns for ref, _ in nets[n]}
-    orphans = [r for r in parts if r not in in_blocks]
+    in_blocks = {disp(ref, pin) for ns in blocks.values() for n in ns for ref, pin in nets[n]}
+    orphans = [d for d in all_disp if d not in in_blocks]
     if orphans:
         lines = ["graph LR", CLASSES]
         for r in orphans: lines.append("  " + plabel(r))
@@ -446,7 +525,8 @@ def write_pages(spec, sheet, parts, nets, blocks, res=None):
     """--mermaid: NN.diagram.md + NN.diagram.html (clean guide). With res: NN.check.html only."""
     diagrams = render(sheet, parts, nets, blocks, res)
     intro = ("Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes "
-             "are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box.")
+             "are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box. "
+             "A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it.")
     in_blocks = {n for ns in blocks.values() for n in ns}
     rail_lists = [(rail, [f"{r}.{p}" for r, p in nets[rail]])
                   for rail in ("GND", "+5V", "+3V3", "VIN_RAW", "VIN_PROT")

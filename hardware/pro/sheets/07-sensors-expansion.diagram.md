@@ -1,6 +1,6 @@
 # 07-sensors-expansion — wiring diagrams
 
-Generated from `07-sensors-expansion.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `07-sensors-expansion.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it. Open the `.html` next to this file in any browser to see it rendered.
 
 ## Digital in 1 (+ PIR header)
 
@@ -149,35 +149,6 @@ graph LR
 | **AN2_RAW** | `J_AN2.3`, `R_A2T.1` |
 | **ANALOG_IN_2** | `R_A2T.2`, `R_A2B.1`, `C_AN2.1` |
 
-## IR receiver
-
-```mermaid
-graph LR
-  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
-  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
-  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
-  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
-  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
-  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
-  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
-  N_IR_VS(["IR_VS"]):::net
-  P_R_IR["<b>R_IR</b><br/>100R<br/><i>pin 1 → +3V3</i>"]:::part
-  P_R_IR --"2"--> N_IR_VS
-  P_U_IR["<b>U_IR</b><br/>TSOP38238<br/><i>pin GND → GND</i>"]:::part
-  N_IR_VS --"VS"--> P_U_IR
-  P_C_IR["<b>C_IR</b><br/>10uF/16V<br/><i>pin 2 → GND</i>"]:::part
-  N_IR_VS --"1"--> P_C_IR
-  N_IR_RX(["IR_RX"]):::net
-  P_U_IR --"OUT"--> N_IR_RX
-  P_R_IP["<b>R_IP</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
-  N_IR_RX --"1"--> P_R_IP
-```
-
-| Net | connect every one of these |
-|---|---|
-| **IR_VS** | `R_IR.2`, `U_IR.VS`, `C_IR.1` |
-| **IR_RX** | `U_IR.OUT`, `R_IP.1` |
-
 ## Qwiic + expansion header
 
 ```mermaid
@@ -192,7 +163,7 @@ graph LR
   N_I2C_SDA(["I2C_SDA"]):::net
   P_J_QW["<b>J_QW</b><br/>QWIIC<br/><i>pin 2 → +3V3</i><br/><i>pin 1 → GND</i>"]:::part
   P_J_QW --"3"--> N_I2C_SDA
-  P_J_EXP["<b>J_EXP</b><br/>EXPANSION<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → +5V</i><br/><i>pin 3 → GND</i><br/><i>pin 10 → GND</i>"]:::part
+  P_J_EXP["<b>J_EXP</b><br/>EXPANSION<br/><i>pin 2 → +5V</i><br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i><br/><i>pin 10 → GND</i>"]:::part
   N_I2C_SDA --"6"--> P_J_EXP
   N_I2C_SCL(["I2C_SCL"]):::net
   P_J_QW --"4"--> N_I2C_SCL
@@ -234,7 +205,7 @@ graph LR
 
 Every pin below goes to the GND symbol:
 
-`J_DI1.2`, `J_DI2.2`, `J_DI3.2`, `J_PIR.2`, `J_AN1.2`, `J_AN2.2`, `D_C1.A`, `D_C2.A`, `D_C3.A`, `R_A1B.2`, `R_A2B.2`, `C_AN1.2`, `C_AN2.2`, `C_IR.2`, `U_IR.GND`, `J_QW.1`, `J_EXP.3`, `J_EXP.10`, `R_E1P.2`, `R_E2P.2`
+`J_DI1.2`, `J_DI2.2`, `J_DI3.2`, `J_PIR.2`, `J_AN1.2`, `J_AN2.2`, `D_C1.A`, `D_C2.A`, `D_C3.A`, `R_A1B.2`, `R_A2B.2`, `C_AN1.2`, `C_AN2.2`, `J_QW.1`, `J_EXP.3`, `J_EXP.10`, `R_E1P.2`, `R_E2P.2`
 
 ## +5V
 
@@ -246,4 +217,4 @@ Every pin below goes to the +5V symbol:
 
 Every pin below goes to the +3V3 symbol:
 
-`D_C1.K`, `D_C2.K`, `D_C3.K`, `R_P1.2`, `R_P2.2`, `R_P3.2`, `R_IR.1`, `R_IP.2`, `J_QW.2`, `J_EXP.1`
+`D_C1.K`, `D_C2.K`, `D_C3.K`, `R_P1.2`, `R_P2.2`, `R_P3.2`, `J_QW.2`, `J_EXP.1`

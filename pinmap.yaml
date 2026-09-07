@@ -24,10 +24,10 @@ boards:
       BOOT_BUTTON:        {pin: 0,  dir: in,  note: "strapping"}
       ANALOG_IN_1:        {pin: 1,  dir: adc, note: "ADC1 — ADC2 unusable with WiFi"}
       ANALOG_IN_2:        {pin: 2,  dir: adc, note: "ADC1"}
-      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX; strapping, internal pulldown"}
-      LED_STRIP_1_DATA:   {pin: 4,  dir: out, note: "RMT TX, via 74AHCT125"}
-      LED_STRIP_2_DATA:   {pin: 5,  dir: out, note: "RMT TX; APA102 DATA in 4-wire mode"}
-      LED_STRIP_2_CLK:    {pin: 6,  dir: out, note: "APA102 CLK; solder jumper selects mode"}
+      LED_STRIP_1_CLK:    {pin: 3,  dir: out, note: "APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input, internal pulldown holds the default at reset"}
+      LED_STRIP_1_DATA:   {pin: 4,  dir: out, note: "RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode"}
+      LED_STRIP_2_DATA:   {pin: 5,  dir: out, note: "RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode"}
+      LED_STRIP_2_CLK:    {pin: 6,  dir: out, note: "APA102 CLK via the 74AHCT541; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06)"}
       I2S_BCLK:           {pin: 7,  dir: out}
       I2C_SDA:            {pin: 8,  dir: bidir, note: "PCA9685 + Qwiic"}
       I2C_SCL:            {pin: 9,  dir: out}
@@ -45,7 +45,7 @@ boards:
       STEPPER_2_STEP:     {pin: 21, dir: out, note: "LEDC-capable"}
       MOTOR_B_IN1:        {pin: 35, dir: out, note: "LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V"}
       MOTOR_B_IN2:        {pin: 36, dir: out, note: "LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1"}
-      STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini @ 5V — data via spare 74AHCT125 gate"}
+      STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini @ 5V — data via buffer 4 of the 74AHCT541"}
       SD_CLK:             {pin: 39, dir: out, note: "SDMMC 1-bit"}
       SD_CMD:             {pin: 40, dir: bidir, note: "10k pull-up"}
       SD_D0:              {pin: 41, dir: bidir, note: "10k pull-up"}
@@ -97,7 +97,7 @@ boards:
       ANALOG_IN_1:        {pin: 0,  dir: adc, note: "ADC1"}
       BATTERY_SENSE:      {pin: 1,  dir: adc, note: "1M divider + FET disconnect for sleep"}
       RAIL_5V_ENABLE:     {pin: 2,  dir: out, note: "STRAPPING — ACTIVE-LOW. Pull-up = strap-safe boot AND rail off in deep sleep with the pin released (no GPIO hold). Drive LOW to enable. MANDATORY for sleep current."}
-      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX; RTC-capable — can wake from deep sleep"}
+      IR_RX:              {pin: 3,  dir: in,  note: "RMT RX; RTC-capable — can wake from deep sleep. ⚠ REVISIT at Mini spec time: the Pro dropped onboard IR 2026-09-05 (a receiver inside a hidden enclosure can't see a remote; plug-in receiver on a DIGITAL_IN instead) — the same logic applies here, and GPIO3 is a wake-capable pin worth reclaiming"}
       DIGITAL_IN_1:       {pin: 4,  dir: in,  note: "RTC-capable — the deep-sleep wake input (PIR)"}
       I2S_LRCLK:          {pin: 5,  dir: out}
       I2S_DOUT:           {pin: 6,  dir: out}

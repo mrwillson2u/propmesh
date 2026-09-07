@@ -30,7 +30,7 @@ original reasoning no longer holds rather than re-deriving it.
 | **Motor PWM on ESP32 LEDC at 20–25 kHz, never PCA9685** | PCA9685 caps near 1.6 kHz — audible. A whining motor telegraphs the scare. |
 | **Socketed stepper drivers** | TMC2209 recommended. Driver never enters the BOM; users already own spares; blown driver is a swap. |
 | **Sockets are dual-mode** | MS1/2/3 jumpers allow an MP6603-class module for 2 brushed DC channels per socket. |
-| **74AHCT125 level shifter on WS2812** | 3.3 V data into 5 V strips is marginal — #1 cause of random strip flicker. |
+| **74AHCT-family level shifter on WS2812** (one octal 74AHCT541 since 2026-09-05) | 3.3 V data into 5 V strips is marginal — #1 cause of random strip flicker. |
 | **Battery on Mini only** | Mini averages ~200 mA; Pro averages ~2 A. |
 | **Mini stores audio in flash, not SD** | C3 has no SDMMC; SPI SD costs 4 GPIO the C3 cannot spare. Upload over WiFi. |
 | **5 V load switch on Mini is mandatory** | WS2812 quiescent (~0.7–1 mA/px) turns months of sleep into six days without it. |
@@ -39,10 +39,10 @@ original reasoning no longer holds rather than re-deriving it.
 ## Open verification items — before layout
 
 - [x] ~~GPIO 33/34 free on the exact WROOM-1 variant~~ **RESOLVED 2026-09-03, and the premise was wrong: GPIO 33/34 are not bonded out on ANY WROOM-1** (Espressif DS v1.8 pin table). MOTOR_B moved to GPIO 35/36 — which ARE the octal-PSRAM casualties, so the N8R2 (quad) variant is still load-bearing. `C3013944` verified in stock.
-- [x] **WS2812B-mini and TSOP38238 "Standard Only" flags** — MOSTLY RESOLVED 2026-09-04: parts pinned (WS2812B-MINI-X2 `C4154873`, TSOP38238 `C141632` — THT by design), but the parts API doesn't expose the flag and v0.1 is hand-built, so the residual check is **look in the JLCPCB order UI before the first PCBA run** (hardware-spec §7 note). LED fallback if flagged: THT 5 mm WS2812.
+- [x] **WS2812B-mini and TSOP38238 "Standard Only" flags** — RESOLVED 2026-09-05: the TSOP left the Pro BOM entirely (onboard IR is useless on a hidden board — plug-in receiver on a `DIGITAL_IN` instead; GPIO 3 became strip 1's clock). Only the status pixel remains (WS2812B-MINI-X2 `C4154873`); the parts API doesn't expose the flag and v0.1 is hand-built, so the residual check is **look in the JLCPCB order UI before the first PCBA run** (hardware-spec §7 note). Fallback if flagged: THT 5 mm WS2812.
 - [x] ~~StepStick control-side pinouts cross-referenced~~ **RESOLVED 2026-09-04** from the Pololu md09b drawing: rows 12.70 mm apart; RST/SLP hardwired together = both A4988-legal AND the TMC2209 PDN_UART bus; MS1-3 on 3-pin straps; DIAG via per-socket aux headers + jumper wire (vendor positions differ). ILIM: ITRIP=64000/R per TI DS, 30 k = 2.13 A. See sheets/06-motors.md.
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.
-- [ ] **Mounting-hole pattern fixed** so the printable bracket stays stable across revisions.
+- [ ] **Mounting-hole pattern fixed** so the printable **mounting plate** stays stable across revisions — the plate is what adapts the board to the Multilink RNI-1500 (CG-1500 successor, the community's standard box) and the Bud NBF-32022; enclosure plan decided 2026-09-06, hardware-spec §2.3.
 
 ## Schedule (revised 2026-09-01)
 
@@ -72,12 +72,18 @@ Any time a schematic or layout is up for review, check — in this order:
    passives and pass its checklist, and no ⚠-verify item may survive
    to layout unresolved. New findings go INTO the sheet doc same-day —
    never left in chat.
-3. **Patchability**: hardware-spec §2.6 — test points on every GPIO and
+3. **Symbol pin numbers ⊆ footprint pad numbers** for every part —
+   `checknet.py` reports it; a pin with no pad is silently left
+   unconnected and neither ERC nor DRC will say so (sheet 01's input
+   FET, 2026-09-06). Never pair a generic `Device:Q_*` symbol with a
+   footprint.
+4. **Patchability**: hardware-spec §2.6 — test points on every GPIO and
    rail, 0 Ω links on unproven nets, staged power, empty bottom side,
    spare pull-up/down pads, 0603+ passives. v0.1's recovery plan is
-   bodge wires; the layout must make that possible.
-4. **Strapping pins** safe at reset in every population/attachment case.
-5. **Open verification items** (above) actually closed, not deferred.
+   bodge wires; the layout must make that possible. The working
+   checklist for all of this is `hardware/pro/layout.md`.
+5. **Strapping pins** safe at reset in every population/attachment case.
+6. **Open verification items** (above) actually closed, not deferred.
 
 ## Firmware priorities
 

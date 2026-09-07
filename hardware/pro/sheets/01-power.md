@@ -648,7 +648,7 @@ there are 22,864 symbols in 224 libraries. Type the name below.
 | C1, C2, C3, C5, C6, C_in, C_out, C_FF | `Device:C` |
 | C_bulk | `Device:C_Polarized` |
 | R1, R2, RT, R5, R_FB1, R_FB2, R_G, R_5V, R_3V3 | `Device:R` |
-| Q1 | `Device:Q_PMOS` |
+| Q1 | `Transistor_FET:SUD50P04-08` — **not `Device:Q_PMOS`** (changed 2026-09-06): KiCad 10's generic FET symbols number their pins D/G/S, which match no footprint pad, so the part would sit on the board unconnected with no ERC/DRC complaint. Any stock DPAK P-FET symbol numbered 1=G 2=D 3=S works; the Value stays AOD4185 |
 | D_Z | `Device:D_Zener` |
 | D1 | `Device:D_Zener` — **not** `D_TVS`, which is bidirectional and hides polarity |
 | D_5V, D_3V3 | `Device:LED` |
@@ -716,6 +716,23 @@ reports *ALL NETS MATCH, footprints OK* (17 nets, 73 pin connections,
 32 parts) and `kicad-cli sch erc` reports **no violations**. Re-run both
 after any edit; the fix list and the coloured diagram land in
 `01-power.check.html`.
+
+## ⚠ Capture task: three staged-power link headers (spec §2.6, 2026-09-07)
+
+Spec §2.6 asks for a removable link between each power stage so the
+rails come up one at a time and a bad buck cannot take the MCU with it.
+They are in the yaml now, so this sheet's checker is red until drawn:
+
+| Ref | Between | How |
+|---|---|---|
+| `JP_VIN` | `VIN_PROT` → the 5 V buck's input (`C1a`, `C1b`, `U1` VIN+EN — now net `VIN_BUCK`) | 2-pin header `C124375` + shunt `C100114`, same parts as the MS straps |
+| `JP_5V` | the 5 V buck output (`L1`, `C2a/C2b`, the FB divider, `C4` — now net `5V_BUCK`) → the `+5V` rail | same; carries 3 A, pour to it |
+| `JP_3V3` | the 3.3 V buck output (`L2`, `C_out`, `R_FB1`, `C_FF` — now `3V3_BUCK`) → the `+3V3` rail | same |
+
+The FB dividers stay on the buck side of the link (they must sense the
+regulator's own output). Bring-up: shunts out → power → check `VIN_PROT`
+→ shunt `JP_VIN` in → check 5 V → `JP_5V` → `JP_3V3`. A meter across
+any pulled shunt reads that rail's current for free.
 
 Two items are deliberately left for layout, not capture:
 

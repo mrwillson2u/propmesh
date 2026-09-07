@@ -89,21 +89,17 @@ matching the power budget's 2 A with the DRV8871's 3.6 A peak above it.
 
 Rails: `VIN_PROT` global label, `+3V3`/`GND` power symbols.
 
-## Assign Footprints — by schematic reference (as annotated 2026-09-04)
+## Footprints
 
-| Refs | Footprint |
-|---|---|
-| J_S1L1, J_S1R1, J_S2L1, J_S2R1 | `Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical` — **sockets, not headers**: female receptacles the modules drop into |
-| J15, J19, J20, J21, J22, J23 | `Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical` |
-| J16, J24 | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
-| JP1, JP3 | `Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm` |
-| XH1, XH2 | `Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical` |
-| R29, R30, R31, R_ENP1, R_UTX1 | `Resistor_SMD:R_0603_1608Metric` |
-| J_MA1, J_MB1 | `propmesh:CONN-TH_DG128-5.0-02P-14-00A-H` |
+Every footprint is assigned and machine-verified — `checknet.py` reports
+any that is wrong or missing, so the authority is the `footprint:` field
+in `06-motors.net.yaml`, not a table here.
 
-(If parts get re-annotated, the checker's report re-prints this mapping
-with current references — the `(spec name)` in parentheses ties each
-row back to the tables above.)
+**Reference designators:** the schematic uses standard sequential
+designators (`R22`, `J19`, `U7`…), assigned 2026-09-06; this doc and the
+yaml keep descriptive spec names (`R_ILA`, `J_S1L`, `U_MA`) because they
+say what a part *is*. The checker pairs the two by Value and prints both
+— a finding reads `R22 (R_ILA)` — so you never have to translate by hand.
 
 ## Checklist
 

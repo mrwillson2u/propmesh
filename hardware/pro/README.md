@@ -10,6 +10,7 @@ fix the doc, don't cross-reference.
 |---|---|---|
 | **WHY** — decisions, costs, schedule | `docs/hardware-spec.md` | you're questioning a choice or pricing something. Its BOM tables are **cost rollups, not orderable specs.** |
 | **WHAT** — every pin and net name | `pinmap.yaml` (repo root) | never during capture — each sheet file below already quotes its nets. Edit it only to *change* an assignment (then regenerate + update spec, same commit). |
+| **HOW (layout)** — placing and routing the board | **`layout.md`** | laying out the PCB: what sits next to what (by designator), trace widths, thermal, silk, the ⚠ list, and a KiCad PCB-editor primer. |
 | **HOW** — drawing each schematic sheet | **`sheets/NN-*.md`** | drawing that sheet. Each is self-contained: parts, selection criteria, supporting passives, exact net names, a done-checklist. |
 | **PROCESS** — review, libraries, git | `CLAUDE.md` (review order), `hardware/README.md` (libraries, easyeda2kicad, what's committed) | reviewing, importing a part, committing. |
 
@@ -23,7 +24,11 @@ prose or markdown tables — and are DRAWN, not described.**
 `NN.diagram.html` (open in any browser) and `NN.diagram.md`: one
 left-to-right wiring diagram per circuit block, every part's GND pin
 written in its box, plus a per-net roll-call table. That is the drawing
-guide Colin works from — visual, not prose. The markdown says *why*; the
+guide Colin works from — visual, not prose. **A multi-unit symbol (quad
+gate, dual op-amp) must carry `units: {A: [pins], …}` in its yaml** so
+the diagram draws one box per unit, matching the separate symbols KiCad
+places — sheet 05's 74AHCT125 rendered as one 14-pin box first, and
+was undrawable from (2026-09-05). The markdown says *why*; the
 yaml says *what wires to what*, and it is machine-checked:
 
 ```
@@ -66,26 +71,35 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 
 | Sheet | Doc | Drawn | Open ⚠ items in doc |
 |---|---|---|---|
-| 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
+| 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set. **⚠ 2026-09-07: draw the three staged-power link headers (§2.6) — checker red until then** | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
 | 02 MCU + USB | `sheets/02-mcu-usb.md` — **fully sourced** | **☑ DONE 2026-09-04** — checknet all nets + footprints green; ERC clean bar the 32 expected one-sided labels | for LAYOUT: USB-C needs its shield vias; TP37 silkscreen |
 | 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
 | 04 Audio + SD | `sheets/04-audio.md` — **fully sourced**, GAIN/SD_MODE datasheet-exact, line-out via PCM5102A | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: meter the jack tip/ring/sleeve (three numbering schemes collided — see doc); `C723982` shared stock pool |
-| 05 Addressable LED | `sheets/05-led.md` — **fully sourced 2026-09-04**: AHCT125 → SOIC-14 `C155176` (TSSOP dead), strip 2 = 2× DG128-02P (04P dead), status pixel import verified | ☐ spec ready, drawing next | ⚠ layout: silk 5 V-injection note at strip terminals |
+| 05 Addressable LED | `sheets/05-led.md` — **fully sourced**; both strips 3/4-wire through **one octal SN74AHCT541DWR `C2682058`** (3 spare 5 V outputs), 2× DG128-02P per strip, no mode jumpers, status pixel import verified | **☑ DONE 2026-09-06** — checknet all green, ERC clean (whole project: 0 violations) | for LAYOUT: silk 5 V-injection note at strip terminals; 02P pairs butt together as one 4-pole; only remaining Economic-PCBA risk part is the status pixel (check in JLC order UI before a PCBA run) |
 | 06 Motors | `sheets/06-motors.md` — **fully sourced**, row spacing 12.70 mm (Pololu-verified), ILIM = 2.13 A, RST/SLP-tie = UART bus | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for LAYOUT: socket rows exactly 12.70 mm, DRV8871 EP paste vs TI drawing, silk TMC strap defaults |
-| 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced 2026-09-04**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead), TSOP on 3V3 | **☑ DONE 2026-09-05** — checknet all green, ERC clean bar the 4 LED labels awaiting sheet 05; `D2_MID` global on both sheets | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
+| 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead). **IR receiver dropped 2026-09-05** (hidden board → plug-in on a DIGITAL_IN) | **☑ DONE 2026-09-06** — IR block deleted, checknet all green, ERC clean | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
+| 08 Test points | `sheets/08-testpoints.md` — 33 GPIO pads + 6 rail pads + DNP strap pad, spec §2.6 | ☐ **draw before layout** (a sheet of labels) | pads go beside each net's owner, silk = net name |
 
-Tick boxes as sheets land; clear ⚠ items before layout, never during.
+**All seven design sheets captured 2026-09-06.** Before layout: sheet 08 and the sheet 01 links (spec §2.6). Then layout per `layout.md` — the ⚠ column above and its §9 are the layout to-do list.
 
 ## Rules that apply to every sheet
 
-- **Reference designators are PROJECT-GLOBAL — a spec ref used on one
-  sheet's yaml must never appear in another sheet's.** KiCad treats a
-  ref as one part across all sheets: reusing `C_A1` on audio *and*
-  sensors (caught 2026-09-04) made Annotate report duplicate-item
-  errors and let one sheet's cap masquerade as the other's in the
-  netlist — the checker can't see it when the double lands on a shared
-  rail. Before writing a new yaml, grep the existing ones for each new
-  ref.
+- **The schematic uses STANDARD sequential designators; the yaml uses
+  descriptive spec names.** Settled 2026-09-06, when the whole board was
+  renumbered to `R1…R52`, `C1…C47`, `J1…J47` (prefix taken from each
+  symbol's own library default, numbered per sheet in KiCad's sheet
+  order). Standard refs are what assembly houses, BOM/CPL exports and
+  every other contributor expect, and KiCad's annotation tools work
+  *with* them — hand-written refs cost three separate debugging
+  sessions (a `C_A1` collision across two sheets, refs ending in letters
+  blocking annotation, a triple-duplicated connector). Nothing is lost:
+  the yaml keeps `R_ILA`/`C_B1`-style names because they say what a part
+  is, and **`checknet.py` pairs the two by Value and prints both**
+  (`R22 (R_ILA)`). Spec names must still be unique across sheets, since
+  a duplicate there confuses the pairing.
+  *To find a part during layout, cross-probe* — click it in the
+  schematic and it highlights in the PCB editor; footprints also import
+  grouped by sheet. That is the job descriptive refs were doing.
 - **Net names = pinmap signal names, exactly.** That's what lets the
   netlist be checked against `pinmap.yaml` mechanically.
 - **Power rails cross sheets by NAME — one canonical name each.** KiCad
@@ -108,9 +122,9 @@ Tick boxes as sheets land; clear ⚠ items before layout, never during.
 
   | Use | Pitch | Part | LCSC |
   |---|---|---|---|
-  | DC in (J1), DC motor ×2 | 5.0 | DG128-5.0-**02P**-14-00A(H) | `C711349` |
-  | Relay ×3, WS2812 strip | 5.0 | DG128-5.0-**03P**-14-00A(H) | `C691861` |
-  | APA102 strip | 5.0 | ~~DG128-5.0-04P~~ **stock-dead 2026-09-04 → 2× 02P** (5V/GND + DATA/CLK, sheet 05) | `C711349` ×2 |
+  | DC in (J1), DC motor ×2, **LED strip halves ×4** | 5.0 | DG128-5.0-**02P**-14-00A(H) | `C711349` |
+  | Relay ×3 | 5.0 | DG128-5.0-**03P**-14-00A(H) | `C691861` |
+  | LED strips ×2 | 5.0 | ~~DG128-5.0-04P~~ **stock-dead 2026-09-04 → 2× 02P per strip** (5V/GND + DATA/CLK); both strips 3/4-wire since 2026-09-05 | `C711349` ×4 |
   | Speaker, LED outputs | 3.5 | DG381S-3.5-**02P**-14-00A(H) | `C723982` |
 
   All are **fixed, side-entry, THT, 300 V** — 5.0 mm pitch is
@@ -140,7 +154,12 @@ Tick boxes as sheets land; clear ⚠ items before layout, never during.
   unplug a 2EDG. Revisit after a season with the box, with the flanged
   2EDGKM variants in mind if yank-resistance is the only objection.
 - **Connector orientation is a decision, not a default.** The enclosure
-  (spec §2.3) feeds wires through glands on one edge — pick vertical vs
+  (spec §2.3, decided 2026-09-06: Multilink RNI-1500, the CG-1500
+  successor the pixel community standardised on) takes wires through
+  self-sealing ports along its **bottom** edge, so field-wiring
+  connectors sit on the bottom edge and the two short edges (the full
+  run is ~250 mm; one edge was never possible) and service items (USB,
+  SD, antenna, button) on the top edge — pick vertical vs
   right-angle entry per connector *before* layout, because the
   footprints differ and rework means desoldering.
 - **You are committing to FOOTPRINTS, not part numbers.** Production is

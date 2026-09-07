@@ -1,23 +1,32 @@
-# Sheet 07 — Sensors, IR, Qwiic, expansion header
+# Sheet 07 — Sensors, Qwiic, expansion header
 
 **Everything needed to draw this sheet is in this file.** Fully sourced
-2026-09-04. Drawing guide: `07-sensors-expansion.diagram.html`; checker:
+2026-09-04; **IR receiver dropped 2026-09-05** (see below). Drawing
+guide: `07-sensors-expansion.diagram.html`; checker:
 
 ```
 python3 tools/checknet.py hardware/pro/sheets/07-sensors-expansion.net.yaml
 ```
 
 **Nets on this sheet** (global, checker-enforced): `DIGITAL_IN_1..3`
-(GPIO 10/11/12), `ANALOG_IN_1/2` (GPIO 1/2), `IR_RX` (GPIO 3),
-`EXPANSION_1/2` (GPIO 45/46), `I2C_SDA`/`I2C_SCL` (pull-ups on
-sheet 03 — **add none here**), and from sheet 06: `STEPPER_1_DIAG`
-and `D2_MID`.
+(GPIO 10/11/12), `ANALOG_IN_1/2` (GPIO 1/2), `EXPANSION_1/2`
+(GPIO 45/46), `I2C_SDA`/`I2C_SCL` (pull-ups on sheet 03 — **add none
+here**), and from sheet 06: `STEPPER_1_DIAG` and `D2_MID` (global on
+both sheets).
 
-> **⚠ One-time fix on the MOTORS sheet first:** the `D2_MID` label
-> (between GPIO43's 1 k and JP_D2) was drawn as a **local** label.
-> Expansion pin 9 joins that net from this sheet, so it must become a
-> **global** label: on the motors sheet select it → E → Label type:
-> Global. Its yaml is already updated (`named:` list).
+## Why there is no IR receiver (2026-09-05)
+
+The sheet was drawn and green with an onboard TSOP38238. It leaves
+because **the board lives hidden inside a prop, where a receiver can't
+see a remote** — an IR receiver only makes sense as a plug-in on a
+wire, and that already exists: a TSOP module on a pigtail into any
+`DIGITAL_IN` (5 V on the XH, output clamped by the BAT54S; firmware
+runs RMT receive on that pin). It was also the block's most expensive
+part, its only THT joint, and half of open item #2. Its GPIO 3 became
+strip 1's clock on sheet 05.
+
+The six symbols it needed (TSOP, 100 Ω, 10 µF, 10 k pull-up, PWR_FLAG,
+`IR_RX` label) were removed from the drawn sheet on 2026-09-06.
 
 ## Digital inputs ×3
 
@@ -26,13 +35,14 @@ BAT54S clamp → 1 kΩ series → GPIO, with 10 kΩ pull-up to 3V3 on the
 GPIO side.** Handles 5 V-output sensors (HC-SR501) and miswires.
 
 **BAT54S orientation** (the S suffix = series pair, one SOT-23 per
-input; A/C suffixes are different topologies — don't substitute):
+input; A/C suffixes are different topologies — don't substitute). The
+symbol names its pins, and the yaml uses those names:
 
 | Pin | Goes to | Why |
 |---|---|---|
-| 1 (anode, lower diode) | **GND** | conducts when SIG < −0.3 V |
-| 2 (cathode, upper diode) | **+3V3** | conducts when SIG > 3.6 V |
-| 3 (common junction) | **SIG** (the raw net) | |
+| 1 `A` (anode, lower diode) | **GND** | conducts when SIG < −0.3 V |
+| 2 `K` (cathode, upper diode) | **+3V3** | conducts when SIG > 3.6 V |
+| 3 `COM` (common junction) | **SIG** (the raw net) | |
 
 **J_PIR** is a 2.54 mm 1×3 header wired **in parallel with digital
 input 1**, same 5V | GND | SIG order (silkscreen it) — an HC-SR501
@@ -42,21 +52,8 @@ plugs in over dupont wires with no XH pigtail.
 
 Same XH with 5 V power, then **100 k / 100 k halver → tap = GPIO**: a
 5 V-powered sensor's full scale lands at 2.5 V, inside the ADC's
-calibrated range. **100 nF from tap to GND** quiets the reading.
-
-## IR receiver — and why it runs on 3V3
-
-**TSOP38238** (`C141632`, $0.73@1, 16 k stock) — the 38 = **38 kHz
-carrier**, the one common remotes actually use. THT **on purpose**
-(open item #2). Two wiring facts verified against the DS 2026-09-04:
-
-- **Supply is +3V3, not 5 V**: the output is open-collector with an
-  internal ~30 k pull-up **to its own Vs** — a 5 V supply would idle
-  GPIO 3 at 5 V. External 10 k pull-up to 3V3 on OUT.
-- **Supply filter 100 Ω + 10 µF at the part** (DS asks ≥4.7 µF; 10 µF
-  is already on the BOM).
-- KiCad's stock `TSOP382xx` symbol checked: OUT=1, GND=2, Vs=3 —
-  matches Vishay. Its default MINICAST footprint is the right package.
+calibrated range. **100 nF from tap to GND** (`C_AN1`/`C_AN2`) quiets
+the reading.
 
 ## Qwiic
 
@@ -94,12 +91,9 @@ series R limits damage from a miswire.
 | J_PIR | 1×3 2.54 header | `C124376` | parallel to input 1. |
 | D_C1–3 | **BAT54S** ×3 | **`C8592`** — $0.023, 202 k stock | orientation table above. |
 | R_D1–3 | 1 k ×3 | `C21190` Basic | series after clamp. |
-| R_P1–3, R_IP, R_E1P, R_E2P | 10 k ×6 | `C25804` Basic | pull-ups / strap pulldowns. |
+| R_P1–3, R_E1P, R_E2P | 10 k ×5 | `C25804` Basic | pull-ups / strap pulldowns. |
 | R_A1T/B, R_A2T/B | 100 k ×4 | `C25803` Basic | halvers. |
 | C_AN1, C_AN2 | 100 nF ×2 | `C14663` Basic | ADC tap filters. |
-| U_IR | **TSOP38238** | **`C141632`** — $0.73/1, $0.56/100 | THT, deliberate. |
-| R_IR | 100 Ω | `C22775` Basic | supply filter. |
-| C_IR | 10 µF/16 V 0805 | `C95841` | supply filter (DS ≥4.7 µF). |
 | J_QW | **ZX-SH1.0-4PWT** | **`C7430446`** — $0.065, 130 k stock | Qwiic; ⚠ measure vs footprint at layout. |
 | J_EXP | 2×5 header 2.54 | **`C42431818`** — $0.053, 16 k stock | vertical, gold flash. |
 | R_E1S, R_E2S | 100 Ω ×2 | `C22775` Basic | strap series Rs. |
@@ -110,12 +104,14 @@ series R limits damage from a miswire.
 |---|---|
 | J_DI1–3, J_AN1–2, J_PIR | `Connector_Generic:Conn_01x03` |
 | D_C1–3 | `Diode:BAT54S` |
-| U_IR | `Interface_Optical:TSOP382xx` |
 | J_QW | `Connector_Generic:Conn_01x04` |
 | J_EXP | `Connector_Generic:Conn_02x05_Odd_Even` |
 | R, C | `Device:R`, `Device:C` |
 
 Rails: `+5V`/`+3V3`/`GND` power symbols. All signal labels global.
+The drawn sheet uses standard sequential designators (`J40`, `R39`,
+`D12`…); the names in this doc are spec names, and the checker pairs the
+two by Value, printing both (`R39 (R_P1)`).
 
 ## Footprints (checker-enforced via the yaml)
 
@@ -124,23 +120,20 @@ Rails: `+5V`/`+3V3`/`GND` power symbols. All signal labels global.
 | XH connectors | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | J_PIR | `Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical` |
 | D_C1–3 | `Package_TO_SOT_SMD:SOT-23` |
-| U_IR | `OptoDevice:Vishay_MINICAST-3Pin` |
 | J_QW | `Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal` |
 | J_EXP | `Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical` |
-| R / C 0603 | stock `R_0603` / `C_0603`; C_IR is `C_0805` |
+| R / C 0603 | stock `R_0603` / `C_0603` |
 
 ## Checklist
 
-- [ ] `D2_MID` label on the motors sheet converted to global
-- [ ] Every digital input: clamp (pin 3 = signal!) + 1 k + 10 k pull-up
+- [ ] Every digital input: clamp (COM = signal!) + 1 k + 10 k pull-up
 - [ ] Analog: halver + 100 nF at the tap; nothing else in the path
-- [ ] TSOP on **3V3** with 100 Ω + 10 µF filter and 10 k pull-up
 - [ ] 45/46: pulldown MCU-side of the 100 Ω; silk noted for layout
 - [ ] No I²C pull-ups added here (they're on sheet 03)
-- [ ] checknet green, then ERC
+- [x] checknet green, ERC clean (2026-09-06)
 
 ## Sourcing status
 
-**Complete.** 31 parts, rollup (§2.4): **$1.18 @1, $0.94 @100** —
-the TSOP is over half of it. Qwiic and 2×5 header re-sourced after the
-genuine JST and first-choice header queries came back dead/empty.
+**Complete.** 27 parts, rollup (§2.4): **$0.32 @1, $0.28 @100** — was
+$0.94 with the TSOP. Qwiic and 2×5 header re-sourced after the genuine
+JST and first-choice header queries came back dead/empty.

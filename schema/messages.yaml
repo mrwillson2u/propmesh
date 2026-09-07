@@ -98,6 +98,7 @@ messages:
       - {name: sequence_id, type: u16}
       - {name: target_group, type: u16, note: "PM_BROADCAST_GROUP = all"}
       - {name: fire_at_us, type: u64, note: "mesh time; future T absorbs hop jitter"}
+      - {name: start_offset_ms, type: u32, note: "play the sequence from this far into itself — the console's play-from-cursor (decided 2026-09-05); 0 = from the top"}
       - {name: flags, type: u8}
 
   State:

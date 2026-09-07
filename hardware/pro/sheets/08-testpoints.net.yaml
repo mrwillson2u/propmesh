@@ -1,0 +1,116 @@
+# Sheet 08 — Test points + spare strap pad: connection spec. ONE LINE PER NET.
+#
+# Spec §2.6: "test point on every GPIO and every rail, labelled with net
+# names on silkscreen." This sheet is nothing but global labels and
+# TestPoint symbols: draw it in one sitting. USB_DM/USB_DP get NO test
+# point (never stub a differential pair); IO37 already has TP1 on
+# sheet 02. Values are the net names so the silkscreen reads the signal
+# and the checker pairs each pad by that unique value.
+#
+# R_STRAP3: an unpopulated 10 k pulldown pad on GPIO 3 (a strapping pin
+# that now drives the LED shifter) — the spare strap pad §2.6 asks for.
+# GPIO 0/45/46 already carry their strap parts on sheets 02 and 07.
+
+sheet: 08-testpoints
+
+_fp: &fp
+  tp: &tp "TestPoint:TestPoint_Pad_1.5x1.5mm"
+
+parts:
+  TP_BOOT:   {value: BOOT_BUTTON,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_AN1:    {value: ANALOG_IN_1,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_AN2:    {value: ANALOG_IN_2,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_L1C:    {value: LED_STRIP_1_CLK,  symbol: "Connector:TestPoint", footprint: *tp}
+  TP_L1D:    {value: LED_STRIP_1_DATA, symbol: "Connector:TestPoint", footprint: *tp}
+  TP_L2D:    {value: LED_STRIP_2_DATA, symbol: "Connector:TestPoint", footprint: *tp}
+  TP_L2C:    {value: LED_STRIP_2_CLK,  symbol: "Connector:TestPoint", footprint: *tp}
+  TP_BCLK:   {value: I2S_BCLK,         symbol: "Connector:TestPoint", footprint: *tp}
+  TP_SDA:    {value: I2C_SDA,          symbol: "Connector:TestPoint", footprint: *tp}
+  TP_SCL:    {value: I2C_SCL,          symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DI1:    {value: DIGITAL_IN_1,     symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DI2:    {value: DIGITAL_IN_2,     symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DI3:    {value: DIGITAL_IN_3,     symbol: "Connector:TestPoint", footprint: *tp}
+  TP_S1S:    {value: STEPPER_1_STEP,   symbol: "Connector:TestPoint", footprint: *tp}
+  TP_S1D:    {value: STEPPER_1_DIR,    symbol: "Connector:TestPoint", footprint: *tp}
+  TP_LRCLK:  {value: I2S_LRCLK,        symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DOUT:   {value: I2S_DOUT,         symbol: "Connector:TestPoint", footprint: *tp}
+  TP_UTX:    {value: TMC_UART_TX,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_URX:    {value: TMC_UART_RX,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_S2S:    {value: STEPPER_2_STEP,   symbol: "Connector:TestPoint", footprint: *tp}
+  TP_MB1:    {value: MOTOR_B_IN1,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_MB2:    {value: MOTOR_B_IN2,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_STAT:   {value: STATUS_LED,       symbol: "Connector:TestPoint", footprint: *tp}
+  TP_SDCLK:  {value: SD_CLK,           symbol: "Connector:TestPoint", footprint: *tp}
+  TP_SDCMD:  {value: SD_CMD,           symbol: "Connector:TestPoint", footprint: *tp}
+  TP_SDD0:   {value: SD_D0,            symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DG1:    {value: STEPPER_1_DIAG,   symbol: "Connector:TestPoint", footprint: *tp}
+  TP_DG2:    {value: STEPPER_2_DIAG,   symbol: "Connector:TestPoint", footprint: *tp}
+  TP_MA1:    {value: MOTOR_A_IN1,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_EXP1:   {value: EXPANSION_1,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_EXP2:   {value: EXPANSION_2,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_S2D:    {value: STEPPER_2_DIR,    symbol: "Connector:TestPoint", footprint: *tp}
+  TP_MA2:    {value: MOTOR_A_IN2,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_VRAW:   {value: TP_VIN_RAW,       symbol: "Connector:TestPoint", footprint: *tp, note: "rails: value prefixed TP_ so it can't collide with the power-symbol names"}
+  TP_VPROT:  {value: TP_VIN_PROT,      symbol: "Connector:TestPoint", footprint: *tp}
+  TP_5V:     {value: TP_5V,            symbol: "Connector:TestPoint", footprint: *tp}
+  TP_3V3:    {value: TP_3V3,           symbol: "Connector:TestPoint", footprint: *tp}
+  TP_GNDA:   {value: TP_GND_A,         symbol: "Connector:TestPoint", footprint: *tp, note: "two GND pads: one by the power block, one by the module"}
+  TP_GNDB:   {value: TP_GND_B,         symbol: "Connector:TestPoint", footprint: *tp}
+  R_STRAP3:  {value: DNP, dnp: true,   symbol: "Device:R", footprint: "Resistor_SMD:R_0603_1608Metric", note: "unpopulated 10 k pulldown pad on GPIO 3 (strapping) — spec §2.6"}
+
+blocks:
+  "GPIO test points": [BOOT_BUTTON, ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA,
+                       LED_STRIP_2_DATA, LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL,
+                       DIGITAL_IN_1, DIGITAL_IN_2, DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR,
+                       I2S_LRCLK, I2S_DOUT, TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP,
+                       MOTOR_B_IN1, MOTOR_B_IN2, STATUS_LED, SD_CLK, SD_CMD, SD_D0,
+                       STEPPER_1_DIAG, STEPPER_2_DIAG, MOTOR_A_IN1, EXPANSION_1, EXPANSION_2,
+                       STEPPER_2_DIR, MOTOR_A_IN2]
+
+named: [BOOT_BUTTON, ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA,
+        LED_STRIP_2_DATA, LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL,
+        DIGITAL_IN_1, DIGITAL_IN_2, DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR,
+        I2S_LRCLK, I2S_DOUT, TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP,
+        MOTOR_B_IN1, MOTOR_B_IN2, STATUS_LED, SD_CLK, SD_CMD, SD_D0,
+        STEPPER_1_DIAG, STEPPER_2_DIAG, MOTOR_A_IN1, EXPANSION_1, EXPANSION_2,
+        STEPPER_2_DIR, MOTOR_A_IN2]
+
+nets:
+  BOOT_BUTTON:      [TP_BOOT.1]
+  ANALOG_IN_1:      [TP_AN1.1]
+  ANALOG_IN_2:      [TP_AN2.1]
+  LED_STRIP_1_CLK:  [TP_L1C.1, R_STRAP3.1]
+  LED_STRIP_1_DATA: [TP_L1D.1]
+  LED_STRIP_2_DATA: [TP_L2D.1]
+  LED_STRIP_2_CLK:  [TP_L2C.1]
+  I2S_BCLK:         [TP_BCLK.1]
+  I2C_SDA:          [TP_SDA.1]
+  I2C_SCL:          [TP_SCL.1]
+  DIGITAL_IN_1:     [TP_DI1.1]
+  DIGITAL_IN_2:     [TP_DI2.1]
+  DIGITAL_IN_3:     [TP_DI3.1]
+  STEPPER_1_STEP:   [TP_S1S.1]
+  STEPPER_1_DIR:    [TP_S1D.1]
+  I2S_LRCLK:        [TP_LRCLK.1]
+  I2S_DOUT:         [TP_DOUT.1]
+  TMC_UART_TX:      [TP_UTX.1]
+  TMC_UART_RX:      [TP_URX.1]
+  STEPPER_2_STEP:   [TP_S2S.1]
+  MOTOR_B_IN1:      [TP_MB1.1]
+  MOTOR_B_IN2:      [TP_MB2.1]
+  STATUS_LED:       [TP_STAT.1]
+  SD_CLK:           [TP_SDCLK.1]
+  SD_CMD:           [TP_SDCMD.1]
+  SD_D0:            [TP_SDD0.1]
+  STEPPER_1_DIAG:   [TP_DG1.1]
+  STEPPER_2_DIAG:   [TP_DG2.1]
+  MOTOR_A_IN1:      [TP_MA1.1]
+  EXPANSION_1:      [TP_EXP1.1]
+  EXPANSION_2:      [TP_EXP2.1]
+  STEPPER_2_DIR:    [TP_S2D.1]
+  MOTOR_A_IN2:      [TP_MA2.1]
+  VIN_RAW:  [TP_VRAW.1]
+  VIN_PROT: [TP_VPROT.1]
+  +5V:      [TP_5V.1]
+  +3V3:     [TP_3V3.1]
+  GND:      [TP_GNDA.1, TP_GNDB.1, R_STRAP3.2]

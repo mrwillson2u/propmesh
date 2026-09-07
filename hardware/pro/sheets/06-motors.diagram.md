@@ -1,6 +1,6 @@
 # 06-motors — wiring diagrams
 
-Generated from `06-motors.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `06-motors.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it. Open the `.html` next to this file in any browser to see it rendered.
 
 ## Stepper socket 1 — logic row + straps
 
@@ -20,15 +20,15 @@ graph LR
   P_J_S1L --"8"--> N_STEPPER_1_DIR
   N_S1_MS1(["S1_MS1"]):::net
   P_J_S1L --"2"--> N_S1_MS1
-  P_JP11["<b>JP11</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP11["<b>JP11</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S1_MS1 --"2"--> P_JP11
   N_S1_MS2(["S1_MS2"]):::net
   P_J_S1L --"3"--> N_S1_MS2
-  P_JP12["<b>JP12</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP12["<b>JP12</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S1_MS2 --"2"--> P_JP12
   N_S1_MS3(["S1_MS3"]):::net
   P_J_S1L --"4"--> N_S1_MS3
-  P_JP13["<b>JP13</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP13["<b>JP13</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S1_MS3 --"2"--> P_JP13
   N_STEPPER_1_DIAG(["STEPPER_1_DIAG"]):::net
   P_JP_D1["<b>JP_D1</b><br/>SJ"]:::part
@@ -67,15 +67,15 @@ graph LR
   P_J_S2L --"8"--> N_STEPPER_2_DIR
   N_S2_MS1(["S2_MS1"]):::net
   P_J_S2L --"2"--> N_S2_MS1
-  P_JP21["<b>JP21</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP21["<b>JP21</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S2_MS1 --"2"--> P_JP21
   N_S2_MS2(["S2_MS2"]):::net
   P_J_S2L --"3"--> N_S2_MS2
-  P_JP22["<b>JP22</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP22["<b>JP22</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S2_MS2 --"2"--> P_JP22
   N_S2_MS3(["S2_MS3"]):::net
   P_J_S2L --"4"--> N_S2_MS3
-  P_JP23["<b>JP23</b><br/>MS_SEL<br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i>"]:::part
+  P_JP23["<b>JP23</b><br/>MS_SEL<br/><i>pin 3 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_S2_MS3 --"2"--> P_JP23
   N_STEPPER_2_DIAG(["STEPPER_2_DIAG"]):::net
   P_R_DG2["<b>R_DG2</b><br/>1k"]:::part
@@ -153,9 +153,9 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_VIN_PROT(["VIN_PROT"]):::rail
-  P_J_S1R["<b>J_S1R</b><br/>SOCKET_1x8<br/><i>pin 7 → +3V3</i><br/><i>pin 2 → GND</i><br/><i>pin 8 → GND</i>"]:::part
+  P_J_S1R["<b>J_S1R</b><br/>SOCKET_1x8<br/><i>pin 2 → GND</i><br/><i>pin 8 → GND</i><br/><i>pin 7 → +3V3</i>"]:::part
   P_J_S1R --"1"--> N_VIN_PROT
-  P_J_S2R["<b>J_S2R</b><br/>SOCKET_1x8<br/><i>pin 7 → +3V3</i><br/><i>pin 2 → GND</i><br/><i>pin 8 → GND</i>"]:::part
+  P_J_S2R["<b>J_S2R</b><br/>SOCKET_1x8<br/><i>pin 2 → GND</i><br/><i>pin 8 → GND</i><br/><i>pin 7 → +3V3</i>"]:::part
   N_VIN_PROT --"1"--> P_J_S2R
   P_C_BS1["<b>C_BS1</b><br/>100uF/63V<br/><i>pin 2 → GND</i>"]:::part
   N_VIN_PROT --"1"--> P_C_BS1

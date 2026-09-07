@@ -5564,7 +5564,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "0321dc0a-3102-42d3-b64e-496d02c5ef58")
-		(property "Reference" "J6"
+		(property "Reference" "J15"
 			(at 261.62 146.0499 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5631,7 +5631,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J6")
+					(reference "J15")
 					(unit 1)
 				)
 			)
@@ -5772,7 +5772,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "078bd5c3-fb85-40f6-bfb3-7987c6243031")
-		(property "Reference" "R19"
+		(property "Reference" "R12"
 			(at 143.51 78.486 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5836,7 +5836,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R19")
+					(reference "R12")
 					(unit 1)
 				)
 			)
@@ -5853,7 +5853,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "1088b637-da10-48d7-8fec-2c382ff606b3")
-		(property "Reference" "R16"
+		(property "Reference" "R9"
 			(at 120.65 70.866 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -5917,7 +5917,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R16")
+					(reference "R9")
 					(unit 1)
 				)
 			)
@@ -6059,7 +6059,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "30d9d0c2-193a-4f19-a21d-87880ad31674")
-		(property "Reference" "#PWR062"
+		(property "Reference" "#PWR053"
 			(at 132.08 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -6119,7 +6119,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR062")
+					(reference "#PWR053")
 					(unit 1)
 				)
 			)
@@ -6225,7 +6225,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "337bb35c-a6b0-4321-b601-74aa99bc3544")
-		(property "Reference" "J_LED4"
+		(property "Reference" "J11"
 			(at 261.62 113.0299 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6289,7 +6289,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED4")
+					(reference "J11")
 					(unit 1)
 				)
 			)
@@ -6307,7 +6307,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "3640a98c-1dd4-4922-85d8-8210508d0b70")
-		(property "Reference" "Q6"
+		(property "Reference" "Q5"
 			(at 163.83 124.4599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6377,7 +6377,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "Q6")
+					(reference "Q5")
 					(unit 1)
 				)
 			)
@@ -6519,7 +6519,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "3b98e2c9-d8b0-46c1-babc-88af91d72893")
-		(property "Reference" "J3"
+		(property "Reference" "J14"
 			(at 261.62 137.1599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6586,7 +6586,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J3")
+					(reference "J14")
 					(unit 1)
 				)
 			)
@@ -6604,7 +6604,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "470a8311-64aa-4a32-b814-fa32088ae426")
-		(property "Reference" "J7"
+		(property "Reference" "J2"
 			(at 261.62 29.2099 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6671,7 +6671,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J7")
+					(reference "J2")
 					(unit 1)
 				)
 			)
@@ -6689,7 +6689,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "479e1f3e-97ea-43c0-b95b-0f322cd806ff")
-		(property "Reference" "J11"
+		(property "Reference" "J5"
 			(at 261.62 59.6899 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6756,7 +6756,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J11")
+					(reference "J5")
 					(unit 1)
 				)
 			)
@@ -6774,7 +6774,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "4e0b4a94-0679-4ef7-bf1a-5e4a45b11266")
-		(property "Reference" "J_LED5"
+		(property "Reference" "J12"
 			(at 261.62 119.3799 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6838,7 +6838,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED5")
+					(reference "J12")
 					(unit 1)
 				)
 			)
@@ -6855,7 +6855,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "4f46e9b1-8601-4f6d-836a-1368c3d87eda")
-		(property "Reference" "R17"
+		(property "Reference" "R10"
 			(at 128.27 73.406 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -6919,7 +6919,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R17")
+					(reference "R10")
 					(unit 1)
 				)
 			)
@@ -6937,7 +6937,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "53e2b9ba-ea66-43e6-86cd-6663789b7f8a")
-		(property "Reference" "D6"
+		(property "Reference" "D2"
 			(at 50.8 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7001,7 +7001,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D6")
+					(reference "D2")
 					(unit 1)
 				)
 			)
@@ -7019,7 +7019,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "58edbfa0-ad60-4306-9a95-4200700edd94")
-		(property "Reference" "R20"
+		(property "Reference" "R5"
 			(at 139.7 38.0999 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7083,7 +7083,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R20")
+					(reference "R5")
 					(unit 1)
 				)
 			)
@@ -7101,7 +7101,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "59b5648e-95d3-4ec5-8d49-2880c4a64cc8")
-		(property "Reference" "#PWR064"
+		(property "Reference" "#PWR062"
 			(at 187.96 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -7161,7 +7161,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR064")
+					(reference "#PWR062")
 					(unit 1)
 				)
 			)
@@ -7179,7 +7179,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "5c3f42fd-62da-437d-b863-8c89269eff55")
-		(property "Reference" "#PWR052"
+		(property "Reference" "#PWR055"
 			(at 137.16 39.37 0)
 			(hide yes)
 			(show_name no)
@@ -7239,7 +7239,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR052")
+					(reference "#PWR055")
 					(unit 1)
 				)
 			)
@@ -7257,7 +7257,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "5d73570e-5633-49e5-94a1-531ed17fb2ff")
-		(property "Reference" "Q4"
+		(property "Reference" "Q3"
 			(at 107.95 124.4599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7327,7 +7327,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "Q4")
+					(reference "Q3")
 					(unit 1)
 				)
 			)
@@ -7345,7 +7345,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "61b3d6e9-3937-4389-aff6-2de6a89dacc4")
-		(property "Reference" "#PWR058"
+		(property "Reference" "#PWR051"
 			(at 121.92 173.99 0)
 			(hide yes)
 			(show_name no)
@@ -7405,7 +7405,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR058")
+					(reference "#PWR051")
 					(unit 1)
 				)
 			)
@@ -7423,7 +7423,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "6721d39a-12f3-459f-afac-e0210f8569b1")
-		(property "Reference" "#PWR060"
+		(property "Reference" "#PWR046"
 			(at 76.2 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -7483,7 +7483,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR060")
+					(reference "#PWR046")
 					(unit 1)
 				)
 			)
@@ -7501,7 +7501,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "68774fa6-913a-479b-974a-bf17435df0be")
-		(property "Reference" "D9"
+		(property "Reference" "D5"
 			(at 134.62 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7565,7 +7565,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D9")
+					(reference "D5")
 					(unit 1)
 				)
 			)
@@ -7583,7 +7583,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "6de8a471-37d9-43df-99e1-011c83bff3cb")
-		(property "Reference" "R21"
+		(property "Reference" "R6"
 			(at 148.59 35.5599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7647,7 +7647,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R21")
+					(reference "R6")
 					(unit 1)
 				)
 			)
@@ -7664,7 +7664,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "829c149b-75cd-4357-9cdc-f030a159eabd")
-		(property "Reference" "R18"
+		(property "Reference" "R11"
 			(at 135.89 75.946 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7728,7 +7728,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R18")
+					(reference "R11")
 					(unit 1)
 				)
 			)
@@ -7746,7 +7746,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "83035734-4a6f-4998-a6a1-004c23c41b1e")
-		(property "Reference" "#PWR050"
+		(property "Reference" "#PWR054"
 			(at 134.62 87.63 0)
 			(hide yes)
 			(show_name no)
@@ -7806,7 +7806,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR050")
+					(reference "#PWR054")
 					(unit 1)
 				)
 			)
@@ -7823,7 +7823,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "848dad77-7d43-4a13-ac6c-7e0c12a5b3e8")
-		(property "Reference" "U6"
+		(property "Reference" "U3"
 			(at 53.086 49.784 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -7928,7 +7928,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "U6")
+					(reference "U3")
 					(unit 1)
 				)
 			)
@@ -7946,7 +7946,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "8ac59af0-069e-4e0a-a9c3-c8f263ab9981")
-		(property "Reference" "#PWR029"
+		(property "Reference" "#PWR060"
 			(at 167.64 36.83 0)
 			(hide yes)
 			(show_name no)
@@ -8006,7 +8006,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR029")
+					(reference "#PWR060")
 					(unit 1)
 				)
 			)
@@ -8024,7 +8024,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "8f389151-6944-40ba-b4a1-f2b082d4bd2a")
-		(property "Reference" "#PWR056"
+		(property "Reference" "#PWR041"
 			(at 20.32 173.99 0)
 			(hide yes)
 			(show_name no)
@@ -8084,7 +8084,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR056")
+					(reference "#PWR041")
 					(unit 1)
 				)
 			)
@@ -8102,7 +8102,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "90e36085-8f14-4a6e-bce2-954a812a4a1b")
-		(property "Reference" "J9"
+		(property "Reference" "J3"
 			(at 261.62 39.3699 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8169,7 +8169,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J9")
+					(reference "J3")
 					(unit 1)
 				)
 			)
@@ -8187,7 +8187,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "961be5a8-b1ad-4ad7-b569-8d9805b92c6c")
-		(property "Reference" "J13"
+		(property "Reference" "J6"
 			(at 261.62 80.0099 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8254,7 +8254,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J13")
+					(reference "J6")
 					(unit 1)
 				)
 			)
@@ -8272,7 +8272,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "96a2488a-38ab-44af-a941-5b136a7d9c90")
-		(property "Reference" "J_LED1"
+		(property "Reference" "J8"
 			(at 261.62 93.9799 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8336,7 +8336,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED1")
+					(reference "J8")
 					(unit 1)
 				)
 			)
@@ -8354,7 +8354,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "98091388-3415-47dd-afc1-f264390bc034")
-		(property "Reference" "#PWR051"
+		(property "Reference" "#PWR056"
 			(at 142.24 90.17 0)
 			(hide yes)
 			(show_name no)
@@ -8414,7 +8414,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR051")
+					(reference "#PWR056")
 					(unit 1)
 				)
 			)
@@ -8432,7 +8432,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "9bd81282-1e53-46c9-8a4a-2aece8a31d25")
-		(property "Reference" "#PWR044"
+		(property "Reference" "#PWR063"
 			(at 203.2 43.18 0)
 			(hide yes)
 			(show_name no)
@@ -8492,7 +8492,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR044")
+					(reference "#PWR063")
 					(unit 1)
 				)
 			)
@@ -8588,7 +8588,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "9e86880e-e129-458c-b927-3d0ca407dd60")
-		(property "Reference" "#PWR049"
+		(property "Reference" "#PWR052"
 			(at 127 85.09 0)
 			(hide yes)
 			(show_name no)
@@ -8648,7 +8648,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR049")
+					(reference "#PWR052")
 					(unit 1)
 				)
 			)
@@ -8666,7 +8666,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "9f4c853b-26c4-40b6-b691-22683134f1ec")
-		(property "Reference" "#PWR047"
+		(property "Reference" "#PWR049"
 			(at 111.76 80.01 0)
 			(hide yes)
 			(show_name no)
@@ -8726,7 +8726,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR047")
+					(reference "#PWR049")
 					(unit 1)
 				)
 			)
@@ -8744,7 +8744,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a0458a3c-0e52-4c5d-bc01-f863cc324c30")
-		(property "Reference" "#PWR055"
+		(property "Reference" "#PWR043"
 			(at 59.69 85.09 0)
 			(hide yes)
 			(show_name no)
@@ -8804,7 +8804,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR055")
+					(reference "#PWR043")
 					(unit 1)
 				)
 			)
@@ -8822,7 +8822,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a3b0636f-447d-4c64-8cad-7efaf84d282e")
-		(property "Reference" "#PWR057"
+		(property "Reference" "#PWR045"
 			(at 71.12 173.99 0)
 			(hide yes)
 			(show_name no)
@@ -8882,7 +8882,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR057")
+					(reference "#PWR045")
 					(unit 1)
 				)
 			)
@@ -8900,7 +8900,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a7e709fd-f59c-4465-b903-b45fe451f2b1")
-		(property "Reference" "#PWR048"
+		(property "Reference" "#PWR050"
 			(at 119.38 82.55 0)
 			(hide yes)
 			(show_name no)
@@ -8960,7 +8960,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR048")
+					(reference "#PWR050")
 					(unit 1)
 				)
 			)
@@ -8978,7 +8978,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a96cf0a0-bc06-4208-8263-181867d30cbd")
-		(property "Reference" "#PWR063"
+		(property "Reference" "#PWR059"
 			(at 160.02 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -9038,7 +9038,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR063")
+					(reference "#PWR059")
 					(unit 1)
 				)
 			)
@@ -9056,7 +9056,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a9c855e6-dc44-4970-9b97-5e6768bee4c4")
-		(property "Reference" "C17"
+		(property "Reference" "C5"
 			(at 217.17 41.9099 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9120,7 +9120,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "C17")
+					(reference "C5")
 					(unit 1)
 				)
 			)
@@ -9138,7 +9138,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "afffc919-8242-469d-ac2e-7cf4381f819c")
-		(property "Reference" "J12"
+		(property "Reference" "J7"
 			(at 261.62 69.8499 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9205,7 +9205,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J12")
+					(reference "J7")
 					(unit 1)
 				)
 			)
@@ -9222,7 +9222,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "b1003f7f-bf07-473c-b10a-df17e3f05d0f")
-		(property "Reference" "R14"
+		(property "Reference" "R7"
 			(at 105.41 65.786 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9286,7 +9286,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R14")
+					(reference "R7")
 					(unit 1)
 				)
 			)
@@ -9304,7 +9304,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "b1cf2d0d-5b7f-4627-b603-9c6c1bd2f2b1")
-		(property "Reference" "J8"
+		(property "Reference" "J16"
 			(at 261.62 154.9399 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9371,7 +9371,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J8")
+					(reference "J16")
 					(unit 1)
 				)
 			)
@@ -9389,7 +9389,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "baa15eb8-4b8f-4bc1-9315-06ce7ebdd1b8")
-		(property "Reference" "D7"
+		(property "Reference" "D3"
 			(at 78.74 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9453,7 +9453,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D7")
+					(reference "D3")
 					(unit 1)
 				)
 			)
@@ -9471,7 +9471,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bc062ea9-6447-4779-9afa-97796ca8ec6e")
-		(property "Reference" "#PWR042"
+		(property "Reference" "#PWR061"
 			(at 167.64 92.71 0)
 			(hide yes)
 			(show_name no)
@@ -9531,7 +9531,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR042")
+					(reference "#PWR061")
 					(unit 1)
 				)
 			)
@@ -9549,7 +9549,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bd104c59-24cb-4a7b-92e0-57130e1ca22c")
-		(property "Reference" "#PWR059"
+		(property "Reference" "#PWR042"
 			(at 48.26 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -9609,7 +9609,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR059")
+					(reference "#PWR042")
 					(unit 1)
 				)
 			)
@@ -9627,7 +9627,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bf3871c0-84e5-46da-b52a-2221f4cb8dfb")
-		(property "Reference" "U5"
+		(property "Reference" "U4"
 			(at 169.7833 33.02 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -9770,7 +9770,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "U5")
+					(reference "U4")
 					(unit 1)
 				)
 			)
@@ -9788,7 +9788,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "c1dcec61-2a33-4965-ab11-fecc0f0c14c1")
-		(property "Reference" "#PWR045"
+		(property "Reference" "#PWR064"
 			(at 203.2 53.34 0)
 			(hide yes)
 			(show_name no)
@@ -9848,7 +9848,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR045")
+					(reference "#PWR064")
 					(unit 1)
 				)
 			)
@@ -9866,7 +9866,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "c8f9e042-b4fa-4195-b27a-a1a5447fd029")
-		(property "Reference" "#PWR046"
+		(property "Reference" "#PWR047"
 			(at 104.14 77.47 0)
 			(hide yes)
 			(show_name no)
@@ -9926,7 +9926,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR046")
+					(reference "#PWR047")
 					(unit 1)
 				)
 			)
@@ -9944,7 +9944,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "cabf4eb8-fcbb-425b-a096-4c30127a1e3f")
-		(property "Reference" "C16"
+		(property "Reference" "C4"
 			(at 207.01 41.9099 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10008,7 +10008,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "C16")
+					(reference "C4")
 					(unit 1)
 				)
 			)
@@ -10026,7 +10026,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ce11389d-e85d-4dc1-9749-a9072f0f7bcd")
-		(property "Reference" "J10"
+		(property "Reference" "J4"
 			(at 261.62 49.5299 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10093,7 +10093,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J10")
+					(reference "J4")
 					(unit 1)
 				)
 			)
@@ -10110,7 +10110,7 @@
 		(in_pos_files yes)
 		(dnp no)
 		(uuid "cf2b30af-e70a-4488-a708-a60207160abd")
-		(property "Reference" "R15"
+		(property "Reference" "R8"
 			(at 113.03 68.326 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10174,7 +10174,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "R15")
+					(reference "R8")
 					(unit 1)
 				)
 			)
@@ -10192,7 +10192,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "d8f8ba5b-c08f-43d1-8acd-e8d640a9c9aa")
-		(property "Reference" "D10"
+		(property "Reference" "D6"
 			(at 162.56 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10256,7 +10256,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D10")
+					(reference "D6")
 					(unit 1)
 				)
 			)
@@ -10274,7 +10274,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "d9ca4cb8-dad2-42c9-ad28-254f010188f3")
-		(property "Reference" "Q7"
+		(property "Reference" "Q6"
 			(at 191.77 124.4599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10344,7 +10344,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "Q7")
+					(reference "Q6")
 					(unit 1)
 				)
 			)
@@ -10362,7 +10362,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "dc2c999d-6e2b-47fa-9e4b-757bbb9aae13")
-		(property "Reference" "Q3"
+		(property "Reference" "Q2"
 			(at 80.01 124.4599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10432,7 +10432,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "Q3")
+					(reference "Q2")
 					(unit 1)
 				)
 			)
@@ -10450,7 +10450,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "e4b400fc-e29d-4a01-ae8a-08febf917e51")
-		(property "Reference" "#PWR043"
+		(property "Reference" "#PWR058"
 			(at 149.86 54.61 0)
 			(hide yes)
 			(show_name no)
@@ -10510,7 +10510,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR043")
+					(reference "#PWR058")
 					(unit 1)
 				)
 			)
@@ -10528,7 +10528,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "e8d00033-5f4e-43c4-b990-9140e648d281")
-		(property "Reference" "#PWR054"
+		(property "Reference" "#PWR044"
 			(at 69.85 53.34 0)
 			(hide yes)
 			(show_name no)
@@ -10588,7 +10588,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR054")
+					(reference "#PWR044")
 					(unit 1)
 				)
 			)
@@ -10606,7 +10606,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "e9a17822-447a-4d5a-b79c-12fd658adf4a")
-		(property "Reference" "D8"
+		(property "Reference" "D4"
 			(at 106.68 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10670,7 +10670,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D8")
+					(reference "D4")
 					(unit 1)
 				)
 			)
@@ -10688,7 +10688,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ea2f84ca-d416-4db8-b70a-d8034a2898ff")
-		(property "Reference" "#PWR061"
+		(property "Reference" "#PWR048"
 			(at 104.14 137.16 0)
 			(hide yes)
 			(show_name no)
@@ -10748,7 +10748,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR061")
+					(reference "#PWR048")
 					(unit 1)
 				)
 			)
@@ -10766,7 +10766,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "eb787b19-9d73-4f5d-bfbf-94cdfeb76b60")
-		(property "Reference" "Q5"
+		(property "Reference" "Q4"
 			(at 135.89 124.4599 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10836,7 +10836,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "Q5")
+					(reference "Q4")
 					(unit 1)
 				)
 			)
@@ -10854,7 +10854,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ecfba976-e5bf-4222-9619-a628ce182188")
-		(property "Reference" "#PWR053"
+		(property "Reference" "#PWR057"
 			(at 146.05 36.83 0)
 			(hide yes)
 			(show_name no)
@@ -10914,7 +10914,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "#PWR053")
+					(reference "#PWR057")
 					(unit 1)
 				)
 			)
@@ -10932,7 +10932,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "edbd9483-17f6-472b-b280-b15a25ff1dd5")
-		(property "Reference" "J_LED6"
+		(property "Reference" "J13"
 			(at 261.62 125.7299 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -10996,7 +10996,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED6")
+					(reference "J13")
 					(unit 1)
 				)
 			)
@@ -11014,7 +11014,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "efa90c23-76e2-4994-a335-2ccc83ec7fa3")
-		(property "Reference" "D11"
+		(property "Reference" "D7"
 			(at 190.5 115.2524 90)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11078,7 +11078,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "D11")
+					(reference "D7")
 					(unit 1)
 				)
 			)
@@ -11096,7 +11096,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "f8674599-3630-49f4-9ca2-93c265911df1")
-		(property "Reference" "J_LED3"
+		(property "Reference" "J9"
 			(at 261.62 106.6799 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11160,7 +11160,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED3")
+					(reference "J9")
 					(unit 1)
 				)
 			)
@@ -11178,7 +11178,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "fa773296-98e4-40c0-a41a-b1fb8b8f8280")
-		(property "Reference" "J_LED2"
+		(property "Reference" "J10"
 			(at 261.62 100.3299 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -11242,7 +11242,7 @@
 		(instances
 			(project "propmesh"
 				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c/2bda7ce8-0115-4f82-8352-98dfad51fb12"
-					(reference "J_LED2")
+					(reference "J10")
 					(unit 1)
 				)
 			)

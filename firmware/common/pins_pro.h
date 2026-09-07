@@ -9,10 +9,10 @@
 #define PIN_BOOT_BUTTON           0  // strapping
 #define PIN_ANALOG_IN_1           1  // ADC1 — ADC2 unusable with WiFi
 #define PIN_ANALOG_IN_2           2  // ADC1
-#define PIN_IR_RX                 3  // RMT RX; strapping, internal pulldown
-#define PIN_LED_STRIP_1_DATA      4  // RMT TX, via 74AHCT125
-#define PIN_LED_STRIP_2_DATA      5  // RMT TX; APA102 DATA in 4-wire mode
-#define PIN_LED_STRIP_2_CLK       6  // APA102 CLK; solder jumper selects mode
+#define PIN_LED_STRIP_1_CLK       3  // APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input, internal pulldown holds the default at reset
+#define PIN_LED_STRIP_1_DATA      4  // RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode
+#define PIN_LED_STRIP_2_DATA      5  // RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode
+#define PIN_LED_STRIP_2_CLK       6  // APA102 CLK via the 74AHCT541; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06)
 #define PIN_I2S_BCLK              7
 #define PIN_I2C_SDA               8  // PCA9685 + Qwiic
 #define PIN_I2C_SCL               9
@@ -30,7 +30,7 @@
 #define PIN_STEPPER_2_STEP        21  // LEDC-capable
 #define PIN_MOTOR_B_IN1           35  // LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V
 #define PIN_MOTOR_B_IN2           36  // LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1
-#define PIN_STATUS_LED            38  // WS2812B-mini @ 5V — data via spare 74AHCT125 gate
+#define PIN_STATUS_LED            38  // WS2812B-mini @ 5V — data via buffer 4 of the 74AHCT541
 #define PIN_SD_CLK                39  // SDMMC 1-bit
 #define PIN_SD_CMD                40  // 10k pull-up
 #define PIN_SD_D0                 41  // 10k pull-up

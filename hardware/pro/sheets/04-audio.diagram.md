@@ -1,6 +1,6 @@
 # 04-audio — wiring diagrams
 
-Generated from `04-audio.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `04-audio.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it. Open the `.html` next to this file in any browser to see it rendered.
 
 ## I²S amp → speaker (mono mix, 12 dB)
 
@@ -14,9 +14,9 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_I2S_DOUT(["I2S_DOUT"]):::net
-  P_U_AMP["<b>U_AMP</b><br/>MAX98357AETE+T<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GAIN_SLOT → GND</i><br/><i>pin EP → GND</i><br/><i>pin VDD → +5V</i><br/><i>pin VDD → +5V</i>"]:::part
+  P_U_AMP["<b>U_AMP</b><br/>MAX98357AETE+T<br/><i>pin VDD → +5V</i><br/><i>pin VDD → +5V</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GAIN_SLOT → GND</i><br/><i>pin EP → GND</i>"]:::part
   P_U_AMP --"DIN"--> N_I2S_DOUT
-  P_U_DAC["<b>U_DAC</b><br/>PCM5102APWR<br/><i>pin DGND → GND</i><br/><i>pin AGND → GND</i><br/><i>pin CPGND → GND</i><br/><i>pin FLT → GND</i><br/><i>pin FMT → GND</i><br/><i>pin DEMP → GND</i><br/><i>pin SCK → GND</i><br/><i>pin DVDD → +3V3</i><br/><i>pin AVDD → +3V3</i><br/><i>pin CPVDD → +3V3</i>"]:::part
+  P_U_DAC["<b>U_DAC</b><br/>PCM5102APWR<br/><i>pin DVDD → +3V3</i><br/><i>pin AVDD → +3V3</i><br/><i>pin CPVDD → +3V3</i><br/><i>pin DGND → GND</i><br/><i>pin AGND → GND</i><br/><i>pin CPGND → GND</i><br/><i>pin FLT → GND</i><br/><i>pin FMT → GND</i><br/><i>pin DEMP → GND</i><br/><i>pin SCK → GND</i>"]:::part
   N_I2S_DOUT --"DIN"--> P_U_DAC
   N_I2S_BCLK(["I2S_BCLK"]):::net
   P_U_AMP --"BCLK"--> N_I2S_BCLK
@@ -72,7 +72,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_XSMT(["XSMT"]):::net
-  P_U_DAC["<b>U_DAC</b><br/>PCM5102APWR<br/><i>pin DGND → GND</i><br/><i>pin AGND → GND</i><br/><i>pin CPGND → GND</i><br/><i>pin FLT → GND</i><br/><i>pin FMT → GND</i><br/><i>pin DEMP → GND</i><br/><i>pin SCK → GND</i><br/><i>pin DVDD → +3V3</i><br/><i>pin AVDD → +3V3</i><br/><i>pin CPVDD → +3V3</i>"]:::part
+  P_U_DAC["<b>U_DAC</b><br/>PCM5102APWR<br/><i>pin DVDD → +3V3</i><br/><i>pin AVDD → +3V3</i><br/><i>pin CPVDD → +3V3</i><br/><i>pin DGND → GND</i><br/><i>pin AGND → GND</i><br/><i>pin CPGND → GND</i><br/><i>pin FLT → GND</i><br/><i>pin FMT → GND</i><br/><i>pin DEMP → GND</i><br/><i>pin SCK → GND</i>"]:::part
   P_U_DAC --"XSMT"--> N_XSMT
   P_R_XSMT["<b>R_XSMT</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
   N_XSMT --"1"--> P_R_XSMT
@@ -138,7 +138,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_SD_CLK(["SD_CLK"]):::net
-  P_U_SD["<b>U_SD</b><br/>TF-01A<br/><i>pin VSS → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin VDD → +3V3</i>"]:::part
+  P_U_SD["<b>U_SD</b><br/>TF-01A<br/><i>pin VDD → +3V3</i><br/><i>pin VSS → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i>"]:::part
   P_U_SD --"CLK(SCLK)"--> N_SD_CLK
   N_SD_CMD(["SD_CMD"]):::net
   P_U_SD --"CMD(DI)"--> N_SD_CMD
@@ -150,8 +150,8 @@ graph LR
   N_SD_D0 --"1"--> P_R_D0
   N_SD_D3(["SD_D3"]):::net
   P_U_SD --"CDDAT3(CS)"--> N_SD_D3
-  P_R_D3["<b>R_D3</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
-  N_SD_D3 --"1"--> P_R_D3
+  P_R_DAT3["<b>R_DAT3</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
+  N_SD_D3 --"1"--> P_R_DAT3
   N_CARD_DET(["CARD_DET"]):::net
   P_U_SD --"CD"--> N_CARD_DET
   P_TP_CD["<b>TP_CD</b><br/>TP_CD"]:::part
@@ -163,7 +163,7 @@ graph LR
 | **SD_CLK** | `U_SD.CLK(SCLK)` |
 | **SD_CMD** | `U_SD.CMD(DI)`, `R_CMD.1` |
 | **SD_D0** | `U_SD.DAT0(D0)`, `R_D0.1` |
-| **SD_D3** | `U_SD.CDDAT3(CS)`, `R_D3.1` |
+| **SD_D3** | `U_SD.CDDAT3(CS)`, `R_DAT3.1` |
 | **CARD_DET** | `U_SD.CD`, `TP_CD.1` |
 
 ## Rail-only parts ×10 — decoupling; wire each pin to its rail symbol, place beside its chip
@@ -177,16 +177,16 @@ graph LR
   classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
-  P_C_A1["<b>C_A1</b><br/>10uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
-  P_C_A2["<b>C_A2</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
-  P_C_SD1["<b>C_SD1</b><br/>10uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_SD2["<b>C_SD2</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_DV1["<b>C_DV1</b><br/>10uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_DV2["<b>C_DV2</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_AV1["<b>C_AV1</b><br/>10uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_AV2["<b>C_AV2</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_CPV1["<b>C_CPV1</b><br/>10uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
-  P_C_CPV2["<b>C_CPV2</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
+  P_C_A1["<b>C_A1</b><br/>10uF/16V<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_A2["<b>C_A2</b><br/>100nF<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_SD1["<b>C_SD1</b><br/>10uF/16V<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_SD2["<b>C_SD2</b><br/>100nF<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_DV1["<b>C_DV1</b><br/>10uF/16V<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_DV2["<b>C_DV2</b><br/>100nF<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_AV1["<b>C_AV1</b><br/>10uF/16V<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_AV2["<b>C_AV2</b><br/>100nF<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_CPV1["<b>C_CPV1</b><br/>10uF/16V<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_CPV2["<b>C_CPV2</b><br/>100nF<br/><i>pin 1 → +3V3</i><br/><i>pin 2 → GND</i>"]:::part
 ```
 
 | Net | connect every one of these |
@@ -208,4 +208,4 @@ Every pin below goes to the +5V symbol:
 
 Every pin below goes to the +3V3 symbol:
 
-`U_SD.VDD`, `C_SD1.1`, `C_SD2.1`, `R_CMD.2`, `R_D0.2`, `R_D3.2`, `R_SDM.2`, `U_DAC.DVDD`, `U_DAC.AVDD`, `U_DAC.CPVDD`, `R_XSMT.2`, `C_DV1.1`, `C_DV2.1`, `C_AV1.1`, `C_AV2.1`, `C_CPV1.1`, `C_CPV2.1`
+`U_SD.VDD`, `C_SD1.1`, `C_SD2.1`, `R_CMD.2`, `R_D0.2`, `R_DAT3.2`, `R_SDM.2`, `U_DAC.DVDD`, `U_DAC.AVDD`, `U_DAC.CPVDD`, `R_XSMT.2`, `C_DV1.1`, `C_DV2.1`, `C_AV1.1`, `C_AV2.1`, `C_CPV1.1`, `C_CPV2.1`

@@ -167,17 +167,19 @@ export interface Cue {
   sequence_id: number;
   target_group: number;  // PM_BROADCAST_GROUP = all
   fire_at_us: bigint;  // mesh time; future T absorbs hop jitter
+  start_offset_ms: number;  // play the sequence from this far into itself — the console's play-from-cursor (decided 2026-09-05); 0 = from the top
   flags: number;
 }
-export const Cue_SIZE = 15;
+export const Cue_SIZE = 19;
 export function decodeCue(dv: DataView, off = 0): Cue {
   let o = off;
   const cue_id = dv.getUint16(o, true); o += 2;
   const sequence_id = dv.getUint16(o, true); o += 2;
   const target_group = dv.getUint16(o, true); o += 2;
   const fire_at_us = dv.getBigUint64(o, true); o += 8;
+  const start_offset_ms = dv.getUint32(o, true); o += 4;
   const flags = dv.getUint8(o); o += 1;
-  return { cue_id, sequence_id, target_group, fire_at_us, flags };
+  return { cue_id, sequence_id, target_group, fire_at_us, start_offset_ms, flags };
 }
 export function encodeCue(v: Cue, dv: DataView, off = 0): number {
   let o = off;
@@ -185,6 +187,7 @@ export function encodeCue(v: Cue, dv: DataView, off = 0): number {
   dv.setUint16(o, v.sequence_id, true); o += 2;
   dv.setUint16(o, v.target_group, true); o += 2;
   dv.setBigUint64(o, v.fire_at_us, true); o += 8;
+  dv.setUint32(o, v.start_offset_ms, true); o += 4;
   dv.setUint8(o, v.flags); o += 1;
   return o - off;
 }

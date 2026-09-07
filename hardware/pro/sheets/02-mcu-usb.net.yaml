@@ -35,7 +35,7 @@ blocks:
   "USB: connector → ESD → module":       [VBUS, +5V, USB_DM, USB_DP, CC1, CC2]
   "Module core: power, reset, boot":     [+3V3, EN, BOOT_BUTTON]
   "GPIO fan-out — every label EXACTLY as pinmap.yaml": [
-    ANALOG_IN_1, ANALOG_IN_2, IR_RX, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
+    ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
     LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL, DIGITAL_IN_1, DIGITAL_IN_2,
     DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
     TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
@@ -45,7 +45,7 @@ blocks:
 # Global labels — the checker verifies these NAMES exist verbatim in the
 # netlist (the #1 bug class: schematic disagreeing with pinmap.yaml).
 named: [USB_DM, USB_DP, BOOT_BUTTON,
-  ANALOG_IN_1, ANALOG_IN_2, IR_RX, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
+  ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
   LED_STRIP_2_CLK, I2S_BCLK, I2C_SDA, I2C_SCL, DIGITAL_IN_1, DIGITAL_IN_2,
   DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
   TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
@@ -69,7 +69,7 @@ nets:
   # --- GPIO fan-out (single global label each; sheets 03-07 consume) --
   ANALOG_IN_1:      [MCU.IO1]
   ANALOG_IN_2:      [MCU.IO2]
-  IR_RX:            [MCU.IO3]
+  LED_STRIP_1_CLK:            [MCU.IO3]
   LED_STRIP_1_DATA: [MCU.IO4]
   LED_STRIP_2_DATA: [MCU.IO5]
   LED_STRIP_2_CLK:  [MCU.IO6]

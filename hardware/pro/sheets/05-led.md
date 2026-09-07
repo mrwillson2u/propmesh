@@ -1,67 +1,92 @@
 # Sheet 05 — Addressable LED + status LED
 
 **Everything needed to draw this sheet is in this file.** Fully sourced
-2026-09-04. Drawing guide: `05-led.diagram.html`; checker:
+2026-09-04; **re-specced 2026-09-05 (final): both strip outputs are
+3- or 4-wire, through one octal level shifter; no mode jumpers
+(2026-09-06).** Drawing guide:
+`05-led.diagram.html`; checker:
 
 ```
 python3 tools/checknet.py hardware/pro/sheets/05-led.net.yaml
 ```
 
 **Nets on this sheet** (all global, checker-enforced):
-`LED_STRIP_1_DATA` (GPIO 4), `LED_STRIP_2_DATA` (GPIO 5),
-`LED_STRIP_2_CLK` (GPIO 6), `STATUS_LED` (GPIO 38), plus `+5V`/`GND`.
+`LED_STRIP_1_DATA` (GPIO 4), `LED_STRIP_1_CLK` (GPIO 3),
+`LED_STRIP_2_DATA` (GPIO 5), `LED_STRIP_2_CLK` (GPIO 6), `STATUS_LED`
+(GPIO 38), plus `+5V`/`GND`.
 
-## Level shifter — the part where the suffix is the whole point
+## Why both outputs are dual-mode (2026-09-05)
+
+Two outputs exist for **two zones** (eyes + spine, prop + wash), not
+for two protocols. Originally only strip 2 could do 4-wire because a
+clock costs a GPIO and a shifter gate, and both were spent. Dropping
+the onboard IR receiver (a receiver inside a hidden enclosure can't see
+a remote — plug-in IR goes on a `DIGITAL_IN`) freed **GPIO 3**. GPIO 3
+is a strapping pin (JTAG select) but safe: it drives only a shifter
+input, and its internal pulldown holds the default at reset.
+
+## The level shifter — one octal part
+
+**SN74AHCT541DWR** (`C2682058`, SOIC-20W, $0.44@100, 2.9 k stock):
+eight non-inverting buffers in **one ordinary 20-pin symbol**. Five
+are used, **three are spare** — 5 V-level outputs you can bodge a wire
+straight onto (1.27 mm pitch) if v0.1 needs one. It replaced a quad
+AHCT125 + single-gate AHCT1G125 pair on 2026-09-05 (+$0.12, and no
+multi-unit symbol to place five times).
 
 **AHCT, never AHC/HC** (locked decision): the T = TTL input thresholds
 (V_IH = 2.0 V), which is what makes 3.3 V data legal into a 5 V-supplied
 buffer. Plain HC at 5 V needs 3.5 V to guarantee a high — it *mostly*
-works, which is worse than failing: that is the random-flicker bug this
-chip exists to kill.
+works, which is worse than failing: that is the random-flicker bug
+this chip exists to kill. Check the ordered MPN says AHCT.
 
-**Package changed from the spec's PW (TSSOP): sourcing 2026-09-04 found
-TSSOP dead at JLC** (PW stock 0, PWR stock 50). **SN74AHCT125DR** —
-same genuine-TI die in SOIC-14 — is $0.40@1 / $0.24@100 with 7.8 k
-stock, and SOIC's 1.27 mm pitch is friendlier to hand-solder anyway.
-The checklist item "verify the MPN ordered says AHCT" survives the
-package change unchanged.
+### Wiring key — every pin of U_LS
 
-Gate assignment (all 4 used, multi-unit symbol A–D + power unit E):
+KiCad's `74xx:74AHCT541` names the pins; the yaml and diagram use those
+names. Flow-through: A*n* in → Y*n* out, straight across the chip.
 
-| Gate | in → out pins | Signal |
-|---|---|---|
-| A | 2 → 3 | LED_STRIP_1_DATA → strip 1 |
-| B | 5 → 6 | LED_STRIP_2_DATA → strip 2 / APA102 DATA |
-| C | 9 → 8 | LED_STRIP_2_CLK → APA102 CLK |
-| D | 12 → 11 | STATUS_LED → onboard pixel |
+| Pin (name) | Wire to |
+|---|---|
+| 1 (G1), 19 (G2) | GND — both enables, active-low = always on |
+| 2 (A0) | global label `LED_STRIP_1_DATA` |
+| 3 (A1) | global label `LED_STRIP_1_CLK` |
+| 4 (A2) | global label `LED_STRIP_2_DATA` |
+| 5 (A3) | global label `LED_STRIP_2_CLK` |
+| 6 (A4) | global label `STATUS_LED` |
+| 7, 8, 9 (A5–A7) | **GND** — unused CMOS inputs must not float |
+| 10 (GND) | GND |
+| 18 (Y0) | `R_S1` → `J_ST1B` pin 1 (strip 1 DATA) |
+| 17 (Y1) | `R_S1C` → `J_ST1B` pin 2 (strip 1 CLK) |
+| 16 (Y2) | `R_S2D` → `J_ST2B` pin 1 (strip 2 DATA) |
+| 15 (Y3) | `R_S2C` → `J_ST2B` pin 2 (strip 2 CLK) |
+| 14 (Y4) | `R_ST` → `D_ST` pin 1 (status DIN) |
+| 13, 12, 11 (Y5–Y7) | **no-connect X flags** — the spares |
+| 20 (VCC) | +5V, `C_LS` beside it |
 
-All four **OE pins (1, 4, 10, 13) to GND**; 100 nF at pin 14 (5 V).
+Only the five input labels are labels; every other connection is plain
+wire (the diagram's LED1_5V etc. are segment names, not labels).
 
-## Per-output support
+## Per-output support (identical for both strips)
 
 - **330 Ω series on each data/clock line, placed AT THE CONNECTOR** —
   it damps reflections into the cable, so it belongs at the cable end,
   not the chip end. (220–470 Ω acceptable.)
-- **1000 µF bulk at each strip connector** — hot-plug inrush for the
-  first pixel. Radial THT D10 (`C439782`). A general-purpose
+- **1000 µF bulk at each strip's power block** — hot-plug inrush for
+  the first pixel. Radial THT D10 (`C439782`). A general-purpose
   electrolytic is fine here — this is charge storage, not a switcher
-  output; the true low-ESR NXA (`C165516`) is the alternate if stock
-  matters later.
-- **Strip 2's CLK wire passes through bridged solder jumper `JP_M`**:
-  bridged = APA102-capable (4-wire); cut = 3-wire WS2812, keeping the
-  dead clock line off the cable (per the pinmap note on GPIO 6).
+  output; the true low-ESR NXA (`C165516`) is the alternate.
+- **No mode jumper** (dropped 2026-09-06). 3- vs 4-wire is a firmware
+  setting; a 3-wire strip simply leaves the CLK screw empty, and the
+  330 Ω already limits a miswire to ~15 mA. The earlier jumper dated
+  from a plan to share the clock GPIO, which no longer applies.
+- **Connectors: two DG128-02P blocks per strip** — `J_STxA` = 5V | GND,
+  `J_STxB` = DATA | CLK. (The 04P block is stock-dead; the split also
+  reads well at the bench: one block power, one block signals.) In
+  layout the pair butts together as one 4-pole connector.
 - Silkscreen near the terminals: **strips beyond ~50 px get external
   5 V injection — data-only from the board.**
 
-## Strip connectors — the 04P casualty
-
-**DG128-5.0-04P went stock-dead**, so strip 2 uses the README fallback:
-**two DG128-02P blocks side by side** — one = 5V/GND, the other =
-DATA/CLK. Same footprint as sheet 03/06's terminals, and the power/
-signal split reads well at the bench. Strip 1 keeps the 3-pos
-(`C691861`, 5.2 k stock).
-
-## Status pixel — import verified (and open item #2 news)
+## Status pixel — import verified (open item #2)
 
 **WS2812B-MINI-X2** (`C4154873`, 3.5 mm, $0.13@1, 20 k stock) —
 the 2020 variant is dead (stock 3), the MINI is healthy. Import
@@ -74,20 +99,21 @@ verified against the Worldsemi datasheet 2026-09-04:
   is the same pattern enlarged ~0.1–0.3 mm per pad with the DS's
   0.5 mm gaps preserved — fine, and easier to hand-solder.
 - **V_IH = 0.65 × VDD = 3.25 V at 5 V** — the datasheet's own number
-  for why this pixel hangs off gate D and not a bare 3.3 V GPIO.
+  for why this pixel hangs off a buffer and not a bare 3.3 V GPIO.
 - **DOUT (pin 3) gets a no-connect X flag.**
+
+With the TSOP gone, this pixel is the **only** remaining Economic-PCBA
+risk part: verify it in the JLC order UI before the first PCBA run.
 
 ## Parts
 
 | Ref | Part | LCSC | Note |
 |---|---|---|---|
-| U_LS | **SN74AHCT125DR** SOIC-14 | **`C155176`** — $0.40/1, $0.24/100 | genuine TI. AHCT is load-bearing. |
-| C_LS | 100 nF | `C14663` Basic | at pin 14. |
-| R_S1, R_S2D, R_S2C, R_ST | 330 Ω ×4 | `C23138` Basic | series Rs at the connectors. |
+| U_LS | **SN74AHCT541DWR** SOIC-20W | **`C2682058`** — $0.66/1, $0.44/100 | octal shifter, genuine TI. |
+| C_LS | 100 nF | `C14663` Basic | at pin 20. |
+| R_S1, R_S1C, R_S2D, R_S2C, R_ST | 330 Ω ×5 | `C23138` Basic | series Rs at the connectors. |
 | C_B1, C_B2 | 1000 µF/16 V radial ×2 | **`C439782`** — $0.075, 22 k stock | THT D10×L13, 5 mm pitch. |
-| J_ST1 | DG128-5.0-03P | `C691861` | strip 1: 5V \| GND \| DATA. |
-| J_ST2A, J_ST2B | DG128-5.0-02P ×2 | `C711349` | strip 2: 5V \| GND + DATA \| CLK. |
-| JP_M | solder jumper, bridged | copper only | strip-2 mode. |
+| J_ST1A, J_ST1B, J_ST2A, J_ST2B | DG128-5.0-02P ×4 | `C711349` | 5V \| GND and DATA \| CLK per strip. |
 | D_ST | **WS2812B-MINI-X2** | **`C4154873`** — $0.13/1, $0.10/100 | onboard status pixel. |
 | C_ST | 100 nF | `C14663` Basic | at D_ST VDD. |
 
@@ -95,39 +121,35 @@ verified against the Worldsemi datasheet 2026-09-04:
 
 | Ref(s) | Symbol (`A` key) |
 |---|---|
-| U_LS | `74xx:74AHCT125` — **multi-unit**: place A, B, C, D and the power unit E |
-| R_S1/S2D/S2C/ST | `Device:R` |
+| U_LS | `74xx:74AHCT541` — one 20-pin symbol |
+| R_S1/S1C/S2D/S2C/ST | `Device:R` |
 | C_LS, C_ST | `Device:C` |
 | C_B1, C_B2 | `Device:C_Polarized` |
-| J_ST1 | `Connector:Screw_Terminal_01x03` |
-| J_ST2A, J_ST2B | `Connector:Screw_Terminal_01x02` |
-| JP_M | `Jumper:SolderJumper_2_Bridged` (pins are **A/B**) |
+| J_ST1A/1B/2A/2B | `Connector:Screw_Terminal_01x02` |
 | D_ST | `propmesh:WS2812B-MINI-X1` |
 
-Rails: `+5V`/`GND` power symbols. The four signal labels are global.
+Rails: `+5V`/`GND` power symbols. The five signal labels are global.
+No-connect flags (Q key): U_LS pins 11, 12, 13 and D_ST pin 3.
 
 ## Footprints (checker-enforced via the yaml)
 
 | Part | Footprint |
 |---|---|
-| U_LS | `Package_SO:SOIC-14_3.9x8.7mm_P1.27mm` |
+| U_LS | `Package_SO:SOIC-20W_7.5x12.8mm_P1.27mm` |
 | R / C 0603 | stock `R_0603` / `C_0603` |
 | C_B1/2 | `Capacitor_THT:CP_Radial_D10.0mm_P5.00mm` |
-| J_ST1 | `propmesh:CONN-TH_DG128-5.0-03P-14-00A-H` |
-| J_ST2A/B | `propmesh:CONN-TH_DG128-5.0-02P-14-00A-H` |
-| JP_M | `Jumper:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm` |
+| J_ST1A/1B/2A/2B | `propmesh:CONN-TH_DG128-5.0-02P-14-00A-H` |
 | D_ST | `propmesh:LED-SMD_4P-L3.5-W3.5-TL_WS2812B-1` |
 
 ## Checklist
 
-- [ ] Ordered MPN says AHCT (the DR suffix change doesn't touch this)
-- [ ] Series Rs at connectors, bulk caps at connectors
-- [ ] Mode jumper in the CLK line; OEs grounded; all four gates used
-- [ ] D_ST DOUT has a no-connect X
+- [ ] MCU sheet: `IR_RX` label on IO3 renamed to `LED_STRIP_1_CLK`
+- [ ] Ordered MPN says AHCT541 (the T is the level shift)
+- [ ] G1, G2, A5–A7 all to GND; Y5–Y7 and D_ST DOUT carry no-connect flags
+- [ ] Series Rs at connectors, bulk caps at the power blocks
 - [ ] Injection note on silkscreen (layout-time)
 - [ ] checknet green, then ERC
 
 ## Sourcing status
 
-**Complete.** 14 parts, rollup (§2.4): **$1.52 @1, $1.09 @100** —
-under the old $1.25 estimate at quantity despite the 04P → 2×02P swap.
+**Complete.** 15 parts, rollup (§2.4): **$2.04 @1, $1.44 @100**.

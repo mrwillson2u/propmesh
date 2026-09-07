@@ -15,7 +15,7 @@ Two board variants sharing one firmware base and one mesh protocol.
 | **PCA9685 for all slow outputs** | 16 ch of 12-bit PWM for 2 GPIO. Servos, dimmable LEDs, and relay drive all move off the MCU. |
 | **I²S audio, not DFPlayer Mini** | Deterministic sub-ms trigger latency (DFPlayer is ~100 ms and variable). Single SD card. Software volume/crossfade. |
 | **No mains switching on board** | Dry-contact relays only, 30 V max. Removes creepage/clearance, isolation, and product-liability burden. Pair with a commercial IP-rated relay box for mains props. |
-| **74AHCT125 level shifter on WS2812** | 3.3 V data into 5 V strips is marginal. This is the #1 cause of "my strip flickers randomly." |
+| **74AHCT-family level shifter on WS2812** (one octal 74AHCT541 since 2026-09-05) | 3.3 V data into 5 V strips is marginal. This is the #1 cause of "my strip flickers randomly." |
 | **U.FL antenna option** | Yard-scale coverage. WROOM-1 and WROOM-1U are pin-compatible — same PCB, two BOM variants. |
 | **Battery on Mini only** | Mini's ~200 mA average load makes 1S Li-ion viable. Full board's ~2 A average does not. |
 | **Mini stores audio in flash, not SD** | ESP32-C3 has no SDMMC; SPI SD costs 4 GPIO the C3 cannot spare. Flash audio + WiFi upload is better UX anyway. |
@@ -37,10 +37,10 @@ Two board variants sharing one firmware base and one mesh protocol.
 |---|---|---|
 | Boot button | GPIO 0 | Strapping |
 | Analog in ×2 | GPIO 1, 2 | ADC1 only — ADC2 unusable with WiFi active |
-| IR receiver | GPIO 3 | RMT RX. Strapping (JTAG select), internal pulldown, safe as input |
+| LED strip 1 clock | GPIO 3 | APA102 CLK via the 74AHCT541 octal shifter — both strip outputs are 3- or 4-wire. Strapping (JTAG select): drives only a shifter input; internal pulldown holds the default at reset. *Was the IR receiver until 2026-09-05: a receiver inside a hidden enclosure can't see a remote — plug one into a `DIGITAL_IN` instead.* |
 | WS2812 ch1 | GPIO 4 | RMT TX |
 | WS2812 ch2 / APA102 DATA | GPIO 5 | RMT TX |
-| APA102 CLK | GPIO 6 | Solder jumper selects 3-wire vs 4-wire |
+| LED strip 2 clock | GPIO 6 | APA102 CLK via the 74AHCT541; 3- vs 4-wire is a firmware setting |
 | I²S BCLK | GPIO 7 | |
 | I²C SDA / SCL | GPIO 8, 9 | PCA9685 + Qwiic header |
 | Digital in ×3 | GPIO 10, 11, 12 | Pull-up, clamp diodes, 1 kΩ series |
@@ -49,8 +49,8 @@ Two board variants sharing one firmware base and one mesh protocol.
 | **TMC UART (shared)** | **GPIO 17, 18** | One UART configures both drivers via MS1/MS2 address strapping |
 | USB D− / D+ | GPIO 19, 20 | Native USB; console lives here, so UART0 is free |
 | **Stepper 2 STEP** | **GPIO 21** | |
-| **DC motor B IN1 / IN2** | **GPIO 33, 34** | LEDC @ 25 kHz |
-| Status RGB LED | GPIO 38 | 5 V WS2812 — data through the spare (4th) 74AHCT125 gate |
+| **DC motor B IN1 / IN2** | **GPIO 35, 36** | LEDC @ 25 kHz. *Moved from 33/34 on 2026-09-03 — those pins are not bonded out on any WROOM-1.* |
+| Status RGB LED | GPIO 38 | 5 V WS2812 — data through buffer 4 of the 74AHCT541 octal shifter |
 | microSD — SDMMC 1-bit | GPIO 39, 40, 41 | CLK / CMD / D0 · 10 kΩ pull-ups on CMD and D0 |
 | **Stepper DIAG ×2 (StallGuard)** | **GPIO 42, 43** | Stall interrupt. Solder-jumper selectable to expansion header when running non-StallGuard drivers. GPIO 43 is U0TXD — the ROM boot log drives it at every reset, so a 1 kΩ series resistor isolates it from the TMC's push-pull DIAG output. |
 | **DC motor A IN1** | **GPIO 44** | LEDC @ 25 kHz |
@@ -59,9 +59,9 @@ Two board variants sharing one firmware base and one mesh protocol.
 | **DC motor A IN2** | **GPIO 48** | LEDC @ 25 kHz |
 | Stepper shared ENABLE | PCA9685 ch 16 | The last free expander channel. **Through a 2N7002 inverter + pull-up** — PCA9685 powers up outputs-LOW and driver EN is active-low, so uninverted, both sockets would energize from power-on until I²C init. Inverted, drivers default disabled; firmware drives the channel HIGH to enable. |
 
-> **Verify against your module variant.** GPIO 33–37 are available on the N8R2 (quad PSRAM) but are consumed by octal PSRAM on R8/R16 parts. If you substitute a different WROOM-1 variant, re-check 33 and 34 before layout.
+> **Verify against your module variant.** GPIO 35–37 are available on the N8R2 (quad PSRAM) but are consumed by octal PSRAM on R8/R16 parts — and motor B lives on 35/36, so the module variant is load-bearing. (GPIO 33/34 do not exist on any WROOM-1 — Espressif DS v1.8, verified 2026-09-03.)
 
-**Used: 35 of 38 module GPIO.** The only spares are GPIO 35–37 — free on N8R2, consumed by octal PSRAM on R8/R16 (same caveat as 33/34). Route them to test points. GPIO 45/46 are broken out on the expansion header — see §2.2.
+**Used: 35 of 36 module GPIO.** The only spare is GPIO 37 — free on N8R2, consumed by octal PSRAM on R8/R16. Route it to a test point (TP37 on sheet 02). GPIO 45/46 are broken out on the expansion header — see §2.2.
 
 ### 2.2 Expansion header
 
@@ -107,7 +107,7 @@ The original 100 × 80 mm target was optimistic. Working from actual footprints:
 | 3× HK4100F relays | ~490 mm² |
 | Power stage (2 buck ICs, inductors 11.5×10 + 7.1×6.6, bulk caps, protection) | ~740 mm² |
 | microSD, USB-C, 3.5 mm jack | ~420 mm² |
-| Remaining ICs (PCA9685, MAX98357A, 2× DRV8871, ULN2003, 74AHCT125) | ~320 mm² |
+| Remaining ICs (PCA9685, MAX98357A, 2× DRV8871, ULN2003, 74AHCT541) | ~320 mm² |
 | Passives + 6 servo headers | ~540 mm² |
 | Connectors (see split below) | ~2,160 mm² |
 | **Raw footprint** | **~6,100 mm²** |
@@ -167,11 +167,170 @@ Earlier revisions specified 2-position screw terminals for sensor inputs. **That
 
 The power pin carries **5 V** — the HC-SR501 needs a 5–12 V supply (its output is a 3.3 V logic signal). Digital inputs get the pull-up + clamp + 1 kΩ series treatment; analog inputs get a divider sized so a 5 V-powered sensor's full-scale output stays inside the ADC range.
 
-#### Enclosure
+#### Enclosure (decided 2026-09-06 — replaces the gland-box plan)
 
-130 × 100 mm fits a **150 × 110 × 70 mm IP65 junction box** (~$12, widely available). That leaves room for cable glands along one long edge and the ~20 mm of Z-height the stepper driver heatsinks need.
+**The box: Multilink RNI-1500** (~$17), the drop-in successor to the
+CableGuard CG-1500 that the xLights / Falcon / Kulp community has
+standardised on for a decade. Outside 11.6 × 11.2 × 5.1 in, **inside
+24.7 × 24.7 × 11.4 cm**. It solves the exact problem a gland box
+cannot: wires enter through **self-sealing slotted ports along the
+bottom edge** — push a cable through, no gland, a dozen of them — and
+the gasketed lid keeps rain out from above. It is rain-tight, not
+submersible, which is the correct target. Every commercial pixel
+controller advertises "fits a CG-1500"; PropMesh should too, because
+it is the box a large share of customers already own.
+**Second choice: Bud NBF-32022** (~$19, ABS, IP66/NEMA 4X, 12.8 × 8.9
+× 5.3 in inside) — fully sealed, so it needs a cut slot or glands and
+a membrane vent; the community uses it with the same plate kits.
 
-Fix the mounting-hole pattern early so a printable bracket and gland template can ship alongside the Gerbers.
+**The menu, sized by a rule.** A 130 × 100 board with terminals on
+two or three edges needs **~40 mm of wire-bend room beyond every
+connector edge** — that, not the board, sets the box. Written out:
+**the Pro needs an interior of at least 210 × 140 × 60 mm** (130 + 2 ×
+40 along the board, 100 + 40 across it, heatsinks + standoffs deep).
+Read a listing's *interior* size against that and the answer is
+immediate. **Anything narrower than 140 mm inside is a Mini box.** Field-wiring
+cable count is up to ~23 (typical prop: 5–8), so the entry must take
+many thin low-voltage cables, not a few fat ones.
+
+- **Hidden / on the ground, no modification: DRiBOX (SOCKiTBOX) Medium
+  FL-1859-285 — black, IP55, 34 × 22 × 11.7 cm, ~$20.** Made for cords:
+  a silicone seal moulds around cables at both end slots, with clip-in
+  cable guides. Lid up, lies on its back — its native posture. **The
+  seal is shaped for 8–12 mm mains cords; loose 3–5 mm pigtails leave
+  gaps beside them** (asked 2026-09-07). Harmless for rain — the gaps
+  sit under the lid lip in a lid-up box — but an open door for insects.
+  So: **run the field wiring through a ½ in split loom (or spiral wrap)
+  where it crosses each end seal** — one loom per end is exactly the
+  cord diameter the seal expects, closes the gaps, and protects the
+  pigtails at the box edge. Foam weatherstrip pressed into the channel
+  is the no-loom fallback. The slightly-vented result is what the
+  condensation argument wants anyway. (The
+  Small, interior 200 × 111 × 94 mm, is too tight for the Pro's
+  connector clearance; **it is the Mini's box.**) Wall use: a printed
+  bracket on the back, since it has no ears.
+- **Clear-lid family, no modification: Joinfworld "outdoor electrical
+  box" line** (found by Colin 2026-09-07). Hinged transparent lid with a
+  stainless latch, 3.5 mm walls, a fixed internal bracket, wall/tree
+  ears *and* lies flat, three ~11 mm cable-entry notches with silicone
+  plugs for the unused ones. **The 9 × 5 × 4.3 in medium (interior
+  207 × 107 × 97 mm, $20, green) is a Mini box** — 107 mm across
+  cannot take the Pro's connector edge. Pro candidates in the same
+  family, interiors estimated from the outside size and wall thickness
+  — **verify the listing's interior graphic against 210 × 140 × 60**:
+  - **The 11.4 × 7.5 × 5.5 in "Extension Cord Cover" ($34, grey base,
+    clear hinged lid, two stainless latches, wall kit, lies flat) is a
+    different and better design than the medium** (Colin, 2026-09-07):
+    its **six cord ports are notched into the top edge of one end wall
+    at the lid's parting line, under the lid rim** — DRiBOX-class lipped
+    entry, not a flush side notch. Interior ≈ 275 × 175 × 115 mm
+    (estimated from the outside size; confirm on the listing). Each
+    port is sized for a **⌀9.2 mm cord** and ships with a cord mat and a
+    blank mat, so **bundle pigtails to ~9 mm: ¼ in split loom (≈ 8 mm
+    OD, 3–4 thin cables) or spiral wrap plus a turn of silicone tape —
+    ½ in loom is too fat for these ports.** Six ports × 3–4 pigtails ≈
+    the Pro's maximum cable count. The listing carries Amazon's
+    "frequently returned item" flag: read the one-star reviews (fit,
+    latch, seal) before ordering.
+  - The **10 × 7 × 3.9 in black IP68 "project box"** (≈ 247 × 170 ×
+    85 mm, black, clear lid) — check whether it ships with entries or is
+    a plain sealed box needing the KEL-DPZ hole.
+  The 9 × 5 medium's three ~11 mm flush notches take the split-loom
+  treatment described for the DRiBOX.
+  **Why the clear lid matters:** the status pixel becomes readable
+  without opening the box — so it stays on the top edge, facing the
+  lid, in both orientations. Caveats: an unbranded clear lid may yellow
+  in a few seasons of UV, and a clear lid in direct sun is a
+  greenhouse; these boxes are for the shade they're hidden in. Green
+  is arguably better camouflage in foliage than black.
+  **Its weakness (Colin, 2026-09-07): the entries are flush in the side
+  wall with no overhang, so the seal is the only thing between wall
+  runoff and the wires** — the RNI boxes have gravity (bottom entry)
+  and the DRiBOX has its lid lip; this has neither. Rules that make it
+  acceptable: **wall-mount it entries-down** (then it is gravity-safe
+  like an RNI); **drip loops on every cable**; lying flat, **add the
+  overhang** — a strip of self-adhesive rubber/aluminium angle above
+  the notches or a printed clip-on eyebrow — or tuck that end under
+  the prop.
+- **Wall, small, no modification: Multilink RNI-300** — 20.7 × 23.8 ×
+  8.6 cm, captive cable entrances along the bottom, wall ears; grey
+  (paint it). Board across the top, ~120 mm of wire room below.
+- **Wall with the supply inside: Multilink RNI-1500** (above).
+- **DIY black box with a sourced entry, one hole-saw cut:** a 230 × 150
+  × 85 or 250 × 150 × 100 mm black ABS IP65 box (~$12–15) plus a
+  **multi-membrane cable-entry plate** — **icotek KEL-DPZ 63|13** (13
+  self-sealing membranes for 1.5–22 mm cables, M63 thread + locknut,
+  IP66/68; Amazon B071FFW3MC, ~$29 at distributors; the **63|35 bk** is
+  the black 35-membrane version). One **2½ in (63.5 mm) hole saw** cut,
+  no other tooling. Checked 2026-09-07: true clones of it are an
+  AliExpress item, not an Amazon one; what Amazon sells cheaply are
+  fixed-hole **multi-hole gland inserts** (uxcell M63 6-hole, ToolRise
+  M20 4-hole, ASI multi-entry seals) — usable, but four of them cost
+  as much as the genuine plate and need four holes. Buy the icotek. The 200 × 150 × 100 class (interior 185 × 135) is the
+  floor, not the recommendation. Slot-and-printed-insert remains the
+  no-budget fallback.
+
+In every configuration **the supply lives outside the small boxes** as a
+sealed IP67 brick (§2.9) — the display community's habit, and it keeps
+50–100 W of heat out of a sealed volume. Only the RNI-1500 takes a
+supply inside.
+
+**Judging any box in one line: entries either face down, or sit under a
+drip edge; a flush side entry relies on its seal alone and needs the
+mitigations above.** Weather ranking of the families: bottom entry
+(RNI) > lipped side entry (DRiBOX, Joinfworld 11.4 × 7.5) > flush
+side entry (Joinfworld 9 × 5).
+
+**Both orientations, one rule: the entry face is never on top.**
+Wall-mounted, entries face down and cables drip straight off; lying on
+its back in a bush, the lid is up, entries face sideways ~90 mm above
+the ground, and a slight tilt toward them drains anything that gets in.
+Two landscape staples through the ears (or the bracket) stop a ground
+box walking in the wind.
+
+**Don't print the box; print the plate.** A 25 cm printed box is hours
+of ASA per unit and never as tight as a $17 moulding. The **mounting
+plate** is what the "printable bracket" open item becomes: a small,
+fast print (or laser-cut) that adapts the board's fixed hole pattern to
+whichever box a user has — one design for the RNI-1500's bosses, one
+for the NBF, one for the RNI-300, a tray for the DRiBOX Medium, one
+blank — plus the optional slot insert. Third-party plate kits for Falcon/Kulp boards are
+exactly this and sell for $10–15; ship ours as STLs with the Gerbers. The RNI-1500 interior also takes a **Mean Well LRS-100/150
+(129 × 97 mm) stacked below the Pro (130 × 100)** — 197 mm of the
+247 mm height — so "one box, one supply, one controller" is a real
+configuration for the plate to support.
+
+**Condensation, not rain, is what kills outdoor electronics.** A sealed
+box breathes with the day/night cycle, pulls in humid air, and
+condenses it on the cold PCB. The CG-1500 design is right *because* it
+is vented at the bottom (NEMA-3R thinking: tight above, breathes
+below). So: mount the board **vertically, connectors facing down**, so
+drips fall off the terminals; every cable makes a **drip loop** before
+its port; silica gel is not needed in a vented box (and needs
+recharging in a sealed one — a $2 breathable membrane vent is the
+better upgrade for an NBF).
+
+**What the board contributes:** **ENIG finish for production** (HASL is
+fine for v0.1 hand-builds; ENIG resists the years of humidity that eat
+HASL); no exposed copper beyond test points; an **optional acrylic
+conformal coat** documented for users (mask sockets, terminals and the
+SD slot); plastic boxes only — a metal box kills WiFi, and the -1U
+module's external antenna is the escape hatch if someone insists.
+
+**Layout consequences, fixed now:**
+- **Field wiring on the BOTTOM edge and the two SHORT edges; the TOP
+  edge is service only.** The full connector run is ~250 mm (5.08 mm
+  terminals ×16, 3.5 mm ×7, XH ×7, a jack) and a long edge is 130 mm,
+  so one edge was never possible. Bottom edge = the heavy and the
+  common (DC in, both strips, motors, DC outputs); short edges =
+  relays, coil XHs, sensor XHs, speaker, line out. Top edge = USB-C,
+  microSD, boot button, status pixel, U.FL — reachable with the lid
+  open, never wet. Wires from the side edges turn once toward the
+  entry; the ~40 mm rule above covers it.
+- Stepper sockets mid-board; the 11.4 cm depth clears driver heatsinks
+  with room to spare.
+- **Four M3 corner holes on a fixed pattern** (exact spacing settled at
+  layout and then frozen — the plate depends on it).
 
 
 ### 2.4 Bill of materials
@@ -289,17 +448,25 @@ parts alone.
 
 | Group | qty 100 | qty 1 |
 |---|---|---|
-| SN74AHCT125**DR** `C155176` + decoupling | $0.27 | $0.42 |
-| Strip terminals: 3-pos + 2× 2-pos DG128, 1000 µF ×2, 330 Ω ×4 | $0.72 | $0.97 |
+| **SN74AHCT541DWR** `C2682058` octal shifter + decoupling | $0.45 | $0.67 |
+| Strip terminals: 4× DG128-02P (two per strip), 1000 µF ×2, 330 Ω ×5 | $0.89 | $1.24 |
 | Status pixel WS2812B-MINI-X2 `C4154873` + 100 nF (moved from Misc) | $0.10 | $0.13 |
-| **LED total** | **$1.09** | **$1.52** |
+| **LED total** | **$1.44** | **$2.04** |
 
-> Two sourcing casualties, both resolved: TSSOP AHCT125 is dead at JLC
-> → same TI die in SOIC-14 (AHCT suffix unchanged — it is the level
-> shift); DG128-04P dead → strip 2 = two 02P blocks (5V/GND + DATA/CLK).
-> Status pixel import verified against the Worldsemi DS: pins match,
-> land pattern = DS recommendation slightly enlarged, V_IH 3.25 V at
-> 5 V — the DS's own number for why it needs its shifter gate.
+> **Both strip outputs are 3- or 4-wire** (decided 2026-09-05): GPIO 3
+> came free when the onboard IR receiver was dropped. **One octal
+> 74AHCT541 shifts all five lines** (strip 1 data + clock, strip 2
+> data + clock, status pixel) and leaves three spare 5 V-level outputs
+> as v0.1 bodge points — it replaced a quad AHCT125 + single-gate
+> 1G125 pair the same day, for +$0.12 and one ordinary 20-pin symbol
+> instead of a multi-unit one. SOIC-20W, 1.27 mm pitch, hand-solder
+> friendly. Each output = two 02P blocks (5V/GND + DATA/CLK) —
+> symmetric, and the 04P terminal was stock-dead anyway. **No mode
+> jumper** (dropped 2026-09-06): 3- vs 4-wire is a firmware setting, an
+> empty CLK terminal needs no isolating, and the 330 Ω limits a miswire. Status pixel import verified
+> against the Worldsemi DS: pins match, land pattern = DS
+> recommendation slightly enlarged, V_IH 3.25 V at 5 V — the DS's own
+> number for why it needs its shifter gate.
 
 #### Motor drivers — $4.75 ✅ verified
 
@@ -364,23 +531,27 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 
 **DC channels use DRV8871, driven from ESP32 LEDC at 25 kHz.** Do not route these through the PCA9685 — its ~1.6 kHz ceiling sits in the middle of the audible band and will make every motor whine.
 
-#### Sensors and expansion — $0.94 ✅ verified
+#### Sensors and expansion — $0.28 ✅ verified
 
 **Itemised in `hardware/pro/sheets/07-sensors-expansion.md`, the
-single source** (sourced 2026-09-04). Rollup only:
+single source** (sourced 2026-09-04, IR dropped 2026-09-05). Rollup:
 
 | Group | qty 100 | qty 1 |
 |---|---|---|
-| TSOP38238 `C141632` + filter + pull-up | $0.57 | $0.74 |
-| 5× XH-3 + PIR header + 3× BAT54S + input passives | $0.19 | $0.22 |
-| Qwiic (SH-1.0 clone `C7430446`) + 2×5 expansion + strap Rs | $0.18 | $0.22 |
-| **Sensors total** | **$0.94** | **$1.18** |
+| 5× XH-3 + PIR header + 3× BAT54S + input passives | $0.14 | $0.17 |
+| Qwiic (SH-1.0 clone `C7430446`) + 2×5 expansion + strap Rs | $0.14 | $0.15 |
+| **Sensors total** | **$0.28** | **$0.32** |
 
-> The genuine SM04B-SRSS-TB is stock-dead at JLC; a 130 k-stock SH-1.0
-> clone sits on KiCad's official JST-SH footprint (measure at layout).
-> The TSOP runs on **3V3, not 5 V** — its internal pull-up goes to its
-> own supply, and a 5 V supply would idle GPIO 3 at 5 V. Only three
-> BAT54S, not five: analog inputs get halvers, not clamps.
+> **No onboard IR receiver** (2026-09-05): the board lives hidden
+> inside a prop or enclosure, where a receiver can't see a remote. IR,
+> when wanted, is a TSOP module on a pigtail into any `DIGITAL_IN`
+> (5 V on the XH, output clamped by the BAT54S; firmware runs RMT
+> receive on that pin). That freed GPIO 3 for strip 1's clock and
+> removed the block's most expensive part and its only THT joint.
+> The genuine SM04B-SRSS-TB Qwiic is stock-dead at JLC; a 130 k-stock
+> SH-1.0 clone sits on KiCad's official JST-SH footprint (measure at
+> layout). Only three BAT54S, not five: analog inputs get halvers, not
+> clamps.
 
 #### Misc and board
 | Part | Qty | Mount | Unit | Ext |
@@ -400,11 +571,11 @@ Board-level requirements that are easy to lose between spec and schematic:
 
 - [ ] **Stepper EN inverted** — AO3400A + pull-up (consolidated with the LED-channel FETs, one MOSFET part number board-wide) on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
 - [ ] **1 kΩ series on GPIO 43** (STEPPER_2_DIAG) — ROM boot log drives U0TXD at every reset against the TMC's push-pull DIAG output.
-- [ ] **Status LED data through the spare 74AHCT125 gate** — it's a 5 V WS2812; the strips use 3 of 4 gates, the 4th is free.
+- [ ] **Status LED data through a 74AHCT541 buffer** — it's a 5 V WS2812 (V_IH 3.25 V). Five of eight buffers used; unused inputs A5–A7 tied to GND, spare outputs Y5–Y7 left open as 5 V-level bodge points.
 - [ ] **10 kΩ pull-ups on SD CMD and D0.**
 - [ ] **GPIO 45/46: 10 kΩ pulldown + 100 Ω series** (§2.2), silkscreen "KEEP LOW AT RESET".
 - [ ] **Sensor JST power pins carry 5 V**; dividers on the analog inputs (§2.3).
-- [ ] **Level shifter is SN74AHCT125PW (TSSOP)** — the "N" suffix in older BOM drafts is the DIP package.
+- [ ] **Level shifter is SN74AHCT541DWR (SOIC-20W)** — the AHCT suffix is the level shift; never AHC/HC. One octal part replaced the quad + single-gate pair on 2026-09-05.
 - [ ] **GPIO 35–37 to test points** — the only unallocated pins.
 
 ### 2.6 v0.1 layout — design for patchability
@@ -436,19 +607,19 @@ MCU boots → one subsystem at a time.
 
 | Line | Basis | Per board |
 |---|---|---|
-| **Parts subtotal** | sum of §2.4 (**all seven blocks verified** 2026-09-04; misc/PCB still estimates) | **$31.93** |
-| SMT joints (~392) | $0.0017/joint | $0.67 |
-| THT joints (~153) | $0.0173/joint | $2.65 |
+| **Parts subtotal** | sum of §2.4 (**all seven blocks verified**; IR dropped 2026-09-05; misc/PCB still estimates) | **$31.62** |
+| SMT joints (~396) | $0.0017/joint | $0.67 |
+| THT joints (~152) | $0.0173/joint | $2.63 |
 | Hand-solder labor fee | $3.50 one-time ÷ 100 | $0.04 |
 | Feeder loading (~52 unique parts) | $1.50 each = $78 ÷ 100 | $0.78 |
 | Setup + stencil | ~$15 one-time ÷ 100 | $0.15 |
-| **Assembly subtotal** | | **$4.29** |
+| **Assembly subtotal** | | **$4.27** |
 | Air freight | ~$100 shipment ÷ 100 | $1.00 |
-| Scrap allowance | 3% of parts + assembly | $1.09 |
+| Scrap allowance | 3% of parts + assembly | $1.08 |
 | Retail packaging | ESD bag, box, quick-start card | $1.10 |
-| **Ex-duty landed** | | **$39.41** |
-| US import duty | at 25% on ~$36.57 PCBA value | +$9.14 |
-| **Duty-paid landed** | | **~$48.55** |
+| **Ex-duty landed** | | **$39.07** |
+| US import duty | at 25% on ~$36.24 PCBA value | +$9.06 |
+| **Duty-paid landed** | | **~$48.13** |
 
 **Suggested retail: $94–104.** At $99 that's a 2.5× multiple on duty-paid cost — thin for a physical product once you account for Tindie fees, returns, and support time. See §4.4 for the levers.
 
@@ -484,6 +655,25 @@ worst case is at the *bottom* of the 12–24 V range, not the top.
 | 2× stepper (NEMA17, running) | **24 W** | ~12 W each: I²R in 1.5 A/phase coils plus driver loss. Standstill reduction cuts this to ~2 W each |
 | 2× brushed DC (DRV8871) | **48 W** | ~24 W each at 2 A continuous — **user-dependent and effectively unbounded**; the board cannot budget what someone plugs in |
 | **Worst-case total** | **~89 W** | everything running simultaneously |
+
+**Plan for: a 100 W supply, 150 W if both DC motors are real motors.**
+That is the whole answer to "what amperage" — 8.5 A at 12 V or 4.2 A at
+24 V covers the everything-at-once case (7.4 A / 3.7 A) with a
+sliver of margin, and 150 W (12.5 A / 6.3 A) covers it comfortably.
+Defaults to name in the docs (bought by the user, never on the BOM):
+
+| Configuration | 12 V | 24 V | Why |
+|---|---|---|---|
+| Hidden / ground (supply outside the box) | **Mean Well LPV-100-12** (8.5 A, IP67 potted brick, ~$25) — or the ubiquitous no-name black "12 V 8.3 A IP67 LED driver" (~$14) | **LPV-100-24** (4.2 A); **LPV-150-24** (6.3 A) if motors dominate | sealed, sits on the ground, no box needs to fit it |
+| Wall with supply inside (RNI-1500) | **LRS-100-12** (8.5 A, ~$17) | **LRS-100-24** (4.5 A) / **LRS-150-24** | open-frame, 129 × 97 mm, stacks below the board |
+
+**Fuse reality check:** the everything-at-12-V case (7.4 A) sits at the
+default 7.5 A MINI blade's rating — a blade fuse run at ~100 % will
+eventually nuisance-blow. That case is rare (two steppers *and* two
+2 A DC motors *and* a full 5 V rail), and the guidance already says
+"choose 24 V if motors dominate", but: the holder takes a **10 A MINI
+blade** for that build, so **layout sizes the input path (terminal,
+fuse, FET, copper) for 10 A continuous**, and the user docs say so.
 
 **Input current is what sizes the fuse and the input path:**
 
@@ -766,7 +956,7 @@ At 10 pieces you are under the 30-piece Economic PCBA cap, which removes the $1.
 
 Parts flagged **"Standard Only"** make the entire design ineligible for Economic PCBA. This commonly applies to SMD LEDs with high moisture-sensitivity level, certain sensors, BGA packages, and anything 0201 or smaller.
 
-**Two parts at risk in this BOM:** the WS2812B-mini status LED and the TSOP38238 IR receiver. If either is flagged, the ~$148 assembly subtotal becomes roughly $100 in feeder fees plus a $25 setup on top of the joints — **near double**. *Status 2026-09-04 (open item #2):* both parts are now pinned — WS2812B-MINI-X2 `C4154873` (Extended, 20 k stock) and TSOP38238 `C141632` (THT by design, so it is hand-solder either way). The parts API does not expose the "Standard Only" attribute, and v0.1 is hand-populated, so the flag is moot until a PCBA run: **verify both in the JLCPCB order UI before the first assembly order.** If the LED is flagged, fall back to a THT 5 mm WS2812 on the same net.
+**One part at risk in this BOM:** the WS2812B-mini status LED. (The TSOP38238 IR receiver was the other, until it left the Pro BOM on 2026-09-05 — a receiver inside a hidden enclosure can't see a remote; plug-in IR goes on a `DIGITAL_IN`.) If the LED is flagged, the ~$148 assembly subtotal becomes roughly $100 in feeder fees plus a $25 setup on top of the joints — **near double**. *Status (open item #2):* the part is pinned — WS2812B-MINI-X2 `C4154873` (Extended, 20 k stock). The parts API does not expose the "Standard Only" attribute, and v0.1 is hand-populated, so the flag is moot until a PCBA run: **verify it in the JLCPCB order UI before the first assembly order.** If flagged, fall back to a THT 5 mm WS2812 on the same net.
 
 **Also note Economic PCBA is single-sided.** All SMT parts must live on the top layer. Plan for this from the start of layout rather than discovering it at quote time.
 

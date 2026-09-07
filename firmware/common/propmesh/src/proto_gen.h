@@ -86,6 +86,7 @@ typedef struct {
     uint16_t sequence_id;
     uint16_t target_group;  // PM_BROADCAST_GROUP = all
     uint64_t fire_at_us;  // mesh time; future T absorbs hop jitter
+    uint32_t start_offset_ms;  // play the sequence from this far into itself — the console's play-from-cursor (decided 2026-09-05); 0 = from the top
     uint8_t flags;
 } pm_cue_t;
 

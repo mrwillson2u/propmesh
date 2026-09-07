@@ -9,7 +9,7 @@
 #define PIN_ANALOG_IN_1           0  // ADC1
 #define PIN_BATTERY_SENSE         1  // 1M divider + FET disconnect for sleep
 #define PIN_RAIL_5V_ENABLE        2  // STRAPPING — ACTIVE-LOW. Pull-up = strap-safe boot AND rail off in deep sleep with the pin released (no GPIO hold). Drive LOW to enable. MANDATORY for sleep current.
-#define PIN_IR_RX                 3  // RMT RX; RTC-capable — can wake from deep sleep
+#define PIN_IR_RX                 3  // RMT RX; RTC-capable — can wake from deep sleep. ⚠ REVISIT at Mini spec time: the Pro dropped onboard IR 2026-09-05 (a receiver inside a hidden enclosure can't see a remote; plug-in receiver on a DIGITAL_IN instead) — the same logic applies here, and GPIO3 is a wake-capable pin worth reclaiming
 #define PIN_DIGITAL_IN_1          4  // RTC-capable — the deep-sleep wake input (PIR)
 #define PIN_I2S_LRCLK             5
 #define PIN_I2S_DOUT              6
