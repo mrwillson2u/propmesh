@@ -59,9 +59,9 @@ parts:
   F1:     {value: 7.5A,          lcsc: C206907,  symbol: "Device:Fuse",     footprint: "propmesh:01530008Z", note: "Littelfuse 01530008Z MINI blade holder — footprint imported from LCSC 2026-09-03"}
   J1:     {value: DC_IN,         lcsc: C711349,  symbol: "Connector:Screw_Terminal_01x02", footprint: "propmesh:CONN-TH_DG128-5.0-02P-14-00A-H", note: "DEGSON DG128-5.0-02P — footprint imported from LCSC 2026-09-03"}
   J2:     {value: DC_JACK,       lcsc: C129006,  symbol: "Connector:Barrel_Jack_Switch",   footprint: "propmesh:DC-IN-TH_DC-044A-20A", note: "DC-044A-20A 30 V/5 A barrel, Ø2.0 pin (5.5×2.1 plugs); Ø2.5-pin -25A variant is a drop-in on the same pads. Pads 4/5 are housing lugs — leave unconnected. Pins 2 AND 3 both to GND so sleeve/switch assignment cannot matter"}
-  JP_VIN:  {value: LINK_VIN, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "STAGED-POWER LINK (spec 2.6, added 2026-09-07): 2-pin header + shunt C100114 between VIN_PROT and the 5 V buck input. Pull the shunt = buck isolated; meter across = input current"}
-  JP_5V:   {value: LINK_5V,  lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "buck output -> +5V rail. Carries the full 3 A rail: pour to both pins; header is rated 3 A"}
-  JP_3V3:  {value: LINK_3V3, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "buck output -> +3V3 rail"}
+  JP_VIN:  {value: JP_VIN, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "STAGED-POWER LINK (spec 2.6, added 2026-09-07): 2-pin header + shunt C100114 between VIN_PROT and the 5 V buck input. Pull the shunt = buck isolated; meter across = input current"}
+  JP_5V:   {value: JP_5V,   lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "buck output -> +5V rail. Carries the full 3 A rail: pour to both pins; header is rated 3 A"}
+  JP_3V3:  {value: JP_3V3, lcsc: C124375, symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "buck output -> +3V3 rail"}
 
 # Diagram blocks: which nets draw together, in signal-flow order.
 blocks:
@@ -86,8 +86,8 @@ nets:
   # --- rail 1: AP64350 -> +5V  (listed in signal-flow order for the diagram)
   BST_5V:    [U1.BST, C3.1]
   SW_5V:     [U1.SW, C3.2, L1.1]
-  5V_BUCK:   [L1.2, C2a.1, C2b.1, R1.1, C4.1, JP_5V.1]
-  +5V:       [JP_5V.2, R_5V.1, U2.VIN, U2.EN, C_in.1]
+  5V_BUCK:   [L1.2, C2a.1, C2b.1, R1.1, C4.1, JP_5V.2]
+  +5V:       [JP_5V.1, R_5V.1, U2.VIN, U2.EN, C_in.1]
   FB_5V:     [R1.2, R2.1, C4.2, U1.FB]
   RT_5V:     [U1.RT/CLK, RT.1]
   COMP_5V:   [U1.COMP, R5.1, C6.1]
@@ -96,8 +96,8 @@ nets:
 
   # --- rail 2: TLV62569 -> +3V3 ------------------------------------
   SW_3V3:    [U2.SW, L2.1]
-  3V3_BUCK:  [L2.2, C_out.1, R_FB1.1, C_FF.1, JP_3V3.1]
-  +3V3:      [JP_3V3.2, R_3V3.1]
+  3V3_BUCK:  [L2.2, C_out.1, R_FB1.1, C_FF.1, JP_3V3.2]
+  +3V3:      [JP_3V3.1, R_3V3.1]
   FB_3V3:    [U2.FB, R_FB1.2, R_FB2.1, C_FF.2]
   LED_3V3:   [R_3V3.2, D_3V3.A]
 

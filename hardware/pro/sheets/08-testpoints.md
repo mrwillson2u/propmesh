@@ -12,14 +12,23 @@ python3 tools/checknet.py hardware/pro/sheets/08-testpoints.net.yaml
 ## What it is
 
 - **33 `Connector:TestPoint` symbols on global labels** — every GPIO net
-  in `pinmap.yaml` except `USB_DM`/`USB_DP` (never stub a differential
-  pair) and IO37 (TP1 already lives on sheet 02).
+  in `pinmap.yaml` (repo root; the yaml here already spells every name)
+  except `USB_DM`/`USB_DP` (never stub a differential pair) and IO37
+  (TP1 already lives on sheet 02).
+
 - **6 rail pads**: `VIN_RAW`, `VIN_PROT`, `+5V`, `+3V3` and two `GND`
   (one for the power corner, one for the module corner), on power
   symbols.
 - **`R_STRAP3`**: an unpopulated 0603 pad, 10 k-shaped, from
   `LED_STRIP_1_CLK` (GPIO 3, a strapping pin) to GND. Value `DNP`,
   tick *Do not populate*. It is the spare strap pad §2.6 asks for.
+
+**Rule (asked 2026-09-07): a test point lives with its net's owner
+unless the net is already a global label.** `TP1` (IO37, straight off
+the module pin) stays on sheet 02 and `TP2` (card detect, internal to
+sheet 04) stays there — moving them here would mean adding global
+labels to green sheets just to reach across. This sheet only collects
+the nets that were global anyway.
 
 **Values are the net names** (`STEPPER_1_STEP`…), so the silkscreen
 prints the signal beside the pad and the checker pairs every test point

@@ -14,7 +14,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_VIN_BUCK(["VIN_BUCK"]):::net
-  P_JP_VIN["<b>JP_VIN</b><br/>LINK_VIN"]:::part
+  P_JP_VIN["<b>JP_VIN</b><br/>JP_VIN"]:::part
   P_JP_VIN --"2"--> N_VIN_BUCK
   P_C1a["<b>C1a</b><br/>10uF/100V<br/><i>pin 2 → GND</i>"]:::part
   N_VIN_BUCK --"1"--> P_C1a
@@ -34,8 +34,8 @@ graph LR
   N_5V_BUCK --"1"--> P_R1
   P_C4["<b>C4</b><br/>DNP"]:::dnp
   N_5V_BUCK --"1"--> P_C4
-  P_JP_5V["<b>JP_5V</b><br/>LINK_5V"]:::part
-  N_5V_BUCK --"1"--> P_JP_5V
+  P_JP_5V["<b>JP_5V</b><br/>JP_5V"]:::part
+  N_5V_BUCK --"2"--> P_JP_5V
   N_3V3_BUCK(["3V3_BUCK"]):::net
   P_L2["<b>L2</b><br/>2.2uH"]:::part
   N_3V3_BUCK --"2"--> P_L2
@@ -45,15 +45,15 @@ graph LR
   N_3V3_BUCK --"1"--> P_R_FB1
   P_C_FF["<b>C_FF</b><br/>6.8pF"]:::part
   N_3V3_BUCK --"1"--> P_C_FF
-  P_JP_3V3["<b>JP_3V3</b><br/>LINK_3V3"]:::part
-  N_3V3_BUCK --"1"--> P_JP_3V3
+  P_JP_3V3["<b>JP_3V3</b><br/>JP_3V3"]:::part
+  N_3V3_BUCK --"2"--> P_JP_3V3
 ```
 
 | Net | connect every one of these |
 |---|---|
 | **VIN_BUCK** | `JP_VIN.2`, `C1a.1`, `C1b.1`, `U1.VIN`, `U1.EN` |
-| **5V_BUCK** | `L1.2`, `C2a.1`, `C2b.1`, `R1.1`, `C4.1`, `JP_5V.1` |
-| **3V3_BUCK** | `L2.2`, `C_out.1`, `R_FB1.1`, `C_FF.1`, `JP_3V3.1` |
+| **5V_BUCK** | `L1.2`, `C2a.1`, `C2b.1`, `R1.1`, `C4.1`, `JP_5V.2` |
+| **3V3_BUCK** | `L2.2`, `C_out.1`, `R_FB1.1`, `C_FF.1`, `JP_3V3.2` |
 
 ## Protection stage: J1 → VIN_PROT
 
@@ -85,7 +85,7 @@ graph LR
   N_VIN_PROT --"K"--> P_D1
   P_C_bulk["<b>C_bulk</b><br/>100uF/63V<br/><i>pin 2 → GND</i>"]:::part
   N_VIN_PROT --"1"--> P_C_bulk
-  P_JP_VIN["<b>JP_VIN</b><br/>LINK_VIN"]:::part
+  P_JP_VIN["<b>JP_VIN</b><br/>JP_VIN"]:::part
   N_VIN_PROT --"1"--> P_JP_VIN
   N_Q1_GATE(["Q1_GATE"]):::net
   P_Q1 --"G"--> N_Q1_GATE
@@ -123,8 +123,8 @@ graph LR
   P_L1["<b>L1</b><br/>6.8uH"]:::part
   N_SW_5V --"1"--> P_L1
   N__5V(["+5V"]):::rail
-  P_JP_5V["<b>JP_5V</b><br/>LINK_5V"]:::part
-  N__5V --"2"--> P_JP_5V
+  P_JP_5V["<b>JP_5V</b><br/>JP_5V"]:::part
+  N__5V --"1"--> P_JP_5V
   P_R_5V["<b>R_5V</b><br/>680R"]:::part
   N__5V --"1"--> P_R_5V
   P_U2["<b>U2</b><br/>TLV62569DBV<br/><i>pin GND → GND</i>"]:::part
@@ -164,7 +164,7 @@ graph LR
 |---|---|
 | **BST_5V** | `U1.BST`, `C3.1` |
 | **SW_5V** | `U1.SW`, `C3.2`, `L1.1` |
-| **+5V** | `JP_5V.2`, `R_5V.1`, `U2.VIN`, `U2.EN`, `C_in.1` |
+| **+5V** | `JP_5V.1`, `R_5V.1`, `U2.VIN`, `U2.EN`, `C_in.1` |
 | **FB_5V** | `R1.2`, `R2.1`, `C4.2`, `U1.FB` |
 | **RT_5V** | `U1.RT/CLK`, `RT.1` |
 | **COMP_5V** | `U1.COMP`, `R5.1`, `C6.1` |
@@ -188,8 +188,8 @@ graph LR
   P_L2["<b>L2</b><br/>2.2uH"]:::part
   N_SW_3V3 --"1"--> P_L2
   N__3V3(["+3V3"]):::rail
-  P_JP_3V3["<b>JP_3V3</b><br/>LINK_3V3"]:::part
-  N__3V3 --"2"--> P_JP_3V3
+  P_JP_3V3["<b>JP_3V3</b><br/>JP_3V3"]:::part
+  N__3V3 --"1"--> P_JP_3V3
   P_R_3V3["<b>R_3V3</b><br/>680R"]:::part
   N__3V3 --"1"--> P_R_3V3
   N_FB_3V3(["FB_3V3"]):::net
@@ -209,7 +209,7 @@ graph LR
 | Net | connect every one of these |
 |---|---|
 | **SW_3V3** | `U2.SW`, `L2.1` |
-| **+3V3** | `JP_3V3.2`, `R_3V3.1` |
+| **+3V3** | `JP_3V3.1`, `R_3V3.1` |
 | **FB_3V3** | `U2.FB`, `R_FB1.2`, `R_FB2.1`, `C_FF.2` |
 | **LED_3V3** | `R_3V3.2`, `D_3V3.A` |
 

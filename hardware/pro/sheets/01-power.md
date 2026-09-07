@@ -725,7 +725,7 @@ They are in the yaml now, so this sheet's checker is red until drawn:
 
 | Ref | Between | How |
 |---|---|---|
-| `JP_VIN` | `VIN_PROT` → the 5 V buck's input (`C1a`, `C1b`, `U1` VIN+EN — now net `VIN_BUCK`) | 2-pin header `C124375` + shunt `C100114`, same parts as the MS straps |
+| `JP_VIN` (Value `JP_VIN`) | `VIN_PROT` → the 5 V buck's input (`C1a`, `C1b`, `U1` VIN+EN — now net `VIN_BUCK`) | 2-pin header `C124375` + shunt `C100114`, same parts as the MS straps |
 | `JP_5V` | the 5 V buck output (`L1`, `C2a/C2b`, the FB divider, `C4` — now net `5V_BUCK`) → the `+5V` rail | same; carries 3 A, pour to it |
 | `JP_3V3` | the 3.3 V buck output (`L2`, `C_out`, `R_FB1`, `C_FF` — now `3V3_BUCK`) → the `+3V3` rail | same |
 

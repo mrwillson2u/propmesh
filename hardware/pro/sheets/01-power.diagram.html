@@ -11,7 +11,7 @@
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_VIN_BUCK([&quot;VIN_BUCK&quot;]):::net
-  P_JP_VIN[&quot;&lt;b&gt;JP_VIN&lt;/b&gt;&lt;br/&gt;LINK_VIN&quot;]:::part
+  P_JP_VIN[&quot;&lt;b&gt;JP_VIN&lt;/b&gt;&lt;br/&gt;JP_VIN&quot;]:::part
   P_JP_VIN --&quot;2&quot;--&gt; N_VIN_BUCK
   P_C1a[&quot;&lt;b&gt;C1a&lt;/b&gt;&lt;br/&gt;10uF/100V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   N_VIN_BUCK --&quot;1&quot;--&gt; P_C1a
@@ -31,8 +31,8 @@
   N_5V_BUCK --&quot;1&quot;--&gt; P_R1
   P_C4[&quot;&lt;b&gt;C4&lt;/b&gt;&lt;br/&gt;DNP&quot;]:::dnp
   N_5V_BUCK --&quot;1&quot;--&gt; P_C4
-  P_JP_5V[&quot;&lt;b&gt;JP_5V&lt;/b&gt;&lt;br/&gt;LINK_5V&quot;]:::part
-  N_5V_BUCK --&quot;1&quot;--&gt; P_JP_5V
+  P_JP_5V[&quot;&lt;b&gt;JP_5V&lt;/b&gt;&lt;br/&gt;JP_5V&quot;]:::part
+  N_5V_BUCK --&quot;2&quot;--&gt; P_JP_5V
   N_3V3_BUCK([&quot;3V3_BUCK&quot;]):::net
   P_L2[&quot;&lt;b&gt;L2&lt;/b&gt;&lt;br/&gt;2.2uH&quot;]:::part
   N_3V3_BUCK --&quot;2&quot;--&gt; P_L2
@@ -42,8 +42,8 @@
   N_3V3_BUCK --&quot;1&quot;--&gt; P_R_FB1
   P_C_FF[&quot;&lt;b&gt;C_FF&lt;/b&gt;&lt;br/&gt;6.8pF&quot;]:::part
   N_3V3_BUCK --&quot;1&quot;--&gt; P_C_FF
-  P_JP_3V3[&quot;&lt;b&gt;JP_3V3&lt;/b&gt;&lt;br/&gt;LINK_3V3&quot;]:::part
-  N_3V3_BUCK --&quot;1&quot;--&gt; P_JP_3V3</pre>
+  P_JP_3V3[&quot;&lt;b&gt;JP_3V3&lt;/b&gt;&lt;br/&gt;JP_3V3&quot;]:::part
+  N_3V3_BUCK --&quot;2&quot;--&gt; P_JP_3V3</pre>
 <h2>Protection stage: J1 → VIN_PROT</h2><pre class='mermaid'>graph LR
   classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
   classDef net fill:#fff8e1,stroke:#b7791f,color:#111
@@ -71,7 +71,7 @@
   N_VIN_PROT --&quot;K&quot;--&gt; P_D1
   P_C_bulk[&quot;&lt;b&gt;C_bulk&lt;/b&gt;&lt;br/&gt;100uF/63V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   N_VIN_PROT --&quot;1&quot;--&gt; P_C_bulk
-  P_JP_VIN[&quot;&lt;b&gt;JP_VIN&lt;/b&gt;&lt;br/&gt;LINK_VIN&quot;]:::part
+  P_JP_VIN[&quot;&lt;b&gt;JP_VIN&lt;/b&gt;&lt;br/&gt;JP_VIN&quot;]:::part
   N_VIN_PROT --&quot;1&quot;--&gt; P_JP_VIN
   N_Q1_GATE([&quot;Q1_GATE&quot;]):::net
   P_Q1 --&quot;G&quot;--&gt; N_Q1_GATE
@@ -97,8 +97,8 @@
   P_L1[&quot;&lt;b&gt;L1&lt;/b&gt;&lt;br/&gt;6.8uH&quot;]:::part
   N_SW_5V --&quot;1&quot;--&gt; P_L1
   N__5V([&quot;+5V&quot;]):::rail
-  P_JP_5V[&quot;&lt;b&gt;JP_5V&lt;/b&gt;&lt;br/&gt;LINK_5V&quot;]:::part
-  N__5V --&quot;2&quot;--&gt; P_JP_5V
+  P_JP_5V[&quot;&lt;b&gt;JP_5V&lt;/b&gt;&lt;br/&gt;JP_5V&quot;]:::part
+  N__5V --&quot;1&quot;--&gt; P_JP_5V
   P_R_5V[&quot;&lt;b&gt;R_5V&lt;/b&gt;&lt;br/&gt;680R&quot;]:::part
   N__5V --&quot;1&quot;--&gt; P_R_5V
   P_U2[&quot;&lt;b&gt;U2&lt;/b&gt;&lt;br/&gt;TLV62569DBV&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
@@ -146,8 +146,8 @@
   P_L2[&quot;&lt;b&gt;L2&lt;/b&gt;&lt;br/&gt;2.2uH&quot;]:::part
   N_SW_3V3 --&quot;1&quot;--&gt; P_L2
   N__3V3([&quot;+3V3&quot;]):::rail
-  P_JP_3V3[&quot;&lt;b&gt;JP_3V3&lt;/b&gt;&lt;br/&gt;LINK_3V3&quot;]:::part
-  N__3V3 --&quot;2&quot;--&gt; P_JP_3V3
+  P_JP_3V3[&quot;&lt;b&gt;JP_3V3&lt;/b&gt;&lt;br/&gt;JP_3V3&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_JP_3V3
   P_R_3V3[&quot;&lt;b&gt;R_3V3&lt;/b&gt;&lt;br/&gt;680R&quot;]:::part
   N__3V3 --&quot;1&quot;--&gt; P_R_3V3
   N_FB_3V3([&quot;FB_3V3&quot;]):::net

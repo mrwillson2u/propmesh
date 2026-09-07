@@ -150,6 +150,52 @@
 		)
 	)
 	(sheet
+		(at 119.38 121.92)
+		(size 74.93 50.8)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0)
+		)
+		(uuid "3e4ac41d-339a-48df-ae9d-b064c7089ccd")
+		(property "Sheetname" "Test Points"
+			(at 119.38 121.2084 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "testpoints.kicad_sch"
+			(at 119.38 173.3046 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "propmesh"
+				(path "/6aa579d1-bfe0-499b-882d-72f52ff6d36c"
+					(page "9")
+				)
+			)
+		)
+	)
+	(sheet
 		(at 85.09 69.85)
 		(size 71.12 39.37)
 		(exclude_from_sim no)

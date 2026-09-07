@@ -71,16 +71,16 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 
 | Sheet | Doc | Drawn | Open ⚠ items in doc |
 |---|---|---|---|
-| 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set. **⚠ 2026-09-07: draw the three staged-power link headers (§2.6) — checker red until then** | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
+| 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set; **staged-power link headers J48/J49/J50 added 2026-09-07** (spec §2.6), checker green, ERC clean | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
 | 02 MCU + USB | `sheets/02-mcu-usb.md` — **fully sourced** | **☑ DONE 2026-09-04** — checknet all nets + footprints green; ERC clean bar the 32 expected one-sided labels | for LAYOUT: USB-C needs its shield vias; TP37 silkscreen |
 | 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
 | 04 Audio + SD | `sheets/04-audio.md` — **fully sourced**, GAIN/SD_MODE datasheet-exact, line-out via PCM5102A | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: meter the jack tip/ring/sleeve (three numbering schemes collided — see doc); `C723982` shared stock pool |
 | 05 Addressable LED | `sheets/05-led.md` — **fully sourced**; both strips 3/4-wire through **one octal SN74AHCT541DWR `C2682058`** (3 spare 5 V outputs), 2× DG128-02P per strip, no mode jumpers, status pixel import verified | **☑ DONE 2026-09-06** — checknet all green, ERC clean (whole project: 0 violations) | for LAYOUT: silk 5 V-injection note at strip terminals; 02P pairs butt together as one 4-pole; only remaining Economic-PCBA risk part is the status pixel (check in JLC order UI before a PCBA run) |
 | 06 Motors | `sheets/06-motors.md` — **fully sourced**, row spacing 12.70 mm (Pololu-verified), ILIM = 2.13 A, RST/SLP-tie = UART bus | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for LAYOUT: socket rows exactly 12.70 mm, DRV8871 EP paste vs TI drawing, silk TMC strap defaults |
 | 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead). **IR receiver dropped 2026-09-05** (hidden board → plug-in on a DIGITAL_IN) | **☑ DONE 2026-09-06** — IR block deleted, checknet all green, ERC clean | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
-| 08 Test points | `sheets/08-testpoints.md` — 33 GPIO pads + 6 rail pads + DNP strap pad, spec §2.6 | ☐ **draw before layout** (a sheet of labels) | pads go beside each net's owner, silk = net name |
+| 08 Test points | `sheets/08-testpoints.md` — 33 GPIO pads + 6 rail pads + DNP strap pad, spec §2.6 | **☑ DONE 2026-09-07** — labels generated from the yaml, checknet green, ERC clean | pads go beside each net's owner, silk = net name |
 
-**All seven design sheets captured 2026-09-06.** Before layout: sheet 08 and the sheet 01 links (spec §2.6). Then layout per `layout.md` — the ⚠ column above and its §9 are the layout to-do list.
+**All eight sheets captured; ERC 0; board synced 239/239 footprints (2026-09-07).** Schematic work is done unless layout turns something up. Layout per `layout.md` — the ⚠ column above and its §9 are the layout to-do list.
 
 ## Rules that apply to every sheet
 

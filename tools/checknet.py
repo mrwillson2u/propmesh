@@ -503,7 +503,7 @@ def render(sheet, parts, nets, blocks, res=None):
                 for ref, v, pin in res["nets"][n]["extras"]:
                     alias = f" (= spec {res['renamed'][ref]})" if ref in res["renamed"] else ""
                     x = f"X_{nid(n)}_{nid(ref)}"
-                    lines.append(f'  {x}["<b>{ref}</b>{alias}<br/>{res["comps"][ref]["raw"]}<br/>✗ not in spec here"]:::extra')
+                    lines.append(f'  {x}["<b>{ref}</b>{alias}<br/>{res["comps"].get(ref, {}).get("raw", "other sheet")}<br/>✗ not in spec here"]:::extra')
                     edge(f"N_{nid(n)}", x, pin, "extra")
         for key, style in LINK.items():
             idx = [str(k) for k, e in enumerate(edges) if e == key]
