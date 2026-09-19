@@ -1,5 +1,8 @@
 # Sheet 07 — Sensors, Qwiic, expansion header
 
+> **Revised 2026-09-16** (datasheet review; drawing steps in
+> `../schematic-changes-2026-09-16.md`): the digital-input series resistors `R_D1`–`R_D3` are **2.2 kΩ 1206** (`C17948`).
+
 **Everything needed to draw this sheet is in this file.** Fully sourced
 2026-09-04; **IR receiver dropped 2026-09-05** (see below). Drawing
 guide: `07-sensors-expansion.diagram.html`; checker:
@@ -31,8 +34,63 @@ The six symbols it needed (TSOP, 100 Ω, 10 µF, 10 k pull-up, PWR_FLAG,
 ## Digital inputs ×3
 
 Per input, sensor-side to pin-side: **JST-XH 3-pin (5V | GND | SIG) →
-BAT54S clamp → 1 kΩ series → GPIO, with 10 kΩ pull-up to 3V3 on the
+1 kΩ series → BAT54S clamp → GPIO, with 10 kΩ pull-up to 3V3 on the
 GPIO side.** Handles 5 V-output sensors (HC-SR501) and miswires.
+
+### ⚠ Order corrected 2026-09-08 — series R FIRST, clamp SECOND
+
+The sheet was drawn clamp-first (clamp at the connector, resistor
+between clamp and GPIO). **That is wrong for this board's threat
+model.** With the clamp at the connector nothing limits fault current:
+`J_PIR` is a bare 0.1″ header wired `5V | GND | SIG`, so a dupont plug
+fitted backwards puts the board's **own +5 V onto SIG**, the upper
+clamp diode conducts straight into the +3V3 rail, and the rail is
+dragged to ≈4.4 V. Everything on it — MCU, PCA9685, DAC, card — is
+rated 3.6 V absolute maximum. A 12 V miswire into a sensor XH does the
+same, harder. With the 1 kΩ first, the same two mistakes become 1.4 mA
+and 8.4 mA — harmless. **Qualified 2026-09-16:** at **24 V** the same
+mistake is 20 mA and **0.42 W in the resistor — four times an 0603's
+rating**. Decision needed (datasheet review §10): either fit the three
+series resistors as **2.2 kΩ 1206** (9 mA / 0.19 W at 24 V, no effect on
+the signal — the pin side is high impedance) or document the sensor
+ports as **5–12 V only**. Also: the clamp diverts the fault into +3V3;
+the board's own idle load absorbs a few mA, so this is fine while the
+board is powered, but an externally driven sensor with the board **off**
+back-powers the 3V3 rail — say so on the silk (`POWER BOARD FIRST`).
+
+The trade is real and deliberate: clamp-at-the-port is better for pure
+ESD, because the transient never reaches the resistor. Sustained
+miswiring is this board's realistic failure (hidden yard box, dupont
+sensor leads, wired in the dark), and its consequence is losing every
+3V3 part rather than degraded ESD margin. Found by the 2026-09-08
+audit (`../review-2026-09-08.md` §1.4).
+
+**How to make the change (KiCad, sensor sheet).** Nothing moves and no
+part is added. Each input's 1 kΩ already sits vertically between the
+raw node and the GPIO node; the only change is which of those two the
+clamp's COM pin joins. For each of the three inputs:
+
+1. Click the **horizontal wire running from the BAT54S's COM pin to the
+   raw node** (the coordinates are in the table below) so it highlights,
+   and press **Delete**.
+2. Press **W** to start a wire at the now-free COM pin, click once
+   straight above it at the GPIO node's height to turn the corner, then
+   click on the GPIO node to finish. The wire is an L.
+3. The corridor between the two nodes is empty on all three inputs
+   (checked 2026-09-08), so the vertical leg crosses nothing.
+
+| Input | Clamp | Delete this wire | Draw: COM → corner → GPIO node |
+|---|---|---|---|
+| 1 | `D12` | (223.52, 45.72) → (237.49, 45.72) | (223.52, 45.72) → (223.52, 38.10) → (237.49, 38.10) |
+| 2 | `D13` | (224.79, 81.28) → (238.76, 81.28) | (224.79, 81.28) → (224.79, 73.66) → (238.76, 73.66) |
+| 3 | `D14` | (224.79, 114.30) → (238.76, 114.30) | (224.79, 114.30) → (224.79, 106.68) → (238.76, 106.68) |
+
+The GPIO node is the one that already carries the `DIGITAL_IN_n` global
+label and the 10 k pull-up's lower pin, so after the change the clamp,
+the pull-up and the label all meet there. `J_PIR` stays on the raw node
+— it is upstream of the resistor, which is the point. Then save, run
+`python3 tools/checknet.py hardware/pro/sheets/07-sensors-expansion.net.yaml`
+(the yaml already expects the new order), ERC, and **F8**.
 
 **BAT54S orientation** (the S suffix = series pair, one SOT-23 per
 input; A/C suffixes are different topologies — don't substitute). The
@@ -90,7 +148,7 @@ series R limits damage from a miswire.
 | J_DI1–3, J_AN1–2 | JST XH-3A ×5 | **`C2316`** — $0.011, 402 k stock | all five: 5V \| GND \| SIG. |
 | J_PIR | 1×3 2.54 header | `C124376` | parallel to input 1. |
 | D_C1–3 | **BAT54S** ×3 | **`C8592`** — $0.023, 202 k stock | orientation table above. |
-| R_D1–3 | 1 k ×3 | `C21190` Basic | series after clamp. |
+| R_D1–3 | **2.2 k 1206** ×3 | `C17948` (Extended) | series before the clamp; 0.19 W at a 24 V miswire (was 1 k 0603, `C21190`). |
 | R_P1–3, R_E1P, R_E2P | 10 k ×5 | `C25804` Basic | pull-ups / strap pulldowns. |
 | R_A1T/B, R_A2T/B | 100 k ×4 | `C25803` Basic | halvers. |
 | C_AN1, C_AN2 | 100 nF ×2 | `C14663` Basic | ADC tap filters. |
@@ -137,3 +195,31 @@ two by Value, printing both (`R39 (R_P1)`).
 **Complete.** 27 parts, rollup (§2.4): **$0.32 @1, $0.28 @100** — was
 $0.94 with the TSOP. Qwiic and 2×5 header re-sourced after the genuine
 JST and first-choice header queries came back dead/empty.
+
+## Open decision (raised 2026-09-08): XH, 0.1″ header, or one footprint for both?
+
+The five sensor inputs use JST-XH 3-pin. **The objection:** the cheap
+sensors this board is for (HC-SR501 PIR, reed switches, LDR modules)
+ship with **male 0.1″ pins and female dupont leads**, not XH pigtails,
+so an XH socket forces the user to make an adapter. `J46` exists
+precisely because of that, but only for input 1.
+
+**Measured 2026-09-08 — one footprint can take both.** XH-3A pads are
+on 2.50 mm, a 0.1″ header on 2.54 mm; over three pins the cumulative
+error is **0.08 mm** (pin 2 off by 0.04, pin 3 by 0.08). The XH
+footprint drills 0.95 mm and a 0.1″ header pin is 0.64 mm square
+(0.90 mm diagonal), leaving 0.155 mm radial slack — the error fits with
+nothing spare. **Open the drill to 1.00 mm** and the slack becomes
+0.18 mm, comfortable for both parts.
+
+**Proposal (not applied — Colin's call).** Fork the footprint to
+`propmesh:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_HdrCompat` with 1.00 mm
+drills, use it on all five sensor inputs, and silk both the XH shroud
+outline and the 0.1″ pin positions. The user solders **whichever
+connector they prefer** — no second part, no extra soldering, no board
+area, and `J46` becomes redundant.
+
+Trade to weigh: the XH is keyed and latched, which is exactly what
+prevents the reversed-plug miswire the clamp reorder above also guards
+against. A 0.1″ header has neither. So XH stays the documented default
+and the header is the escape hatch, not the other way round.

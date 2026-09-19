@@ -1,5 +1,8 @@
 # Sheet 08 — Test points + spare strap pad
 
+> **Revised 2026-09-16** (datasheet review; drawing steps in
+> `../schematic-changes-2026-09-16.md`): `R_STRAP3` is **fitted, 10 k** — no longer DNP.
+
 **Everything needed to draw this sheet is in this file.** It exists
 because spec §2.6 demands a test point on every GPIO and every rail for
 v0.1 — the bodge-wire recovery plan needs somewhere to land a wire and
@@ -52,7 +55,54 @@ because a Value of `+5V` would collide with the power-symbol name.
 ERC will not complain: every label already has a partner on its home
 sheet.
 
-## Layout placement (see `layout.md` §3, sheet 08)
+## Top or bottom? — BOTTOM, surface pads (decided by Colin 2026-09-07)
+
+Surface pads on the **bottom** (B.Cu), not through-hole and not on top:
+
+- **v0.1 repairs** are bodge wires, and the bottom is the empty side
+  kept for them (spec §2.6) — the pad and the wire are on the same
+  face, nothing to thread through the board.
+- **Production test** is a bed-of-nails rig: the board sits
+  component-side up on the fixture and **pogo pins come from below**.
+  Bottom pads are the industry-standard target; the four 3.2 mm
+  mounting holes (frozen pattern, 120 × 90) double as the fixture's
+  alignment pins.
+- Through-hole was considered and rejected: 41 extra holes in the
+  ground plane and nothing gained once the rig probes from below.
+
+**Pogo-rig rules for the pad positions** (apply now, the rig is a v0.2
+job): pad ≥ 1.5 mm (the `TestPoint_Pad_1.5x1.5mm` already used is
+fine; 2.0 mm is more forgiving if space allows); **≥ 2.54 mm centre
+to centre** between pads (standard pogo pitch); **≥ 3 mm from the
+board edge**; **≥ 2 mm from any through-hole pin** (sockets, XH, screw
+terminals, radials) so the fixture plate can be flat around them; keep
+the two `GND` pads far apart. The "beside the net's owner" rule of
+`layout.md` A18 still applies — these are constraints on top of it.
+
+**Footprint stays `TestPoint:TestPoint_Pad_1.5x1.5mm`**; only the side
+changes. `R53` (the DNP strap pad) is a real part and stays on top.
+
+**DONE 2026-09-07 by `tools/placetps.py`** (KiCad's own Python — the flip
+is KiCad's flip): all 41 on B.Cu, each beside the pad that carries its
+net (most within 0.1–2 mm; the socket and connector ones 3–4 mm out,
+past the pin keep-out), spacing rules above enforced, the net name on
+the bottom silk at 0.8 mm and the `TPnn` reference hidden. Render:
+`layout-placement-bottom.png`. Colin's edit pass follows; to re-run
+after moving parts (PCB editor closed):
+
+```
+/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3 tools/placetps.py hardware/pro/propmesh/propmesh.kicad_pcb
+```
+
+**Doing it by hand instead (PCB editor):** right-click any `TP` pad → **Select →
+Items in Same Hierarchical Sheet** (all 39 test points + `R53` are
+selected) → **Shift+click `R53`** to drop it from the selection → press
+**F** (Change Side / Flip). They flip in place: pads to B.Cu, labels to
+B.Silkscreen mirrored so they read correctly from the bottom. Then
+`TP1` (sheet 02) and `TP2` (sheet 04): click each, press **F**. Cmd+S;
+`python3 tools/checksetup.py` counts the pads on the bottom.
+
+## Layout placement (see `layout.md` A18)
 
 Pads go in the gaps **near the net's owner** — the stepper pads by the
 sockets, the SD pads by the card slot, the I²S pads between the module
@@ -65,7 +115,7 @@ does this if the footprint's value text is set visible).
 
 | Ref(s) | Part | LCSC | Note |
 |---|---|---|---|
-| TP_* ×39 | `TestPoint:TestPoint_Pad_1.5x1.5mm` | copper only | no BOM line |
+| TP_* ×39 | `TestPoint:TestPoint_Pad_1.5x1.5mm`, **on B.Cu** | copper only | no BOM line; bottom side for bodge wires + pogo rig |
 | R_STRAP3 | 0603 pad, DNP | none | position file excludes DNP |
 
 ## Checklist

@@ -1,5 +1,8 @@
 # Sheet 04 — Audio + microSD
 
+> **Revised 2026-09-16** (datasheet review; drawing steps in
+> `../schematic-changes-2026-09-16.md`): microSD DAT1 and DAT2 get 10 k pull-ups (`R_DAT1`, `R_DAT2`) instead of no-connect flags.
+
 **Everything needed to draw this sheet is in this file.** Fully sourced
 2026-09-04; both old ⚠ items resolved against the real MAX98357A
 datasheet. Drawing guide: `04-audio.diagram.html`; checker:
@@ -13,7 +16,7 @@ python3 tools/checknet.py hardware/pro/sheets/04-audio.net.yaml
 | Pin | Setting | How | Why |
 |---|---|---|---|
 | GAIN_SLOT | **12 dB** | **tie directly to GND — zero parts** (Table 8) | max clean gain for a 3 W scare box; firmware owns volume. 15 dB costs a resistor to clip harder into a 5 V-limited supply — pointless |
-| SD_MODE | **(L+R)/2 mono** | **620 kΩ pull-up to +3V3** (`R_SDM`) | Table 5: mono needs a *large* pull-up. Table 6 formula: R = 222.2×VDDIO−100 = **633 k at 3.3 V**. Against the 92–108 k internal pulldown and the B0/B1 trip limits the safe window is **324–763 k**; stocked 620 k (`C23219`, 110 k stock) sits mid-window; the 634 k E96 nominal (`C65831`) has 2 k stock. **Never direct-tie SD_MODE high — that selects Left only**, the silent one-channel failure the old ⚠ warned about. |
+| SD_MODE | **(L+R)/2 mono** | **620 kΩ pull-up to +3V3** (`R_SDM`) | Table 5: mono needs a *large* pull-up. Table 6 formula: R = 222.2×VDDIO−100 = **633 k at 3.3 V**. Against the 92–108 k internal pulldown and the B0/B1 trip limits the safe window is **440–763 k** (corrected 2026-09-08 from a wrong 324 k — staying under B1_min 0.65 V with the pulldown at its 108 k max needs R > 108k×(3.3−0.65)/0.65 = 440 k; 390 k would land at 0.72 V and silently select **Right channel only**. See `../review-2026-09-08.md` §6); stocked 620 k (`C23219`, 110 k stock) sits mid-window; the 634 k E96 nominal (`C65831`) has 2 k stock. **Never direct-tie SD_MODE high — that selects Left only**, the silent one-channel failure the old ⚠ warned about. |
 
 ## ✅ Decided: line-out KEPT — done right (Colin, 2026-09-04)
 
@@ -55,7 +58,7 @@ Buy genuine; the public BOM says so.
 | Ref | Part | LCSC | Note |
 |---|---|---|---|
 | U_SD | **TF-01A** push-push | **`C91145`** — $0.19, 216 k stock | The ubiquitous socket. Import inspected: pins oriented OK; **two locating pegs arrived as plated zero-ring holes → fixed to NPTH in the library** (defect #3 strikes again). |
-| R_CMD, R_D0, **R_D3** | 10 kΩ ×3 | `C25804` **Basic** | to +3V3. CMD and DAT0 per pinmap — **plus DAT3, which the pinmap missed: ESP-IDF requires D3 held high in 1-bit mode or the card falls into SPI mode.** DAT1/DAT2 get no-connect flags. |
+| R_CMD, R_D0, **R_D3** | 10 kΩ ×3 | `C25804` **Basic** | to +3V3. CMD and DAT0 per pinmap — **plus DAT3, which the pinmap missed: ESP-IDF requires D3 held high in 1-bit mode or the card falls into SPI mode.** ~~DAT1/DAT2 get no-connect flags.~~ **Corrected 2026-09-16: DAT1 and DAT2 also get 10 kΩ to +3V3** — Espressif's SD pull-up page: *"SD cards and SDIO devices should also have pull-ups on all above-mentioned lines (regardless of whether these lines are connected to the host) in order to prevent them from entering a wrong state."* Two more `C25804`, no GPIO. Remove the two no-connect flags; update `04-audio.net.yaml`. |
 | C_SD1, C_SD2 | 10 µF + 100 nF | `C95841`, `C14663` | at card VDD (**+3V3**) — cards pull sharp spikes. |
 | TP_CD | test pad | — | the socket's card-detect switch to a 1.5 mm pad: no GPIO free today, firmware option later (§2.6 spirit). |
 
@@ -83,7 +86,7 @@ name): `I2S_BCLK`, `I2S_LRCLK`, `I2S_DOUT`, `SD_CLK`, `SD_CMD`,
 
 - [ ] GAIN_SLOT tied to GND (12 dB); SD_MODE via 620 k to +3V3 (mono)
 - [ ] Bead + 100 pF on each speaker line, snubber caps terminal-side
-- [ ] EP to GND; NC flags on amp 5/6/12/13 and card DAT1/DAT2
+- [ ] EP to GND; NC flags on amp 5/6/12/13; **card DAT1/DAT2 pulled up 10 k (not NC — corrected 2026-09-16)**
 - [ ] Pull-ups ×3 incl. DAT3; card decoupling at +3V3
 - [ ] TP_CD placed
 - [ ] DAC: FLT/FMT/DEMP/SCK grounded, XSMT pulled up, 4 supply pairs

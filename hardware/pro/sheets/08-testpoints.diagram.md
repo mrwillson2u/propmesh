@@ -25,7 +25,7 @@ graph LR
   N_LED_STRIP_1_CLK(["LED_STRIP_1_CLK"]):::net
   P_TP_L1C["<b>TP_L1C</b><br/>LED_STRIP_1_CLK"]:::part
   N_LED_STRIP_1_CLK --"1"--> P_TP_L1C
-  P_R_STRAP3["<b>R_STRAP3</b><br/>DNP<br/><i>pin 2 → GND</i>"]:::dnp
+  P_R_STRAP3["<b>R_STRAP3</b><br/>10k<br/><i>pin 2 → GND</i>"]:::part
   N_LED_STRIP_1_CLK --"1"--> P_R_STRAP3
   N_LED_STRIP_1_DATA(["LED_STRIP_1_DATA"]):::net
   P_TP_L1D["<b>TP_L1D</b><br/>LED_STRIP_1_DATA"]:::part

@@ -53,7 +53,7 @@ sheet: 05-led
 _fp: &fp
   r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
   c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
-  bulk:  &bulk  "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
+  bulk:  &bulk  "Capacitor_THT:CP_Radial_D6.3mm_P2.50mm"
   dg2:   &dg2   "propmesh:CONN-TH_DG128-5.0-02P-14-00A-H"
 
 parts:
@@ -64,8 +64,12 @@ parts:
   R_S2D:  {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603}
   R_S2C:  {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603}
   R_ST:   {value: 330R, lcsc: C23138, symbol: "Device:R", footprint: *r0603, note: "status pixel is on-board but keeps its series R — costs nothing, kills ringing"}
-  C_B1:   {value: 1000uF/16V, lcsc: C439782, symbol: "Device:C_Polarized", footprint: *bulk, note: "hot-plug inrush bulk at strip 1's power block, THT radial D10xL13 P5. Low-ESR alternate: C165516"}
-  C_B2:   {value: 1000uF/16V, lcsc: C439782, symbol: "Device:C_Polarized", footprint: *bulk, note: "same, strip 2"}
+  C_B1:   {value: 220uF/16V, lcsc: C88757, symbol: "Device:C_Polarized", footprint: *bulk, note: "hot-plug bulk at strip 1's power block. Was 1000 uF until 2026-09-16 (datasheet review decision 1A): 2 mF on +5V made the AP64350 hit its 4.25 A peak limit through its 2 ms soft-start and hiccup. Rubycon 16YXJ220M6.3X11, D6.3xL11 P2.5, 220 mOhm @100 kHz, 400 mA ripple, 7000 h @105 C"}
+  C_B2:   {value: 220uF/16V, lcsc: C88757, symbol: "Device:C_Polarized", footprint: *bulk, note: "same, strip 2"}
+  R_PD1:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "input pulldown (2026-09-16): U_LS inputs must not float while the MCU is in reset — TI requires defined CMOS input levels. Strip data held LOW at boot = no garbage frame"}
+  R_PD2:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_PD3:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_PD4:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "LED_STRIP_1_CLK's pulldown is R_STRAP3 on sheet 08, now fitted"}
   J_ST1A: {value: LED1_PWR, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 1 power half: 5V | GND. Silk: strips beyond ~50 px need external 5 V injection, data-only from the board"}
   J_ST1B: {value: LED1_SIG, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 1 signal half: DATA | CLK"}
   J_ST2A: {value: LED2_PWR, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 2 power half: 5V | GND"}
@@ -83,11 +87,11 @@ named: [LED_STRIP_1_DATA, LED_STRIP_1_CLK, LED_STRIP_2_DATA, LED_STRIP_2_CLK, ST
 
 nets:
   # --- buffer inputs (MCU drives these from sheet 02) -----------------
-  LED_STRIP_1_DATA: [U_LS.A0]
+  LED_STRIP_1_DATA: [U_LS.A0, R_PD1.1]
   LED_STRIP_1_CLK:  [U_LS.A1]
-  LED_STRIP_2_DATA: [U_LS.A2]
-  LED_STRIP_2_CLK:  [U_LS.A3]
-  STATUS_LED:       [U_LS.A4]
+  LED_STRIP_2_DATA: [U_LS.A2, R_PD2.1]
+  LED_STRIP_2_CLK:  [U_LS.A3, R_PD3.1]
+  STATUS_LED:       [U_LS.A4, R_PD4.1]
 
   # --- strip 1 --------------------------------------------------------
   LED1_5V:  [U_LS.Y0, R_S1.1]
@@ -108,4 +112,5 @@ nets:
   # --- rails ----------------------------------------------------------
   +5V: [U_LS.VCC, C_LS.1, J_ST1A.1, J_ST2A.1, C_B1.1, C_B2.1, D_ST.2, C_ST.1]
   GND: [U_LS.GND, U_LS.G1, U_LS.G2, U_LS.A5, U_LS.A6, U_LS.A7, C_LS.2,
-        J_ST1A.2, J_ST2A.2, C_B1.2, C_B2.2, D_ST.4, C_ST.2]
+        J_ST1A.2, J_ST2A.2, C_B1.2, C_B2.2, D_ST.4, C_ST.2,
+        R_PD1.2, R_PD2.2, R_PD3.2, R_PD4.2]

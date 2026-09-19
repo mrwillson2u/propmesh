@@ -1,5 +1,8 @@
 # Sheet 03 — Slow outputs (PCA9685: servos, LED channels, relays)
 
+> **Revised 2026-09-16** (datasheet review; drawing steps in
+> `../schematic-changes-2026-09-16.md`): **a second PCA9685 (`U_PCA2`, 0x41) now drives the six DC channels at 1 kHz**; `U_PCA` (0x40) keeps servos at 50 Hz, relays and stepper enable, and its LED6–LED11 are unused. Both ~OE pins go to `PCA_OE` (GPIO 37) with a 10 k pull-up, so all outputs are held off while the MCU is in reset. Channel map: `pinmap.yaml`.
+
 **Everything needed to draw this sheet is in this file.** Fully sourced
 2026-09-04; the LED-channel decision is resolved. Open
 `03-outputs.diagram.html` for the drawing guide; after capture:
@@ -23,9 +26,10 @@ SOT-23 is a free-swap footprint. `C20917` is JLC **Basic** with a
 million in stock.
 
 **Board-wide consolidation:** the AO3400A also replaces sheet 06's
-pencilled 2N7002 as the STEPPER_EN inverter — one MOSFET part number
-for 7 placements (2N7002's 300 mA would have been fine for logic, but
-one part number beats two; spec §4.3).
+pencilled 2N7002 as the STEPPER_EN inverter. ~~One MOSFET part number
+for 7 placements~~ — **since 2026-09-16 the six output FETs are Vishay
+SI2356DS (40 V, decision 4B) and only the EN inverter stays AO3400A**:
+its drain sees 3.3 V, so the voltage argument doesn't apply to it.
 
 **Connector consequence:** the 4-pos 3.5 mm terminal that would bank
 3 channels per connector is effectively unstocked (10 pcs, 3× price),
@@ -80,7 +84,7 @@ channel so **solenoid valves are a first-class load**.
 
 | Ref | Part | LCSC | Note |
 |---|---|---|---|
-| Q_LED1–6 | **AO3400A** SOT-23 | **`C20917`** — $0.08, **Basic** | Low-side: G ← PCA9685 (LED6–11), S → GND, D → terminal pin 2. 30 V rating over the 28 V ceiling. No gate R at PCA9685 PWM rates. |
+| Q_LED1–6 | **Vishay SI2356DS-T1-GE3** SOT-23 | **`C74127`** — $0.32 @100, Extended, 5.2 k stock | Low-side: G ← **`U_PCA2`** LED0–5, S → GND, D → terminal pin 2. **40 V** (was AO3400A `C20917`, 30 V, until 2026-09-16: the input TVS only starts conducting at 36.7 V, so it could never protect a 30 V part). 70 mΩ max at 2.5 V gate / 2 A → 0.28 W worst case per channel at 2 A (AO3400A: 0.19 W). Symbol stays `Transistor_FET:AO3400A` — same G1/S2/D3 pins. No gate R at PCA9685 PWM rates. |
 | D_FB1–6 | **SS34** SMA | **`C8678`** — $0.03, **Basic** | Flyback **across the load**: A → switched node, K → VIN_PROT. Same part as sheet 02's D_VBUS — zero new part numbers. |
 | J_LED1–6 | **DG381S-3.5-02P** | **`C723982`** ⚠ 82 pcs | **Pin 1 = VIN_PROT (supply voltage!), pin 2 = switched return.** Silkscreen `V+` / `SW` and one shared `V+ = SUPPLY VOLTAGE`. |
 
@@ -127,7 +131,7 @@ valves, small pumps.
 |---|---|
 | U_PCA | `PCA9685PW` (Driver_LED) |
 | U_REL | `ULN2003A` (Transistor_Array) — pins I1–7/O1–7/COM/GND |
-| Q_LED1–6 | `AO3400A` (Transistor_FET) |
+| Q_LED1–6 | `AO3400A` (Transistor_FET) — symbol only; Value `SI2356DS` |
 | D_FB1–6 | `Device:D_Schottky` — A → the switched node (terminal pin 2 / drain), K → `VIN_PROT` |
 | K1–K3 | `propmesh:HK4100F-DC5V-SHG` (imported; pins are bare numbers 1–6 — the yaml/diagram is the map) |
 | J_REL1–3 | `Connector:Screw_Terminal_01x03` |

@@ -19,7 +19,13 @@ parts:
   J_USB:  {value: TYPE-C-31-M-12, lcsc: C165948,  symbol: "Connector:USB_C_Receptacle_USB2.0_16P", footprint: "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12",
            note: "KiCad ships the vendor-exact HRO footprint. SBU1/SBU2 get no-connect flags"}
   U_ESD:  {value: USBLC6-2SC6,    lcsc: C7519,    symbol: "Power_Protection:USBLC6-2SC6", footprint: "Package_TO_SOT_SMD:SOT-23-6"}
-  D_VBUS: {value: SS34,           lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA", note: "VBUS -> +5V, blocks bench-supply backfeed into the laptop. JLC BASIC"}
+  D_VBUS: {value: SS34,           lcsc: C8678,    symbol: "Device:D_Schottky", footprint: "Diode_SMD:D_SMA", note: "VBUS -> USB_5V, blocks bench-supply backfeed into the laptop. JLC BASIC"}
+  JP_USB: {value: JP_USB,         lcsc: C124375,  symbol: "Connector_Generic:Conn_01x02", footprint: "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", note: "USB-POWER LINK (2026-09-16, datasheet review decision 1A): USB feeds the +5V rail ONLY with a shunt (C100114) fitted, for bench sessions. Default: shunt OFF. Pin 1 = rail side, pin 2 = source side, same as JP_VIN/JP_5V/JP_3V3"}
+  C_VBUS: {value: 100nF,          lcsc: C14663,   symbol: "Device:C", footprint: *c0603, note: "at U_ESD pin 5 (VBUS) — ST USBLC6-2 datasheet Fig. 17"}
+  R_USBM: {value: 22R,            lcsc: C23345,   symbol: "Device:R", footprint: *r0603, note: "USB D- series R near the module. Espressif ESP32-S3 schematic checklist: reserve series Rs, initial value 22/33 ohm. BASIC"}
+  R_USBP: {value: 22R,            lcsc: C23345,   symbol: "Device:R", footprint: *r0603, note: "USB D+ series R near the module"}
+  C_USBM: {value: DNP,  dnp: true, symbol: "Device:C", footprint: *c0603, note: "unpopulated cap-to-GND position on D-, MCU side — Espressif checklist 'initially can be unpopulated'"}
+  C_USBP: {value: DNP,  dnp: true, symbol: "Device:C", footprint: *c0603, note: "unpopulated cap-to-GND position on D+"}
   SW_BOOT: {value: TS-1187A,      lcsc: C318884,  symbol: "Switch:SW_Push", footprint: "Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A", note: "JLC BASIC; KiCad ships this exact XKB footprint"}
   SW_RST: {value: TS-1187A,       lcsc: C318884,  symbol: "Switch:SW_Push", footprint: "Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A"}
   R_EN:   {value: 10k,            lcsc: C25804,   symbol: "Device:R", footprint: *r0603, note: "same part as sheet 01's R_FB2/R_G"}
@@ -29,10 +35,10 @@ parts:
   C_EN:   {value: 1uF,            lcsc: C15849,   symbol: "Device:C", footprint: *c0603, note: "CL10A105KB8NNNC, X5R — documented exception to the X7R rule: POR delay tolerates any 0.5-2 uF, and no X7R 1 uF 0603 exists in Basic"}
   C_VDD1: {value: 10uF/16V,       lcsc: C95841,   symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "same part as sheet 01's C_in"}
   C_VDD2: {value: 100nF,          lcsc: C14663,   symbol: "Device:C", footprint: *c0603, note: "same part as sheet 01's C3"}
-  TP37:   {value: TP37,           lcsc: ~,        symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm", note: "IO37 is the board's only spare GPIO"}
+  TP_OE:  {value: PCA_OE,         lcsc: ~,        symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm", note: "IO37 = PCA_OE since 2026-09-16 (was the only spare GPIO, TP37). The pad stays: it is the probe point for 'outputs enabled'"}
 
 blocks:
-  "USB: connector → ESD → module":       [VBUS, +5V, USB_DM, USB_DP, CC1, CC2]
+  "USB: connector → ESD → module":       [VBUS, USB_5V, +5V, USB_DM_CONN, USB_DP_CONN, USB_DM, USB_DP, CC1, CC2]
   "Module core: power, reset, boot":     [+3V3, EN, BOOT_BUTTON]
   "GPIO fan-out — every label EXACTLY as pinmap.yaml": [
     ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA, LED_STRIP_2_DATA,
@@ -40,7 +46,7 @@ blocks:
     DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
     TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
     STATUS_LED, SD_CLK, SD_CMD, SD_D0, STEPPER_1_DIAG, STEPPER_2_DIAG,
-    MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR, TP37]
+    MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR, PCA_OE]
 
 # Global labels — the checker verifies these NAMES exist verbatim in the
 # netlist (the #1 bug class: schematic disagreeing with pinmap.yaml).
@@ -50,14 +56,17 @@ named: [USB_DM, USB_DP, BOOT_BUTTON,
   DIGITAL_IN_3, STEPPER_1_STEP, STEPPER_1_DIR, I2S_LRCLK, I2S_DOUT,
   TMC_UART_TX, TMC_UART_RX, STEPPER_2_STEP, MOTOR_B_IN1, MOTOR_B_IN2,
   STATUS_LED, SD_CLK, SD_CMD, SD_D0, STEPPER_1_DIAG, STEPPER_2_DIAG,
-  MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR]
+  MOTOR_A_IN1, MOTOR_A_IN2, EXPANSION_1, EXPANSION_2, STEPPER_2_DIR, PCA_OE]
 
 nets:
   # --- USB ------------------------------------------------------------
-  VBUS:        [J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, U_ESD.VBUS, D_VBUS.A]
-  +5V:         [D_VBUS.K]
-  USB_DM:      [J_USB.D-, J_USB.D-, U_ESD.I/O1, U_ESD.I/O1, MCU.USB_D-]
-  USB_DP:      [J_USB.D+, J_USB.D+, U_ESD.I/O2, U_ESD.I/O2, MCU.USB_D+]
+  VBUS:        [J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, J_USB.VBUS, U_ESD.VBUS, D_VBUS.A, C_VBUS.1]
+  USB_5V:      [D_VBUS.K, JP_USB.2]
+  +5V:         [JP_USB.1]
+  USB_DM_CONN: [J_USB.D-, J_USB.D-, U_ESD.I/O1, U_ESD.I/O1, R_USBM.1]
+  USB_DP_CONN: [J_USB.D+, J_USB.D+, U_ESD.I/O2, U_ESD.I/O2, R_USBP.1]
+  USB_DM:      [R_USBM.2, MCU.USB_D-, C_USBM.1]
+  USB_DP:      [R_USBP.2, MCU.USB_D+, C_USBP.1]
   CC1:         [J_USB.CC1, R_CC1.1]
   CC2:         [J_USB.CC2, R_CC2.1]
 
@@ -88,7 +97,7 @@ nets:
   STEPPER_2_STEP:   [MCU.IO21]
   MOTOR_B_IN1:      [MCU.IO35]
   MOTOR_B_IN2:      [MCU.IO36]
-  TP37:             [MCU.IO37, TP37.1]
+  PCA_OE:           [MCU.IO37, TP_OE.1]
   STATUS_LED:       [MCU.IO38]
   SD_CLK:           [MCU.IO39]
   SD_CMD:           [MCU.IO40]
@@ -105,4 +114,4 @@ nets:
   GND: [MCU.GND, MCU.GND, MCU.GND,
         J_USB.GND, J_USB.GND, J_USB.GND, J_USB.GND, J_USB.SHIELD,
         U_ESD.GND, R_CC1.2, R_CC2.2, C_EN.2, C_VDD1.2, C_VDD2.2,
-        SW_RST.2, SW_BOOT.2]
+        SW_RST.2, SW_BOOT.2, C_VBUS.2, C_USBM.2, C_USBP.2]

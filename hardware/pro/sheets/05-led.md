@@ -1,5 +1,8 @@
 # Sheet 05 — Addressable LED + status LED
 
+> **Revised 2026-09-16** (datasheet review; drawing steps in
+> `../schematic-changes-2026-09-16.md`): strip bulk `C_B1`/`C_B2` are **220 µF** (Rubycon `C88757`, 6.3 mm) instead of 1000 µF, and the shifter's used inputs get 10 k pulldowns (`R_PD1`–`R_PD4`; strip 1 clock's is `R_STRAP3` on sheet 08).
+
 **Everything needed to draw this sheet is in this file.** Fully sourced
 2026-09-04; **re-specced 2026-09-05 (final): both strip outputs are
 3- or 4-wire, through one octal level shifter; no mode jumpers
@@ -23,7 +26,10 @@ clock costs a GPIO and a shifter gate, and both were spent. Dropping
 the onboard IR receiver (a receiver inside a hidden enclosure can't see
 a remote — plug-in IR goes on a `DIGITAL_IN`) freed **GPIO 3**. GPIO 3
 is a strapping pin (JTAG select) but safe: it drives only a shifter
-input, and its internal pulldown holds the default at reset.
+input. **Correction 2026-09-08:** GPIO 3 has **no internal pull** — ESP32-S3 DS Table 3-1 lists it
+as *Floating*. It is safe because the JTAG-select strap only applies once the `JTAG_SEL_ENABLE`
+eFuse is burned; to make it deterministic anyway, **populate `R53`**, the DNP 10 k pad already on
+this net (sheet 08). See `../review-2026-09-08.md` §6.
 
 ## The level shifter — one octal part
 
@@ -71,7 +77,7 @@ wire (the diagram's LED1_5V etc. are segment names, not labels).
 - **330 Ω series on each data/clock line, placed AT THE CONNECTOR** —
   it damps reflections into the cable, so it belongs at the cable end,
   not the chip end. (220–470 Ω acceptable.)
-- **1000 µF bulk at each strip's power block** — hot-plug inrush for
+- **220 µF bulk at each strip's power block** (1000 µF until 2026-09-16 — 2 mF on +5V made the 5 V buck hiccup at start) — hot-plug inrush for
   the first pixel. Radial THT D10 (`C439782`). A general-purpose
   electrolytic is fine here — this is charge storage, not a switcher
   output; the true low-ESR NXA (`C165516`) is the alternate.
@@ -112,7 +118,7 @@ risk part: verify it in the JLC order UI before the first PCBA run.
 | U_LS | **SN74AHCT541DWR** SOIC-20W | **`C2682058`** — $0.66/1, $0.44/100 | octal shifter, genuine TI. |
 | C_LS | 100 nF | `C14663` Basic | at pin 20. |
 | R_S1, R_S1C, R_S2D, R_S2C, R_ST | 330 Ω ×5 | `C23138` Basic | series Rs at the connectors. |
-| C_B1, C_B2 | 1000 µF/16 V radial ×2 | **`C439782`** — $0.075, 22 k stock | THT D10×L13, 5 mm pitch. |
+| C_B1, C_B2 | **220 µF/16 V** radial ×2 | **`C88757`** Rubycon 16YXJ220M6.3X11 — $0.064 @100, 61 k stock | THT D6.3×L11, 2.5 mm pitch, 220 mΩ @100 kHz, 7000 h @105 °C. Was 1000 µF `C439782` until 2026-09-16. |
 | J_ST1A, J_ST1B, J_ST2A, J_ST2B | DG128-5.0-02P ×4 | `C711349` | 5V \| GND and DATA \| CLK per strip. |
 | D_ST | **WS2812B-MINI-X2** | **`C4154873`** — $0.13/1, $0.10/100 | onboard status pixel. |
 | C_ST | 100 nF | `C14663` Basic | at D_ST VDD. |

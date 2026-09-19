@@ -7,7 +7,9 @@
 #   GAIN_SLOT -> GND direct         = 12 dB (Table 8; zero parts)
 #   SD_MODE   -> +3V3 via 620 k     = (L+R)/2 mono (Table 5/6:
 #     RLARGE = 222.2*VDDIO-100 = 633 k at 3.3 V; safe window vs the
-#     internal 92-108 k pulldown and B0/B1 trip limits is 324-763 k,
+#     internal 92-108 k pulldown and B0/B1 trip limits is 440-763 k
+#     (lower bound corrected 2026-09-08: 324 k was wrong and would have
+#      allowed a 390 k substitution = Right-channel-only),
 #     so stocked 620 k sits mid-window. NEVER direct-tie: that selects
 #     Left only.)
 # Line-out KEPT (Colin, 2026-09-04): PCM5102A second DAC on the same
@@ -23,7 +25,9 @@
 # Three numbering schemes met here (datasheet contacts 1-4, import pads
 # 2-5, and an unnumbered PCB layout) — none connect on paper; geometry
 # arbitrates. Confirm with a meter at bring-up; wrong = silent channel.
-# No-connect flags: U_AMP pins 5,6,12,13; U_SD DAT1, DAT2.
+# No-connect flags: U_AMP pins 5,6,12,13. (U_SD DAT1/DAT2 are NOT no-connect
+# since 2026-09-16: Espressif requires 10 k pull-ups on all four DAT lines
+# "regardless of whether these lines are connected to the host".)
 
 sheet: 04-audio
 
@@ -49,6 +53,8 @@ parts:
   R_CMD:  {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "pull-ups to +3V3. CMD + DAT0 per pinmap, PLUS DAT3: ESP-IDF requires D3 held high in 1-bit mode or the card drops into SPI mode"}
   R_D0:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
   R_DAT3:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_DAT1:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "DAT1 pull-up (2026-09-16) — unused in 1-bit mode but Espressif requires it"}
+  R_DAT2:   {value: 10k,     lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "DAT2 pull-up (2026-09-16)"}
   C_SD1:  {value: 10uF/16V, lcsc: C95841, symbol: "Device:C", footprint: "Capacitor_SMD:C_0805_2012Metric", note: "cards pull sharp current spikes"}
   C_SD2:  {value: 100nF,   lcsc: C14663, symbol: "Device:C", footprint: *c0603}
   TP_CD:  {value: TP_CD,   lcsc: ~,      symbol: "Connector:TestPoint", footprint: "TestPoint:TestPoint_Pad_1.5x1.5mm",
@@ -76,7 +82,7 @@ parts:
 blocks:
   "I²S amp → speaker (mono mix, 12 dB)": [I2S_DOUT, I2S_BCLK, I2S_LRCLK, SDM, AMP_P, SPK_P, AMP_N, SPK_N]
   "Line-out DAC (PCM5102A) → 3.5 mm jack": [XSMT, CP_FLY_P, CP_FLY_M, VNEG_N, LDO_N, OUT_L, LINE_L, OUT_R, LINE_R]
-  "microSD — SDMMC 1-bit":               [SD_CLK, SD_CMD, SD_D0, SD_D3, CARD_DET]
+  "microSD — SDMMC 1-bit":               [SD_CLK, SD_CMD, SD_D0, SD_D1, SD_D2, SD_D3, CARD_DET]
 
 named: [I2S_BCLK, I2S_LRCLK, I2S_DOUT, SD_CLK, SD_CMD, SD_D0]
 
@@ -108,8 +114,10 @@ nets:
   SD_CMD:   ["U_SD.CMD(DI)", R_CMD.1]
   SD_D0:    ["U_SD.DAT0(D0)", R_D0.1]
   SD_D3:    ["U_SD.CDDAT3(CS)", R_DAT3.1]
+  SD_D1:    ["U_SD.DAT1(RSV)", R_DAT1.1]
+  SD_D2:    ["U_SD.DAT2(RSV)", R_DAT2.1]
   CARD_DET: [U_SD.CD, TP_CD.1]
-  +3V3:     [U_SD.VDD, C_SD1.1, C_SD2.1, R_CMD.2, R_D0.2, R_DAT3.2, R_SDM.2,
+  +3V3:     [U_SD.VDD, C_SD1.1, C_SD2.1, R_CMD.2, R_D0.2, R_DAT3.2, R_DAT1.2, R_DAT2.2, R_SDM.2,
              U_DAC.DVDD, U_DAC.AVDD, U_DAC.CPVDD, R_XSMT.2,
              C_DV1.1, C_DV2.1, C_AV1.1, C_AV2.1, C_CPV1.1, C_CPV2.1]
 

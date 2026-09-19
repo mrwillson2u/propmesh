@@ -1,6 +1,6 @@
 # 02-mcu-usb — wiring diagrams
 
-Generated from `02-mcu-usb.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. Open the `.html` next to this file in any browser to see it rendered.
+Generated from `02-mcu-usb.net.yaml` by `tools/checknet.py --mermaid`. Read each diagram left to right along the signal path. **Boxes are parts, rounded nodes are nets, the label on a line is the pin.** A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it. Open the `.html` next to this file in any browser to see it rendered.
 
 ## USB: connector → ESD → module
 
@@ -23,21 +23,39 @@ graph LR
   N_VBUS --"VBUS"--> P_U_ESD
   P_D_VBUS["<b>D_VBUS</b><br/>SS34"]:::part
   N_VBUS --"A"--> P_D_VBUS
+  P_C_VBUS["<b>C_VBUS</b><br/>100nF<br/><i>pin 2 → GND</i>"]:::part
+  N_VBUS --"1"--> P_C_VBUS
+  N_USB_5V(["USB_5V"]):::net
+  P_D_VBUS --"K"--> N_USB_5V
+  P_JP_USB["<b>JP_USB</b><br/>JP_USB"]:::part
+  N_USB_5V --"2"--> P_JP_USB
   N__5V(["+5V"]):::rail
-  P_D_VBUS --"K"--> N__5V
+  P_JP_USB --"1"--> N__5V
+  N_USB_DM_CONN(["USB_DM_CONN"]):::net
+  P_J_USB --"D-"--> N_USB_DM_CONN
+  P_J_USB --"D-"--> N_USB_DM_CONN
+  P_U_ESD --"I/O1"--> N_USB_DM_CONN
+  P_U_ESD --"I/O1"--> N_USB_DM_CONN
+  P_R_USBM["<b>R_USBM</b><br/>22R"]:::part
+  N_USB_DM_CONN --"1"--> P_R_USBM
+  N_USB_DP_CONN(["USB_DP_CONN"]):::net
+  P_J_USB --"D+"--> N_USB_DP_CONN
+  P_J_USB --"D+"--> N_USB_DP_CONN
+  P_U_ESD --"I/O2"--> N_USB_DP_CONN
+  P_U_ESD --"I/O2"--> N_USB_DP_CONN
+  P_R_USBP["<b>R_USBP</b><br/>22R"]:::part
+  N_USB_DP_CONN --"1"--> P_R_USBP
   N_USB_DM(["USB_DM"]):::net
-  P_J_USB --"D-"--> N_USB_DM
-  P_J_USB --"D-"--> N_USB_DM
-  P_U_ESD --"I/O1"--> N_USB_DM
-  P_U_ESD --"I/O1"--> N_USB_DM
+  P_R_USBM --"2"--> N_USB_DM
   P_MCU["<b>MCU</b><br/>ESP32-S3-WROOM-1U-N8R2<br/><i>pin GND → GND</i><br/><i>pin GND → GND</i><br/><i>pin GND → GND</i>"]:::part
   N_USB_DM --"USB_D-"--> P_MCU
+  P_C_USBM["<b>C_USBM</b><br/>DNP<br/><i>pin 2 → GND</i>"]:::dnp
+  N_USB_DM --"1"--> P_C_USBM
   N_USB_DP(["USB_DP"]):::net
-  P_J_USB --"D+"--> N_USB_DP
-  P_J_USB --"D+"--> N_USB_DP
-  P_U_ESD --"I/O2"--> N_USB_DP
-  P_U_ESD --"I/O2"--> N_USB_DP
+  P_R_USBP --"2"--> N_USB_DP
   P_MCU --"USB_D+"--> N_USB_DP
+  P_C_USBP["<b>C_USBP</b><br/>DNP<br/><i>pin 2 → GND</i>"]:::dnp
+  N_USB_DP --"1"--> P_C_USBP
   N_CC1(["CC1"]):::net
   P_J_USB --"CC1"--> N_CC1
   P_R_CC1["<b>R_CC1</b><br/>5.1k<br/><i>pin 2 → GND</i>"]:::part
@@ -50,10 +68,13 @@ graph LR
 
 | Net | connect every one of these |
 |---|---|
-| **VBUS** | `J_USB.VBUS`, `J_USB.VBUS`, `J_USB.VBUS`, `J_USB.VBUS`, `U_ESD.VBUS`, `D_VBUS.A` |
-| **+5V** | `D_VBUS.K` |
-| **USB_DM** | `J_USB.D-`, `J_USB.D-`, `U_ESD.I/O1`, `U_ESD.I/O1`, `MCU.USB_D-` |
-| **USB_DP** | `J_USB.D+`, `J_USB.D+`, `U_ESD.I/O2`, `U_ESD.I/O2`, `MCU.USB_D+` |
+| **VBUS** | `J_USB.VBUS`, `J_USB.VBUS`, `J_USB.VBUS`, `J_USB.VBUS`, `U_ESD.VBUS`, `D_VBUS.A`, `C_VBUS.1` |
+| **USB_5V** | `D_VBUS.K`, `JP_USB.2` |
+| **+5V** | `JP_USB.1` |
+| **USB_DM_CONN** | `J_USB.D-`, `J_USB.D-`, `U_ESD.I/O1`, `U_ESD.I/O1`, `R_USBM.1` |
+| **USB_DP_CONN** | `J_USB.D+`, `J_USB.D+`, `U_ESD.I/O2`, `U_ESD.I/O2`, `R_USBP.1` |
+| **USB_DM** | `R_USBM.2`, `MCU.USB_D-`, `C_USBM.1` |
+| **USB_DP** | `R_USBP.2`, `MCU.USB_D+`, `C_USBP.1` |
 | **CC1** | `J_USB.CC1`, `R_CC1.1` |
 | **CC2** | `J_USB.CC2`, `R_CC2.1` |
 
@@ -115,8 +136,8 @@ graph LR
   P_MCU --"IO1"--> N_ANALOG_IN_1
   N_ANALOG_IN_2(["ANALOG_IN_2"]):::net
   P_MCU --"IO2"--> N_ANALOG_IN_2
-  N_IR_RX(["IR_RX"]):::net
-  P_MCU --"IO3"--> N_IR_RX
+  N_LED_STRIP_1_CLK(["LED_STRIP_1_CLK"]):::net
+  P_MCU --"IO3"--> N_LED_STRIP_1_CLK
   N_LED_STRIP_1_DATA(["LED_STRIP_1_DATA"]):::net
   P_MCU --"IO4"--> N_LED_STRIP_1_DATA
   N_LED_STRIP_2_DATA(["LED_STRIP_2_DATA"]):::net
@@ -175,17 +196,17 @@ graph LR
   P_MCU --"IO46"--> N_EXPANSION_2
   N_STEPPER_2_DIR(["STEPPER_2_DIR"]):::net
   P_MCU --"IO47"--> N_STEPPER_2_DIR
-  N_TP37(["TP37"]):::net
-  P_MCU --"IO37"--> N_TP37
-  P_TP37["<b>TP37</b><br/>TP37"]:::part
-  N_TP37 --"1"--> P_TP37
+  N_PCA_OE(["PCA_OE"]):::net
+  P_MCU --"IO37"--> N_PCA_OE
+  P_TP_OE["<b>TP_OE</b><br/>PCA_OE"]:::part
+  N_PCA_OE --"1"--> P_TP_OE
 ```
 
 | Net | connect every one of these |
 |---|---|
 | **ANALOG_IN_1** | `MCU.IO1` |
 | **ANALOG_IN_2** | `MCU.IO2` |
-| **IR_RX** | `MCU.IO3` |
+| **LED_STRIP_1_CLK** | `MCU.IO3` |
 | **LED_STRIP_1_DATA** | `MCU.IO4` |
 | **LED_STRIP_2_DATA** | `MCU.IO5` |
 | **LED_STRIP_2_CLK** | `MCU.IO6` |
@@ -215,10 +236,10 @@ graph LR
 | **EXPANSION_1** | `MCU.IO45` |
 | **EXPANSION_2** | `MCU.IO46` |
 | **STEPPER_2_DIR** | `MCU.IO47` |
-| **TP37** | `MCU.IO37`, `TP37.1` |
+| **PCA_OE** | `MCU.IO37`, `TP_OE.1` |
 
 ## GND
 
 Every pin below goes to the GND symbol:
 
-`MCU.GND`, `MCU.GND`, `MCU.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.SHIELD`, `U_ESD.GND`, `R_CC1.2`, `R_CC2.2`, `C_EN.2`, `C_VDD1.2`, `C_VDD2.2`, `SW_RST.2`, `SW_BOOT.2`
+`MCU.GND`, `MCU.GND`, `MCU.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.GND`, `J_USB.SHIELD`, `U_ESD.GND`, `R_CC1.2`, `R_CC2.2`, `C_EN.2`, `C_VDD1.2`, `C_VDD2.2`, `SW_RST.2`, `SW_BOOT.2`, `C_VBUS.2`, `C_USBM.2`, `C_USBP.2`

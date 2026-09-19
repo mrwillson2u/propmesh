@@ -18,20 +18,20 @@ graph LR
   P_J_DI1 --"3"--> N_DI1_RAW
   P_J_PIR["<b>J_PIR</b><br/>PIR_HDR<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
   N_DI1_RAW --"3"--> P_J_PIR
-  P_D_C1["<b>D_C1</b><br/>BAT54S<br/><i>pin K → +3V3</i><br/><i>pin A → GND</i>"]:::part
-  N_DI1_RAW --"COM"--> P_D_C1
-  P_R_D1["<b>R_D1</b><br/>1k"]:::part
+  P_R_D1["<b>R_D1</b><br/>2.2k"]:::part
   N_DI1_RAW --"1"--> P_R_D1
   N_DIGITAL_IN_1(["DIGITAL_IN_1"]):::net
   P_R_D1 --"2"--> N_DIGITAL_IN_1
+  P_D_C1["<b>D_C1</b><br/>BAT54S<br/><i>pin A → GND</i><br/><i>pin K → +3V3</i>"]:::part
+  N_DIGITAL_IN_1 --"COM"--> P_D_C1
   P_R_P1["<b>R_P1</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
   N_DIGITAL_IN_1 --"1"--> P_R_P1
 ```
 
 | Net | connect every one of these |
 |---|---|
-| **DI1_RAW** | `J_DI1.3`, `J_PIR.3`, `D_C1.COM`, `R_D1.1` |
-| **DIGITAL_IN_1** | `R_D1.2`, `R_P1.1` |
+| **DI1_RAW** | `J_DI1.3`, `J_PIR.3`, `R_D1.1` |
+| **DIGITAL_IN_1** | `R_D1.2`, `D_C1.COM`, `R_P1.1` |
 
 ## Digital in 2
 
@@ -47,20 +47,20 @@ graph LR
   N_DI2_RAW(["DI2_RAW"]):::net
   P_J_DI2["<b>J_DI2</b><br/>DIG_IN<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
   P_J_DI2 --"3"--> N_DI2_RAW
-  P_D_C2["<b>D_C2</b><br/>BAT54S<br/><i>pin K → +3V3</i><br/><i>pin A → GND</i>"]:::part
-  N_DI2_RAW --"COM"--> P_D_C2
-  P_R_D2["<b>R_D2</b><br/>1k"]:::part
+  P_R_D2["<b>R_D2</b><br/>2.2k"]:::part
   N_DI2_RAW --"1"--> P_R_D2
   N_DIGITAL_IN_2(["DIGITAL_IN_2"]):::net
   P_R_D2 --"2"--> N_DIGITAL_IN_2
+  P_D_C2["<b>D_C2</b><br/>BAT54S<br/><i>pin A → GND</i><br/><i>pin K → +3V3</i>"]:::part
+  N_DIGITAL_IN_2 --"COM"--> P_D_C2
   P_R_P2["<b>R_P2</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
   N_DIGITAL_IN_2 --"1"--> P_R_P2
 ```
 
 | Net | connect every one of these |
 |---|---|
-| **DI2_RAW** | `J_DI2.3`, `D_C2.COM`, `R_D2.1` |
-| **DIGITAL_IN_2** | `R_D2.2`, `R_P2.1` |
+| **DI2_RAW** | `J_DI2.3`, `R_D2.1` |
+| **DIGITAL_IN_2** | `R_D2.2`, `D_C2.COM`, `R_P2.1` |
 
 ## Digital in 3
 
@@ -76,20 +76,20 @@ graph LR
   N_DI3_RAW(["DI3_RAW"]):::net
   P_J_DI3["<b>J_DI3</b><br/>DIG_IN<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
   P_J_DI3 --"3"--> N_DI3_RAW
-  P_D_C3["<b>D_C3</b><br/>BAT54S<br/><i>pin K → +3V3</i><br/><i>pin A → GND</i>"]:::part
-  N_DI3_RAW --"COM"--> P_D_C3
-  P_R_D3["<b>R_D3</b><br/>1k"]:::part
+  P_R_D3["<b>R_D3</b><br/>2.2k"]:::part
   N_DI3_RAW --"1"--> P_R_D3
   N_DIGITAL_IN_3(["DIGITAL_IN_3"]):::net
   P_R_D3 --"2"--> N_DIGITAL_IN_3
+  P_D_C3["<b>D_C3</b><br/>BAT54S<br/><i>pin A → GND</i><br/><i>pin K → +3V3</i>"]:::part
+  N_DIGITAL_IN_3 --"COM"--> P_D_C3
   P_R_P3["<b>R_P3</b><br/>10k<br/><i>pin 2 → +3V3</i>"]:::part
   N_DIGITAL_IN_3 --"1"--> P_R_P3
 ```
 
 | Net | connect every one of these |
 |---|---|
-| **DI3_RAW** | `J_DI3.3`, `D_C3.COM`, `R_D3.1` |
-| **DIGITAL_IN_3** | `R_D3.2`, `R_P3.1` |
+| **DI3_RAW** | `J_DI3.3`, `R_D3.1` |
+| **DIGITAL_IN_3** | `R_D3.2`, `D_C3.COM`, `R_P3.1` |
 
 ## Analog in 1
 
@@ -161,9 +161,9 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_I2C_SDA(["I2C_SDA"]):::net
-  P_J_QW["<b>J_QW</b><br/>QWIIC<br/><i>pin 2 → +3V3</i><br/><i>pin 1 → GND</i>"]:::part
+  P_J_QW["<b>J_QW</b><br/>QWIIC<br/><i>pin 1 → GND</i><br/><i>pin 2 → +3V3</i>"]:::part
   P_J_QW --"3"--> N_I2C_SDA
-  P_J_EXP["<b>J_EXP</b><br/>EXPANSION<br/><i>pin 2 → +5V</i><br/><i>pin 1 → +3V3</i><br/><i>pin 3 → GND</i><br/><i>pin 10 → GND</i>"]:::part
+  P_J_EXP["<b>J_EXP</b><br/>EXPANSION<br/><i>pin 2 → +5V</i><br/><i>pin 3 → GND</i><br/><i>pin 10 → GND</i><br/><i>pin 1 → +3V3</i>"]:::part
   N_I2C_SDA --"6"--> P_J_EXP
   N_I2C_SCL(["I2C_SCL"]):::net
   P_J_QW --"4"--> N_I2C_SCL

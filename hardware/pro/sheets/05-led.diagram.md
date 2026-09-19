@@ -14,25 +14,33 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_LED_STRIP_1_DATA(["LED_STRIP_1_DATA"]):::net
-  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin VCC → +5V</i><br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i>"]:::part
+  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i><br/><i>pin VCC → +5V</i>"]:::part
   P_U_LS --"A0"--> N_LED_STRIP_1_DATA
+  P_R_PD1["<b>R_PD1</b><br/>10k<br/><i>pin 2 → GND</i>"]:::part
+  N_LED_STRIP_1_DATA --"1"--> P_R_PD1
   N_LED_STRIP_1_CLK(["LED_STRIP_1_CLK"]):::net
   P_U_LS --"A1"--> N_LED_STRIP_1_CLK
   N_LED_STRIP_2_DATA(["LED_STRIP_2_DATA"]):::net
   P_U_LS --"A2"--> N_LED_STRIP_2_DATA
+  P_R_PD2["<b>R_PD2</b><br/>10k<br/><i>pin 2 → GND</i>"]:::part
+  N_LED_STRIP_2_DATA --"1"--> P_R_PD2
   N_LED_STRIP_2_CLK(["LED_STRIP_2_CLK"]):::net
   P_U_LS --"A3"--> N_LED_STRIP_2_CLK
+  P_R_PD3["<b>R_PD3</b><br/>10k<br/><i>pin 2 → GND</i>"]:::part
+  N_LED_STRIP_2_CLK --"1"--> P_R_PD3
   N_STATUS_LED(["STATUS_LED"]):::net
   P_U_LS --"A4"--> N_STATUS_LED
+  P_R_PD4["<b>R_PD4</b><br/>10k<br/><i>pin 2 → GND</i>"]:::part
+  N_STATUS_LED --"1"--> P_R_PD4
 ```
 
 | Net | connect every one of these |
 |---|---|
-| **LED_STRIP_1_DATA** | `U_LS.A0` |
+| **LED_STRIP_1_DATA** | `U_LS.A0`, `R_PD1.1` |
 | **LED_STRIP_1_CLK** | `U_LS.A1` |
-| **LED_STRIP_2_DATA** | `U_LS.A2` |
-| **LED_STRIP_2_CLK** | `U_LS.A3` |
-| **STATUS_LED** | `U_LS.A4` |
+| **LED_STRIP_2_DATA** | `U_LS.A2`, `R_PD2.1` |
+| **LED_STRIP_2_CLK** | `U_LS.A3`, `R_PD3.1` |
+| **STATUS_LED** | `U_LS.A4`, `R_PD4.1` |
 
 ## Strip 1 (3/4-wire)
 
@@ -46,7 +54,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_LED1_5V(["LED1_5V"]):::net
-  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin VCC → +5V</i><br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i>"]:::part
+  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i><br/><i>pin VCC → +5V</i>"]:::part
   P_U_LS --"Y0"--> N_LED1_5V
   P_R_S1["<b>R_S1</b><br/>330R"]:::part
   N_LED1_5V --"1"--> P_R_S1
@@ -82,7 +90,7 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_LED2_5V(["LED2_5V"]):::net
-  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin VCC → +5V</i><br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i>"]:::part
+  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i><br/><i>pin VCC → +5V</i>"]:::part
   P_U_LS --"Y2"--> N_LED2_5V
   P_R_S2D["<b>R_S2D</b><br/>330R"]:::part
   N_LED2_5V --"1"--> P_R_S2D
@@ -118,13 +126,13 @@ graph LR
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_ST_5V(["ST_5V"]):::net
-  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin VCC → +5V</i><br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i>"]:::part
+  P_U_LS["<b>U_LS</b><br/>SN74AHCT541<br/><i>pin GND → GND</i><br/><i>pin G1 → GND</i><br/><i>pin G2 → GND</i><br/><i>pin A5 → GND</i><br/><i>pin A6 → GND</i><br/><i>pin A7 → GND</i><br/><i>pin VCC → +5V</i>"]:::part
   P_U_LS --"Y4"--> N_ST_5V
   P_R_ST["<b>R_ST</b><br/>330R"]:::part
   N_ST_5V --"1"--> P_R_ST
   N_ST_DIN(["ST_DIN"]):::net
   P_R_ST --"2"--> N_ST_DIN
-  P_D_ST["<b>D_ST</b><br/>WS2812B-MINI<br/><i>pin 2 → +5V</i><br/><i>pin 4 → GND</i>"]:::part
+  P_D_ST["<b>D_ST</b><br/>WS2812B-MINI<br/><i>pin 4 → GND</i><br/><i>pin 2 → +5V</i>"]:::part
   N_ST_DIN --"1"--> P_D_ST
 ```
 
@@ -144,12 +152,12 @@ graph LR
   classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
-  P_C_LS["<b>C_LS</b><br/>100nF<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
-  P_C_B1["<b>C_B1</b><br/>1000uF/16V<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
-  P_C_B2["<b>C_B2</b><br/>1000uF/16V<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
-  P_J_ST1A["<b>J_ST1A</b><br/>LED1_PWR<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
-  P_J_ST2A["<b>J_ST2A</b><br/>LED2_PWR<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
-  P_C_ST["<b>C_ST</b><br/>100nF<br/><i>pin 1 → +5V</i><br/><i>pin 2 → GND</i>"]:::part
+  P_C_LS["<b>C_LS</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
+  P_C_B1["<b>C_B1</b><br/>220uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
+  P_C_B2["<b>C_B2</b><br/>220uF/16V<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
+  P_J_ST1A["<b>J_ST1A</b><br/>LED1_PWR<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
+  P_J_ST2A["<b>J_ST2A</b><br/>LED2_PWR<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
+  P_C_ST["<b>C_ST</b><br/>100nF<br/><i>pin 2 → GND</i><br/><i>pin 1 → +5V</i>"]:::part
 ```
 
 | Net | connect every one of these |
@@ -159,7 +167,7 @@ graph LR
 
 Every pin below goes to the GND symbol:
 
-`U_LS.GND`, `U_LS.G1`, `U_LS.G2`, `U_LS.A5`, `U_LS.A6`, `U_LS.A7`, `C_LS.2`, `J_ST1A.2`, `J_ST2A.2`, `C_B1.2`, `C_B2.2`, `D_ST.4`, `C_ST.2`
+`U_LS.GND`, `U_LS.G1`, `U_LS.G2`, `U_LS.A5`, `U_LS.A6`, `U_LS.A7`, `C_LS.2`, `J_ST1A.2`, `J_ST2A.2`, `C_B1.2`, `C_B2.2`, `D_ST.4`, `C_ST.2`, `R_PD1.2`, `R_PD2.2`, `R_PD3.2`, `R_PD4.2`
 
 ## +5V
 

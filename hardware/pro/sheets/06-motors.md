@@ -34,9 +34,45 @@ the UART bus — no vendor-specific routing. `TMC_UART_TX` reaches the
 bus through **1 kΩ** (half-duplex guard); `TMC_UART_RX` joins directly
 (the bus net carries that name).
 
-**MS1–MS3 → 3-pin straps** (+3V3 | pin | GND, shunt-selected): TMC2209
-UART addresses on MS1/MS2, A4988 microstepping on all three.
-**Silkscreen the TMC default positions.**
+**MS1–MS3 → 3-pin straps** (pin 1 = +3V3, pin 2 = the socket's MSx,
+pin 3 = GND; a shunt ties the middle pin to one end). **Which strap is
+which — they interleave by MS number, not by socket** (verified from
+the board 2026-09-08):
+
+| Strap | Net | Socket |
+|---|---|---|
+| `J29` | `S1_MS1` | 1 |
+| `J30` | `S2_MS1` | 2 |
+| `J31` | `S1_MS2` | 1 |
+| `J32` | `S2_MS2` | 2 |
+| `J33` | `S1_MS3` | 1 |
+| `J34` | `S2_MS3` | 2 |
+
+**What the three pins do** depends on the module in the socket:
+
+| Socket pin | TMC2209 (SilentStepStick / BTT) | A4988 / DRV8825 | MP6603 (DC mode) |
+|---|---|---|---|
+| MS1 | **AD0** — UART address bit 0 | microstep bit 1 | **M2** mode bit |
+| MS2 | **AD1** — UART address bit 1 | microstep bit 2 | **M1** mode bit |
+| MS3 | **SPREAD** — GND = stealthChop (silent), 3V3 = spreadCycle (more torque, audible) | microstep bit 3 | **IN_SEL** — GND = PWM/DC mode |
+
+**Default positions to silkscreen (decided 2026-09-08).** Both sockets
+share one UART line, so their addresses *must differ* — this is the
+whole reason MS1/MS2 are strapped rather than tied:
+
+| | `J29`/`J30` (MS1) | `J31`/`J32` (MS2) | `J33`/`J34` (MS3) |
+|---|---|---|---|
+| **Socket 1** | **GND** | **GND** | **GND** |
+| **Socket 2** | **3V3** | **GND** | **GND** |
+
+That is **UART address 0 for socket 1, address 1 for socket 2**, both in
+**stealthChop** — the quiet mode, for the same reason motor PWM is
+20–25 kHz (a whining motor telegraphs the scare). In standalone (no
+UART) those same positions give 1/8 microstep on socket 1 and 1/32 on
+socket 2; firmware sets microstepping over UART anyway.
+
+Silk beside each strap: `3V3` at pin 1, `GND` at pin 3, the net name,
+and a dot or `◄ DEF` at the default end from the table above.
 
 **DIAG is NOT in the 2×8** — vendors break it out in different places
 (BTT: extra top-edge pins). Each socket gets a **2-pin aux header**
@@ -114,5 +150,10 @@ say what a part *is*. The checker pairs the two by Value and prints both
 
 **Complete.** 32 parts, rollup (§2.4): **$6.89 @1, $4.75 @100** — the
 DRV8871s are two-thirds of it; genuine TI runs double the old estimate.
-Dual-mode note (spec §2.4): an MP6500-class module in the same socket
-gives 2 brushed channels — the pinout above is why it just works.
+Dual-mode note (spec §2.4, verified 2026-09-07 against the MP6603
+datasheet and Pololu's md51a drawing): a Pololu **MP6603** carrier in the
+same socket gives 2 brushed channels on the coil XH — channel B (2A/2B)
+bidirectional via locked-antiphase PWM on DIR, channel A (1A/1B) one
+direction via PWM on STEP, because our RST/SLP tie is the MP6603's
+SLEEP + channel-A direction. Straps for DC mode: MS1→3V3, MS2→GND,
+MS3→GND. The mapping table and the TMC-UART caveat are in the spec.

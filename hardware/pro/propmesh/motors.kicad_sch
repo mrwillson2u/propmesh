@@ -3399,7 +3399,7 @@
 		)
 		(uuid "faafe0dc-5b6e-403e-92b2-c2687743def3")
 	)
-	(label "MA_ILIM"
+	(label "MB_ILIM"
 		(at 182.88 102.87 0)
 		(effects
 			(font
@@ -8815,7 +8815,7 @@
 		(dnp no)
 		(uuid "b894b62b-7b77-4dd4-bb36-abdb77b8008b")
 		(property "Reference" "J28"
-			(at 263.906 92.964 0)
+			(at 263.906 92.964 90)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects

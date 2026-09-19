@@ -522,3 +522,12 @@ done is what makes room for them. Each is additive later; none blocks a working 
 Firmware and console: **MIT** (per README). Protocol spec and this doc:
 CC BY-SA 4.0. The schema file is MIT so third-party tools can generate
 bindings without thinking about it.
+
+**Socket DC mode (MP6603 carrier, verified 2026-09-07 — hardware-spec §2.4):**
+per-socket setting `stepper` | `dc`. In `dc`: EN inverter output → enabled
+(low at the socket); STEP GPIO = LEDC PWM for channel A (1A/1B), duty =
+1 − speed (low drives, high brakes), forward only; DIR GPIO = LEDC PWM
+for channel B (2A/2B), locked antiphase, 50 % = stop; the TMC UART line
+must idle high and firmware must not transact on it while an MP6603 is
+fitted (it is that chip's SLEEP pin). Duty ceiling from the user's
+stated motor voltage vs VMOT, as already planned.

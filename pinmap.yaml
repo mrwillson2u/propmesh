@@ -10,8 +10,9 @@ boards:
   pro:
     mcu: ESP32-S3-WROOM-1U-N8R2
     notes: >
-      35 of 36 module GPIO allocated; only GPIO 37 is spare — test
-      point. GPIO 45/46 broken out on the expansion header.
+      36 of 36 module GPIO allocated — no spare. GPIO 37 (the last
+      spare, a test point until 2026-09-16) is now PCA_OE, gating both
+      PCA9685s. GPIO 45/46 broken out on the expansion header.
       GPIO 33/34 DO NOT EXIST on WROOM-1 modules (any variant) —
       verified against Espressif DS v1.8, 2026-09-03. GPIO 35-37 are
       free on N8R2 (quad PSRAM) but go to the octal PSRAM on R8/R16V:
@@ -24,7 +25,7 @@ boards:
       BOOT_BUTTON:        {pin: 0,  dir: in,  note: "strapping"}
       ANALOG_IN_1:        {pin: 1,  dir: adc, note: "ADC1 — ADC2 unusable with WiFi"}
       ANALOG_IN_2:        {pin: 2,  dir: adc, note: "ADC1"}
-      LED_STRIP_1_CLK:    {pin: 3,  dir: out, note: "APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input, internal pulldown holds the default at reset"}
+      LED_STRIP_1_CLK:    {pin: 3,  dir: out, note: "APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input. NOTE 2026-09-08: GPIO3 has NO internal pull — ESP32-S3 DS Table 3-1 lists it as Floating. It is safe only because the JTAG-select strap applies solely once the JTAG_SEL_ENABLE eFuse is burned. Populate R53 (the DNP pad on this net) to make it deterministic. See hardware/pro/review-2026-09-08.md"}
       LED_STRIP_1_DATA:   {pin: 4,  dir: out, note: "RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode"}
       LED_STRIP_2_DATA:   {pin: 5,  dir: out, note: "RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode"}
       LED_STRIP_2_CLK:    {pin: 6,  dir: out, note: "APA102 CLK via the 74AHCT541; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06)"}
@@ -45,6 +46,7 @@ boards:
       STEPPER_2_STEP:     {pin: 21, dir: out, note: "LEDC-capable"}
       MOTOR_B_IN1:        {pin: 35, dir: out, note: "LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V"}
       MOTOR_B_IN2:        {pin: 36, dir: out, note: "LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1"}
+      PCA_OE:             {pin: 37, dir: out, note: "both PCA9685 ~OE, 10k pull-up to 3V3: all PCA outputs held LOW (FETs, relays off; steppers disabled) while the MCU is in reset. Init the PCAs, THEN drive LOW. N8R2 only (octal PSRAM on R8/R16V)"}
       STATUS_LED:         {pin: 38, dir: out, note: "WS2812B-mini @ 5V — data via buffer 4 of the 74AHCT541"}
       SD_CLK:             {pin: 39, dir: out, note: "SDMMC 1-bit"}
       SD_CMD:             {pin: 40, dir: bidir, note: "10k pull-up"}
@@ -57,29 +59,39 @@ boards:
       STEPPER_2_DIR:      {pin: 47, dir: out, note: "LEDC-capable"}
       MOTOR_A_IN2:        {pin: 48, dir: out, note: "LEDC 25 kHz"}
 
+    # Two PCA9685s since 2026-09-16 (datasheet review decision 3B): all 16
+    # channels of one chip share ONE prescaler, so servos at 50 Hz forced the
+    # DC dimming channels to 50 Hz flicker. Relays and stepper enable are
+    # full-on/full-off and don't care which chip they're on.
     pca9685:
-      addr: 0x40
-      channels:
-        SERVO_1: 0
-        SERVO_2: 1
-        SERVO_3: 2
-        SERVO_4: 3
-        SERVO_5: 4
-        SERVO_6: 5
-        LED_1:   6
-        LED_2:   7
-        LED_3:   8
-        LED_4:   9
-        LED_5:   10
-        LED_6:   11
-        RELAY_1: 12
-        RELAY_2: 13
-        RELAY_3: 14
-        # EN is active-low on all socketed drivers and PCA9685 powers up
-        # outputs-LOW, so the EN net goes through a 2N7002 inverter with
-        # pull-up: drivers default DISABLED, firmware drives ch 15 HIGH
-        # to enable. See hardware-spec §2.5.
-        STEPPER_ENABLE: 15
+      - id: SERVO           # U_PCA, sheet 03
+        addr: 0x40
+        pwm_hz: 50
+        channels:
+          SERVO_1: 0
+          SERVO_2: 1
+          SERVO_3: 2
+          SERVO_4: 3
+          SERVO_5: 4
+          SERVO_6: 5
+          RELAY_1: 12
+          RELAY_2: 13
+          RELAY_3: 14
+          # EN is active-low on all socketed drivers and PCA9685 powers up
+          # outputs-LOW, so the EN net goes through an AO3400A inverter with
+          # pull-up: drivers default DISABLED, firmware drives ch 15 HIGH
+          # to enable. See hardware-spec §2.5.
+          STEPPER_ENABLE: 15
+      - id: DIM             # U_PCA2, sheet 03
+        addr: 0x41
+        pwm_hz: 1000
+        channels:
+          LED_1: 0
+          LED_2: 1
+          LED_3: 2
+          LED_4: 3
+          LED_5: 4
+          LED_6: 5
 
   mini:
     mcu: ESP32-C3-MINI-1U-N4

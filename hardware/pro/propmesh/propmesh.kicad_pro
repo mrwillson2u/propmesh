@@ -43,11 +43,11 @@
           "height": 1.27,
           "width": 1.27
         },
-        "silk_line_width": 0.1,
+        "silk_line_width": 0.15,
         "silk_text_italic": false,
         "silk_text_size_h": 1.0,
         "silk_text_size_v": 1.0,
-        "silk_text_thickness": 0.1,
+        "silk_text_thickness": 0.15,
         "silk_text_upright": false,
         "zones": {
           "border_display_style": 2,
@@ -140,7 +140,7 @@
       },
       "rules": {
         "max_error": 0.005,
-        "min_clearance": 0.0,
+        "min_clearance": 0.2,
         "min_connection": 0.0,
         "min_copper_edge_clearance": 0.5,
         "min_groove_width": 0.0,
@@ -151,11 +151,11 @@
         "min_resolved_spokes": 2,
         "min_silk_clearance": 0.0,
         "min_text_height": 0.8,
-        "min_text_thickness": 0.08,
+        "min_text_thickness": 0.15,
         "min_through_hole_diameter": 0.3,
-        "min_track_width": 0.2,
+        "min_track_width": 0.25,
         "min_via_annular_width": 0.1,
-        "min_via_diameter": 0.5,
+        "min_via_diameter": 0.6,
         "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
@@ -506,11 +506,30 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": 2147483647,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.2,
+        "track_width": 0.25,
         "tuning_profile": "",
         "via_diameter": 0.6,
         "via_drill": 0.3,
         "wire_width": 6
+      },
+      {
+        "clearance": 0.3,
+        "name": "HighCurrent",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 0,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 3.0,
+        "tuning_profile": "",
+        "via_diameter": 0.8,
+        "via_drill": 0.4
+      },
+      {
+        "name": "Power",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": 1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 1.0,
+        "tuning_profile": ""
       }
     ],
     "meta": {
@@ -518,7 +537,56 @@
     },
     "net_colors": null,
     "netclass_assignments": null,
-    "netclass_patterns": []
+    "netclass_patterns": [
+      {
+        "netclass": "HighCurrent",
+        "pattern": "VIN_*"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "+5V"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "+3V3"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Motors/M?_OUT?"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Motors/S?_??"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Outputs/LED?_K"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Outputs/REL?_*"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Audio/SPK_?"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "Net-(U9-OUT?)"
+      },
+      {
+        "netclass": "HighCurrent",
+        "pattern": "/Power/VIN_BUCK"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Power/5V_BUCK"
+      },
+      {
+        "netclass": "Power",
+        "pattern": "/Power/3V3_BUCK"
+      }
+    ]
   },
   "pcbnew": {
     "last_paths": {
@@ -697,7 +765,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "R_S1-5,R_E2P1,R_A2B1,R_ST1,C_AN1-2,C_MA1-3,C_MB1-2,J_ST1A1,J_ST2A1,J_QW1,JP_M2,C_IR1,R_S2C1,R_D1-3,U_IR1,J_ST1B1,R_E1S1,#FLG1-5,R_P1-3,R_E2S1,K1-3,U_MB1,C_CPV1-2,R_IR1-2,J_DI1-6,U1-14,C_AV1-2,R_UTX1,J_S2R1,FB1-2,C_B1-2,C_SD1-8,R_S2D1,L1-2,C_LS1,U_MA1,Card1,J_ST2,CN1,JXH2,J_S1R1,D_C1-3,J_MB1,J_ST2B1-2,J_LED1-6,J1-26,J48-50,C_ST1,C_BS1-3,J_EXP1,XH1-2,J_S1L1,JP1-3,LED1,C_A1-2,R_ENP1,F1,D_ST1,R_E1P1,D1-17,R_G1,J_PIR1,J_MA1,C_DV1-2,J_S2L1,J_AN3,#PWR1-185,R_A1B1,C1-31,R_A1T1,R_A2T1,SW1-2,TP1-35,Q1-9,FB_P1,R1-44",
+    "used_designators": "R_A2B1,R_E2P1,R_S1-5,R_ST1,C_AN1-2,C_MA1-3,C_MB1-2,J_QW1,J_ST1A1,J_ST2A1,JP_M2,C_IR1,R_S2C1,U_IR1,J_ST1B1,R_E1S1,#FLG1-5,R_P1-3,R_E2S1,R_D1-3,U_MB1,K1-3,C_CPV1-2,R_IR1-2,J_DI1-6,U1-14,C_AV1-2,R_UTX1,J_S2R1,FB1-2,C_B1-2,C_SD1-8,R_S2D1,L1-2,C_LS1,U_MA1,Card1,J_ST2,CN1,JXH2,J_S1R1,D_C1-3,J_MB1,J_ST2B1-2,J_LED1-6,J1-26,J48-50,C_ST1,C_BS1-3,J_EXP1,XH1-2,J_S1L1,JP1-3,LED1,R_ENP1,C_A1-2,R_G1,D1-17,J_PIR1,F1,D_ST1,R_E1P1,J_AN3,C_DV1-2,J_S2L1,#PWR1-190,#PWR196-204,C1-31,C48-49,R_A1B1,Q1-9,SW1-2,R_A1T1,R_A2T1,J_MA1,TP1-35,FB_P1,R1-44,R54-61",
     "variants": []
   },
   "sheets": [

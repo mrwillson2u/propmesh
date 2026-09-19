@@ -134,7 +134,7 @@ datasheet cross-check:
 | Footprint | Pads | Status |
 |---|---|---|
 | `propmesh:IND-SMD_L11.5-W10.0` (L1, SMMS1050) | 2× SMD **4.10×4.10 mm at ±4.75** | ✅ **corrected 2026-09-03** — the LCSC import was 3.50×3.50 at ±5.18: pads 27 % undersized and pushed 0.43 mm too far apart (gap 6.86 vs 5.40). Now matches the datasheet exactly |
-| `propmesh:IND-SMD_L7.1-W6.6` (L2, SMMS0650) | 2× SMD 2.15×3.32 mm at ±2.91 | ⚠ **13 % undersized** — datasheet wants **2.35×3.50 at ±3.025**. Gap is right (3.67 vs 3.70); the shortfall is all on the outer toe |
+| `propmesh:IND-SMD_L7.1-W6.6` (L2, SMMS0650) | 2× SMD **2.35×3.50 mm at ±3.025** | ✅ **corrected — re-verified 2026-09-08**: the library now carries the datasheet pads exactly. (It was imported 13 % undersized at 2.15×3.32 at ±2.91; that warning is resolved, not outstanding.) |
 | `propmesh:01530008Z` (F1, Littelfuse MINI holder) | 2× THT Ø1.397 drill / 2.03 pad, staggered at (±1.73, ±3.81); Ø3.81 peg hole at centre | ✅ **verified** against the Littelfuse drawing — positions exact. One construction fix: the centre hole is a *plated* pad with zero annular ring; change its type to **NPTH, Mechanical**. See below |
 | `propmesh:CONN-TH_DG128-5.0-02P-14-00A-H` (J1) | 2× THT Ø1.50 drill / 2.30 pad at ±2.50 | ✅ **verified** against the DEGSON customer drawing: 5.00 mm pitch exact, drawing asks Ø1.40 and we have Ø1.50 (looser, fine for a 0.80 mm pin). Only the ring is thin — **enlarge pad to ≥2.8 mm in layout** (§2.6) |
 | `propmesh:DC-IN-TH_DC-044A-20A` (J2) | 3× slotted THT 1.0×2.2 drill / 1.6×3.0 pad; 2× housing-lug slots; Ø2.10 NPTH post hole | ✅ **verified 2026-09-03** against the HRO drawing: terminal spacings 5.30/3.20 and lug span exact; slots cut 1.0 mm wide vs the drawing's 0.6/0.8 (looser, fine for blade pins). Import arrived with the post hole as a plated pad — already fixed to NPTH in the library. **The Ø2.10 post hole is correct even though the drawing says "1.5":** the snap post is a 1.5×1.5 *square*, and a square peg needs a round hole ≥ its diagonal, 1.5×√2 = 2.12 — Ø2.10 is a light press fit on the corners, deliberate. Never drill a square post's flat width |
@@ -167,7 +167,7 @@ second source.
 
 | Ref | Value | Package | Note |
 |---|---|---|---|
-| L1 | **6.8 µH** | **Shun Xiang Nuo SMMS1050-6R8M — LCSC `C149542`** · 11.5×10 mm molded, **25 mΩ, 13 A Isat**, 8 A rms, $0.26, 1.6 k stock | chosen over the larger SMMS1350 (13.8×12.6, 18 mΩ): **59 mm² smaller, $0.20 cheaper**, and its 11.5×10 mm package is shared with the SMMS1040 series and the widely-cloned "1040" size class — far better substitution options. The 7 mΩ of extra DCR costs 0.06 W, negligible |
+| L1 | **6.8 µH** | **Shun Xiang Nuo SMMS1050-6R8M — LCSC `C149542`** · 11.5×10 mm molded, **20.6 mΩ typ / 28 mΩ max, 12 A Isat**, 8 A rms (catalog row corrected 2026-09-16; the 25 mΩ/13 A figures were the neighbouring row), $0.26, 1.6 k stock | chosen over the larger SMMS1350 (13.8×12.6, 18 mΩ): **59 mm² smaller, $0.20 cheaper**, and its 11.5×10 mm package is shared with the SMMS1040 series and the widely-cloned "1040" size class — far better substitution options. The 7 mΩ of extra DCR costs 0.06 W, negligible |
 | C1 in | **2× 10 µF / 100 V X7R** — **PSA FS32X106K101EGG, LCSC `C5156756`** | 1210 | resolved. **Three ratings hide behind "10 µF":** (a) **voltage ≥63 V, not 50 V** — the SMAJ33A clamps at ~53 V and motors share this rail, so kickback is routine; 100 V chosen for derating headroom, not for the rating itself. (b) **DC-bias derating** — a 10 µF X7R at 24 V bias gives ~half its nameplate on a 63 V part and appreciably more on a 100 V one, which is why **two** are specified. (c) **RMS ripple ≥ half the load** (≥1.5 A): the ceramics carry ~95 % of it, which is why the input cannot lean on the electrolytic alone. |
 | C_bulk | **100 µF / 63 V, 105 °C** electrolytic — **KNSCHA 189RV0028, LCSC `C7471890`** | SMD can, 8 × 10.5 mm | resolved. 63 V per the TVS-clamp logic above; **105 °C / 2000 h** → ~15 years at 45 °C ambient (life doubles per 10 °C below rating). Its **135 mA ripple rating looks low but is correct** — see below. $0.09, 19 k in stock |
 | C2 out | **2× 22 µF / 16 V X7R** — **Chinocera HGC1206R7226K160NSPJ, LCSC `C7472972`** | 1206 | resolved. Datasheet Table 1 specifies 2×22 µF. 16 V on a 5 V rail = 31 % bias, so expect ~55–70 % retention → **24–31 µF effective**, inside the datasheet's "22–68 µF is sufficient". Unlike C1 this rail sees no TVS clamp, so 16 V needs no uplift. $0.18, 105 k in stock. Same 1210/1206 **flex-crack layout note** as C1 applies |
@@ -785,3 +785,49 @@ cannot be satisfied here without changing the divider ratios.
 **21 distinct part numbers for 30 placements** — C2a/C2b/C_out share
 one, C1a/C1b share one, R_FB2/R_G share one (`C25803`), R_5V/R_3V3
 share one (`C23228`). C4 is a pad only.
+
+## ⚠ Add the `VIN_FUSED` label before routing (2026-09-08)
+
+The wire from **`F1` pin 2 to `Q7`'s tab (drain)** carries the full
+input current — up to 10 A with the big fuse option — but KiCad
+auto-named it `Net-(Q7-D)`. The HighCurrent net class matches `VIN_*`,
+so as it stands this segment would route at the **Default 0.25 mm**.
+
+**Steps (power sheet):**
+
+1. Hover the horizontal wire between the fuse and the FET — it runs
+   from **(68.58, 67.31) to (73.66, 67.31)**. Check the status bar at
+   the bottom of the window reads **`Net-(Q7-D)`** before going on;
+   that is the proof you are on the right wire.
+2. With the cursor still on that wire press **L** (Place → Add Label).
+3. In the dialog type **`VIN_FUSED`** and click **OK**.
+4. Click on the wire to drop the label. Save.
+5. **F8** in the board editor, then confirm the class took: Board Setup
+   → Design Rules → Net Classes → *Netclass Assignments*, click the
+   `VIN_*` row and check `VIN_FUSED` appears in the *Nets matching…*
+   panel on the right.
+
+Use a **local** label, not a global one: the net stays on this sheet.
+
+## `F1` fuse holder — verified 2026-09-08
+
+Asked whether the part is right, because the 3D model looks like a
+plain block with nowhere for a fuse. **The part is correct.** LCSC
+`C206907` is Littelfuse **01530008Z** — LCSC calls it "PCB MOUNT FUSE
+HOLDER FOR MINI STYLE BLADE FUSE", Littelfuse calls it the **MINI
+153-PC series 32 V PCB fuse holder**, 15 A, with a board-locking anchor
+and standoffs for board washing. It is a *holder*: the MINI blade fuse
+pushes into the slots on top and pulls out by hand, so the fuse itself
+never appears in the model.
+
+Dimensions agree. Littelfuse gives 7.6 × 17.3 × 12.9 mm; the footprint's
+fab body is 7.62 × 17.2 mm and the 3D model measures 7.62 × 17.20 mm.
+The two pins are staggered — pads at (−1.73, +3.81) and (+1.73, −3.81),
+7.62 mm apart along the body with a 3.46 mm sideways offset — which is
+what the model filename records as `P7.62-S3.45`. The centre hole is
+the non-plated board-lock anchor.
+
+The 3D model is a crude extrusion from the LCSC import: correctly
+sized, blade slots not modelled. Cosmetic only. Still on the bring-up
+list: **test-fit a real MINI fuse before populating**
+(`../review-2026-09-08.md` §10 item 1).

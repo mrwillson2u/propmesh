@@ -10,9 +10,10 @@ fix the doc, don't cross-reference.
 |---|---|---|
 | **WHY** — decisions, costs, schedule | `docs/hardware-spec.md` | you're questioning a choice or pricing something. Its BOM tables are **cost rollups, not orderable specs.** |
 | **WHAT** — every pin and net name | `pinmap.yaml` (repo root) | never during capture — each sheet file below already quotes its nets. Edit it only to *change* an assignment (then regenerate + update spec, same commit). |
-| **HOW (layout)** — placing and routing the board | **`layout.md`** | laying out the PCB: what sits next to what (by designator), trace widths, thermal, silk, the ⚠ list, and a KiCad PCB-editor primer. |
+| **HOW (layout)** — placing and routing the board | **`layout.md`** | laying out the PCB as one numbered procedure (Part A: Board Setup, outline, holes, every connector's Position X/Y, block regions, per-part placement tables, zones, routing, silk, DRC, export) with a "where you are" line at the top; Part B is the reference behind it. `tools/checksetup.py` verifies the setup steps from the saved files. |
 | **HOW** — drawing each schematic sheet | **`sheets/NN-*.md`** | drawing that sheet. Each is self-contained: parts, selection criteria, supporting passives, exact net names, a done-checklist. |
 | **PROCESS** — review, libraries, git | `CLAUDE.md` (review order), `hardware/README.md` (libraries, easyeda2kicad, what's committed) | reviewing, importing a part, committing. |
+| **AUDIT** — the last full review | **`review-2026-09-08.md`** | before routing, and before ordering. One pre-route audit of schematic + placement + every datasheet: what must be fixed first, what was verified correct, and what to check at bring-up. |
 
 **The standing rule:** anything learned during capture — a criteria
 gotcha, a stock problem, a changed value — goes into the relevant
@@ -80,7 +81,12 @@ re-run the cost cascade** — one number to sync, not thirty rows.
 | 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead). **IR receiver dropped 2026-09-05** (hidden board → plug-in on a DIGITAL_IN) | **☑ DONE 2026-09-06** — IR block deleted, checknet all green, ERC clean | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
 | 08 Test points | `sheets/08-testpoints.md` — 33 GPIO pads + 6 rail pads + DNP strap pad, spec §2.6 | **☑ DONE 2026-09-07** — labels generated from the yaml, checknet green, ERC clean | pads go beside each net's owner, silk = net name |
 
-**All eight sheets captured; ERC 0; board synced 239/239 footprints (2026-09-07).** Schematic work is done unless layout turns something up. Layout per `layout.md` — the ⚠ column above and its §9 are the layout to-do list.
+> **Superseded on 2026-09-08 by `review-2026-09-08.md`:** ERC is **not** 0 —
+> `C1` (the EN reset cap) came unwired in the uncommitted MCU-sheet edit, and
+> sheet 06 carries the label `MA_ILIM` twice so both DRV8871 ILIM pins share one
+> net. Both are blockers; the review lists them with everything else found.
+
+**All eight sheets captured; ERC 0; board synced 239/239 footprints; Board Setup, outline, origin, holes done and every part placed by `tools/placeboard.py` (2026-09-07, DRC clean for placement — `layout-placement.png`).** Schematic work is done unless layout turns something up. Layout per `layout.md` Part A — the ⚠ column above and its step A19 are the layout to-do list.
 
 ## Rules that apply to every sheet
 
@@ -221,3 +227,11 @@ re-run the cost cascade** — one number to sync, not thirty rows.
   reworkability more than area.
 - After every schematic session: **F8** (Update PCB from Schematic),
   save, commit.
+
+**`checknet.py` assertions** (each was added after a bug got past it):
+symbol pin numbers ⊆ footprint pad numbers (sheet 01's FET, 2026-09-06);
+per-unit diagram boxes for multi-unit symbols (2026-09-05); and
+**distinct spec nets must resolve to distinct schematic nets** — two
+spec nets collapsing into one means the schematic shorts them, and each
+still scores clean on its own (`MA_ILIM`/`MB_ILIM`, found by an external
+audit 2026-09-08, not by the checker).

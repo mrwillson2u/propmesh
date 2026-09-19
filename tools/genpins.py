@@ -24,6 +24,14 @@ def expand_pins(spec):
     return pins
 
 
+def pca_chips(board):
+    """pinmap allows one PCA9685 (a mapping) or several (a list with ids)."""
+    pca = board.get("pca9685")
+    if not pca:
+        return []
+    return pca if isinstance(pca, list) else [pca]
+
+
 def validate(name, board):
     """Catch the mistakes that cost an evening at bring-up."""
     errs = []
@@ -44,13 +52,23 @@ def validate(name, board):
             errs.append(f"{name}: {sig} is dir=adc but GPIO {pin} is not "
                         f"ADC-capable")
 
-    ch = {}
-    for sig, c in board.get("pca9685", {}).get("channels", {}).items():
-        if c in ch:
-            errs.append(f"{name}: PCA9685 ch {c} assigned to both {ch[c]} and {sig}")
-        if not 0 <= c <= 15:
-            errs.append(f"{name}: PCA9685 ch {c} out of range for {sig}")
-        ch[c] = sig
+    chips = pca_chips(board)
+    addrs, sigs = {}, {}
+    for chip in chips:
+        cid = chip.get("id", "PCA9685")
+        if chip["addr"] in addrs:
+            errs.append(f"{name}: PCA9685 address 0x{chip['addr']:02X} used by both {addrs[chip['addr']]} and {cid}")
+        addrs[chip["addr"]] = cid
+        ch = {}
+        for sig, c in chip.get("channels", {}).items():
+            if c in ch:
+                errs.append(f"{name}: PCA9685 {cid} ch {c} assigned to both {ch[c]} and {sig}")
+            if not 0 <= c <= 15:
+                errs.append(f"{name}: PCA9685 {cid} ch {c} out of range for {sig}")
+            if sig in sigs:
+                errs.append(f"{name}: signal {sig} on both {sigs[sig]} and {cid}")
+            ch[c] = sig
+            sigs[sig] = cid
 
     # STEP/DIR and motor inputs must be LEDC-capable outputs. On ESP32-S3/C3
     # every GPIO is, but this catches a signal that drifted onto an input-only
@@ -83,11 +101,23 @@ def render(name, board, consts):
         L.append(f"#define PIN_{sig:<{w}} {d['pin']}{note}")
 
     pca = board.get("pca9685")
-    if pca:
+    if isinstance(pca, dict):          # one chip: unchanged output
         L += ["", f"#define PCA9685_ADDR 0x{pca['addr']:02X}", ""]
         cw = max(len(s) for s in pca["channels"]) + 5
         for sig, c in sorted(pca["channels"].items(), key=lambda kv: kv[1]):
             L.append(f"#define PCA_{sig:<{cw}} {c}")
+    elif isinstance(pca, list):        # several chips: address + rate per chip, chip per signal
+        L += ["", f"#define PCA9685_COUNT {len(pca)}"]
+        for chip in pca:
+            L.append(f"#define PCA9685_{chip['id']}_ADDR 0x{chip['addr']:02X}")
+            if chip.get("pwm_hz"):
+                L.append(f"#define PCA9685_{chip['id']}_HZ   {chip['pwm_hz']}")
+        cw = max(len(s) for chip in pca for s in chip["channels"]) + 5
+        for chip in pca:
+            L += ["", f"// PCA9685_{chip['id']} (0x{chip['addr']:02X})"]
+            for sig, c in sorted(chip["channels"].items(), key=lambda kv: kv[1]):
+                L.append(f"#define PCA_{sig:<{cw}} {c}")
+                L.append(f"#define PCA_{sig + '_ADDR':<{cw}} PCA9685_{chip['id']}_ADDR")
 
     L += [""]
     for k, v in consts.items():

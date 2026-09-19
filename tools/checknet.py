@@ -330,6 +330,16 @@ def compare(parts, spec_nets, all_comps, sch_nets):
                  [(c, eff.get(c, "?"), p) for c, p in sch_nets[best] if (c, p) not in claimed]
         res[net] = {"closest": best, "score": score, "pins": pins, "extras": extras}
 
+    # MERGED NETS: two distinct spec nets that resolve to ONE schematic net mean the
+    # schematic shorts them — usually a duplicated label. Each spec net scores clean on
+    # its own (pins are claimed per location), so this needs its own assertion.
+    # Found by an external audit 2026-09-08: MA_ILIM/MB_ILIM, both DRV8871 ILIM pins tied.
+    by_sch = {}
+    for n, r in res.items():
+        if r["closest"] and r["score"] > 0:
+            by_sch.setdefault(r["closest"], []).append(n)
+    merged = [(sch, specs) for sch, specs in by_sch.items() if len(specs) > 1]
+
     absent = {r for r, c in assign.items() if not c}
     foreign = [c for c in comps if c not in assign.values() and comps[c]["value"] not in DNP_VALUES]
 
@@ -356,7 +366,7 @@ def compare(parts, spec_nets, all_comps, sch_nets):
         missing = sorted(comps[c]["pins"] - pads, key=lambda s: (len(s), s))
         if missing: nopad.append((r, c, comps[c]["footprint"], missing))
     return {"nets": res, "renamed": renamed, "absent": absent, "comps": comps, "foreign": foreign,
-            "sch": assign, "footprints": fps, "nopad": nopad}
+            "sch": assign, "footprints": fps, "nopad": nopad, "merged": merged}
 
 
 def tag(res, ref):
@@ -407,16 +417,22 @@ def report(parts, res):
     for r, c, fp, missing in res.get("nopad", []):
         out.append(f"✗ {tag(res, r):<12} symbol pins {missing} have NO PAD on {fp} — the part would be left "
                    f"unconnected on the board. Use a symbol whose pin NUMBERS match the footprint's pad numbers")
+    merged = res.get("merged", [])
+    for sch, specs in merged:
+        out.append(f"✗ SHORTED: spec nets {' and '.join(specs)} are ONE net in the schematic "
+                   f"({short(sch)}) — they must be separate. Usually a label typed twice; "
+                   f"rename all but one")
     bad = sum(1 for n, r in res["nets"].items() if not net_ok(n, r))
     nopad = res.get("nopad", [])
-    clean = not (bad or res["absent"] or res["renamed"] or fps or nopad)
+    clean = not (bad or res["absent"] or res["renamed"] or fps or nopad or merged)
     checked_fp = any(p.get("footprint") for p in parts.values())
     out.append("")
     out.append(("ALL NETS MATCH" + (", footprints OK" if checked_fp else "")) if clean
                else f"{bad} net(s) differ" + (f", {len(res['absent'])} part(s) missing" if res["absent"] else "")
                + (f", {len(res['renamed'])} Value(s) unset" if res["renamed"] else "")
                + (f", {len(fps)} footprint(s) wrong or missing" if fps else "")
-               + (f", {len(nopad)} part(s) whose symbol pins have NO PAD" if nopad else ""))
+               + (f", {len(nopad)} part(s) whose symbol pins have NO PAD" if nopad else "")
+               + (f", {len(merged)} pair(s) of spec nets SHORTED together" if merged else ""))
     return out, not clean
 
 

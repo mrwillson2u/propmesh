@@ -3604,16 +3604,6 @@
 	)
 	(wire
 		(pts
-			(xy 156.21 50.8) (xy 168.91 50.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6aa3a180-f1a4-474e-b53e-eae96462e021")
-	)
-	(wire
-		(pts
 			(xy 59.69 140.97) (xy 59.69 142.24)
 		)
 		(stroke
@@ -3634,7 +3624,7 @@
 	)
 	(wire
 		(pts
-			(xy 142.24 50.8) (xy 152.4 50.8)
+			(xy 142.24 50.8) (xy 168.91 50.8)
 		)
 		(stroke
 			(width 0)
@@ -3741,16 +3731,6 @@
 			(type default)
 		)
 		(uuid "a42686dc-a1e6-4af9-a752-322f3bf6a468")
-	)
-	(wire
-		(pts
-			(xy 152.4 50.8) (xy 156.21 50.8)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a53740b6-cc46-4c0b-8d0a-8df552d9fa9d")
 	)
 	(wire
 		(pts
@@ -3941,6 +3921,46 @@
 			(type default)
 		)
 		(uuid "fc34545a-c95e-40d0-8fa4-f6613341efc9")
+	)
+	(label "VIN_FUSED"
+		(at 68.58 67.31 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6fc0ed2b-6edc-4dd6-8572-ecb7673ef846")
+	)
+	(label "3V3_BUCK"
+		(at 74.93 142.24 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7fd1c4e9-bba6-4308-8f8a-fb7d2bba8820")
+	)
+	(label "5V_BUCK"
+		(at 232.41 53.34 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "ba7682d7-a531-455f-b312-97f7565d6440")
+	)
+	(label "VIN_BUCK"
+		(at 158.75 50.8 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "e084daf1-1082-460d-857e-c80cba2a6ae3")
 	)
 	(global_label "SW_5V"
 		(shape input)

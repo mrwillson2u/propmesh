@@ -9,7 +9,7 @@
 #define PIN_BOOT_BUTTON           0  // strapping
 #define PIN_ANALOG_IN_1           1  // ADC1 — ADC2 unusable with WiFi
 #define PIN_ANALOG_IN_2           2  // ADC1
-#define PIN_LED_STRIP_1_CLK       3  // APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input, internal pulldown holds the default at reset
+#define PIN_LED_STRIP_1_CLK       3  // APA102 CLK via the 74AHCT541 octal shifter; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06). Was IR_RX until 2026-09-05 — onboard IR is useless on a hidden board; a plug-in receiver goes on any DIGITAL_IN. Strapping (JTAG select): drives only a shifter input. NOTE 2026-09-08: GPIO3 has NO internal pull — ESP32-S3 DS Table 3-1 lists it as Floating. It is safe only because the JTAG-select strap applies solely once the JTAG_SEL_ENABLE eFuse is burned. Populate R53 (the DNP pad on this net) to make it deterministic. See hardware/pro/review-2026-09-08.md
 #define PIN_LED_STRIP_1_DATA      4  // RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode
 #define PIN_LED_STRIP_2_DATA      5  // RMT TX, via the 74AHCT541; APA102 DATA in 4-wire mode
 #define PIN_LED_STRIP_2_CLK       6  // APA102 CLK via the 74AHCT541; 3-/4-wire is a firmware setting (mode jumper dropped 2026-09-06)
@@ -30,6 +30,7 @@
 #define PIN_STEPPER_2_STEP        21  // LEDC-capable
 #define PIN_MOTOR_B_IN1           35  // LEDC 25 kHz. Moved from GPIO33 2026-09-03: 33/34 are NOT BONDED on any WROOM-1 (Espressif DS v1.8 pin table). 35 is free on N8R2, octal-PSRAM on R8/R16V
 #define PIN_MOTOR_B_IN2           36  // LEDC 25 kHz. Moved from GPIO34 — same finding as MOTOR_B_IN1
+#define PIN_PCA_OE                37  // both PCA9685 ~OE, 10k pull-up to 3V3: all PCA outputs held LOW (FETs, relays off; steppers disabled) while the MCU is in reset. Init the PCAs, THEN drive LOW. N8R2 only (octal PSRAM on R8/R16V)
 #define PIN_STATUS_LED            38  // WS2812B-mini @ 5V — data via buffer 4 of the 74AHCT541
 #define PIN_SD_CLK                39  // SDMMC 1-bit
 #define PIN_SD_CMD                40  // 10k pull-up
@@ -42,24 +43,47 @@
 #define PIN_STEPPER_2_DIR         47  // LEDC-capable
 #define PIN_MOTOR_A_IN2           48  // LEDC 25 kHz
 
-#define PCA9685_ADDR 0x40
+#define PCA9685_COUNT 2
+#define PCA9685_SERVO_ADDR 0x40
+#define PCA9685_SERVO_HZ   50
+#define PCA9685_DIM_ADDR 0x41
+#define PCA9685_DIM_HZ   1000
 
+// PCA9685_SERVO (0x40)
 #define PCA_SERVO_1             0
+#define PCA_SERVO_1_ADDR        PCA9685_SERVO_ADDR
 #define PCA_SERVO_2             1
+#define PCA_SERVO_2_ADDR        PCA9685_SERVO_ADDR
 #define PCA_SERVO_3             2
+#define PCA_SERVO_3_ADDR        PCA9685_SERVO_ADDR
 #define PCA_SERVO_4             3
+#define PCA_SERVO_4_ADDR        PCA9685_SERVO_ADDR
 #define PCA_SERVO_5             4
+#define PCA_SERVO_5_ADDR        PCA9685_SERVO_ADDR
 #define PCA_SERVO_6             5
-#define PCA_LED_1               6
-#define PCA_LED_2               7
-#define PCA_LED_3               8
-#define PCA_LED_4               9
-#define PCA_LED_5               10
-#define PCA_LED_6               11
+#define PCA_SERVO_6_ADDR        PCA9685_SERVO_ADDR
 #define PCA_RELAY_1             12
+#define PCA_RELAY_1_ADDR        PCA9685_SERVO_ADDR
 #define PCA_RELAY_2             13
+#define PCA_RELAY_2_ADDR        PCA9685_SERVO_ADDR
 #define PCA_RELAY_3             14
+#define PCA_RELAY_3_ADDR        PCA9685_SERVO_ADDR
 #define PCA_STEPPER_ENABLE      15
+#define PCA_STEPPER_ENABLE_ADDR PCA9685_SERVO_ADDR
+
+// PCA9685_DIM (0x41)
+#define PCA_LED_1               0
+#define PCA_LED_1_ADDR          PCA9685_DIM_ADDR
+#define PCA_LED_2               1
+#define PCA_LED_2_ADDR          PCA9685_DIM_ADDR
+#define PCA_LED_3               2
+#define PCA_LED_3_ADDR          PCA9685_DIM_ADDR
+#define PCA_LED_4               3
+#define PCA_LED_4_ADDR          PCA9685_DIM_ADDR
+#define PCA_LED_5               4
+#define PCA_LED_5_ADDR          PCA9685_DIM_ADDR
+#define PCA_LED_6               5
+#define PCA_LED_6_ADDR          PCA9685_DIM_ADDR
 
 #define MOTOR_PWM_HZ 25000
 #define SERVO_PWM_HZ 50

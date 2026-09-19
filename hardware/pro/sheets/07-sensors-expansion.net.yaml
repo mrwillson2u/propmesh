@@ -40,6 +40,7 @@ sheet: 07-sensors-expansion
 _fp: &fp
   r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
   c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+  r1206: &r1206 "Resistor_SMD:R_1206_3216Metric"
   xh3:   &xh3   "Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical"
   sot:   &sot   "Package_TO_SOT_SMD:SOT-23"
   hdr3:  &hdr3  "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
@@ -53,9 +54,9 @@ parts:
   D_C1:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot, note: "pin1->GND, pin2->+3V3, pin3->signal"}
   D_C2:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot}
   D_C3:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot}
-  R_D1:  {value: 1k,  lcsc: C21190, symbol: "Device:R", footprint: *r0603}
-  R_D2:  {value: 1k,  lcsc: C21190, symbol: "Device:R", footprint: *r0603}
-  R_D3:  {value: 1k,  lcsc: C21190, symbol: "Device:R", footprint: *r0603}
+  R_D1:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206, note: "2.2 k 1206 since 2026-09-16 (datasheet review decision 2A): a 24 V miswire is 9 mA / 0.19 W — inside a 1206 0.25 W rating. Was 1 k 0603 = 0.42 W"}
+  R_D2:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206}
+  R_D3:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206}
   R_P1:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "pull-up on the GPIO side"}
   R_P2:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
   R_P3:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
@@ -91,12 +92,12 @@ named: [DIGITAL_IN_1, DIGITAL_IN_2, DIGITAL_IN_3, ANALOG_IN_1, ANALOG_IN_2,
 
 nets:
   # --- digital inputs -------------------------------------------------
-  DI1_RAW: [J_DI1.3, J_PIR.3, D_C1.COM, R_D1.1]
-  DIGITAL_IN_1: [R_D1.2, R_P1.1]
-  DI2_RAW: [J_DI2.3, D_C2.COM, R_D2.1]
-  DIGITAL_IN_2: [R_D2.2, R_P2.1]
-  DI3_RAW: [J_DI3.3, D_C3.COM, R_D3.1]
-  DIGITAL_IN_3: [R_D3.2, R_P3.1]
+  DI1_RAW: [J_DI1.3, J_PIR.3, R_D1.1]                 # clamp NO LONGER here (2026-09-08)
+  DIGITAL_IN_1: [R_D1.2, D_C1.COM, R_P1.1]            # series R first, THEN the clamp
+  DI2_RAW: [J_DI2.3, R_D2.1]
+  DIGITAL_IN_2: [R_D2.2, D_C2.COM, R_P2.1]
+  DI3_RAW: [J_DI3.3, R_D3.1]
+  DIGITAL_IN_3: [R_D3.2, D_C3.COM, R_P3.1]
 
   # --- analog inputs --------------------------------------------------
   AN1_RAW: [J_AN1.3, R_A1T.1]

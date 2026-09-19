@@ -215,3 +215,24 @@ autosaves, and `fp-info-cache`.
 `.kicad_sch` is plain text, so schematics can be reviewed in-repo and
 checked against `pinmap.yaml` — name every net exactly as its pinmap
 signal to make that possible. Review order is in `../CLAUDE.md`.
+
+## 3D model origins — audited 2026-09-08
+
+Imported `.wrl` models carry their own origin, and KiCad applies
+`scale → rotate → offset` before placing them at the footprint origin.
+Every model in `propmesh.3dshapes` was measured (VRML bounding box ×
+2.54) against its footprint's fab outline. **KiCad's 3D Y axis is
+inverted relative to board Y** — a model centre of −0.70 matches a
+footprint centre of +0.70, which is why most of these look wrong until
+you account for it.
+
+Every model is correctly *sized*. Exactly one is misplaced:
+
+| Model | Verdict |
+|---|---|
+| `AUDIO-TH_XKB_PJ-320A` (`CN1`) | ❌ **misplaced ≈2.1 mm.** The model is drawn tall-and-narrow (6.10 × 14.20 mm) while the footprint is wide-and-short (14.40 × 6.10), so the footprint applies `rotate 0 0 90`. That rotation also swings the model's own −2.10 mm centre offset out of X and into Y. **Fix:** Footprint Properties → *3D Models* → **Offset X `-2.0`, Offset Y `+2.1`**; if it moves the wrong way, negate Y. Cosmetic — pads and courtyard are unaffected |
+| `TF-SMD_TF-01A`, `DC-IN-TH_DC-044A-20A`, `CONN-TH_DG128-5.0-02P/03P`, `CONN-TH_DG381S-3.5-02P`, `WIFIM-SMD_61P`, `FUSE-TH_L17.2-*`, and the remaining ten | ✅ within 0.9 mm once the Y inversion is applied |
+
+⚠ **`kicad-cli pcb render` silently omits some of these `.wrl` models**
+(`CN1` and `U10` render as bare pads headlessly), so the headless render
+is not a valid check for 3D placement. Use the GUI 3D viewer (Alt+3).

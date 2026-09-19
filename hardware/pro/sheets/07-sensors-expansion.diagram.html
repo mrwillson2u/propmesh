@@ -15,12 +15,12 @@
   P_J_DI1 --&quot;3&quot;--&gt; N_DI1_RAW
   P_J_PIR[&quot;&lt;b&gt;J_PIR&lt;/b&gt;&lt;br/&gt;PIR_HDR&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   N_DI1_RAW --&quot;3&quot;--&gt; P_J_PIR
-  P_D_C1[&quot;&lt;b&gt;D_C1&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&quot;]:::part
-  N_DI1_RAW --&quot;COM&quot;--&gt; P_D_C1
-  P_R_D1[&quot;&lt;b&gt;R_D1&lt;/b&gt;&lt;br/&gt;1k&quot;]:::part
+  P_R_D1[&quot;&lt;b&gt;R_D1&lt;/b&gt;&lt;br/&gt;2.2k&quot;]:::part
   N_DI1_RAW --&quot;1&quot;--&gt; P_R_D1
   N_DIGITAL_IN_1([&quot;DIGITAL_IN_1&quot;]):::net
   P_R_D1 --&quot;2&quot;--&gt; N_DIGITAL_IN_1
+  P_D_C1[&quot;&lt;b&gt;D_C1&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&quot;]:::part
+  N_DIGITAL_IN_1 --&quot;COM&quot;--&gt; P_D_C1
   P_R_P1[&quot;&lt;b&gt;R_P1&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
   N_DIGITAL_IN_1 --&quot;1&quot;--&gt; P_R_P1</pre>
 <h2>Digital in 2</h2><pre class='mermaid'>graph LR
@@ -34,12 +34,12 @@
   N_DI2_RAW([&quot;DI2_RAW&quot;]):::net
   P_J_DI2[&quot;&lt;b&gt;J_DI2&lt;/b&gt;&lt;br/&gt;DIG_IN&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   P_J_DI2 --&quot;3&quot;--&gt; N_DI2_RAW
-  P_D_C2[&quot;&lt;b&gt;D_C2&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&quot;]:::part
-  N_DI2_RAW --&quot;COM&quot;--&gt; P_D_C2
-  P_R_D2[&quot;&lt;b&gt;R_D2&lt;/b&gt;&lt;br/&gt;1k&quot;]:::part
+  P_R_D2[&quot;&lt;b&gt;R_D2&lt;/b&gt;&lt;br/&gt;2.2k&quot;]:::part
   N_DI2_RAW --&quot;1&quot;--&gt; P_R_D2
   N_DIGITAL_IN_2([&quot;DIGITAL_IN_2&quot;]):::net
   P_R_D2 --&quot;2&quot;--&gt; N_DIGITAL_IN_2
+  P_D_C2[&quot;&lt;b&gt;D_C2&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&quot;]:::part
+  N_DIGITAL_IN_2 --&quot;COM&quot;--&gt; P_D_C2
   P_R_P2[&quot;&lt;b&gt;R_P2&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
   N_DIGITAL_IN_2 --&quot;1&quot;--&gt; P_R_P2</pre>
 <h2>Digital in 3</h2><pre class='mermaid'>graph LR
@@ -53,12 +53,12 @@
   N_DI3_RAW([&quot;DI3_RAW&quot;]):::net
   P_J_DI3[&quot;&lt;b&gt;J_DI3&lt;/b&gt;&lt;br/&gt;DIG_IN&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
   P_J_DI3 --&quot;3&quot;--&gt; N_DI3_RAW
-  P_D_C3[&quot;&lt;b&gt;D_C3&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&quot;]:::part
-  N_DI3_RAW --&quot;COM&quot;--&gt; P_D_C3
-  P_R_D3[&quot;&lt;b&gt;R_D3&lt;/b&gt;&lt;br/&gt;1k&quot;]:::part
+  P_R_D3[&quot;&lt;b&gt;R_D3&lt;/b&gt;&lt;br/&gt;2.2k&quot;]:::part
   N_DI3_RAW --&quot;1&quot;--&gt; P_R_D3
   N_DIGITAL_IN_3([&quot;DIGITAL_IN_3&quot;]):::net
   P_R_D3 --&quot;2&quot;--&gt; N_DIGITAL_IN_3
+  P_D_C3[&quot;&lt;b&gt;D_C3&lt;/b&gt;&lt;br/&gt;BAT54S&lt;br/&gt;&lt;i&gt;pin A → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin K → +3V3&lt;/i&gt;&quot;]:::part
+  N_DIGITAL_IN_3 --&quot;COM&quot;--&gt; P_D_C3
   P_R_P3[&quot;&lt;b&gt;R_P3&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
   N_DIGITAL_IN_3 --&quot;1&quot;--&gt; P_R_P3</pre>
 <h2>Analog in 1</h2><pre class='mermaid'>graph LR
@@ -108,9 +108,9 @@
   classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
   classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
   N_I2C_SDA([&quot;I2C_SDA&quot;]):::net
-  P_J_QW[&quot;&lt;b&gt;J_QW&lt;/b&gt;&lt;br/&gt;QWIIC&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_J_QW[&quot;&lt;b&gt;J_QW&lt;/b&gt;&lt;br/&gt;QWIIC&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 2 → +3V3&lt;/i&gt;&quot;]:::part
   P_J_QW --&quot;3&quot;--&gt; N_I2C_SDA
-  P_J_EXP[&quot;&lt;b&gt;J_EXP&lt;/b&gt;&lt;br/&gt;EXPANSION&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 3 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 10 → GND&lt;/i&gt;&quot;]:::part
+  P_J_EXP[&quot;&lt;b&gt;J_EXP&lt;/b&gt;&lt;br/&gt;EXPANSION&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 3 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 10 → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
   N_I2C_SDA --&quot;6&quot;--&gt; P_J_EXP
   N_I2C_SCL([&quot;I2C_SCL&quot;]):::net
   P_J_QW --&quot;4&quot;--&gt; N_I2C_SCL

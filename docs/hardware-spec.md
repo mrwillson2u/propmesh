@@ -12,7 +12,7 @@ Two board variants sharing one firmware base and one mesh protocol.
 
 | Decision | Rationale |
 |---|---|
-| **PCA9685 for all slow outputs** | 16 ch of 12-bit PWM for 2 GPIO. Servos, dimmable LEDs, and relay drive all move off the MCU. |
+| **PCA9685 for all slow outputs** | 16 ch of 12-bit PWM for 2 GPIO. Servos, dimmable LEDs, and relay drive all move off the MCU. **Two chips since 2026-09-16**: all channels of one PCA9685 share a single PWM frequency, so servos at 50 Hz forced the DC dimming channels to flicker at 50 Hz — the six DC channels now run on a second PCA9685 (0x41) at 1 kHz for $1.84 and zero GPIO. Both output-enables on GPIO 37: outputs held off while the MCU is in reset. |
 | **I²S audio, not DFPlayer Mini** | Deterministic sub-ms trigger latency (DFPlayer is ~100 ms and variable). Single SD card. Software volume/crossfade. |
 | **No mains switching on board** | Dry-contact relays only, 30 V max. Removes creepage/clearance, isolation, and product-liability burden. Pair with a commercial IP-rated relay box for mains props. |
 | **74AHCT-family level shifter on WS2812** (one octal 74AHCT541 since 2026-09-05) | 3.3 V data into 5 V strips is marginal. This is the #1 cause of "my strip flickers randomly." |
@@ -37,7 +37,7 @@ Two board variants sharing one firmware base and one mesh protocol.
 |---|---|---|
 | Boot button | GPIO 0 | Strapping |
 | Analog in ×2 | GPIO 1, 2 | ADC1 only — ADC2 unusable with WiFi active |
-| LED strip 1 clock | GPIO 3 | APA102 CLK via the 74AHCT541 octal shifter — both strip outputs are 3- or 4-wire. Strapping (JTAG select): drives only a shifter input; internal pulldown holds the default at reset. *Was the IR receiver until 2026-09-05: a receiver inside a hidden enclosure can't see a remote — plug one into a `DIGITAL_IN` instead.* |
+| LED strip 1 clock | GPIO 3 | APA102 CLK via the 74AHCT541 octal shifter — both strip outputs are 3- or 4-wire. Strapping (JTAG select): drives only a shifter input. *Corrected 2026-09-08: GPIO 3 has no internal pull (DS Table 3-1 = Floating); it is safe because the strap applies only with the JTAG_SEL_ENABLE eFuse burned — populate `R53` to make it deterministic.* *Was the IR receiver until 2026-09-05: a receiver inside a hidden enclosure can't see a remote — plug one into a `DIGITAL_IN` instead.* |
 | WS2812 ch1 | GPIO 4 | RMT TX |
 | WS2812 ch2 / APA102 DATA | GPIO 5 | RMT TX |
 | LED strip 2 clock | GPIO 6 | APA102 CLK via the 74AHCT541; 3- vs 4-wire is a firmware setting |
@@ -61,7 +61,7 @@ Two board variants sharing one firmware base and one mesh protocol.
 
 > **Verify against your module variant.** GPIO 35–37 are available on the N8R2 (quad PSRAM) but are consumed by octal PSRAM on R8/R16 parts — and motor B lives on 35/36, so the module variant is load-bearing. (GPIO 33/34 do not exist on any WROOM-1 — Espressif DS v1.8, verified 2026-09-03.)
 
-**Used: 35 of 36 module GPIO.** The only spare is GPIO 37 — free on N8R2, consumed by octal PSRAM on R8/R16. Route it to a test point (TP37 on sheet 02). GPIO 45/46 are broken out on the expansion header — see §2.2.
+**Used: 36 of 36 module GPIO — no spare.** GPIO 37 (free on N8R2, consumed by octal PSRAM on R8/R16) was the spare until 2026-09-16; it is now `PCA_OE`, both PCA9685 output-enables with a 10 k pull-up. GPIO 45/46 are broken out on the expansion header — see §2.2.
 
 ### 2.2 Expansion header
 
@@ -406,15 +406,16 @@ parts alone.
 |---|---|---|
 | PCA9685PW `C2678753` + support | $1.86 | $2.90 |
 | Relays ×3 + ULN2003 + 3-pos terminals ×3 | $1.59 | $2.59 |
-| **6× DC switch/dim channels** (AO3400A + SS34 flyback + terminal, **VIN_PROT rail — 2 A/ch, 5 A total**) | $1.75 | $2.85 |
+| **6× DC switch/dim channels** (SI2356DS 40 V — AO3400A until 2026-09-16 — + SS34 flyback + terminal, **VIN_PROT rail — 2 A/ch, 5 A total**) | $1.75 | $2.85 |
 | Servo headers ×6 | $0.14 | $0.20 |
 | **Slow-outputs total** | **$5.46** | **$8.67** |
 
 > **LED-channel decision resolved 2026-09-04: all 6 channels kept**,
 > driven by discrete AO3400A FETs (Basic) — no feature trim. The
 > Darlington's ~1 V drop lost 20 % of a 5 V string; the FET loses
-> millivolts. AO3400A also replaces sheet 06's 2N7002 (one MOSFET
-> part number board-wide). Relay coil reality: 40 mA each (H-power
+> millivolts. AO3400A also replaces sheet 06's 2N7002. *(2026-09-16:
+> the six output FETs became 40 V Vishay SI2356DS — the input TVS
+> cannot protect a 30 V part — so two MOSFET part numbers now.)* Relay coil reality: 40 mA each (H-power
 > suffix), not the 70 mA once assumed. PCA9685 real price $1.84@100
 > vs the $0.85 guess — the old table's biggest miss.
 
@@ -449,7 +450,7 @@ parts alone.
 | Group | qty 100 | qty 1 |
 |---|---|---|
 | **SN74AHCT541DWR** `C2682058` octal shifter + decoupling | $0.45 | $0.67 |
-| Strip terminals: 4× DG128-02P (two per strip), 1000 µF ×2, 330 Ω ×5 | $0.89 | $1.24 |
+| Strip terminals: 4× DG128-02P (two per strip), 220 µF ×2 (1000 µF until 2026-09-16), 330 Ω ×5, 4 × 10 k input pulldowns | $0.89 | $1.24 |
 | Status pixel WS2812B-MINI-X2 `C4154873` + 100 nF (moved from Misc) | $0.10 | $0.13 |
 | **LED total** | **$1.44** | **$2.04** |
 
@@ -476,6 +477,8 @@ parts alone.
 | Group | qty 100 | qty 1 |
 |---|---|---|
 | 2× DRV8871 `C75864` + ILIM, decoupling, terminals | $3.68 | $5.55 |
+
+> **Datasheet-review changes 2026-09-16 add $3.53 per board at qty 100**: $1.49 for six 40 V SI2356DS output FETs replacing AO3400A, and $2.04 for the rest (second PCA9685 $1.84; USB link header, VBUS cap, 22 Ω pair, SD and shifter pull resistors, R53 fitted; 220 µF replacing 1000 µF and 2.2 k 1206 replacing 1 k 0603 net to a few cents). The per-sheet rollups above predate them. Detail: `hardware/pro/schematic-changes-2026-09-16.md`.
 | 2× stepper sockets (4× 1×8 female) + MS straps + shunts + DIAG aux | $0.83 | $1.05 |
 | JST-XH coils ×2, bulk electrolytics, EN inverter, UART R | $0.24 | $0.29 |
 | **Motor total** | **$4.75** | **$6.89** |
@@ -521,7 +524,53 @@ A bipolar stepper driver is two H-bridges. The socket's 1A/1B/2A/2B pins are tho
 - **STEP/DIR must be LEDC-capable.** GPIO 13/14 and 21/47 all are.
 - Firmware: per-socket `stepper` / `dc` mode setting, plus a duty-cycle ceiling derived from the user's stated motor voltage (a 12 V motor on the 24 V VMOT rail caps near 50%).
 
-> ⚠ **Verify at schematic capture.** StepStick control-side pinouts are not fully standardized — VMOT, GND, and the coil outputs are universal, but MS/UART/SPREAD pin assignments differ between A4988, DRV8825, TMC2208, TMC2209 (and between TMC2209 vendors). Check the MP6603, your specific TMC2209, and A4988 datasheets against the footprint before layout. Pololu describes the MP6603 as "very similar" to A4988, not identical.
+**Verified 2026-09-07 against the MP6603 datasheet (Rev 1.1, tables 1–3)
+and Pololu's carrier drawing (md51a).** The carrier's pins sit in the
+A4988 positions like this, and our socket (sheet 06) is wired for it:
+
+| Socket position (A4988 name) | MP6603 carrier pin | In PWM mode it is | On our board |
+|---|---|---|---|
+| EN | EN (nENBL) | **PWM_D** — enable/PWM for bridge C/D | `STEPPER_EN`, shared by both sockets via the inverter; **held low = enabled** |
+| MS1 | **M2** | mode bit | strap `J29` (socket 1) / `J30` (socket 2) → **3V3** for mode 3 |
+| MS2 | **M1** | mode bit | strap `J31` / `J32` → **GND** for mode 3 |
+| MS3 | **IN_SEL** | 0 = PWM (DC) mode | strap `J33` / `J34` → **GND** for DC, 3V3 (or open — carrier pulls it up) for stepper |
+| RST | ROSC | **PWM_A** — direction for bridge A/B | tied to SLP and the TMC UART net (`TMC_UART_RX`) |
+| SLP | SLEEP | sleep (low = sleep) | same net as above → **this net must stay high** |
+| STEP | STEP | **PWM_B** — enable/PWM for bridge A/B | `STEPPER_x_STEP` GPIO, per socket |
+| DIR | DIR | **PWM_C** — direction for bridge C/D | `STEPPER_x_DIR` GPIO, per socket |
+| VMOT, GND | same | | `VIN_PROT`, GND |
+| 2B, 2A, 1A, 1B | OUT_D, OUT_C, OUT_A, OUT_B | the two bridges | the 4-pin coil XH `J25`/`J27`: **pins 1B+1A = channel A, 2A+2B = channel B** |
+| VDD | FLT (nFAULT, 1.5 kΩ series) | fault output | our +3V3 pin — Pololu says tying it to logic supply is safe; no fault readback |
+| GND | GND | | |
+
+**What a socket gives in DC mode (M2=1, M1=0, IN_SEL=0 — "two
+full-bridges", datasheet Table 2/3):**
+
+- **Channel B (2A/2B, bridge C/D): bidirectional.** Direction on the
+  socket's own DIR GPIO; enable is the shared EN (held low). Speed
+  control is **locked-antiphase PWM on DIR** (50 % = stopped, 100 % =
+  full forward, 0 % = full reverse) — the only per-socket pin left.
+- **Channel A (1A/1B, bridge A/B): one direction only.** Its direction
+  pin is the RST/SLP net, which our socket ties together for the
+  TMC2209's UART; pulling it low would put the MP6603 to sleep, so it
+  stays high (= forward) and speed is **PWM on the socket's STEP
+  GPIO** (low = drive, high = brake — Table 2). Fine for fans, pumps,
+  one-way conveyors; a lid that must open *and* close goes on channel B
+  or on a DRV8871 channel.
+- Current limit: the carrier's trimpot (ISET) still applies in this
+  mode (Table 1, "current limit: yes"). Logic is 3.3 V-compatible; the
+  carrier has its own regulator.
+- **Caveat when mixing one TMC2209 and one MP6603:** TMC UART traffic
+  toggles the shared RST/SLP net, which is the MP6603's SLEEP and
+  channel-A direction — the DC motor glitches and the chip naps for
+  ~500 µs per frame. Two MP6603s, or a TMC2209 configured once at boot
+  and left alone, avoid it. A v0.2 idea (not v0.1): a solder jumper per
+  socket to split RST from SLP, which would give channel A its own
+  direction pin.
+
+So "convertible" applies to the **two sockets only**. The two DRV8871
+channels (`J23`, `J28`) are fixed 2-wire brushed DC outputs and are not
+part of it. Counts in the table above stand.
 
 **StallGuard is the feature that earns its keep here.** Sensorless homing means no limit switches and no extra cable runs to something staked in the dirt in the rain.
 
@@ -569,7 +618,7 @@ single source** (sourced 2026-09-04, IR dropped 2026-09-05). Rollup:
 
 Board-level requirements that are easy to lose between spec and schematic:
 
-- [ ] **Stepper EN inverted** — AO3400A + pull-up (consolidated with the LED-channel FETs, one MOSFET part number board-wide) on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
+- [ ] **Stepper EN inverted** — AO3400A + pull-up (the output channels moved to 40 V SI2356DS on 2026-09-16; this inverter's drain only sees 3.3 V, so it stays AO3400A) on the shared EN net. PCA9685 powers up outputs-LOW and EN is active-low on every socketed driver; uninverted, both sockets energize coils from power-on until I²C init (and during any firmware crash).
 - [ ] **1 kΩ series on GPIO 43** (STEPPER_2_DIAG) — ROM boot log drives U0TXD at every reset against the TMC's push-pull DIAG output.
 - [ ] **Status LED data through a 74AHCT541 buffer** — it's a 5 V WS2812 (V_IH 3.25 V). Five of eight buffers used; unused inputs A5–A7 tied to GND, spare outputs Y5–Y7 left open as 5 V-level bodge points.
 - [ ] **10 kΩ pull-ups on SD CMD and D0.**

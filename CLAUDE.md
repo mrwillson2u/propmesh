@@ -26,7 +26,7 @@ original reasoning no longer holds rather than re-deriving it.
 |---|---|
 | **No mains switching on board** | Dry-contact relays, 30 V max. Avoids creepage/clearance, isolation, and product liability. Mains props pair with a commercial IP-rated relay box. |
 | **I²S audio, not DFPlayer Mini** | DFPlayer trigger latency is ~100 ms and variable; mesh sync is the whole point. Also avoids two SD cards on one board. |
-| **PCA9685 for slow outputs** | 16 ch of 12-bit PWM for 2 GPIO. |
+| **PCA9685 for slow outputs** (two chips since 2026-09-16) | 16 ch of 12-bit PWM for 2 GPIO. One chip = one PWM frequency, so servos (50 Hz) and DC dimming (1 kHz) are on separate PCA9685s at 0x40 / 0x41; both OE on GPIO 37. |
 | **Motor PWM on ESP32 LEDC at 20–25 kHz, never PCA9685** | PCA9685 caps near 1.6 kHz — audible. A whining motor telegraphs the scare. |
 | **Socketed stepper drivers** | TMC2209 recommended. Driver never enters the BOM; users already own spares; blown driver is a swap. |
 | **Sockets are dual-mode** | MS1/2/3 jumpers allow an MP6603-class module for 2 brushed DC channels per socket. |
@@ -41,8 +41,9 @@ original reasoning no longer holds rather than re-deriving it.
 - [x] ~~GPIO 33/34 free on the exact WROOM-1 variant~~ **RESOLVED 2026-09-03, and the premise was wrong: GPIO 33/34 are not bonded out on ANY WROOM-1** (Espressif DS v1.8 pin table). MOTOR_B moved to GPIO 35/36 — which ARE the octal-PSRAM casualties, so the N8R2 (quad) variant is still load-bearing. `C3013944` verified in stock.
 - [x] **WS2812B-mini and TSOP38238 "Standard Only" flags** — RESOLVED 2026-09-05: the TSOP left the Pro BOM entirely (onboard IR is useless on a hidden board — plug-in receiver on a `DIGITAL_IN` instead; GPIO 3 became strip 1's clock). Only the status pixel remains (WS2812B-MINI-X2 `C4154873`); the parts API doesn't expose the flag and v0.1 is hand-built, so the residual check is **look in the JLCPCB order UI before the first PCBA run** (hardware-spec §7 note). Fallback if flagged: THT 5 mm WS2812.
 - [x] ~~StepStick control-side pinouts cross-referenced~~ **RESOLVED 2026-09-04** from the Pololu md09b drawing: rows 12.70 mm apart; RST/SLP hardwired together = both A4988-legal AND the TMC2209 PDN_UART bus; MS1-3 on 3-pin straps; DIAG via per-socket aux headers + jumper wire (vendor positions differ). ILIM: ITRIP=64000/R per TI DS, 30 k = 2.13 A. See sheets/06-motors.md.
+- [ ] **Datasheet-review changes (2026-09-16) — specs, pinmap and headers DONE; schematic drawing pending:** `hardware/pro/schematic-changes-2026-09-16.md` is the one procedure (decisions 1A, 2A, 3B, OE on GPIO 37, SD/USB/shifter fixes). Colin sets two Board Setup cells (`/Power/VIN_FUSED` row; Default DP width/gap 0.3/0.2 — `checksetup.py`). Decision 4 answered 2026-09-16: output FETs `Q1`–`Q6` → 40 V Vishay SI2356DS (`C74127`).
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.
-- [ ] **Mounting-hole pattern fixed** so the printable **mounting plate** stays stable across revisions — the plate is what adapts the board to the Multilink RNI-1500 (CG-1500 successor, the community's standard box) and the Bud NBF-32022; enclosure plan decided 2026-09-06, hardware-spec §2.3.
+- [x] ~~Mounting-hole pattern fixed~~ **FROZEN 2026-09-07: 4 × M3 3.2 mm unplated holes, centres 5 mm in from each corner of the 130 × 100 board → 120 × 90 mm pattern** (`hardware/pro/layout.md` step A3 and B1; `tools/checksetup.py` verifies positions). The printable **mounting plate** adapts the board to the Multilink RNI-1500 and Bud NBF-32022 (hardware-spec §2.3); any revision that moves a hole must say why here.
 
 ## Schedule (revised 2026-09-01)
 
