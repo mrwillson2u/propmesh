@@ -1,0 +1,300 @@
+sheet: 06-outputs
+title: Servos, dimmers, relay and pixels
+parts:
+  J6:
+    symbol: Connector_Generic:Conn_01x03
+    value: SERVO
+    footprint: Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical
+    lcsc: C124376
+    dnp: false
+    note: ''
+    pins:
+      '1': GND
+      '2': 5V_EFFECTS
+      '3': SERVO_1_OUT
+  R32:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_1_5V
+      '2': SERVO_1_OUT
+  R35:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_1_OUT
+      '2': GND
+  J7:
+    symbol: Connector_Generic:Conn_01x03
+    value: SERVO
+    footprint: Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical
+    lcsc: C124376
+    dnp: false
+    note: ''
+    pins:
+      '1': GND
+      '2': 5V_EFFECTS
+      '3': SERVO_2_OUT
+  R33:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_2_5V
+      '2': SERVO_2_OUT
+  R36:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_2_OUT
+      '2': GND
+  J8:
+    symbol: Connector_Generic:Conn_01x03
+    value: SERVO
+    footprint: Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical
+    lcsc: C124376
+    dnp: false
+    note: ''
+    pins:
+      '1': GND
+      '2': 5V_EFFECTS
+      '3': SERVO_3_OUT
+  R34:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_3_5V
+      '2': SERVO_3_OUT
+  R37:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_3_OUT
+      '2': GND
+  Q1:
+    symbol: Transistor_FET:AO3400A
+    value: SI2356DS
+    footprint: Package_TO_SOT_SMD:SOT-23
+    lcsc: C74127
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE1
+      '2': GND
+      '3': DIM_SW1
+  R38:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_1
+      '2': DIM_GATE1
+  R42:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE1
+      '2': GND
+  D3:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW1
+  J9:
+    symbol: Connector:Screw_Terminal_01x02
+    value: LED_OUT
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW1
+  Q2:
+    symbol: Transistor_FET:AO3400A
+    value: SI2356DS
+    footprint: Package_TO_SOT_SMD:SOT-23
+    lcsc: C74127
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE2
+      '2': GND
+      '3': DIM_SW2
+  R39:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_2
+      '2': DIM_GATE2
+  R43:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE2
+      '2': GND
+  D4:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW2
+  J10:
+    symbol: Connector:Screw_Terminal_01x02
+    value: LED_OUT
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW2
+  Q3:
+    symbol: Transistor_FET:AO3400A
+    value: SI2356DS
+    footprint: Package_TO_SOT_SMD:SOT-23
+    lcsc: C74127
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE3
+      '2': GND
+      '3': DIM_SW3
+  R40:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_3
+      '2': DIM_GATE3
+  R44:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE3
+      '2': GND
+  D5:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW3
+  J11:
+    symbol: Connector:Screw_Terminal_01x02
+    value: LED_OUT
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW3
+  Q4:
+    symbol: Transistor_FET:AO3400A
+    value: SI2356DS
+    footprint: Package_TO_SOT_SMD:SOT-23
+    lcsc: C74127
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE4
+      '2': GND
+      '3': DIM_SW4
+  R41:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_4
+      '2': DIM_GATE4
+  R45:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': DIM_GATE4
+      '2': GND
+  D6:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW4
+  J12:
+    symbol: Connector:Screw_Terminal_01x02
+    value: LED_OUT
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': DIM_SW4

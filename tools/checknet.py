@@ -234,10 +234,16 @@ def compare(parts, spec_nets, all_comps, sch_nets):
         return next((n for n in sch_nets if n.endswith("/" + net)), None)
 
     # value-level guess of which schematic net each spec net is (assignment-independent)
-    sch_counters = {n: Counter((eff.get(r, "?"), p) for r, p in mem) for n, mem in sch_nets.items()}
+    # A two-terminal part with no orientation (R, C, L…) can be drawn either way up, so in
+    # this vote its pin number means nothing: count it as (value, "*"). Otherwise three 10 k
+    # pull-ups drawn upside-down all vote their +3V3 end for the signal net and tie with
+    # the one chip pin that knows the answer (sheet 04 DAT1/DAT2/XSMT, 2026-10-02).
+    def sym_sch(r): return comps.get(r, {}).get("lib", "").lower() in SYMMETRIC
+    def sym_spec(r): return parts[r]["symbol"].lower() in SYMMETRIC
+    sch_counters = {n: Counter((eff.get(r, "?"), "*" if sym_sch(r) else p) for r, p in mem) for n, mem in sch_nets.items()}
     vclosest = {}
     for net, want in spec_nets.items():
-        wc = Counter((parts[r]["value"], p) for r, p in want if not parts[r].get("dnp"))
+        wc = Counter((parts[r]["value"], "*" if sym_spec(r) else p) for r, p in want if not parts[r].get("dnp"))
         best, score = None, -1
         for name, c in sch_counters.items():
             s = sum((wc & c).values())

@@ -12,8 +12,8 @@ and **Position Y** fields of the *Footprint Properties* dialog
 corner instead; `tools/checksetup.py` prints where the board corner
 currently is on the page.)
 
-> ### ▶ Where you are: **`finish-v0.1.md` — the weekend list to order v0.1** (schematic changes → Board Setup cells → placement → pours and critical routes → remaining routing → DRC → silk → order package).
-> (updated 2026-09-19: sheet 03 half-drawn, sheets 02/04/05/07/08 pending; git blocked by the Xcode licence)
+> ### ▶ Where you are: **board cleaned up, parity 0** (Fri 2 Oct). Left before routing: 8 courtyard overlaps in the sensor corner (list in `finish-v0.1.md`), then Claude re-places the test points. 3 terminal-gang overlaps are accepted by design.
+> (updated 2026-10-02 23:40)
 
 **The two checkers**, run from the repo root, after **Cmd+S** in KiCad
 (KiCad writes the files only on save):
@@ -61,17 +61,20 @@ tree on the left.
 3. **Design Rules → Constraints.** Section *Copper*: **Minimum
    clearance** `0.2`, **Minimum track width** `0.25`, **Minimum via
    diameter** `0.6`, **Copper to hole clearance** `0.25`, **Copper to
-   edge clearance** `0.5`. Section *Holes*: **Minimum drill size** `0.3`,
+   edge clearance** `0.5`. Section *Holes*: **Minimum drill size** `0.2` (0.3 until 2026-10-02 — the ESP32 module's own footprint has twelve 0.2 mm thermal vias in 0.6 mm pads, standard cost at JLCPCB when the pad is ≥ 0.45 mm; routing vias stay 0.3 from the net classes),
    **Hole to hole clearance** `0.25`. Section *Silk*: **Minimum text
    thickness** `0.15` (JLC's silk printer needs ≈0.15 mm strokes),
    **Minimum text height** `0.8`.
 4. **Design Rules → Net Classes.** Top table *Netclasses*:
 
-   | Row | **Clearance** | **Track Width** | **Via Size** | **Via Hole** | other cells |
-   |---|---|---|---|---|---|
-   | Default | 0.2 | **0.25** (KiCad pre-fills 0.2 — below the constraint above) | 0.6 | 0.3 | as pre-filled |
-   | Power | empty | 1.0 | empty | empty | empty |
-   | HighCurrent | 0.3 | 3.0 | 0.8 | 0.4 | empty |
+   | Row | **Clearance** | **Track Width** | **Via Size** | **Via Hole** | **DP Width** | **DP Gap** | other cells |
+   |---|---|---|---|---|---|---|---|
+   | Default | 0.2 | **0.25** (KiCad pre-fills 0.2 — below the constraint above) | 0.6 | 0.3 | **0.3** (pre-fills 0.2) | **0.2** (pre-fills 0.25) | as pre-filled |
+   | Power | empty | 1.0 | empty | empty | empty | empty | empty |
+   | HighCurrent | 0.3 | 3.0 | 0.8 | 0.4 | empty | empty | empty |
+
+   DP Width / DP Gap set the **USB pair** (`USB_DP`/`USB_DM`): 0.3 mm
+   tracks, 0.2 mm apart ≈ 90 Ω on this stackup (added 2026-09-16).
 
    Bottom table *Netclass Assignments*, one row per line, column
    **Pattern** then column **Net Class**. Patterns match the *full* net
@@ -82,6 +85,7 @@ tree on the left.
    |---|---|---|
    | `VIN_*` | HighCurrent | connector → fuse → FET (`VIN_RAW`, `VIN_FUSED`, `VIN_PROT`) |
    | `/Power/VIN_BUCK` | HighCurrent | buck input past `JP_VIN` |
+   | `/Power/VIN_FUSED` | HighCurrent | fuse → FET drain, the 10 A segment. A *local* label is named with its sheet path, so `VIN_*` cannot match it (added 2026-09-16) |
    | `+5V` | Power | 3 A rail |
    | `+3V3` | Power | |
    | `/Power/5V_BUCK` | Power | buck output before its jumper |
@@ -296,9 +300,7 @@ DRC after placement: **zero** clearance, courtyard, edge or short
 violations. What DRC does report (pre-existing, not placement): F1's
 centre mechanical hole (annular width 0 / "padstack questionable" —
 the fuse holder's peg), the 9 thermal-via holes in U2's centre pad
-(0.2 mm < the 0.3 mm minimum drill — JLC drills 0.2 mm; either accept
-these or set **Design Rules → Constraints → Minimum drill size** to
-`0.2`), silkscreen of edge connectors clipped by the board edge, and
+(resolved 2026-10-02: minimum drill set to 0.2), silkscreen of edge connectors clipped by the board edge, and
 ~180 reference-designator overlaps (silk text on top of neighbours —
 tidy at the silkscreen step, A24).
 
@@ -883,8 +885,7 @@ reference texts DRC complains about (silk over copper/overlaps).
   read each warning individually. Do this before every save you care
   about. Known baseline (not placement/routing problems): `F1`'s
   centre mechanical hole (annular width / padstack), `U2`'s nine 0.2 mm
-  thermal-via holes (either accept, or Constraints → **Minimum drill
-  size** `0.2`), edge-connector silk clipped by the edge.
+  thermal-via holes (resolved 2026-10-02: minimum drill 0.2), edge-connector silk clipped by the edge.
 - **Alt+3** for the last look (heights, orientation, silk).
 - **File → Fabrication Outputs → Gerbers (.gbr)…** (all copper, silk,
   mask, paste, Edge.Cuts; tick *Subtract soldermask from silkscreen*),

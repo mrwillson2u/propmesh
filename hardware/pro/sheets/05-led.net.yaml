@@ -69,7 +69,8 @@ parts:
   R_PD1:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "input pulldown (2026-09-16): U_LS inputs must not float while the MCU is in reset — TI requires defined CMOS input levels. Strip data held LOW at boot = no garbage frame"}
   R_PD2:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
   R_PD3:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
-  R_PD4:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "LED_STRIP_1_CLK's pulldown is R_STRAP3 on sheet 08, now fitted"}
+  R_PD4:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_STRAP3: {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "LED_STRIP_1_CLK = GPIO 3 pulldown, drawn here with the other four since 2026-10-02 (was on sheet 08). Doubles as the spare strap pad spec 2.6 asks for: GPIO 3 is a strapping pin with no internal pull (ESP32-S3 DS Table 3-1)"}
   J_ST1A: {value: LED1_PWR, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 1 power half: 5V | GND. Silk: strips beyond ~50 px need external 5 V injection, data-only from the board"}
   J_ST1B: {value: LED1_SIG, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 1 signal half: DATA | CLK"}
   J_ST2A: {value: LED2_PWR, lcsc: C711349, symbol: "Connector:Screw_Terminal_01x02", footprint: *dg2, note: "strip 2 power half: 5V | GND"}
@@ -88,7 +89,7 @@ named: [LED_STRIP_1_DATA, LED_STRIP_1_CLK, LED_STRIP_2_DATA, LED_STRIP_2_CLK, ST
 nets:
   # --- buffer inputs (MCU drives these from sheet 02) -----------------
   LED_STRIP_1_DATA: [U_LS.A0, R_PD1.1]
-  LED_STRIP_1_CLK:  [U_LS.A1]
+  LED_STRIP_1_CLK:  [U_LS.A1, R_STRAP3.1]
   LED_STRIP_2_DATA: [U_LS.A2, R_PD2.1]
   LED_STRIP_2_CLK:  [U_LS.A3, R_PD3.1]
   STATUS_LED:       [U_LS.A4, R_PD4.1]
@@ -113,4 +114,4 @@ nets:
   +5V: [U_LS.VCC, C_LS.1, J_ST1A.1, J_ST2A.1, C_B1.1, C_B2.1, D_ST.2, C_ST.1]
   GND: [U_LS.GND, U_LS.G1, U_LS.G2, U_LS.A5, U_LS.A6, U_LS.A7, C_LS.2,
         J_ST1A.2, J_ST2A.2, C_B1.2, C_B2.2, D_ST.4, C_ST.2,
-        R_PD1.2, R_PD2.2, R_PD3.2, R_PD4.2]
+        R_PD1.2, R_PD2.2, R_PD3.2, R_PD4.2, R_STRAP3.2]

@@ -23,7 +23,7 @@ CONSTRAINTS = {  # Design Rules → Constraints: json key -> (section, field lab
     "min_via_diameter":         ("Copper", "Minimum via diameter",     0.6),
     "min_hole_clearance":       ("Copper", "Copper to hole clearance", 0.25),
     "min_copper_edge_clearance":("Copper", "Copper to edge clearance", 0.5),
-    "min_through_hole_diameter":("Holes",  "Minimum drill size",       0.3),
+    "min_through_hole_diameter":("Holes",  "Minimum drill size",       0.2),   # 0.3 until 2026-10-02: U2's own thermal vias are 0.2/0.6, standard at JLC
     "min_hole_to_hole":         ("Holes",  "Hole to hole clearance",   0.25),
     "min_text_thickness":       ("Silk",   "Minimum text thickness",   0.15),
     "min_text_height":          ("Silk",   "Minimum text height",      0.8),

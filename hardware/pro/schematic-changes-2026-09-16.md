@@ -21,6 +21,12 @@ resistors and VBUS cap, pulldowns on the level-shifter inputs.
 | 02 MCU and USB | USB-power link header, VBUS cap, 2 × 22 Ω + 2 DNP caps, `TP1` → `PCA_OE` | opt-in USB power; Espressif and ST guidance; GPIO 37 becomes OE |
 | 03 Outputs | second PCA9685 + support; DC channel labels move to it; both OE pins on `PCA_OE`; `Q1`–`Q6` Value → `SI2356DS` | flicker-free dimming; outputs off during MCU reset; the input TVS can finally protect the output FETs |
 
+## Status — ✅ COMPLETE (Fri 2 Oct 2026, 23:00)
+
+All six sections drawn. All eight sheet checkers `ALL NETS MATCH, footprints
+OK`; ERC 0 errors, 0 warnings. (`R53` ended up on sheet 05 beside the other
+four pulldowns; the specs were moved to match.)
+
 Parts cost: **+$3.53 per board at 100** — $1.84 second PCA9685, $1.49
 six 40 V FETs, cents for the rest. Every part number below was checked against JLCPCB's parts
 API on 2026-09-16.
@@ -41,6 +47,12 @@ API on 2026-09-16.
 | No-connect flag | press **Q** (Add No Connect Flag), click on the pin end |
 | Move | hover the item, press **M**, move, click |
 | Delete | click the item (wire, flag, symbol), press **Delete** |
+
+**Lines beginning "Part:" are nothing to do in KiCad.** They record which
+physical component to buy — manufacturer part number, LCSC code, rating —
+so the order can be placed later. In the schematic you only ever set
+**Value** and **Footprint**; the LCSC codes live in the sheet specs
+(`sheets/*.net.yaml`) and Claude builds the parts order from those.
 
 **Two rules that matter here.** A global label connects to every other
 global label with the *same text* on every sheet, so you never have to
@@ -100,7 +112,7 @@ texts below:
 | 3rd | `LED_STRIP_2_CLK` |
 | 4th | `STATUS_LED` |
 
-Not `LED_STRIP_1_CLK`: that one's pulldown is `R53`, done in step 1.
+Not `LED_STRIP_1_CLK`: that one's pulldown is `R53` (step 1). *(Colin drew `R53` on this sheet beside the other four — fine; the specs follow, 2026-10-02.)*
 Part: 10 k 0603, LCSC `C25804` (Basic).
 
 Check: `python3 tools/checknet.py hardware/pro/sheets/05-led.net.yaml`
@@ -178,85 +190,103 @@ wired to the module's `IO37` pin, right of `U2`.
 
 Check: `python3 tools/checknet.py hardware/pro/sheets/02-mcu-usb.net.yaml`
 
-## 6. Sheet 03 — Outputs (25 minutes)
+## 6. Sheet 03 — Outputs — **finish from where you are** (20 minutes)
 
-The existing PCA9685 is **`U4`**. The new one gets the six DC output
-channels; `U4` keeps the servos, relays and stepper enable.
+`U12` is the second PCA9685 you placed, on the right of the sheet. Its
+power, decoupling, I²C, and the six `LED_1`–`LED_6` labels on its LED0–LED5
+pins are **already right**. What is left, in order:
 
-> **If you copied `U4`'s block to make the new chip** (found 2026-09-19):
-> copies of `U4`'s labels came with it. Delete the copied
-> `STEPPER_EN_RAW` label from the **new chip's pin 22 (LED15)** — that is
-> ERC's "Output and Output connected" error — and delete the copied
-> **4.7 k** I²C pull-up. Only `U4` drives stepper enable, and the board
-> has exactly one I²C pull-up pair.
+**a. Delete the copied stepper label (this is the one ERC error).**
+`U12` pin 22 (LED15) carries a copied `STEPPER_EN_RAW` label — only `U4`
+drives stepper enable, and two outputs are now shorted together.
 
-**a. Place the second PCA9685** in an empty area of the sheet.
+1. Click that label on `U12` pin 22 → **Delete**. If a wire stub stays on
+   the pin, click it → **Delete**.
 
-1. **A** → `Driver_LED:PCA9685PW`. **Value** `PCA9685PW`, **Footprint**
-   `Package_SO:TSSOP-28_4.4x9.7mm_P0.65mm`. Part LCSC `C2678753`.
-2. Power: **VDD** (pin 28) → **P** `+3V3`. **VSS** (pin 14) → `GND`.
-   **EXTCLK** (pin 25) → `GND`.
-3. Decoupling beside it, copying `U4`'s `C5`/`C4`: a `Device:C` **Value**
-   `100n`, **Footprint** `Capacitor_SMD:C_0603_1608Metric`; and a
-   `Device:C` **Value** `10u/16V`, **Footprint**
-   `Capacitor_SMD:C_0805_2012Metric` (LCSC `C95841`). Each between
-   `+3V3` and `GND`.
-4. I²C: **Global Label** `I2C_SDA` on its **SDA** pin (27), `I2C_SCL` on
-   **SCL** (26).
+**b. Delete the two copied I²C pull-ups.** The board has exactly one pair
+(`R5`/`R6`). Click **`R59`** (4.7 k) → **Delete**; same for **`R61`**
+(4.7 k). Delete any wire or `+3V3` symbol left dangling where they were.
 
-**b. Address 0x41.** Six `Device:R`, **Value** `10k`, **Footprint**
-`Resistor_SMD:R_0603_1608Metric`, one on each address pin, the same way
-`U4`'s straps `R7`–`R12` are drawn:
+**c. Rename five strap labels — `A…` to `B…`.** Right now `U12`'s address
+pins share `U4`'s nets, so both chips would answer at 0x40. Each label
+below sits on the wire between one of `U12`'s address pins and its own
+10 k resistor. Double-click each → change the text → OK:
 
-| Pin | Other end of its 10 k |
-|---|---|
-| **A0** (pin 1) | **`+3V3`** ← the only difference from `U4` |
-| A1 (2), A2 (3), A3 (4), A4 (5), A5 (24) | `GND` |
-
-**c. Output-enable for both chips.**
-
-1. On **`U4`**, find the **~OE** pin (pin 23). It is connected to `GND`.
-   Click the wire at the pin → **Delete**. If a `GND` symbol sits
-   directly on the pin instead, **M** it away and **Delete** it.
-2. **Global Label** `PCA_OE` on `U4`'s ~OE pin, and another `PCA_OE`
-   on the new PCA's **~OE** pin (23).
-3. One more `Device:R` **Value** `10k`, 0603: **Global Label** `PCA_OE` on
-   one pin, **P** → `+3V3` on the other. This pull-up keeps every output
-   off until the firmware is ready.
-
-**d. Move the six DC-channel labels.** On `U4`'s right side, local labels
-**`LED_1`** to **`LED_6`** sit on pins **LED6** to **LED11**. Move each to
-the new chip:
-
-| Label | From `U4` pin | To new PCA pin |
+| The label sitting over | Now reads | Change to |
 |---|---|---|
-| `LED_1` | LED6 | **LED0** |
-| `LED_2` | LED7 | **LED1** |
-| `LED_3` | LED8 | **LED2** |
-| `LED_4` | LED9 | **LED3** |
-| `LED_5` | LED10 | **LED4** |
-| `LED_6` | LED11 | **LED5** |
+| `R55` | `A1_STRAP` | `B1_STRAP` |
+| `R56` | `A2_STRAP` | `B2_STRAP` |
+| `R57` | `A3_STRAP` | `B3_STRAP` |
+| `R58` | `A4_STRAP` | `B4_STRAP` |
+| `R60` | `A5_STRAP` | `B5_STRAP` |
 
-For each: hover the label, **M**, move its point onto the new pin end,
-click. If a leftover wire stub stays on `U4`, click it → **Delete**.
+Leave the five labels of the same name on `U4`'s side (over `R7`–`R12`,
+left of the sheet) exactly as they are.
 
-**e. No-connect flags.** **Q** on every pin now left empty: `U4`
-**LED6–LED11**, and the new chip's **LED6–LED15**.
+**d. The A0 strap — ✅ already done** (verified in your file, 29 Sep).
+`R54` is it: one end on `+3V3`, the other on `U12` pin 1 (A0). That high
+strap is exactly what makes this chip 0x41 instead of 0x40. Nothing to
+change.
 
-**f. The six output FETs → 40 V.** `Q1`–`Q6` (Value `AO3400A`, one beside
-each DC output terminal; **not** `Q8` on the motors sheet). For each:
+*Optional, for readability only:* the net has KiCad's automatic name
+`Net-(U12-A0)`. If you want it to read like the others, **Add Label**
+`B0_STRAP` on the wire between `R54` and `U12` pin 1. The checker passes
+either way.
 
-1. Double-click → **Value** `SI2356DS` → OK.
+**e. Wire the output-enable net, `PCA_OE`.**
 
-That's all: **keep the symbol and footprint**. The `AO3400A` symbol has
-the same pin numbers as the Vishay part (1 = G, 2 = S, 3 = D, checked
-against Vishay's datasheet 2026-09-16), so there's no Change Symbol step
-and no risk of the pin-mismatch bug from sheet 01. Part: Vishay
-SI2356DS-T1-GE3, LCSC `C74127`.
+*What it is, in one line:* `~OE` is each PCA9685's **output enable**. The
+bar over the name means **active low** — hold it LOW and the outputs
+work; let it go HIGH and every output on that chip switches off. Both
+chips are currently drawn with `~OE` tied straight to ground, which means
+"outputs always live", including while the ESP32 is in reset or hung —
+that's how a relay could stay energised after a crash. We want the
+opposite default: a 10 k resistor (`R54`) pulling `~OE` HIGH so outputs
+are off, and GPIO 37 driving it LOW once the firmware has set the chips
+up. GPIO 37 joins this net when you do sheet 02 step d.
+
+*What's drawn now:* both `~OE` pins go to GND, and no pull-up exists
+yet. On the **left-hand side** of each chip, two pins sit
+one above the other — **`EXTCLK` (pin 25)** on top and **`~OE` (pin 23)
+just below it** — and both run to one shared **GND** symbol.
+`EXTCLK` must stay on GND. Only `~OE` changes.
+
+*Do this, on `U4` first and then identically on `U12`:*
+
+1. Zoom into the left side of the chip until you can read `EXTCLK` and
+   `~OE`.
+2. Click the short **wire between the `~OE` pin and the GND symbol** —
+   the lower of the two wires — and press **Delete**. Leave the `EXTCLK`
+   wire and the GND symbol alone. (If clicking selects the GND symbol
+   instead of the wire, click on a spot midway along the wire.)
+3. **Place → Add Global Label**, type **`PCA_OE`**, and click so the
+   label's pointed end touches the now-free **`~OE`** pin end. Check the
+   small square at the pin end disappears — that means it's connected.
+
+*Then the pull-up.* This needs a **new** resistor — `R54` is the A0
+strap (step d) and every other 10 k on the sheet is already a strap:
+
+4. **A** → `Device:R` → drop it in free space between the two chips.
+   **Value** `10k`, **Footprint** `Resistor_SMD:R_0603_1608Metric`.
+   (Annotate later gives it the next free number, probably `R62`.)
+5. **Place → Add Global Label**, `PCA_OE`, on **one** of its two pins —
+   either one, a resistor has no polarity.
+6. Press **P** → **`+3V3`** → place it on the **other** pin.
+
+Three things now carry the name `PCA_OE` — `U4` pin 23, `U12` pin 23 and
+one end of the new resistor — and because global labels join up by name, they are
+one net without any wire drawn between them.
+
+**f. No-connect flags.** Press **Q** and click each empty pin:
+`U4` **pins 12, 13, 15, 16, 17, 18** (LED6–LED11, vacated when the DC
+channels moved) and `U12` **pins 12, 13, 15, 16, 17, 18, 19, 20, 21, 22**
+(LED6–LED15).
+
+**g. The six output FETs → 40 V — ✅ already done** (verified 29 Sep).
+`Q1`–`Q6` on this sheet already read `SI2356DS`; the only `AO3400A` left
+in the project is `Q8` on the motors sheet, which is correct and stays.
 
 Check: `python3 tools/checknet.py hardware/pro/sheets/03-outputs.net.yaml`
-
----
 
 ## 7. Finish
 

@@ -1,0 +1,110 @@
+sheet: 02-usb
+title: USB-C data and input power
+parts:
+  J1:
+    symbol: Connector:USB_C_Receptacle_USB2.0_16P
+    value: TYPE-C-31-M-12
+    footprint: Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12
+    lcsc: C165948
+    dnp: false
+    note: ''
+    pins:
+      A4: VBUS
+      A9: VBUS
+      B4: VBUS
+      B9: VBUS
+      A1: GND
+      A12: GND
+      B1: GND
+      B12: GND
+      SH: GND
+      A5: USB_CC1
+      B5: USB_CC2
+      A6: USB_DP_CONN
+      B6: USB_DP_CONN
+      A7: USB_DM_CONN
+      B7: USB_DM_CONN
+  U2:
+    symbol: Power_Protection:USBLC6-2SC6
+    value: USBLC6-2SC6
+    footprint: Package_TO_SOT_SMD:SOT-23-6
+    lcsc: C7519
+    dnp: false
+    note: ''
+    pins:
+      '1': USB_DM_CONN
+      '6': USB_DM_CONN
+      '3': USB_DP_CONN
+      '4': USB_DP_CONN
+      '2': GND
+      '5': VBUS
+  R7:
+    symbol: Device:R
+    value: 5.1k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C23186
+    dnp: false
+    note: ''
+    pins:
+      '1': USB_CC1
+      '2': GND
+  R8:
+    symbol: Device:R
+    value: 5.1k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C23186
+    dnp: false
+    note: ''
+    pins:
+      '1': USB_CC2
+      '2': GND
+  C6:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': VBUS
+      '2': GND
+  R9:
+    symbol: Device:R
+    value: 22R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C23345
+    dnp: false
+    note: ''
+    pins:
+      '1': USB_DM_CONN
+      '2': USB_DM
+  R10:
+    symbol: Device:R
+    value: 22R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C23345
+    dnp: false
+    note: ''
+    pins:
+      '1': USB_DP_CONN
+      '2': USB_DP
+  C7:
+    symbol: Device:C
+    value: DNP
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': USB_DM
+      '2': GND
+  C8:
+    symbol: Device:C
+    value: DNP
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': USB_DP
+      '2': GND

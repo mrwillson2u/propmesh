@@ -1,0 +1,83 @@
+sheet: 05-audio
+title: I2S speaker amplifier
+parts:
+  U7:
+    symbol: Audio:MAX98357A
+    value: MAX98357AETE+
+    footprint: Package_DFN_QFN:TQFN-16-1EP_3x3mm_P0.5mm_EP1.23x1.23mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': I2S_DOUT_5V
+      '4': AMP_SD
+      '7': 5V_EFFECTS
+      '8': 5V_EFFECTS
+      '9': SPK_P
+      '10': SPK_N
+      '3': GND
+      '11': GND
+      '15': GND
+      '17': GND
+      '14': I2S_LRCLK_5V
+      '16': I2S_BCLK_5V
+  R29:
+    symbol: Device:R
+    value: 2.2k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C4190
+    dnp: false
+    note: ''
+    pins:
+      '1': AUDIO_ENABLE
+      '2': AMP_SD
+  R30:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': AUDIO_ENABLE
+      '2': GND
+  R31:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': AMP_SD
+      '2': GND
+  C19:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  C20:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  J5:
+    symbol: Connector:Screw_Terminal_01x02
+    value: SPEAKER_8R
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': SPK_P
+      '2': SPK_N

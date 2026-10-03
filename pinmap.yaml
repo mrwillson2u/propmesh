@@ -94,6 +94,12 @@ boards:
           LED_6: 5
 
   mini:
+    # LEGACY C3 BASELINE: user selected ESP32-S3-WROOM-1U-N16R2 on 2026-09-19.
+    # Replace this allocation before S3 schematic capture; changing only mcu
+    # would mislabel incompatible ADC, USB and boot assignments as valid.
+    # Decision: hardware/mini/module-selection-2026-09-19.md
+    # Future S3: reserve GPIO15/16 for optional DNP 32.768 kHz crystal.
+    # BLE standby experiments are deferred; this is not a C3 pin assignment.
     mcu: ESP32-C3-MINI-1U-N4
     notes: >
       All 15 exposed GPIO allocated — no expansion header. Qwiic is the

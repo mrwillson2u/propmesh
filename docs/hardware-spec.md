@@ -811,9 +811,22 @@ clears.
 
 ## 3. Mini board — "PropMesh Mini"
 
-**MCU:** ESP32-C3-MINI-1U-N4 · **Target size:** ~50 × 40 mm · **2-layer** · **Battery powered**
+**MCU:** ESP32-S3-WROOM-1U-N16R2 (selected 2026-09-19) · **Target size:** ~50 × 40 mm · **2-layer target** · **Battery powered**
+
+**S3 migration pending:** the [accepted module decision](../hardware/mini/module-selection-2026-09-19.md)
+supersedes the original C3 selection. Sections 3.1–3.5 below are the legacy C3
+baseline, including its GPIO map, BOM, costs and runtime assumptions; they are
+not the selected S3 design and must not be used for schematic capture. Replace
+the pinmap and these tables together when the S3 circuit allocation is completed.
 
 ### 3.1 GPIO allocation
+
+**Future S3 reservation (2026-09-19):** reserve GPIO15/16 for an optional
+32.768 kHz crystal, two load capacitors and parallel bias resistor, all DNP
+initially. This is a requirement for the future Mini schematic/PCB, not part
+of the legacy C3 allocation below. BLE standby and Thread/Zigbee work are
+deferred while power, audio, Wi-Fi/ESP-NOW and sensor/timer wake are brought up.
+See the [module decision](../hardware/mini/module-selection-2026-09-19.md).
 
 The C3 has ~13 usable pins. This map only closes because audio lives in flash instead of on SD.
 

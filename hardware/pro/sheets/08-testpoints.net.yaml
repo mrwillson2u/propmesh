@@ -56,7 +56,6 @@ parts:
   TP_3V3:    {value: TP_3V3,           symbol: "Connector:TestPoint", footprint: *tp}
   TP_GNDA:   {value: TP_GND_A,         symbol: "Connector:TestPoint", footprint: *tp, note: "two GND pads: one by the power block, one by the module"}
   TP_GNDB:   {value: TP_GND_B,         symbol: "Connector:TestPoint", footprint: *tp}
-  R_STRAP3:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: "Resistor_SMD:R_0603_1608Metric", note: "10 k pulldown on GPIO 3 = LED_STRIP_1_CLK. FITTED since 2026-09-16 (was DNP): GPIO 3 has no internal pull (ESP32-S3 DS Table 3-1) and it drives a 74AHCT541 input, which must not float at reset. Untick 'Do not populate'"}
 
 blocks:
   "GPIO test points": [BOOT_BUTTON, ANALOG_IN_1, ANALOG_IN_2, LED_STRIP_1_CLK, LED_STRIP_1_DATA,
@@ -79,7 +78,7 @@ nets:
   BOOT_BUTTON:      [TP_BOOT.1]
   ANALOG_IN_1:      [TP_AN1.1]
   ANALOG_IN_2:      [TP_AN2.1]
-  LED_STRIP_1_CLK:  [TP_L1C.1, R_STRAP3.1]
+  LED_STRIP_1_CLK:  [TP_L1C.1]                    # its pulldown R_STRAP3 moved to sheet 05 (2026-10-02)
   LED_STRIP_1_DATA: [TP_L1D.1]
   LED_STRIP_2_DATA: [TP_L2D.1]
   LED_STRIP_2_CLK:  [TP_L2C.1]
@@ -113,4 +112,4 @@ nets:
   VIN_PROT: [TP_VPROT.1]
   +5V:      [TP_5V.1]
   +3V3:     [TP_3V3.1]
-  GND:      [TP_GNDA.1, TP_GNDB.1, R_STRAP3.2]
+  GND:      [TP_GNDA.1, TP_GNDB.1]

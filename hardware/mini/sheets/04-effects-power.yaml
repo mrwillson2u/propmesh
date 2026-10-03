@@ -1,0 +1,279 @@
+sheet: 04-effects-power
+title: Switched effects supply and level translation
+parts:
+  U5:
+    symbol: mini:TPS61023DRLR
+    value: TPS61023DRLR
+    footprint: propmesh:SOT-563_L1.6-W1.2-P0.50-LS1.6-BR
+    lcsc: C919459
+    dnp: false
+    note: ''
+    pins:
+      '3': SYS
+      '2': RAIL_5V_ENABLE
+      '4': GND
+      '5': BOOST_SW
+      '6': 5V_EFFECTS
+      '1': BOOST_FB
+  L2:
+    symbol: Device:L
+    value: 2.2uH
+    footprint: propmesh:IND-SMD_L7.1-W6.6
+    lcsc: C149580
+    dnp: false
+    note: ''
+    pins:
+      '1': SYS
+      '2': BOOST_SW
+  R18:
+    symbol: Device:R
+    value: 732k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': BOOST_FB
+  R19:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': BOOST_FB
+      '2': GND
+  R20:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': RAIL_5V_ENABLE
+      '2': GND
+  C15:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': SYS
+      '2': GND
+  C16:
+    symbol: Device:C
+    value: 22uF/16V
+    footprint: Capacitor_SMD:C_1206_3216Metric
+    lcsc: null
+    dnp: false
+    note: Select effective capacitance >=4uF total at 5V; validate transients at target
+      current.
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  C17:
+    symbol: Device:C
+    value: 22uF/16V
+    footprint: Capacitor_SMD:C_1206_3216Metric
+    lcsc: null
+    dnp: false
+    note: Select effective capacitance >=4uF total at 5V; validate transients at target
+      current.
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  '#FLG1':
+    symbol: power:PWR_FLAG
+    value: PWR_FLAG
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': GND
+  '#FLG2':
+    symbol: power:PWR_FLAG
+    value: PWR_FLAG
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': VBUS
+  '#FLG3':
+    symbol: power:PWR_FLAG
+    value: PWR_FLAG
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_IN
+  '#FLG4':
+    symbol: power:PWR_FLAG
+    value: PWR_FLAG
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': VBAT
+  U6:
+    symbol: 74xx:74AHCT541
+    value: SN74AHCT541
+    footprint: Package_SO:SOIC-20W_7.5x12.8mm_P1.27mm
+    lcsc: C2682058
+    dnp: false
+    note: ''
+    pins:
+      '1': GND
+      '19': GND
+      '10': GND
+      '20': 5V_EFFECTS
+      '2': I2S_BCLK
+      '18': I2S_BCLK_5V
+      '3': I2S_LRCLK
+      '17': I2S_LRCLK_5V
+      '4': I2S_DOUT
+      '16': I2S_DOUT_5V
+      '5': SERVO_1
+      '15': SERVO_1_5V
+      '6': SERVO_2
+      '14': SERVO_2_5V
+      '7': SERVO_3
+      '13': SERVO_3_5V
+      '8': LED_STRIP_1_DATA
+      '12': LED_STRIP_1_DATA_5V
+      '9': STATUS_LED
+      '11': STATUS_LED_5V
+  C18:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  R21:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': I2S_BCLK
+      '2': GND
+  R22:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': I2S_LRCLK
+      '2': GND
+  R23:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': I2S_DOUT
+      '2': GND
+  R24:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_1
+      '2': GND
+  R25:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_2
+      '2': GND
+  R26:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': SERVO_3
+      '2': GND
+  R27:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_STRIP_1_DATA
+      '2': GND
+  R28:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': STATUS_LED
+      '2': GND
+  TP20:
+    symbol: Connector:TestPoint
+    value: SYS
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SYS
+  TP21:
+    symbol: Connector:TestPoint
+    value: VBAT
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': VBAT
+  TP22:
+    symbol: Connector:TestPoint
+    value: 5V_EFFECTS
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+  TP23:
+    symbol: Connector:TestPoint
+    value: RAIL_5V_ENABLE
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': RAIL_5V_ENABLE

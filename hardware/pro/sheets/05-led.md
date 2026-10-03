@@ -1,4 +1,5 @@
 # Sheet 05 — Addressable LED + status LED
+> **2026-10-02:** all **five** shifter-input pulldowns are on this sheet — `R_PD1`–`R_PD4` plus `R_STRAP3` (`R53`) on `LED_STRIP_1_CLK`, moved here from sheet 08.
 
 > **Revised 2026-09-16** (datasheet review; drawing steps in
 > `../schematic-changes-2026-09-16.md`): strip bulk `C_B1`/`C_B2` are **220 µF** (Rubycon `C88757`, 6.3 mm) instead of 1000 µF, and the shifter's used inputs get 10 k pulldowns (`R_PD1`–`R_PD4`; strip 1 clock's is `R_STRAP3` on sheet 08).

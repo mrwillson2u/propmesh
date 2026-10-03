@@ -1,7 +1,17 @@
 # PropMesh Mini — recommended revision, 2026-09-16
 
+**Accepted module, 2026-09-19: ESP32-S3-WROOM-1U-N16R2.** See the
+[module decision](module-selection-2026-09-19.md). Earlier C3/C6 preferences and
+C3-specific pin proposals below are superseded; other circuit recommendations
+remain proposals pending the S3 design.
+
 Proposal following the [plan audit](review-2026-09-16.md). These are recommended
 decisions, not an implemented schematic or an approved replacement pinmap.
+
+**2026-09-19 follow-up:** the user's compact-size and pre-certified-module
+priorities are evaluated in the [GPIO/module comparison](gpio-module-options-2026-09-19.md).
+That comparison adds C6-MINI-1U-H8 as the first module to prototype; the C3/S3
+recommendations below record the earlier discussion.
 
 Keep the Mini focused on short, locally triggered effects, with remote
 configuration through a powered Pro. Keep the C3, flash audio, native USB,

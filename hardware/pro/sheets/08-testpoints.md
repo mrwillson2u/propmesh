@@ -1,4 +1,5 @@
 # Sheet 08 — Test points + spare strap pad
+> **Moved 2026-10-02:** `R_STRAP3` (schematic `R53`) is now drawn on sheet 05 with the other four level-shifter pulldowns. Same part, same net; this sheet holds only test points.
 
 > **Revised 2026-09-16** (datasheet review; drawing steps in
 > `../schematic-changes-2026-09-16.md`): `R_STRAP3` is **fitted, 10 k** — no longer DNP.

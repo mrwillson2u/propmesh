@@ -1,27 +1,59 @@
-# Pro v0.1 — finish and order (weekend of Sat 19 – Sun 20 Sep 2026)
+# Pro v0.1 — finish and order
 
-**Why this weekend matters.** CLAUDE.md's schedule puts the Rev-B
-decision at about **Oct 10**. A 4-layer JLCPCB order placed Sunday takes
-roughly a week to make and ship, so boards land around the start of
-October, leaving about a week to populate and bring up before the
-decision. Every day of slip comes straight out of bring-up.
+**Target: order by Sun 5 Oct.** JLCPCB is **closed 1–4 October** (their
+September/October 2026 holiday notice) and warns that lead times right
+after the closure run longer than usual. Ordering by the 5th puts boards
+in the post ≈9–12 Oct and on the bench ≈14–17 Oct: enough to populate,
+bring up, and still have a prop in the yard for Halloween if bring-up
+behaves. Slipping past mid-October turns the v0.1 field test into a
+post-Halloween exercise. **Halloween itself is not at risk either way** —
+CLAUDE.md already has the 2026 show running on the old painlessMesh rig
+and devkits.
 
-## Where things stand (measured Sat 19 Sep)
+## Where things stand
+
+**Fri 2 Oct, 23:00 — schematic COMPLETE**: eight sheets green, ERC 0/0.
+
+**Fri 2 Oct, 23:40 — board cleanup DONE** (steps 3–4): Board Setup
+green; F8 done, schematic parity **0**; orphan `R53` removed; mounting
+holes named `H1`–`H4` (board-only, out of BOM/position files); minimum
+drill 0.2 mm (clears U2's 12 thermal-via errors at no extra cost); `J17`
+and the other DG128-02P terminals widened to 2.8 mm pads; DRV8871 exposed
+pads given a 0.1 mm paste inset; 43 parts snapped to grid (socket rows
+exempt, still 12.70 mm); library footprints edited to match.
+
+**DRC now: 0 errors except 11 courtyard overlaps.**
+- **3 accepted, by design:** `J14`/`J15`, `J15`/`J16`, `J16`/`J28` —
+  ganged screw terminals at exact body pitch; the dovetail lugs overlap.
+- **8 to fix in placement, all in the sensor corner (top right):** the
+  three sensor series resistors grew from 0603 to 1206 (`R40`, `R47`,
+  `R52`) and now touch `R39`, `R48`, `R51`, `J41`, `J45`; plus `J44`/`J45`
+  and `D14`/`J45`.
+- Silkscreen items (≈350) are tidied at step 9.
+
+Next: step 5's remaining placement (that corner), then **Claude re-places
+the test points**, then pours and routing.
+
+### As measured Tue 29 Sep
 
 | Area | State |
 |---|---|
 | Sheets 01, 06 | ✅ green |
-| Sheet 03 | **half-drawn**: the second PCA9685 (`U12`) is placed, but copying `U4`'s block brought its labels along. ERC's one error is the copied `STEPPER_EN_RAW` label now on **`U12` pin 22 (LED15)** — delete it (only `U4` drives stepper enable). Also delete the copied **4.7 k `R59`** (the board has exactly one I²C pull-up pair). Then finish per the changes doc |
-| Sheets 02, 04, 05, 07, 08 | not started — `schematic-changes-2026-09-16.md` |
-| Board Setup | 3 cells: `/Power/VIN_FUSED` → HighCurrent row; Default **DP Width** 0.3, **DP Gap** 0.2 (`tools/checksetup.py` lists them) |
-| Board | last saved 16 Sep; placement pass in progress; **0 tracks, 0 zones** |
-| Git | **nothing committed since 7 Sep** — blocked by the Xcode licence prompt |
+| Sheet 03 | nearly done. Remaining: rename the copied strap labels **`A1_STRAP`–`A5_STRAP` on the new chip to `B1_STRAP`–`B5_STRAP`** (the checker sees both chips on one net); place the missing **`R_B0`** (10 k, A0 → **+3V3**); create **`PCA_OE`** — both `~OE` pins still sit on GND and `R_OE` (`R54`) is unconnected; delete the two extra 4.7 k (**`R59`, `R61`**) and the copied `STEPPER_EN_RAW` label on **`U12` pin 22** (the one ERC error) |
+| Sheets 02, 04, 05, 07, 08 | not started — `schematic-changes-2026-09-16.md`, ≈50 min total |
+| Board Setup | still the same 3 cells |
+| Board | 243 footprints, **0 tracks, 0 vias, 0 zones** — placement pass unfinished, nothing routed |
+| Git | Pro committed at `0b72f81`; **11 files uncommitted**, mostly the Mini session's work |
+| Mini | another session chose the module and started an 8-sheet KiCad project. Per the schedule that is Nov–Dec work; it competes with Pro for the only hours that matter right now |
+
+**Remaining effort on Pro: roughly 8–12 hours of your time.** Split over
+the evenings to Sunday, the 5 Oct order holds.
 
 ## The list, in order
 
-**Saturday**
+**Tonight / Wednesday (≈1.5 h) — finish the schematic**
 
-1. **Colin, 2 min — unblock git.** Terminal: `sudo xcodebuild -license
+1. ✅ **DONE Sat 19 Sep (`0b72f81`) — unblock git.** Terminal: `sudo xcodebuild -license
    accept` (asks for your Mac password). Tell Claude; Claude commits
    everything since 7 Sep. Two weeks of work is currently one disk
    failure from gone.
@@ -40,7 +72,7 @@ decision. Every day of slip comes straight out of bring-up.
    rows; gang the screw terminals at exact pitch. Then **Claude**
    re-places the test points and runs DRC.
 
-**Sunday**
+**Thursday–Saturday (≈6–9 h) — the board**
 
 6. **Colin, 3–5 h — pours and critical routing** (layout.md A22–A23):
    zones; the two buck loops; the 10 A input path; USB pair; motor and
@@ -64,7 +96,11 @@ decision. Every day of slip comes straight out of bring-up.
     Setup). A cheap framework-less **stencil** is worth adding for the
     0.5 mm-pitch QFN (U9), the TSSOPs and the module.
 
-**Honest estimate:** 12–18 hours of your time, most of it steps 5–7. If
-Sunday night arrives with routing unfinished, ordering Monday or Tuesday
-still leaves bring-up before Oct 10. Cutting features to save a day is
-not needed.
+**Sunday 5 Oct — order.** Claude produces the Gerbers, drill files and
+the LCSC BOM; you upload and order boards + a stencil, and place the
+parts order.
+
+**If routing is the thing that slips**, say so on Friday and we take the
+autorouter path for the non-critical signals rather than pushing the
+order into the post-holiday queue. Cutting board features to save a day
+is not needed and not recommended.
