@@ -4,7 +4,7 @@
 // and a jump; drag in the ruler to scrub every output to that moment.
 // It edits the same steps the list below shows — lib/timeline.ts holds
 // the model, so the two can't disagree.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys } from "../../ui";
 import type { ChannelKindName } from "../../lib/boards_gen";
@@ -13,7 +13,11 @@ import {
   addKey, moveKey, range, segmentPoints, snapT, snapV, toggleRamp, tracks, valueAt, type Track,
 } from "../../lib/timeline";
 
-const LABEL_W = 180, PAD_R = 18, RULER_H = 26, GAP = 6;
+const LABEL_W = 180, PAD_R = 18, RULER_H = 26, GAP = 6, SCROLL_H = 12;
+// Zoom limits, in pixels per second: two minutes across, or 50 ms per 100 px.
+const MIN_PPS = 4, MAX_PPS = 2000;
+const TICKS = [100, 200, 250, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000];
+const fmtT = (ms: number) => ms >= 60000 ? `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}` : `${ms / 1000}s`;
 const H_VALUE = 76, H_SWITCH = 34;
 const COLORS = [C.emberT, C.green, "#7d87b8", C.amber, "#c678dd", "#56b6c2", "#e06c75", "#98c379"];
 const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP"];
@@ -22,6 +26,11 @@ const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP"];
 // abort the handler: it throws for a pointer the browser isn't tracking.
 const capture = (e: React.PointerEvent) => {
   try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* fine */ }
+};
+
+const zbtn: React.CSSProperties = {
+  width: 26, height: 26, padding: 0, borderRadius: 5, background: C.raised, border: `1px solid ${C.b3}`,
+  font: `600 13px ${MONO}`, color: C.t2, cursor: "pointer",
 };
 
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
@@ -43,9 +52,15 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   const wrap = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const [width, setWidth] = useState(900);
-  // `D` is the visible span at drag start: the scale must not change
-  // under the pointer while a key is dragged past the current end.
-  const [drag, setDrag] = useState<{ idx: number; D: number } | { scrub: true; D: number } | null>(null);
+  // Zoom in px/s (null = fit the sequence) and the time at the plot's
+  // left edge. Both are frozen in `drag` while something is dragged: in
+  // fit mode the scale would otherwise change under the pointer as a
+  // key is dragged past the end.
+  const [zoom, setZoom] = useState<number | null>(null);
+  const [scrollMs, setScrollMs] = useState(0);
+  type Drag = { pps: number; scroll: number } & ({ idx: number } | { scrub: true } | { bar: true; startX: number });
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const clipId = useId();
   const [scrubT, setScrubT] = useState<number | null>(null);
   const [playT, setPlayT] = useState<number | null>(null);
 
@@ -58,15 +73,51 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
 
   const trs = tracks(seq);
   const length = lengthMs(seq);
-  const fitD = Math.max(2000, Math.ceil((length * 1.15) / 500) * 500); // visible span, ms
-  const D = drag ? drag.D : fitD;
   const plotW = width - LABEL_W - PAD_R;
-  const tx = (t: number) => LABEL_W + (t / D) * plotW;
-  const xt = (x: number) => ((x - LABEL_W) / plotW) * D;
+  const fitPps = (plotW / Math.max(2000, Math.ceil((length * 1.15) / 500) * 500)) * 1000;
+  const pps = drag ? drag.pps : Math.min(MAX_PPS, Math.max(MIN_PPS, zoom ?? fitPps));
+  const visibleMs = (plotW / pps) * 1000;
+  // Scrollable span: the sequence plus half a screen to add keys beyond its end.
+  const totalMs = Math.max(visibleMs, length + visibleMs / 2);
+  const maxScroll = Math.max(0, totalMs - visibleMs);
+  const scroll = drag ? drag.scroll : Math.min(scrollMs, maxScroll);
+  const tx = (t: number) => LABEL_W + ((t - scroll) * pps) / 1000;
+  const xt = (x: number) => scroll + ((x - LABEL_W) * 1000) / pps;
   const tops: number[] = [];
   let y = RULER_H + GAP;
   for (const tr of trs) { tops.push(y); y += trackH(tr.kind) + GAP; }
-  const height = y + 4;
+  const height = y + 4 + (maxScroll > 0 ? SCROLL_H : 0);
+  const D = scroll + visibleMs; // right edge, for clamps
+
+  const setScrollClamped = (ms: number) => setScrollMs(Math.max(0, Math.min(maxScroll, ms)));
+  const zoomBy = (factor: number, aroundX = LABEL_W + plotW / 2) => {
+    const tAt = xt(aroundX);
+    const next = Math.min(MAX_PPS, Math.max(MIN_PPS, pps * factor));
+    setZoom(next);
+    setScrollMs(Math.max(0, tAt - ((aroundX - LABEL_W) * 1000) / next));
+  };
+
+  // Wheel: ctrl/⌘ zooms around the pointer; otherwise horizontal (or
+  // shift+vertical) scrolls. A native listener — React's onWheel is
+  // passive, so it couldn't stop the page scrolling too.
+  useEffect(() => {
+    const el = svg.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const r = el.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      if (x < LABEL_W) return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomBy(e.deltaY < 0 ? 1.25 : 1 / 1.25, x);
+      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
+        e.preventDefault();
+        setScrollClamped(scroll + ((e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * 1000) / pps);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
 
   const vy = (tr: Track, top: number, v: number) => {
     const [lo, hi] = range(tr.kind);
@@ -114,12 +165,24 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   const onMove = (e: React.PointerEvent) => {
     if (!drag) return;
     const { x, y: py } = toLocal(e);
+    if ("bar" in drag) {
+      const next = Math.max(0, Math.min(maxScroll, drag.scroll + ((x - drag.startX) / plotW) * totalMs));
+      setScrollMs(next);
+      setDrag({ ...drag, scroll: next, startX: x });
+      return;
+    }
     if ("scrub" in drag) { scrubTo(xt(x)); return; }
+    // Dragging a key past the right edge scrolls the view along with it.
+    if (x > width - PAD_R && scroll < maxScroll) {
+      const next = Math.min(maxScroll, scroll + ((x - (width - PAD_R)) * 1000) / pps / 4);
+      setScrollMs(next);
+      setDrag({ ...drag, scroll: next });
+    }
     const s = seq.steps[drag.idx];
     const ti = trs.findIndex((tr) => tr.steps.includes(drag.idx));
     if (ti < 0) return;
     const tr = trs[ti];
-    const t = Math.max(0, Math.min(D, snapT(xt(x))));
+    const t = Math.max(0, Math.min(D + 50, snapT(xt(x))));
     const v = tr.kind === "LED_STRIP" ? s.value : snapV(yv(tr, tops[ti], py), tr.kind);
     if (t === s.t_ms && v === s.value) return;
     onChange(moveKey(seq, drag.idx, t, v));
@@ -159,10 +222,14 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
 
   // ---- ruler ------------------------------------------------------------
 
-  const tick = D <= 4000 ? 500 : D <= 12000 ? 1000 : D <= 40000 ? 5000 : 10000;
+  // Tick spacing: the smallest step that leaves ~70 px between labels.
+  const tick = TICKS.find((t) => (t * pps) / 1000 >= 70) ?? TICKS[TICKS.length - 1];
   const ticks: number[] = [];
-  for (let t = 0; t <= D; t += tick) ticks.push(t);
+  for (let t = Math.floor(scroll / tick) * tick; t <= scroll + visibleMs; t += tick) if (t >= 0) ticks.push(t);
   const cursorT = scrubT ?? playT;
+  const barX = LABEL_W + (scroll / totalMs) * plotW;
+  const barW = Math.max(24, (visibleMs / totalMs) * plotW);
+  const barY = height - SCROLL_H + 2;
 
   return (
     <div ref={wrap} tabIndex={0} onKeyDown={onKey} style={{ outline: "none", borderRadius: 8, border: `1px solid ${C.b2}`, background: C.card, overflow: "hidden" }}>
@@ -171,27 +238,26 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
         {/* ruler */}
         <rect x={0} y={0} width={width} height={RULER_H} fill={C.panel} />
         <rect x={LABEL_W} y={0} width={plotW} height={RULER_H} fill="transparent" style={{ cursor: "ew-resize" }}
-          onPointerDown={(e) => { capture(e); setDrag({ scrub: true, D }); scrubTo(xt(toLocal(e).x)); }} />
-        {ticks.map((t) => (
-          <g key={t} style={{ pointerEvents: "none" }}>
-            <line x1={tx(t)} y1={RULER_H - 6} x2={tx(t)} y2={height} stroke={C.b1} />
-            <text x={tx(t) + 3} y={RULER_H - 9} fontFamily={MONO} fontSize="10" fill={C.t5}>{t / 1000}s</text>
-          </g>
-        ))}
+          onPointerDown={(e) => { capture(e); setDrag({ scrub: true, pps, scroll }); scrubTo(xt(toLocal(e).x)); }} />
+        <clipPath id={clipId}><rect x={LABEL_W} y={0} width={plotW} height={height} /></clipPath>
+        <g clipPath={`url(#${clipId})`} style={{ pointerEvents: "none" }}>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={tx(t)} y1={RULER_H - 6} x2={tx(t)} y2={height - (maxScroll > 0 ? SCROLL_H : 0)} stroke={C.b1} />
+              <text x={tx(t) + 3} y={RULER_H - 9} fontFamily={MONO} fontSize="10" fill={C.t5}>{fmtT(t)}</text>
+            </g>
+          ))}
+        </g>
         <text x={8} y={RULER_H - 9} fontFamily="system-ui" fontSize="10" fontWeight="600" letterSpacing=".08em" fill={C.t5}>
           {trs.length ? "DRAG RULER TO SCRUB" : ""}
         </text>
 
-        {/* tracks */}
+        {/* track labels (outside the clip, so they stay put when scrolled) */}
         {trs.map((tr, ti) => {
           const top = tops[ti], h = trackH(tr.kind), color = COLORS[ti % COLORS.length];
           const chLabel = outputs.find((o) => o.node === tr.node && o.kind === tr.kind && o.index === tr.index)?.label;
-          const last = seq.steps[tr.steps[tr.steps.length - 1]];
           return (
-            <g key={tr.key}>
-              <rect x={LABEL_W} y={top} width={plotW} height={h} fill={C.panel} opacity=".6" />
-              {tr.kind === "MOTOR" && <line x1={LABEL_W} y1={vy(tr, top, 0)} x2={width - PAD_R} y2={vy(tr, top, 0)} stroke={C.b3} strokeDasharray="2 4" />}
-              {/* label */}
+            <g key={"lbl" + tr.key}>
               <circle cx={14} cy={top + 14} r={4} fill={color} />
               <text x={24} y={top + 18} fontFamily="system-ui" fontSize="12" fontWeight="600" fill={C.t1}>{nameOf(tr.node)}</text>
               <text x={24} y={top + 32} fontFamily={MONO} fontSize="10.5" fill={C.t4}>{tr.kind}_{tr.index}{chLabel ? ` · ${chLabel}` : ""}</text>
@@ -201,6 +267,19 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                   <text x={LABEL_W - 6} y={top + h - 5} textAnchor="end" fontFamily={MONO} fontSize="9" fill={C.t6}>{tr.kind === "MOTOR" ? "−100" : "0%"}</text>
                 </>
               )}
+            </g>
+          );
+        })}
+
+        {/* tracks */}
+        <g clipPath={`url(#${clipId})`}>
+        {trs.map((tr, ti) => {
+          const top = tops[ti], h = trackH(tr.kind), color = COLORS[ti % COLORS.length];
+          const last = seq.steps[tr.steps[tr.steps.length - 1]];
+          return (
+            <g key={tr.key}>
+              <rect x={LABEL_W} y={top} width={plotW} height={h} fill={C.panel} opacity=".6" />
+              {tr.kind === "MOTOR" && <line x1={LABEL_W} y1={vy(tr, top, 0)} x2={width - PAD_R} y2={vy(tr, top, 0)} stroke={C.b3} strokeDasharray="2 4" />}
 
               {/* lines into each key */}
               {tr.steps.map((idx, k) => {
@@ -239,7 +318,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                 const on = selected === idx;
                 return (
                   <g key={"key" + idx} style={{ cursor: "grab" }}
-                    onPointerDown={(e) => { e.stopPropagation(); capture(e); setDrag({ idx, D }); onSelect(idx); }}
+                    onPointerDown={(e) => { e.stopPropagation(); capture(e); setDrag({ idx, pps, scroll }); onSelect(idx); }}
                     onDoubleClick={(e) => e.stopPropagation()}>
                     {on && <circle cx={cx} cy={cy} r={11} fill="none" stroke={C.ember} strokeWidth={1.5} strokeDasharray="3 3" />}
                     {tr.kind === "LED_STRIP"
@@ -261,6 +340,20 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
             <text x={tx(cursorT)} y={14} textAnchor="middle" fontFamily={MONO} fontSize="10" fontWeight="700" fill={C.onEmber}>{(cursorT / 1000).toFixed(2)}s</text>
           </g>
         )}
+        </g>
+
+        {/* scrollbar */}
+        {maxScroll > 0 && (
+          <g>
+            <rect x={LABEL_W} y={barY} width={plotW} height={SCROLL_H - 4} rx={4} fill={C.panel}
+              onPointerDown={(e) => {  // click the trough: jump there
+                const x = toLocal(e).x;
+                setScrollClamped(((x - LABEL_W - barW / 2) / plotW) * totalMs);
+              }} />
+            <rect x={barX} y={barY} width={barW} height={SCROLL_H - 4} rx={4} fill={C.b3} style={{ cursor: "grab" }}
+              onPointerDown={(e) => { e.stopPropagation(); capture(e); setDrag({ bar: true, startX: toLocal(e).x, pps, scroll }); }} />
+          </g>
+        )}
 
         {trs.length === 0 && (
           <text x={LABEL_W + plotW / 2} y={RULER_H + 30} textAnchor="middle" fontFamily="system-ui" fontSize="12" fill={C.t4}>
@@ -270,13 +363,19 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
       </svg>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderTop: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button onClick={() => zoomBy(1 / 1.5)} title="Zoom out (⌘/ctrl + scroll)" style={zbtn}>−</button>
+          <button onClick={() => zoomBy(1.5)} title="Zoom in (⌘/ctrl + scroll)" style={zbtn}>+</button>
+          <button onClick={() => { setZoom(null); setScrollMs(0); }} title="Fit the whole sequence" style={{ ...zbtn, width: "auto", padding: "0 8px", opacity: zoom === null ? 0.5 : 1 }}>Fit</button>
+          <span style={{ ...mono(500, 10.5, C.t5), marginLeft: 4 }}>{fmtT(Math.round(scroll / 10) * 10)} – {fmtT(Math.round((scroll + visibleMs) / 10) * 10)}</span>
+        </span>
         <select value="" onChange={(e) => addTrack(e.target.value)} disabled={!free.length}
           style={{ height: 26, padding: "0 8px", background: C.raised, border: `1px solid ${C.b3}`, borderRadius: 5, ...sys(600, 11.5, C.t2) }}>
           <option value="">+ Add track…</option>
           {free.map((o) => <option key={`${o.node}/${o.kind}_${o.index}`} value={`${o.node}/${o.kind}_${o.index}`}>{nameOf(o.node)} · {o.kind}_{o.index}{o.label ? ` (${o.label})` : ""}</option>)}
         </select>
         <span style={mono(500, 10.5, C.t5)}>
-          double-click a track: add keyframe · drag: move · click a line: ramp ⇄ jump · Delete: remove · snaps to 50 ms / 1 %
+          double-click: add keyframe · drag: move · click a line: ramp ⇄ jump · Delete: remove · scroll sideways / shift+scroll: pan · snaps 50 ms / 1 %
         </span>
       </div>
     </div>

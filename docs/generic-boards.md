@@ -332,8 +332,12 @@ in & out); click a line to switch ramp ⇄ jump; Delete removes the
 selected key; drag the ruler to **scrub** every output to that moment;
 ▶ Play runs a playhead across. A key selected in the timeline is
 highlighted in the list and vice-versa — `lib/timeline.ts` is the
-model, `views/show/Timeline.tsx` the SVG. Not yet: bezier handles
-(easing presets only), audio tracks, zoom (the view fits the sequence).
+model, `views/show/Timeline.tsx` the SVG. **Zoom and scroll**
+(2026-10-06): − / + / Fit buttons, ⌘/ctrl + scroll zooms around the
+pointer (4–2000 px/s); sideways scroll or shift + scroll pans; a
+scrollbar under the tracks; dragging a key past the right edge scrolls
+with it. Opens in Fit (the whole sequence). Not yet: bezier handles
+(easing presets only), audio tracks.
 
 **Console → Cues.** Sequences list; step editor (time, board, output,
 value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, colour for
