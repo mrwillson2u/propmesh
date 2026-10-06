@@ -306,7 +306,10 @@ log shows each one with the sensor change that caused it.
 
 **Console → Cues.** Sequences list; step editor (time, board, output,
 value — sliders for servos/LEDs/motors, on/off for relays, colour for
-strips — and a *Test* button per step); *Save to boards* splits the
+strips — and a *Test* button per step; with *Live preview* on (default)
+dragging a servo, LED or strip value moves the real output, coalesced
+to one request in flight per output; relays and motors only change on
+*Test*; preview works while disarmed, the safe way to pose a prop); *Save to boards* splits the
 sequence into per-board parts (and deletes the part from boards that no
 longer have steps); *▶ Play*; triggers ("When Porch · PIR becomes active
 play Head turn, then wait 30 s"); *Arm all / Disarm all*; live activity

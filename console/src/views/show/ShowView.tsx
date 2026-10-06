@@ -3,7 +3,7 @@
 // live log of what the mesh did. Everything is stored on the nodes;
 // this view reads it all in, and Save writes each node its own part.
 // docs/generic-boards.md §"Sequences and triggers".
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
@@ -32,6 +32,11 @@ const STEP_MIN_W = 640;
 const label = { font: "600 10px system-ui", letterSpacing: ".08em", color: C.t5 } as const;
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
 const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) : 0);
+// Kinds whose step slider drives the real output while you drag it.
+// Relays and motors are left to the Test button: a fogger clicking on
+// or a motor spinning as a slider moves would be a surprise.
+const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP"];
+
 const clock = (t: number) => new Date(t).toTimeString().slice(0, 8);
 
 export default function ShowView({ onConnect }: { onConnect: () => void }) {
@@ -61,6 +66,28 @@ function Editor({ conn }: { conn: Connection }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [live, setLive] = useState(true);
+
+  // Send a value to a real output, coalesced per output: one request in
+  // flight, and only the newest value queued behind it — so dragging a
+  // slider over the mesh tracks without piling up stale moves.
+  const inFlight = useRef(new Map<string, boolean>());
+  const queued = useRef(new Map<string, Step>());
+  const send = (st: Step) => {
+    const key = `${st.node}/${st.kind}_${st.index}`;
+    if (inFlight.current.get(key)) { queued.current.set(key, st); return; }
+    const en = conn.entries[st.node];
+    if (!en) return;
+    inFlight.current.set(key, true);
+    target(conn.link, en.usb ? null : en.node).request("set", { kind: st.kind, index: st.index, value: st.value })
+      .catch(() => { /* the next move retries */ })
+      .finally(() => {
+        inFlight.current.set(key, false);
+        const next = queued.current.get(key);
+        queued.current.delete(key);
+        if (next) send(next);
+      });
+  };
 
   const entries = conn.entries;
   const known = Object.values(entries).filter((e) => e.hello);
@@ -197,10 +224,7 @@ function Editor({ conn }: { conn: Connection }) {
     await load();
   };
 
-  const testStep = (st: Step) => {
-    const en = entries[st.node];
-    if (en) void target(conn.link, en.usb ? null : en.node).request("set", { kind: st.kind, index: st.index, value: st.value });
-  };
+  const testStep = (st: Step) => send(st);
 
   // ---- render ---------------------------------------------------------------
 
@@ -270,6 +294,10 @@ function Editor({ conn }: { conn: Connection }) {
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
                     onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: 230, ...sys(700, 13, C.t1) }} />
                   <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>
+                  <label title="Dragging a servo, LED or strip value moves the real output, so you can see what you're setting. Relays and motors only change with Test."
+                    style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, live ? C.emberT : C.t4) }}>
+                    <Toggle small on={live} onClick={() => setLive(!live)} /> Live preview
+                  </label>
                   <div style={{ flex: 1 }} />
                   {dirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
                   <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={btn(false, !dirty || !!busy)}>Revert</button>
@@ -310,7 +338,10 @@ function Editor({ conn }: { conn: Connection }) {
                         {outs.map((o) => <option key={`${o.kind}_${o.index}`} value={`${o.kind}_${o.index}`}>{o.kind}_{o.index}{o.label ? ` · ${o.label}` : ""}</option>)}
                         {!exists && <option value={`${st.kind}_${st.index}`}>{st.kind}_{st.index} (not on this board)</option>}
                       </select>
-                      <ValueInput kind={st.kind} value={st.value} onChange={(v) => patchStep(i, { value: v })} />
+                      <ValueInput kind={st.kind} value={st.value} onChange={(v) => {
+                        patchStep(i, { value: v });
+                        if (live && LIVE_KINDS.includes(st.kind)) send({ ...st, value: v });
+                      }} />
                       <button onClick={() => testStep(st)} title="Send this value to the board now" style={{ ...btn(), height: 26, padding: "0 8px" }}>Test</button>
                       <span onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) })}
                         title="Remove step" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
