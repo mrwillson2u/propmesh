@@ -23,6 +23,10 @@ OUTPUTS = {
 CAPS = {"in": 0x01, "out": 0x02, "pullup": 0x04, "pulldown": 0x08, "adc": 0x10}
 TIERS = ["good", "caution", "reserved"]
 MAX_FN_PINS = 2
+# Functions that move or switch something: never recommend them on a
+# pin that glitches at power-up (tier caution) — the whole point of
+# the recommendation is "nothing twitches at boot".
+QUIET = {"SERVO", "MOTOR", "RELAY"}
 # functions.yaml pwm_hz must agree with the project-wide constants.
 PWM_CONST = {"LED": "LED_PWM_HZ", "SERVO": "SERVO_PWM_HZ", "MOTOR": "MOTOR_PWM_HZ"}
 
@@ -76,6 +80,30 @@ def validate(funcs, boards, enums, consts):
             if p["tier"] != "good" and not p.get("note"):
                 errs.append(f"{bid}: GPIO {g} is {p['tier']} and needs a note "
                             f"— the note is the warning the user sees")
+            # Recommendations: advice only, but never advice the rules
+            # would refuse or warn about.
+            recs = ([p["best"]] if p.get("best") else []) + p.get("also", [])
+            if p["tier"] != "reserved" and not p.get("best"):
+                errs.append(f"{bid}: GPIO {g} has no 'best' use — every usable pin gets a recommendation")
+            if p.get("best") in p.get("also", []):
+                errs.append(f"{bid}: GPIO {g} lists {p['best']} as both best and also")
+            for r in recs:
+                f = funcs.get(r)
+                if not f:
+                    errs.append(f"{bid}: GPIO {g} recommends unknown function '{r}'")
+                    continue
+                need = CAPS[f["pins"][0]["need"]]
+                if capmask(p["caps"]) & need != need:
+                    errs.append(f"{bid}: GPIO {g} recommends {r} but can't do it (caps)")
+                if r in QUIET and p["tier"] == "caution":
+                    errs.append(f"{bid}: GPIO {g} glitches at power-up — don't recommend {r} on it")
+        guide = b.get("guide", {})
+        for k in guide:
+            if k not in funcs:
+                errs.append(f"{bid}: guide entry for unknown function '{k}'")
+        for k in {p.get("best") for p in b["pins"]} - {None}:
+            if k not in guide:
+                errs.append(f"{bid}: pins recommend {k} but the guide has no entry saying why")
     return errs
 
 
@@ -186,6 +214,8 @@ def render_ts(funcs, boards, enums):
           "  caps: number; // Cap mask",
           "  tier: PinTier;",
           "  note?: string; // warning text",
+          "  best?: ChannelKindName; // recommended use (advice only)",
+          "  also?: ChannelKindName[]; // other good uses",
           "}",
           "",
           "export interface Board {",
@@ -195,6 +225,7 @@ def render_ts(funcs, boards, enums):
           "  ledcChannels: number;",
           "  rmtTxChannels: number;",
           "  pins: BoardPin[];",
+          "  guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function",
           "}",
           "",
           "export type ChannelKindName = keyof typeof ChannelKind;",
@@ -231,9 +262,16 @@ def render_ts(funcs, boards, enums):
               "    pins: ["]
         for p in b["pins"]:
             note = f", note: {json.dumps(p['note'], ensure_ascii=False)}" if p.get("note") else ""
+            if p.get("best"):
+                note += f", best: {json.dumps(p['best'])}"
+            if p.get("also"):
+                note += f", also: {json.dumps(p['also'])}"
             L.append(f"      {{ gpio: {p['gpio']}, label: {json.dumps(p['label'])}, "
                      f"caps: 0x{capmask(p['caps']):02x}, tier: {json.dumps(p['tier'])}{note} }},")
-        L += ["    ],", "  },"]
+        L += ["    ],", "    guide: {"]
+        for k, v in b.get("guide", {}).items():
+            L.append(f"      {k}: {json.dumps(v, ensure_ascii=False)},")
+        L += ["    },", "  },"]
     L += ["};", ""]
     return "\n".join(L)
 

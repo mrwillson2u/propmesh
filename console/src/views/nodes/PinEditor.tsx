@@ -11,6 +11,8 @@ import {
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
+import { SHORT, isBest, isGood, tips } from "../../lib/pinAdvice";
+import PinGuide from "./PinGuide";
 import type { NodeHello, NodeTarget } from "../../lib/transport";
 
 // Fixed tracks for the short columns; options and test share what is
@@ -188,6 +190,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   // ---- render ---------------------------------------------------------
 
+  const advice = tips(board, draft);
   const shown = [...issues, ...(nodeIssues ?? []).filter((n) => !issues.some((i) => i.code === n.code && i.channel === n.channel && i.gpio === n.gpio))];
   const freePins = (c: ChannelCfg, role: number) =>
     board.pins.filter((p) => canDo(p, c.kind, role) && (c.pins[role] === p.gpio || !draft.channels.some((o) => o.pins.includes(p.gpio))));
@@ -213,13 +216,16 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         {!applied.bridge && <button onClick={allOff} style={btn()}>All off</button>}
       </div>
 
-      {(error || shown.length > 0) && (
+      {(error || shown.length > 0 || advice.length > 0) && (
         <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 4 }}>
           {error && <div style={mono(600, 11.5, C.red)}>✕ {error}</div>}
           {shown.map((it, i) => (
             <div key={i} style={mono(500, 11.5, it.error ? C.red : C.amber)}>
               {it.error ? "✕" : "⚠"} {issueText(board, draft, it)}
             </div>
+          ))}
+          {advice.map((t, i) => (
+            <div key={"tip" + i} style={mono(500, 11.5, C.t3)}>ⓘ {t.text}</div>
           ))}
         </div>
       )}
@@ -242,6 +248,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         </div>
       )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
+        <PinGuide board={board} cfg={draft} />
         <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
           <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>
         </div>
@@ -252,9 +259,11 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           const mine = issues.filter((i) => i.channel === ci && ci >= 0 && (i.gpio === undefined || i.gpio === pin.gpio));
           const bad = mine.some((i) => i.error);
           const warn = !bad && (mine.length > 0 || (c && pin.tier === "caution"));
-          const kinds = KINDS.filter((k) => canDo(pin, k));
+          // Recommended uses first (★ best, · also good), then the rest.
+          const kinds = KINDS.filter((k) => canDo(pin, k))
+            .sort((a, b) => Number(isBest(pin, b)) - Number(isBest(pin, a)) || Number(isGood(pin, b)) - Number(isGood(pin, a)));
           return (
-            <div key={pin.gpio} title={pin.note}
+            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note}
               style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22", opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
               <span style={{ display: "flex", flexDirection: "column" }}>
                 <span style={mono(700, 12, bad ? C.red : warn ? C.amber : c ? C.t1 : C.t3)}>{pin.label}</span>
@@ -274,7 +283,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                   <select value={c?.kind ?? ""} onChange={(e) => assign(pin.gpio, e.target.value as ChannelKindName | "")}
                     style={{ ...field, color: c ? C.t1 : C.t5 }}>
                     <option value="">— unused —</option>
-                    {kinds.map((k) => <option key={k} value={k}>{FUNCTIONS[k].label}</option>)}
+                    {kinds.map((k) => <option key={k} value={k}>{isBest(pin, k) ? "★ " : isGood(pin, k) ? "· " : "   "}{FUNCTIONS[k].label}</option>)}
                   </select>
                   {c ? (
                     <>
@@ -295,7 +304,15 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                         }} />
                     </>
                   ) : (
-                    <span style={{ gridColumn: "3 / -1", ...sys(400, 11, C.t6) }}>{pin.note ?? ""}</span>
+                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                      {pin.best && (
+                        <span style={{ ...sys(500, 11, C.t4), flex: "none" }}>
+                          ★ best for {SHORT[pin.best]}
+                          {pin.also?.length ? <span style={{ color: C.t5 }}> · also {pin.also.map((a) => SHORT[a]).join(", ")}</span> : null}
+                        </span>
+                      )}
+                      <span style={sys(400, 11, C.t6)}>{pin.note ?? ""}</span>
+                    </span>
                   )}
                 </>
               )}

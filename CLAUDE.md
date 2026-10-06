@@ -20,7 +20,9 @@ the schematic is the bug class most likely to cost an evening at bring-up.
 **Generic ESP32 boards (devkits) have no fixed pin map** — users assign
 pins to functions in the console. What each pin *can* do lives in
 `boards/<board>.yaml`; what each function *needs* in
-`boards/functions.yaml`. Never edit `boards_gen.h` / `boards_gen.ts`:
+`boards/functions.yaml`; the recommended use per pin (`best` / `also`
+/ `guide`) lives in the board file too and is advice only. Never edit
+`boards_gen.h` / `boards_gen.ts`:
 
 ```
 python3 tools/genboards.py          # regenerate

@@ -133,6 +133,24 @@ Put a scope (or an LED) on the pin through a power cycle.
 Analog input is not offered yet; when it is, only ADC1 (32–39) —
 ADC2 is unusable while the radio is on.
 
+**Recommended pins** (2026-10-05) — advice, not rules. Each pin in
+the profile has a `best` use and optional `also` uses, and the profile
+has one `guide` line per function saying why. The console shows a *Pin
+guide* above the pin list, ★ on recommended pins in each dropdown, a
+"best for" hint on unused pins, and an ⓘ tip when a channel sits on a
+pin that works but isn't ideal — it never blocks a save. `genboards.py`
+refuses advice the rules would contradict: a use the pin can't do, or a
+servo / motor / relay on a pin that glitches at power-up.
+
+| Use | DevKit V1 pins | Why |
+|---|---|---|
+| Servos | D25, D26, D27, D13, D4 | quiet at power-up — nothing twitches at boot |
+| DC motors | D18 + D19 | a quiet pair for IN1 / IN2 |
+| Relays | D21, D22, D23 | quiet at power-up — nothing clicks on at boot |
+| LED strips | RX2 (16), TX2 (17) | any output works; keeps strips together (level-shift 5 V strips) |
+| LED dimmers | D2 (onboard), D5, D15, D14, D12 | the boot-quirk pins — a flicker doesn't matter for a light |
+| Sensors | VP, VN, D34, D35 (PIR / beam); D32, D33 (buttons, internal pull-up) | input-only pins don't use up outputs |
+
 **Resource limits** the validator also enforces: 16 LEDC channels
 (LED, servo = 1; motor = 2), 8 RMT TX channels (one per strip), 16
 channels per node.
