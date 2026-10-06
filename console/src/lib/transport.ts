@@ -201,10 +201,14 @@ export async function connectUsb(): Promise<{ link: NodeLink; hello: NodeHello }
 // in localStorage, heartbeats every 5 s, and each node's first input
 // toggles every few seconds so input rows show life.
 const SIM_KEY = "propmesh.sim.";
-const SIM_LOCAL = "51a0beef";
+const SIM_LOCAL_ID = "51a0beef";
+const SIM_LOCAL = SIM_LOCAL_ID;
+// A small chain: the USB node hears 5c0ffee1 directly; 5c0ffee2 is out
+// of its range and reached through 5c0ffee1 — enough to see hops and a
+// weak link on the Yard.
 const SIM_REMOTES = [
-  { node: "5c0ffee1", hops: 0, rssi: -54 },
-  { node: "5c0ffee2", hops: 1, rssi: -71 },
+  { node: "5c0ffee1", hops: 0, rssi: -54, nbrs: [{ node: SIM_LOCAL_ID, rssi: -55 }, { node: "5c0ffee2", rssi: -77 }] },
+  { node: "5c0ffee2", hops: 1, rssi: -77, nbrs: [{ node: "5c0ffee1", rssi: -79 }] },
 ];
 
 interface SimNode {
@@ -240,7 +244,7 @@ class SimLink implements NodeLink {
         node: r.node, board: 0, role: 1 | (n.cfg.bridge ? 6 : 0), fw: 3,
         up: Math.round(performance.now() / 1000) + 600 * (i + 1), heap: 190 - 7 * i,
         batt: 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
-        nbrs: [{ node: SIM_LOCAL, rssi: r.rssi }],
+        nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
       };
       this.events.emit({ evt: "heartbeat", ...hb });
     });
@@ -281,6 +285,13 @@ class SimLink implements NodeLink {
             value: n.values.get(`${c.kind}_${c.index}`) ?? (c.kind === "SERVO" ? -1 : 0),
           })),
         };
+      case "mesh": {
+        const bridge = !!this.nodes.get(SIM_LOCAL)!.cfg.bridge;
+        return {
+          ok: true, synced: true, role: 1 | (bridge ? 6 : 0), conductor: SIM_LOCAL, hop: 0,
+          neighbors: node === SIM_LOCAL ? [{ node: "5c0ffee1", rssi: -53 }] : [],
+        };
+      }
       case "all_off":
         n.cfg.channels.forEach((c) => {
           if (c.kind !== "DIGITAL_IN") n.values.set(`${c.kind}_${c.index}`, c.kind === "SERVO" ? -1 : 0);

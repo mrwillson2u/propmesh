@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
-import { stopAll, useConnection } from "./lib/connection";
+import { counts, stopAll, useConnection } from "./lib/connection";
 import { Logo, StopOctagon, mono } from "./ui";
 import Yard, { type YardLayout } from "./views/Yard";
 import Nodes from "./views/Nodes";
@@ -12,6 +12,8 @@ import Cues from "./views/Cues";
 import ShowGraph from "./views/ShowGraph";
 import Settings from "./views/Settings";
 import NotWired from "./views/NotWired";
+import RealYard from "./views/yard/RealYard";
+import { select } from "./lib/connection";
 
 const VIEWS = [
   { name: "Yard", icon: "◎" },
@@ -125,8 +127,8 @@ export default function App() {
               <span style={{ color: C.t5 }}>NODES</span>
               {conn
                 ? <span>
-                    <span style={{ color: C.green }}>{(conn.nodeCount ?? 1) - (conn.missingCount ?? 0)}</span>
-                    {!!conn.missingCount && <span style={{ color: C.red }}> / {conn.missingCount} missing</span>}
+                    <span style={{ color: C.green }}>{counts(conn).online}</span>
+                    {!!counts(conn).missing && <span style={{ color: C.red }}> / {counts(conn).missing} missing</span>}
                   </span>
                 : <span style={{ color: C.t5 }}>—</span>}
             </div>
@@ -184,12 +186,11 @@ export default function App() {
           </div>
         )}
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-          {view === "Yard" && (demo ? <Yard mesh={mesh} initialLayout={initialLayout()} /> : (
-            <NotWired title="The yard map isn't connected to real boards yet">
-              It will draw your nodes and the radio links between them from the heartbeats the bridge
-              already reports. Until then, your real boards are in Nodes &amp; Channels.
-            </NotWired>
-          ))}
+          {view === "Yard" && (demo
+            ? <Yard mesh={mesh} initialLayout={initialLayout()} />
+            : <RealYard
+                onOpenNode={(id) => { select(id); setView("Nodes & Channels"); }}
+                onConnect={() => setView("Nodes & Channels")} />)}
           {view === "Nodes & Channels" && <Nodes />}
           {view === "Cues" && (demo ? <Cues stopped={stopped} /> : (
             <NotWired title="Cues aren't built yet">

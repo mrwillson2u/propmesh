@@ -2,36 +2,18 @@
 // connect, list every node heard on the mesh, pick one to edit.
 // Requests for remote nodes go through the USB node over ESP-NOW.
 // docs/generic-boards.md.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
-import {
-  connectSim, connectUsb, target, webSerialSupported,
-  type Heartbeat, type NodeHello, type NodeLink,
-} from "../../lib/transport";
+import { connectSim, connectUsb, target, webSerialSupported } from "../../lib/transport";
 import PinEditor from "./PinEditor";
-import { changed, getConnection, setConnection } from "../../lib/connection";
-
-// A node not heard for three heartbeats is shown as missing.
-const MISSING_MS = 16000;
-// A hello can be lost like any frame; ask again soon, not after a
-// pause long enough to look like nothing is happening.
-const HELLO_RETRY_MS = 3000;
-
-interface Entry {
-  node: string;
-  usb: boolean; // the node on the cable
-  hello?: NodeHello;
-  hb?: Heartbeat;
-  seen: number; // ms timestamp of the last heartbeat / hello
-  firstSeen: number; // when the console first heard it
-  helloTries: number; // hellos sent and not answered
-}
-
-type InputCb = (kind: string, index: number, value: number) => void;
+import {
+  closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
+  useConnection, type Entry,
+} from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -45,60 +27,23 @@ const tag = (text: string, color: string, bg: string): JSX.Element => (
   <span style={{ padding: "1px 6px", borderRadius: 99, background: bg, ...mono(700, 9.5, color), letterSpacing: ".05em" }}>{text}</span>
 );
 
-const usbEntry = (hello: NodeHello): Entry =>
-  ({ node: hello.node, usb: true, hello, seen: Date.now(), firstSeen: Date.now(), helloTries: 0 });
-
+// The board list and its tracking live in lib/connection.ts, so they
+// keep running while another view is open; this panel only shows them.
 export default function MeshPanel() {
-  // Pick up a link opened before this panel last mounted (view switch,
-  // hot reload) — see lib/connection.ts.
-  const [link, setLink] = useState<NodeLink | null>(() => getConnection()?.link ?? null);
-  const [entries, setEntries] = useState<Record<string, Entry>>(() => {
-    const c = getConnection();
-    return c ? (c.roster as Record<string, Entry> | undefined) ?? { [c.hello.node]: usbEntry(c.hello) } : {};
-  });
-  const [selected, setSelected] = useState<string | null>(() => {
-    const c = getConnection();
-    return c ? c.selected ?? c.hello.node : null;
-  });
-
-  const [now, setNow] = useState(Date.now());
-
-  // Mirror the list into the connection so it outlives this panel and
-  // the sidebar / STOP ALL can see it.
-  useEffect(() => {
-    const c = getConnection();
-    if (!c || c.link !== link) return;
-    const t = Date.now();
-    const all = Object.values(entries);
-    const missing = all.filter((en) => !en.usb && t - en.seen > MISSING_MS).length;
-    const notify = c.nodeCount !== all.length || c.missingCount !== missing;
-    Object.assign(c, { roster: entries, selected, nodeCount: all.length, missingCount: missing });
-    if (notify) changed();
-  }, [entries, selected, link, now]);
+  const conn = useConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputSubs = useRef(new Map<string, Set<InputCb>>());
-  const local = useRef<string | null>(getConnection()?.hello.node ?? null);
-  const entriesRef = useRef(entries);
-  entriesRef.current = entries;
-  const helloAt = useRef(new Map<string, number>()); // last hello attempt per node
-
-  const patch = (node: string, p: Partial<Entry>) =>
-    setEntries((all) => ({ ...all, [node]: { ...(all[node] ?? { node, usb: false, seen: 0, firstSeen: Date.now(), helloTries: 0 }), ...p } }));
-
-  // ---- connection -------------------------------------------------------
+  const link = conn?.link ?? null;
+  const entries = conn?.entries ?? {};
+  const selected = conn?.selected ?? null;
+  const now = Date.now();
 
   const connect = async (how: "usb" | "sim") => {
     setBusy(true);
     setError(null);
     try {
       const { link, hello } = how === "usb" ? await connectUsb() : await connectSim();
-      local.current = hello.node;
-      setConnection({ link, hello });
-      setEntries({ [hello.node]: usbEntry(hello) });
-      helloAt.current = new Map([[hello.node, Date.now()]]);
-      setSelected(hello.node);
-      setLink(link);
+      openConnection(link, hello);
     } catch (e) {
       // Closing the port chooser is not an error worth showing.
       if ((e as Error).name !== "NotFoundError") setError((e as Error).message);
@@ -107,70 +52,12 @@ export default function MeshPanel() {
     }
   };
 
-  const disconnect = async () => {
-    setConnection(null);
-    await link?.close();
-    setLink(null);
-    setEntries({});
-    setSelected(null);
-  };
+  const disconnect = () => { void closeConnection(); };
+  const setSelected = select;
 
-  useEffect(() => {
-    if (!link) return;
-    const off = link.onEvent((e) => {
-      if (e.evt === "disconnected") {
-        setConnection(null);
-        setLink(null);
-        setEntries({});
-        setError("USB connection lost");
-      } else if (e.evt === "heartbeat") {
-        const hb = e as unknown as Heartbeat;
-        if (hb.node !== local.current) patch(hb.node, { hb, seen: Date.now() });
-      } else if (e.evt === "input") {
-        const node = (e.node as string | undefined) ?? local.current ?? "";
-        inputSubs.current.get(node)?.forEach((cb) => cb(e.kind as string, e.index as number, e.value as number));
-      } else if (e.evt === "boot" && e.node === local.current) {
-        // The USB node rebooted (e.g. reset button): re-read its role.
-        helloAt.current.delete(e.node as string);
-      }
-    });
-    // Unsubscribe only — never close here. This cleanup also runs on a
-    // view switch and on every dev hot reload; closing the port in it
-    // left the panel holding a dead link (2026-10-05).
-    return off;
-  }, [link]);
-
-  // Learn each node's name and board with a hello; refresh the USB
-  // node's role now and then (it changes when an election runs).
-  useEffect(() => {
-    if (!link) return;
-    const tick = () => {
-      const t = Date.now();
-      setNow(t);
-      Object.values(entriesRef.current).forEach((en) => {
-        const last = helloAt.current.get(en.node);
-        const due = en.usb ? last === undefined || t - last > 5000
-          : !en.hello && (last === undefined || t - last > HELLO_RETRY_MS);
-        if (!due) return;
-        helloAt.current.set(en.node, t);
-        if (!en.usb) patch(en.node, { helloTries: en.helloTries + 1 });
-        target(link, en.usb ? null : en.node).request("hello").then((r) => {
-          if (r.ok) patch(en.node, { hello: r as unknown as NodeHello, seen: Date.now(), helloTries: 0 });
-        }).catch(() => { /* retried on a later tick */ });
-      });
-    };
-    tick();
-    const iv = setInterval(tick, 1000);
-    return () => clearInterval(iv);
-  }, [link]);
-
-  const onInput = useCallback((cb: InputCb) => {
-    const node = selected ?? "";
-    const m = inputSubs.current;
-    if (!m.has(node)) m.set(node, new Set());
-    m.get(node)!.add(cb);
-    return () => { m.get(node)?.delete(cb); };
-  }, [selected]);
+  const onSelInput = useCallback(
+    (cb: (kind: string, index: number, value: number) => void) => onInput(selected ?? "", cb),
+    [selected]);
 
   // ---- render -------------------------------------------------------------
 
@@ -179,8 +66,8 @@ export default function MeshPanel() {
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         <div style={{ flex: 1 }}>
           <div style={sys(700, 12.5, C.t1)}>Generic boards over USB</div>
-          <div style={{ ...mono(500, 11, error ? C.red : C.t4), marginTop: 3 }}>
-            {error ?? (webSerialSupported()
+          <div style={{ ...mono(500, 11, error || connectionError() ? C.red : C.t4), marginTop: 3 }}>
+            {error ?? connectionError() ?? (webSerialSupported()
               ? "Plug in a devkit flashed with firmware/node — your bridge — and connect. Every node it hears on the mesh shows up here."
               : "USB needs Web Serial — open the console in Chrome or Edge. The simulated mesh works anywhere.")}
           </div>
@@ -193,13 +80,13 @@ export default function MeshPanel() {
     );
   }
 
-  const list = Object.values(entries).sort((a, b) =>
+  const list = (Object.values(entries) as Entry[]).sort((a, b) =>
     Number(b.usb) - Number(a.usb) || (a.hb?.hops ?? 0) - (b.hb?.hops ?? 0) || a.node.localeCompare(b.node));
   const sel = selected ? entries[selected] : undefined;
   const selBoard = sel?.hello ? BOARDS[sel.hello.board] : undefined;
 
   const where = (en: Entry) => en.usb ? "USB"
-    : en.hb ? `mesh · ${en.hb.hops === 0 ? "direct" : `${en.hb.hops} hop${en.hb.hops > 1 ? "s" : ""}`} · ${en.hb.rssi} dBm`
+    : en.hb ? `mesh · ${en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · ${en.hb.rssi} dBm`
     : "mesh";
 
   return (
@@ -209,7 +96,7 @@ export default function MeshPanel() {
           {link.via === "usb" ? "MESH VIA USB" : "SIMULATED MESH"}
         </span>
         {list.map((en) => {
-          const missing = !en.usb && now - en.seen > MISSING_MS;
+          const missing = isMissing(en, now);
           const role = en.usb ? en.hello?.role ?? 0 : en.hb?.role ?? 0;
           const bridge = !!(role & NodeRole.BRIDGE);
           const clock = !!(role & NodeRole.CONDUCTOR);
@@ -265,10 +152,8 @@ export default function MeshPanel() {
           hello={sel.hello}
           board={selBoard}
           where={where(sel)}
-          onInput={onInput}
-          onSaved={(cfg: NodeConfig) => { helloAt.current.delete(sel.node); patch(sel.node, {
-            hello: { ...sel.hello!, name: cfg.name, bridge: !!cfg.bridge },
-          }); }}
+          onInput={onSelInput}
+          onSaved={(_cfg: NodeConfig) => refreshHello(sel.node)}
         />
       )}
     </div>

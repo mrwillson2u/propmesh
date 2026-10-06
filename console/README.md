@@ -27,6 +27,18 @@ shows the real USB connection; **STOP ALL sends `all_off` to every
 connected node** (it was cosmetic before 2026-10-05) and names any node
 that didn't confirm. Demo data is never sent to boards.
 
+**Yard on real data** (2026-10-05). `lib/connection.ts` owns the live
+connection *and* everything learned through it — heartbeats, hellos,
+the USB node's own `mesh` neighbors — so it keeps listening whichever
+view is open. `lib/topology.ts` turns that into links (each heartbeat's
+neighbor list; a link shows the **weaker** of its two directions) and
+hop depth (breadth-first from the conductor over live links).
+*Topology* lays nodes out by depth and fits the view to them. *Map*
+starts empty: drag each node from the tray to where it sits; positions
+are per browser (`propmesh.yard.pos.<id>`). A node not heard for 16 s
+is missing (red, dashed links). "direct" = one link to the bridge;
+"N hops" = N links.
+
 ## Views
 
 - **Yard** — the mesh in two projections, switched by a layout toggle:

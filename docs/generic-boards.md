@@ -250,6 +250,13 @@ every 4 s).
 6. Assign **D27 → Sensor** (pull *down*), save, jumper D27 → 3V3 on the
    remote board — the row shows ● ACTIVE.
 7. Unplug a remote board: its chip turns red after ~16 s.
+8. **Yard** (sidebar): Topology draws the bridge at the top and each
+   board by hops from it, every radio link labelled with its signal
+   (the weaker direction). Click a board for its role, uptime, memory
+   and what it hears; *Edit pins →* jumps to it in Nodes & Channels.
+   *Map*: drag the boards from the tray to where they sit in the yard
+   (remembered per browser) — a weak link makes sense once you see it
+   crosses the house.
 
 **Adding a board:** copy the devkit yaml, fill in its pins from the
 vendor pinout and the chip datasheet's strapping table, run

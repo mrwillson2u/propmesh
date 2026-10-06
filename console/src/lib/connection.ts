@@ -1,47 +1,181 @@
-// The open USB link lives here, not in a component: switching views
-// (Nodes → Yard → Nodes) or a dev hot reload unmounts and remounts the
-// panel, and neither may close the port. Only Disconnect, an unplug, or
-// leaving the page ends it (the browser closes ports on unload).
-// Kept in its own module so editing transport.ts or the panels in dev
-// doesn't reset it. The sidebar and STOP ALL read it too.
+// The live connection to the mesh: the open USB link plus everything
+// the console has learned through it — which nodes exist, who they
+// are, who hears whom. It lives here, not in a component, so it keeps
+// listening whichever view is open (Yard and Nodes & Channels read the
+// same list), and so a view switch or a dev hot reload can't close the
+// port. Only Disconnect, an unplug, or leaving the page ends it.
 import { useSyncExternalStore } from "react";
-import { target, type NodeHello, type NodeLink } from "./transport";
+import { target, type Heartbeat, type NodeHello, type NodeLink } from "./transport";
+
+// A node not heard for three heartbeats is shown as missing.
+export const MISSING_MS = 16000;
+// A hello can be lost like any frame; ask again soon, not after a
+// pause long enough to look like nothing is happening.
+const HELLO_RETRY_MS = 3000;
+// The USB node's own view of the mesh (it doesn't hear its own
+// heartbeats): its neighbors and sync state, via the `mesh` command.
+const LOCAL_MESH_MS = 5000;
+
+export interface Entry {
+  node: string;
+  usb: boolean; // the node on the cable
+  hello?: NodeHello;
+  hb?: Heartbeat;
+  seen: number; // ms timestamp of the last heartbeat / hello
+  firstSeen: number; // when the console first heard it
+  helloTries: number; // hellos sent and not answered
+}
+
+export interface LocalMesh {
+  synced: boolean;
+  conductor?: string;
+  hop?: number;
+  neighbors: { node: string; rssi: number }[];
+}
 
 export interface Connection {
   link: NodeLink;
   hello: NodeHello; // the USB node's, at connect time
-  // The panel's node list and selection, so coming back to the view
-  // shows the boards already found instead of rediscovering them.
-  roster?: unknown;
-  selected?: string | null;
-  // For the sidebar: nodes heard, and how many are currently missing.
-  nodeCount?: number;
-  missingCount?: number;
+  entries: Record<string, Entry>;
+  selected: string | null; // the node open in Nodes & Channels
+  local?: LocalMesh;
+  lastEvent: number; // ms timestamp of the last heartbeat heard
 }
+
+type InputCb = (kind: string, index: number, value: number) => void;
 
 let current: Connection | null = null;
+let lastError: string | null = null;
 let version = 0;
 const listeners = new Set<() => void>();
+const inputSubs = new Map<string, Set<InputCb>>();
+let teardown: (() => void) | null = null;
 
-export const getConnection = () => current;
-
-export function setConnection(c: Connection | null) {
-  current = c;
-  changed();
-}
-
-// Call after mutating fields of the current connection.
-export function changed() {
+function changed() {
   version++;
   listeners.forEach((l) => l());
 }
 
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 
-// Re-renders when the connection or its summary changes.
+// Re-renders on every change, and once a second while connected (so
+// ages and "missing" stay current).
 export function useConnection(): Connection | null {
   useSyncExternalStore(subscribe, () => version);
   return current;
+}
+
+export const getConnection = () => current;
+export const connectionError = () => lastError;
+
+export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.seen > MISSING_MS;
+
+export function counts(c: Connection, now = Date.now()) {
+  const all = Object.values(c.entries);
+  const missing = all.filter((e) => isMissing(e, now)).length;
+  return { total: all.length, online: all.length - missing, missing };
+}
+
+function patch(node: string, p: Partial<Entry>) {
+  if (!current) return;
+  const prev = current.entries[node] ?? { node, usb: false, seen: 0, firstSeen: Date.now(), helloTries: 0 };
+  current = { ...current, entries: { ...current.entries, [node]: { ...prev, ...p } } };
+  changed();
+}
+
+export function select(node: string | null) {
+  if (!current) return;
+  current = { ...current, selected: node };
+  changed();
+}
+
+// Input events for one node; returns the unsubscribe.
+export function onInput(node: string, cb: InputCb) {
+  if (!inputSubs.has(node)) inputSubs.set(node, new Set());
+  inputSubs.get(node)!.add(cb);
+  return () => { inputSubs.get(node)?.delete(cb); };
+}
+
+export function openConnection(link: NodeLink, hello: NodeHello) {
+  teardown?.();
+  const t = Date.now();
+  lastError = null;
+  current = {
+    link, hello, selected: hello.node, lastEvent: t,
+    entries: { [hello.node]: { node: hello.node, usb: true, hello, seen: t, firstSeen: t, helloTries: 0 } },
+  };
+  const helloAt = new Map<string, number>([[hello.node, t]]);
+  let meshAt = 0;
+
+  const off = link.onEvent((e) => {
+    if (!current) return;
+    if (e.evt === "disconnected") {
+      lastError = "USB connection lost";
+      end();
+    } else if (e.evt === "heartbeat") {
+      const hb = e as unknown as Heartbeat;
+      current = { ...current, lastEvent: Date.now() };
+      if (hb.node !== hello.node) patch(hb.node, { hb, seen: Date.now() });
+      else changed();
+    } else if (e.evt === "input") {
+      const node = (e.node as string | undefined) ?? hello.node;
+      inputSubs.get(node)?.forEach((cb) => cb(e.kind as string, e.index as number, e.value as number));
+    } else if (e.evt === "boot" && e.node === hello.node) {
+      helloAt.delete(hello.node); // it rebooted: re-read its role
+    }
+  });
+
+  const iv = setInterval(() => {
+    if (!current) return;
+    const now = Date.now();
+    for (const en of Object.values(current.entries)) {
+      const last = helloAt.get(en.node);
+      const due = en.usb ? last === undefined || now - last > 5000
+        : !en.hello && (last === undefined || now - last > HELLO_RETRY_MS);
+      if (!due) continue;
+      helloAt.set(en.node, now);
+      if (!en.usb) patch(en.node, { helloTries: en.helloTries + 1 });
+      target(link, en.usb ? null : en.node).request("hello").then((r) => {
+        if (r.ok) patch(en.node, { hello: r as unknown as NodeHello, seen: Date.now(), helloTries: 0 });
+      }).catch(() => { /* retried on a later tick */ });
+    }
+    if (now - meshAt > LOCAL_MESH_MS) {
+      meshAt = now;
+      link.request("mesh").then((r) => {
+        if (!r.ok || !current) return;
+        current = { ...current, local: r as unknown as LocalMesh };
+        changed();
+      }).catch(() => { /* next tick */ });
+    }
+    changed(); // ages, "missing"
+  }, 1000);
+
+  teardown = () => { off(); clearInterval(iv); teardown = null; };
+  changed();
+}
+
+function end() {
+  teardown?.();
+  current = null;
+  changed();
+}
+
+// Disconnect button.
+export async function closeConnection() {
+  const link = current?.link;
+  lastError = null;
+  end();
+  await link?.close();
+}
+
+// Ask a node again for its name/board/role now (after a save).
+export function refreshHello(node: string) {
+  const c = current;
+  if (!c) return;
+  const en = c.entries[node];
+  target(c.link, en?.usb ? null : node).request("hello").then((r) => {
+    if (r.ok) patch(node, { hello: r as unknown as NodeHello, seen: Date.now() });
+  }).catch(() => { /* the poll will catch up */ });
 }
 
 // STOP ALL: every output off on every node the console knows about,
@@ -51,10 +185,7 @@ export function useConnection(): Connection | null {
 export async function stopAll(): Promise<string[]> {
   const c = current;
   if (!c) return [];
-  const roster = (c.roster ?? {}) as Record<string, { node: string; usb: boolean }>;
-  const nodes = Object.values(roster);
-  if (!nodes.length) nodes.push({ node: c.hello.node, usb: true });
-  const results = await Promise.all(nodes.map((n) =>
+  const results = await Promise.all(Object.values(c.entries).map((n) =>
     target(c.link, n.usb ? null : n.node).request("all_off")
       .then((r) => (r.ok ? null : n.node))
       .catch(() => n.node)));
