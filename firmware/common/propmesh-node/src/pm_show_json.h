@@ -9,7 +9,7 @@
 #include "pm_show_core.h"
 
 inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
-  out = PmSequence();
+  out.clear();  // in place — see PmShow::clear
   if (!j.is<JsonObjectConst>()) return "sequence is not an object";
   long id = j["id"] | 0L;
   if (id < 1 || id > 65535) return "sequence id must be 1-65535";

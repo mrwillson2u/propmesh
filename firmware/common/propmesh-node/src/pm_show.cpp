@@ -42,7 +42,7 @@ static bool save() {
 }
 
 void pm_show_begin() {
-  show = PmShow();
+  show.clear();
   File f = LittleFS.open(PATH, "r");
   if (!f) return;
   JsonDocument doc;
@@ -150,7 +150,7 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "get_sequence")) {
-    PmSequence *s = show.find(req["id"] | 0);
+    PmSequence *s = show.find(req["seq"] | 0);  // "seq", never "id": that is the request number
     if (!s) { fail(resp, "no such sequence on this node"); return true; }
     pm_sequence_to_json(*s, resp["sequence"].to<JsonObject>());
     return true;
@@ -167,7 +167,7 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
   }
   if (!strcmp(cmd, "delete_sequence")) {
     player.stop_all();
-    show.remove(req["id"] | 0);  // deleting what isn't there is fine
+    show.remove(req["seq"] | 0);  // deleting what isn't there is fine
     if (!save()) fail(resp, "could not save to flash");
     return true;
   }

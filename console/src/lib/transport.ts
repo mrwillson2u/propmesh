@@ -153,6 +153,10 @@ class SerialLink implements NodeLink {
 
   request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
     if (this.closed) return Promise.reject(new Error("USB disconnected — reconnect the node"));
+    // "id" is the request number that pairs a reply with its request. A
+    // body field of the same name silently replaced it (get_sequence
+    // {id} did, 2026-10-05) and the reply never matched — refuse loudly.
+    if ("id" in body) return Promise.reject(new Error(`"${cmd}": "id" is reserved for the request number — name the field something else`));
     const id = this.nextId++;
     return new Promise<Reply>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -325,7 +329,7 @@ class SimLink implements NodeLink {
           sequences: [...n.seqs.values()].map((q) => ({ id: q.id, name: q.name, steps: q.steps.length, length_ms: Math.max(0, ...q.steps.map((x) => x[0])) })),
         };
       case "get_sequence": {
-        const q = n.seqs.get(body.id as number);
+        const q = n.seqs.get(body.seq as number);
         return q ? { ok: true, sequence: q } : { ok: false, error: "no such sequence on this node" };
       }
       case "set_sequence": {
@@ -337,7 +341,7 @@ class SimLink implements NodeLink {
         return { ok: true };
       }
       case "delete_sequence":
-        n.seqs.delete(body.id as number);
+        n.seqs.delete(body.seq as number);
         this.saveShow(node, n);
         return { ok: true };
       case "set_rules": {

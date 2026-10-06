@@ -37,6 +37,9 @@ struct PmSequence {
   char name[PM_SEQ_NAME_LEN] = {};
   uint8_t step_count = 0;
   PmStep steps[PM_MAX_STEPS];
+  // Clear in place. Never `s = PmSequence()`: that builds a ~1.2 KB
+  // temporary on the stack first.
+  void clear() { id = 0; name[0] = 0; step_count = 0; }
   uint32_t length_ms() const {
     uint32_t m = 0;
     for (uint8_t i = 0; i < step_count; i++) if (steps[i].t_ms > m) m = steps[i].t_ms;
@@ -66,6 +69,12 @@ struct PmShow {
   PmSequence seqs[PM_MAX_SEQUENCES];
   uint8_t rule_count = 0;
   PmRule rules[PM_MAX_RULES];
+
+  // Clear in place. NEVER `show = PmShow()` on the device: it builds a
+  // ~19 KB temporary on the stack, the loop task has 8 KB, and the
+  // overflow corrupts the WiFi task — every board crash-looped at boot
+  // on 2026-10-05 until this.
+  void clear() { seq_count = 0; rule_count = 0; }
 
   PmSequence *find(uint16_t id) {
     for (uint8_t i = 0; i < seq_count; i++) if (seqs[i].id == id) return &seqs[i];

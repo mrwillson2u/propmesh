@@ -9,7 +9,9 @@ Started 2026-10-03 for the **October 2026 show** — the fallback when a
 prop doesn't have a Pro board, and the way anyone with a $5 devkit joins
 the mesh. First board: **ESP32 DevKit V1 (30-pin, ESP32-WROOM-32)**.
 
-Status: **Stage 2 (bridge + config over the mesh) verified on 3 DevKit
+Status: **Stage 3 (sequences + triggers) verified on 3 DevKit V1s
+2026-10-05** except the physical sensor → trigger path (§6b).
+Stage 2 (bridge + config over the mesh) verified on 3 DevKit
 V1s 2026-10-05** (bridge `321553bc`, remotes `3214b4a8`, `82c48c7c`;
 bench, boards < 1 m apart). Per run: 20 × 16-channel `set_config`
 (1.6 kB, 9 chunks), 20 × `get_config`, 40 × `set`. After the fixes
@@ -206,7 +208,8 @@ untouched and the boot line says `"config":"rejected"`.
 
 USB serial, 115200 baud, **one JSON object per line** each way. Lines
 from the node that don't start with `{` are log text. Requests may
-carry an `id`, echoed in the reply. Every reply has `ok`; failures add
+carry an `id`, echoed in the reply — **`id` is reserved for that**; no
+command takes a parameter called `id` (sequence ids are `seq`). Every reply has `ok`; failures add
 `error`.
 
 | `cmd` | Request fields | Reply |
@@ -290,9 +293,9 @@ reports the problem and the console shows ⚠.
 | `cmd` | Request | Reply |
 |---|---|---|
 | `get_show` | — | `armed`, `sequences[]` (`id`, `name`, `steps` count, `length_ms`, `problem?`), `rules[]` |
-| `get_sequence` | `id` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]`) |
+| `get_sequence` | `seq` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]`) |
 | `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
-| `delete_sequence` | `id` | — |
+| `delete_sequence` | `seq` | — |
 | `set_rules` | `rules[]` of `{input, on: "active"\|"clear", seq, cooldown_ms, enabled}` | — (replaces all this node's triggers) |
 | `cue` | `seq`, `offset_ms?` | — (fires show-wide from this node; refused while disarmed) |
 | `arm` | `on` | `armed` |
@@ -377,6 +380,21 @@ nodes with per-node configs and same-node triggers only. No new
 features after Oct 22.
 
 ## 9. Known gaps
+
+- **Fixed 2026-10-05 — Stage 3 firmware crash-looped every board.**
+  `show = PmShow()` built a 19 KB temporary on the 8 KB loop-task stack;
+  the overflow corrupted the WiFi task (StoreProhibited / lwip assert /
+  watchdog resets before the first print). Host tests can't see it — a
+  PC has megabytes of stack. Now cleared in place, and `firmware/node`
+  builds with `-Wframe-larger-than=3072` (it flags the old line as a
+  19 248-byte frame).
+- **Fixed 2026-10-05 — `get_sequence {id}` collided with the request
+  id.** Sequence ids are now `seq`; the console refuses a body field
+  named `id`. Hardware check after both fixes (3 boards): parts
+  stored and validated (a step for a servo a board lacks is refused);
+  cue from the bridge and from a remote board both ran the heads
+  board's steps on time; disarm refused cues, re-arm restored; a part
+  survived a reflash + reboot.
 
 - **Fixed 2026-10-05 — a restarted bridge was ignored for 30 s+.**
   Opening a classic devkit's USB port resets it (DTR/RTS drive EN

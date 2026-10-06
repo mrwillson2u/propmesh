@@ -64,7 +64,7 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
       for (const r of (sh.rules as Omit<Rule, "node">[]) ?? []) show.rules.push({ ...r, node: en.node });
       // Parts one at a time: each can be up to ~4 kB over the mesh.
       for (const sum of (sh.sequences as { id: number; name: string; problem?: string }[]) ?? []) {
-        const part = await ask(link, en, "get_sequence", { id: sum.id });
+        const part = await ask(link, en, "get_sequence", { seq: sum.id });
         if (!part.ok) continue;
         const p = part.sequence as { id: number; name: string; steps: Wire[] };
         const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], problems: [] };
@@ -103,7 +103,7 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
     try {
       const r = steps
         ? await ask(link, en, "set_sequence", { sequence: { id: seq.id, name: seq.name, steps } })
-        : await ask(link, en, "delete_sequence", { id: seq.id });
+        : await ask(link, en, "delete_sequence", { seq: seq.id });
       if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
     } catch (e) {
       failed.push({ node, error: (e as Error).message });
