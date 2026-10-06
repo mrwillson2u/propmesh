@@ -274,6 +274,12 @@ class SimLink implements NodeLink {
       case "set": {
         const c = n.cfg.channels.find((x) => x.kind === body.kind && x.index === body.index);
         if (!c || c.kind === "DIGITAL_IN") return { ok: false, error: "no such output channel" };
+        if (c.kind === "SERVO" && typeof body.us === "number") {
+          const lo = c.min_us ?? 500, hi = c.max_us ?? 2500;
+          const v = Math.round(((body.us as number) - lo) * 1000 / (hi - lo));
+          n.values.set(`SERVO_${c.index}`, Math.max(0, Math.min(1000, v)));
+          return { ok: true };
+        }
         n.values.set(`${c.kind}_${c.index}`, body.value as number);
         return { ok: true };
       }

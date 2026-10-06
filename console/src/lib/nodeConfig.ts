@@ -13,8 +13,8 @@ export interface ChannelCfg {
   pins: number[]; // in FUNCTIONS[kind].pins role order
   active_low?: boolean; // RELAY, DIGITAL_IN
   pull?: Pull; // DIGITAL_IN
-  min_us?: number; // SERVO
-  max_us?: number;
+  min_us?: number; // SERVO: pulse at 0 %
+  max_us?: number; // SERVO: pulse at 100 % — below min_us = reversed
   pixels?: number; // LED_STRIP
 }
 
@@ -33,6 +33,7 @@ export const EMPTY_CONFIG: NodeConfig = { v: 1, name: "", bridge: false, channel
 export const MAX_CHANNELS = 16;
 export const SERVO_MIN_US = 400;
 export const SERVO_MAX_US = 2600;
+export const SERVO_MIN_TRAVEL_US = 50;
 export const STRIP_MAX_PIXELS = 300;
 export const LABEL_MAX = 23;
 export const NAME_MAX = 31;

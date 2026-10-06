@@ -16,6 +16,9 @@
 
 #define PM_SERVO_MIN_US 400
 #define PM_SERVO_MAX_US 2600
+// The two ends must be at least this far apart — a guard against
+// saving a calibration with both ends captured at the same spot.
+#define PM_SERVO_MIN_TRAVEL_US 50
 #define PM_STRIP_MAX_PIXELS 300
 
 enum { PM_PULL_NONE = 0, PM_PULL_UP = 1, PM_PULL_DOWN = 2 };
@@ -28,8 +31,11 @@ struct PmChannelCfg {
   char label[PM_LABEL_LEN] = {};  // "coffin lid"
   bool active_low = false;        // RELAY, DIGITAL_IN
   uint8_t pull = PM_PULL_NONE;    // DIGITAL_IN
-  uint16_t min_us = 500;          // SERVO: pulse at value 0
-  uint16_t max_us = 2500;         // SERVO: pulse at value 1000
+  // SERVO ends of travel: the pulse at value 0 and at value 1000.
+  // min_us > max_us is allowed and is what "reverse" means — the
+  // console's Reverse box swaps the two (decided 2026-10-05).
+  uint16_t min_us = 500;
+  uint16_t max_us = 2500;
   uint16_t pixels = 30;           // LED_STRIP
 };
 
@@ -81,11 +87,26 @@ inline int32_t pm_clamp_value(const pm_function_t &f, int32_t v) {
   return v < f.value_min ? f.value_min : v > f.value_max ? f.value_max : v;
 }
 
-// Servo value 0..1000 -> pulse width between the channel's end stops.
+// Servo value 0..1000 -> pulse width between the channel's end stops
+// (min_us at 0, max_us at 1000 — either way round).
 inline uint32_t pm_servo_pulse_us(const PmChannelCfg &c, int32_t value) {
   if (value < 0) value = 0;
   if (value > 1000) value = 1000;
-  return c.min_us + (uint32_t)(c.max_us - c.min_us) * (uint32_t)value / 1000;
+  return (uint32_t)((int32_t)c.min_us + ((int32_t)c.max_us - (int32_t)c.min_us) * value / 1000);
+}
+
+// Raw pulse for calibration, kept inside the absolute safe range.
+inline uint32_t pm_servo_clamp_us(int32_t us) {
+  return us < PM_SERVO_MIN_US ? PM_SERVO_MIN_US : us > PM_SERVO_MAX_US ? PM_SERVO_MAX_US : (uint32_t)us;
+}
+
+// Where a raw pulse falls between the end stops, as a 0..1000 value
+// (clamped) — so the normal slider can show a calibration position.
+inline int32_t pm_servo_value_of(const PmChannelCfg &c, uint32_t us) {
+  int32_t span = (int32_t)c.max_us - (int32_t)c.min_us;
+  if (!span) return 0;
+  int32_t v = ((int32_t)us - (int32_t)c.min_us) * 1000 / span;
+  return v < 0 ? 0 : v > 1000 ? 1000 : v;
 }
 
 // Fraction (0..1000) of full scale -> LEDC duty at `bits` resolution.

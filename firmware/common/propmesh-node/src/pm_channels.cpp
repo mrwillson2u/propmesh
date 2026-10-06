@@ -138,6 +138,16 @@ bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value) {
   return true;
 }
 
+bool pm_servo_set_pulse(uint8_t index, uint32_t us) {
+  int i = find(PM_CHANNEL_KIND_SERVO, index);
+  if (i < 0) return false;
+  const PmChannelCfg &c = active.channels[i];
+  us = pm_servo_clamp_us((int32_t)us);
+  ledcWrite(c.pins[0], pm_pulse_duty(us, pwm_hz(c.kind), SERVO_BITS));
+  rt[i].value = pm_servo_value_of(c, us);
+  return true;
+}
+
 int32_t pm_channel_get(uint8_t kind, uint8_t index) {
   int i = find(kind, index);
   return i < 0 ? 0 : rt[i].value;

@@ -5,7 +5,7 @@
 // the firmware's validator and its verdict is what gets shown on save.
 import { Cap, FUNCTIONS, type Board } from "./boards_gen";
 import {
-  MAX_CHANNELS, SERVO_MAX_US, SERVO_MIN_US, STRIP_MAX_PIXELS,
+  MAX_CHANNELS, SERVO_MAX_US, SERVO_MIN_TRAVEL_US, SERVO_MIN_US, STRIP_MAX_PIXELS,
   channelCode, type NodeConfig,
 } from "./nodeConfig";
 
@@ -53,7 +53,9 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
 
     if (c.kind === "SERVO") {
       const lo = c.min_us ?? 500, hi = c.max_us ?? 2500;
-      if (lo < SERVO_MIN_US || hi > SERVO_MAX_US || lo >= hi) add("servo_range", true, i);
+      const inRange = (us: number) => us >= SERVO_MIN_US && us <= SERVO_MAX_US;
+      // Either way round (min above max = reversed), but apart.
+      if (!inRange(lo) || !inRange(hi) || Math.abs(hi - lo) < SERVO_MIN_TRAVEL_US) add("servo_range", true, i);
     }
     if (c.kind === "LED_STRIP") {
       const n = c.pixels ?? 30;
@@ -82,7 +84,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "pin_caution": return `${pin}: ${bp?.note ?? "use with care"}`;
     case "pin_taken": return `${who}: ${pin} is already in use`;
     case "no_pull": return `${who}: ${pin} has no internal pull resistor — set pull to "none" and add one externally`;
-    case "servo_range": return `${who}: pulse range must be ${SERVO_MIN_US}–${SERVO_MAX_US} µs with min below max`;
+    case "servo_range": return `${who}: min and max must each be ${SERVO_MIN_US}–${SERVO_MAX_US} µs and at least ${SERVO_MIN_TRAVEL_US} µs apart`;
     case "pixel_count": return `${who}: pixel count must be 1–${STRIP_MAX_PIXELS}`;
     case "pwm_budget": return `Too many PWM outputs — this board has ${board.ledcChannels} PWM channels (a motor uses 2)`;
     case "strip_budget": return `Too many LED strips — this board drives ${board.rmtTxChannels}`;

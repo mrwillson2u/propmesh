@@ -94,8 +94,9 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
     if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN && c.pull > PM_PULL_DOWN)
       out.add("no_pull", true, i);
     if (c.kind == PM_CHANNEL_KIND_SERVO &&
-        (c.min_us < PM_SERVO_MIN_US || c.max_us > PM_SERVO_MAX_US ||
-         c.min_us >= c.max_us))
+        (c.min_us < PM_SERVO_MIN_US || c.min_us > PM_SERVO_MAX_US ||
+         c.max_us < PM_SERVO_MIN_US || c.max_us > PM_SERVO_MAX_US ||
+         (c.min_us > c.max_us ? c.min_us - c.max_us : c.max_us - c.min_us) < PM_SERVO_MIN_TRAVEL_US))
       out.add("servo_range", true, i);
     if (c.kind == PM_CHANNEL_KIND_LED_STRIP &&
         (c.pixels == 0 || c.pixels > PM_STRIP_MAX_PIXELS))

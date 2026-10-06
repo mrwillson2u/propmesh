@@ -21,6 +21,11 @@ const PmNodeConfig &pm_channels_config();
 
 bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value);
 
+// Calibration: drive a SERVO with a raw pulse width (µs, clamped to
+// 400-2600) regardless of its end stops, so a new end can be found
+// beyond the current ones.
+bool pm_servo_set_pulse(uint8_t index, uint32_t us);
+
 // Last value set (outputs) or current debounced state (inputs).
 // Servos report -1 until first commanded: they are left limp, not
 // snapped to a position the config can't know is safe.

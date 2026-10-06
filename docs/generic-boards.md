@@ -81,7 +81,7 @@ by hand in Chrome. Stages 2–3 not started (see [Plan](#8-plan-october-2026)).
 |---|---|---|---|---|
 | Relay / on-off | `RELAY_n` | 1 out | GPIO; *on = LOW* option for relay modules | 0 / 1 |
 | LED dimmer | `LED_n` | 1 out | LEDC 1 kHz, 12-bit | 0–1000 |
-| Servo | `SERVO_n` | 1 out | LEDC 50 Hz, 14-bit; per-channel end stops (µs) | 0–1000 between the end stops |
+| Servo | `SERVO_n` | 1 out | LEDC 50 Hz, 14-bit; per-channel end stops (µs); **reverse**; **calibrate** | 0–1000 between the end stops; or `us` (raw pulse, calibration) |
 | DC motor | `MOTOR_n` | 2 out (IN1, IN2) | LEDC 25 kHz, 10-bit, into an H-bridge (DRV8871, L298N, TB6612 IN pins) | −1000 … +1000, 0 = coast |
 | LED strip | `LED_STRIP_n` | 1 out | WS2812 via RMT (Adafruit NeoPixel) | `0xRRGGBB`, whole strip |
 | Sensor / button | `DIGITAL_IN_n` | 1 in | debounced 30 ms; pull none/up/down; *active = LOW* option | read-only |
@@ -95,6 +95,17 @@ becomes an output.
 **Why NeoPixel and not FastLED:** FastLED takes the data pin as a C++
 template argument, i.e. at compile time. Runtime pin choice is the
 whole point here.
+
+**Servo ends, reverse and calibration** (2026-10-05). `min_us` is the
+pulse at 0 %, `max_us` the pulse at 100 %. Each must be 400–2600 µs and
+they must be ≥ 50 µs apart; **min above max is allowed and is what
+"reverse" means** — the console's *reverse* box swaps the two, so there
+is no separate flag to disagree with the ends. *Calibrate* (servo rows,
+once the servo is saved) swaps the test slider for the raw pulse
+(400–2600 µs, `set` with `"us"`) so an end can be found beyond the
+current ones; *Set as min / Set as max* captures the position into the
+draft, and one *Save* keeps both. Calibrating works with unsaved edits —
+it drives the servo the node is already running.
 
 **Cut from October:** steppers, audio, analog input, APA102 strips,
 effects beyond solid colour, sACN.
@@ -148,7 +159,7 @@ What the node stores as `/config.json` (LittleFS) and what
 
 `index` is 1-based and per kind. Missing optional fields take the
 defaults shown in the editor (servo 500–2500 µs, 30 pixels, pull none).
-Limits: servo end stops 400–2600 µs, strips 1–300 pixels, labels 23
+Limits: servo end stops 400–2600 µs and ≥ 50 µs apart (either order), strips 1–300 pixels, labels 23
 characters, name 31.
 
 **No-console fallback:** copy `firmware/node/data/config.example.json` to `firmware/node/data/config.json`, edit it,
@@ -168,7 +179,7 @@ carry an `id`, echoed in the reply. Every reply has `ok`; failures add
 | `hello` | — | `node` (8 hex), `fw`, `board`, `name`, `bridge`, `role` (NodeRole flags) |
 | `get_config` | — | `config` |
 | `set_config` | `config` | `issues[]` (`code`, `error`, `channel`, `gpio`); saved + applied only if no errors |
-| `set` | `kind`, `index`, `value` | — (value clamped to the function's range) |
+| `set` | `kind`, `index`, `value` — or, for a `SERVO`, `us` instead of `value` | — (value clamped to the function's range; `us` to 400–2600 and drives the raw pulse regardless of the end stops) |
 | `state` | — | `channels[]` of `kind`, `index`, `value` (servo `-1` = limp) |
 | `all_off` | — | — |
 | `mesh` | — | `synced`, `role`, `conductor`, `hop`, `neighbors[]` |

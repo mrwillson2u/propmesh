@@ -107,12 +107,35 @@ static void test_unknown_kind_and_zero_index_rejected() {
 
 static void test_servo_range_checked() {
   PmChannelCfg s = ch(PM_CHANNEL_KIND_SERVO, 1, 13);
-  s.min_us = 2000;
+  s.min_us = 2000;  // reversed: allowed
   s.max_us = 1000;
-  TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_range"));
-  s.min_us = 100;
+  TEST_ASSERT_FALSE(pm_validate(B, cfg({s})).has("servo_range"));
+  s.min_us = 100;   // below the absolute floor
   s.max_us = 2000;
   TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_range"));
+  s.min_us = 2000;  // ends captured at the same spot
+  s.max_us = 2020;
+  TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_range"));
+  s.min_us = 2700;  // reversed but beyond the ceiling
+  s.max_us = 1000;
+  TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_range"));
+}
+
+// Reverse = min above max: value 0 is the high pulse.
+static void test_reversed_servo_maps_backwards() {
+  PmChannelCfg s = ch(PM_CHANNEL_KIND_SERVO, 1, 13);
+  s.min_us = 2000;
+  s.max_us = 1000;
+  TEST_ASSERT_EQUAL_UINT32(2000, pm_servo_pulse_us(s, 0));
+  TEST_ASSERT_EQUAL_UINT32(1500, pm_servo_pulse_us(s, 500));
+  TEST_ASSERT_EQUAL_UINT32(1000, pm_servo_pulse_us(s, 1000));
+  TEST_ASSERT_EQUAL_INT32(250, pm_servo_value_of(s, 1750));
+}
+
+static void test_calibration_pulse_clamped() {
+  TEST_ASSERT_EQUAL_UINT32(PM_SERVO_MIN_US, pm_servo_clamp_us(0));
+  TEST_ASSERT_EQUAL_UINT32(PM_SERVO_MAX_US, pm_servo_clamp_us(9000));
+  TEST_ASSERT_EQUAL_UINT32(1234, pm_servo_clamp_us(1234));
 }
 
 static void test_pixel_count_checked() {
@@ -295,6 +318,8 @@ int main() {
   RUN_TEST(test_same_index_different_kind_ok);
   RUN_TEST(test_unknown_kind_and_zero_index_rejected);
   RUN_TEST(test_servo_range_checked);
+  RUN_TEST(test_reversed_servo_maps_backwards);
+  RUN_TEST(test_calibration_pulse_clamped);
   RUN_TEST(test_pixel_count_checked);
   RUN_TEST(test_pwm_budget_enforced);
   RUN_TEST(test_board_profile_is_sane);

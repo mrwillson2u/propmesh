@@ -7,7 +7,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
-  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, channelCode, newChannel, pinRole,
+  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, channelCode, newChannel, pinRole,
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
@@ -102,6 +102,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         return;
       }
       setApplied(draft);
+      setCal(null); // the node re-applied its pins: the servo is limp again
       onSaved(draft);
       const st = await node.request("state");
       setValues(toValues(st.channels));
@@ -117,24 +118,43 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   // value as soon as the previous one is acknowledged, never a backlog.
 
   const inFlight = useRef<Record<string, boolean>>({});
-  const queued = useRef<Record<string, number | undefined>>({});
+  const queued = useRef<Record<string, { value: number; us?: number } | undefined>>({});
 
-  const fire = (c: ChannelCfg, value: number) => {
+  // ---- servo calibration -------------------------------------------------
+  // The test slider only spans min..max, so it can't reach a new, wider
+  // end. Calibrate swaps it for the raw pulse (400-2600 µs) and offers
+  // "Set as min / max". It works with unsaved edits — it drives the
+  // servo the node already has — so both ends can be set, then saved.
+  const [cal, setCal] = useState<{ code: string; us: number } | null>(null);
+  const canCalibrate = (c: ChannelCfg) =>
+    applied.channels.some((a) => a.kind === c.kind && a.index === c.index && a.pins[0] === c.pins[0]);
+  const startCal = (c: ChannelCfg) => {
+    const run = applied.channels.find((a) => a.kind === c.kind && a.index === c.index) ?? c;
+    const lo = run.min_us ?? 500, hi = run.max_us ?? 2500;
+    const v = values[channelCode(c)];
+    const us = v === undefined || v < 0 ? 1500 : Math.round(lo + ((hi - lo) * v) / 1000);
+    setCal({ code: channelCode(c), us });
+    fire(c, 0, us);
+  };
+
+  // `us` drives a servo's raw pulse width (calibration) instead of a
+  // value between its end stops.
+  const fire = (c: ChannelCfg, value: number, us?: number) => {
     const key = channelCode(c);
-    setValues((v) => ({ ...v, [key]: value }));
+    if (us === undefined) setValues((v) => ({ ...v, [key]: value }));
     if (inFlight.current[key]) {
-      queued.current[key] = value;
+      queued.current[key] = { value, us };
       return;
     }
     inFlight.current[key] = true;
-    node.request("set", { kind: c.kind, index: c.index, value })
+    node.request("set", us === undefined ? { kind: c.kind, index: c.index, value } : { kind: c.kind, index: c.index, us })
       .then((r) => { if (!r.ok) setError(`${key}: ${r.error}`); })
       .catch((e) => setError((e as Error).message))
       .finally(() => {
         inFlight.current[key] = false;
         const next = queued.current[key];
         queued.current[key] = undefined;
-        if (next !== undefined) fire(c, next);
+        if (next !== undefined) fire(c, next.value, next.us);
       });
   };
 
@@ -262,7 +282,17 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
-                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} />
+                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
+                        cal={c.kind !== "SERVO" ? undefined : {
+                          on: cal?.code === channelCode(c),
+                          us: cal?.code === channelCode(c) ? cal.us : 0,
+                          can: canCalibrate(c),
+                          start: () => startCal(c),
+                          stop: () => setCal(null),
+                          pulse: (us) => { setCal({ code: channelCode(c), us }); fire(c, 0, us); },
+                          setMin: (us) => patch(ci, { min_us: us }),
+                          setMax: (us) => patch(ci, { max_us: us }),
+                        }} />
                     </>
                   ) : (
                     <span style={{ gridColumn: "3 / -1", ...sys(400, 11, C.t6) }}>{pin.note ?? ""}</span>
@@ -314,8 +344,14 @@ function Options({ c, pin, in2, onChange }: {
       )}
       {c.kind === "SERVO" && (
         <>
-          <label style={optLabel}>min <input type="number" step={10} value={c.min_us ?? 500} onChange={(e) => onChange({ min_us: int(e.target.value) })} style={num} /></label>
-          <label style={optLabel}>max <input type="number" step={10} value={c.max_us ?? 2500} onChange={(e) => onChange({ max_us: int(e.target.value) })} style={num} /> µs</label>
+          <label style={optLabel} title="Pulse width at 0 %">min <input type="number" step={10} value={c.min_us ?? 500} onChange={(e) => onChange({ min_us: int(e.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Pulse width at 100 %">max <input type="number" step={10} value={c.max_us ?? 2500} onChange={(e) => onChange({ max_us: int(e.target.value) })} style={num} /> µs</label>
+          {/* Reverse = the two ends swapped; stored as min above max. */}
+          <label style={optLabel} title="Swap the ends: 0 % moves to where 100 % was">
+            <input type="checkbox" checked={(c.min_us ?? 500) > (c.max_us ?? 2500)}
+              onChange={() => onChange({ min_us: c.max_us ?? 2500, max_us: c.min_us ?? 500 })} />
+            reverse
+          </label>
         </>
       )}
       {c.kind === "LED_STRIP" && (
@@ -334,8 +370,19 @@ function Options({ c, pin, in2, onChange }: {
   );
 }
 
-function Test({ c, value, disabled, onFire }: {
-  c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
+interface Cal {
+  on: boolean; // this servo is in calibrate mode
+  us: number; // the raw pulse it is being driven with
+  can: boolean; // the node already runs this servo (saved)
+  start: () => void;
+  stop: () => void;
+  pulse: (us: number) => void;
+  setMin: (us: number) => void;
+  setMax: (us: number) => void;
+}
+
+function Test({ c, value, disabled, onFire, cal }: {
+  c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
@@ -360,13 +407,44 @@ function Test({ c, value, disabled, onFire }: {
         {readout(hex(v))}
       </span>
     );
+  if (cal?.on) {
+    const small: React.CSSProperties = { ...btn(), height: 26, padding: "0 8px", flex: "none" };
+    return (
+      <span style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="range" min={SERVO_MIN_US} max={SERVO_MAX_US} step={5} value={cal.us}
+            onChange={(e) => cal.pulse(Number(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: C.amber }} />
+          {readout(`${cal.us} µs`)}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={() => cal.setMin(cal.us)} style={small} title="This position becomes 0 %">Set as min</button>
+          <button onClick={() => cal.setMax(cal.us)} style={small} title="This position becomes 100 %">Set as max</button>
+          <button onClick={cal.stop} style={{ ...small, ...sys(600, 11.5, C.t4) }}>Done</button>
+        </span>
+      </span>
+    );
+  }
+
   // LED, SERVO, MOTOR: a slider over the function's value range.
   const limp = c.kind === "SERVO" && v < 0;
+  const calBtn = cal && (
+    <button onClick={cal.start} disabled={!cal.can}
+      title={cal.can ? "Drive the raw pulse width to find the ends of travel" : "Save this servo to the node first"}
+      style={{ ...btn(false, !cal.can), height: 26, padding: "0 8px", flex: "none", pointerEvents: "auto", opacity: cal.can ? 1 : 0.45 }}>
+      Calibrate
+    </button>
+  );
+  if (cal && disabled) {
+    // Unsaved edits: the % slider would drive the old end stops, so only
+    // calibration (raw pulse) is offered.
+    return <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{calBtn}<span style={mono(500, 10.5, C.t5)}>save to use the % slider</span></span>;
+  }
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, ...dim }}>
       <input type="range" min={f.min} max={f.max} step={10} value={limp ? 500 : v}
         onChange={(e) => onFire(Number(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: C.ember }} />
       {c.kind === "MOTOR" && <button onClick={() => onFire(0)} style={btn()}>Stop</button>}
+      {calBtn}
       {readout(limp ? "limp" : c.kind === "MOTOR" ? `${v > 0 ? "+" : ""}${Math.round(v / 10)}%` : `${Math.round(v / 10)}%`)}
     </span>
   );

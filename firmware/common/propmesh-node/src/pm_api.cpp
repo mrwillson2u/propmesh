@@ -69,6 +69,12 @@ static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
 static void cmd_set(JsonObjectConst req, JsonObject resp) {
   const pm_function_t *f = pm_function_by_name(req["kind"] | "");
   if (!f) return fail(resp, "unknown channel kind");
+  // Servo calibration: {"us": 1500} drives the raw pulse width.
+  if (f->kind == PM_CHANNEL_KIND_SERVO && req["us"].is<int32_t>()) {
+    if (!pm_servo_set_pulse(req["index"] | 0, req["us"].as<int32_t>()))
+      return fail(resp, "no such servo");
+    return;
+  }
   if (!req["value"].is<int32_t>()) return fail(resp, "value missing");
   if (!pm_channel_set(f->kind, req["index"] | 0, req["value"].as<int32_t>()))
     return fail(resp, "no such output channel");
