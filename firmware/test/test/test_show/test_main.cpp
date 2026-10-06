@@ -35,7 +35,7 @@ static void test_steps_run_on_time_in_order() {
                          {2500, PM_CHANNEL_KIND_RELAY, 1, 0}});
   PmPlayer p;
   std::vector<uint32_t> ran;
-  auto rec = [&](const PmStep &st) { ran.push_back(st.t_ms); };
+  auto rec = [&](const PmStep &st, int64_t) { ran.push_back(st.t_ms); };
   p.start(&s, 1000000);                       // t=0 at local 1.0 s
   p.tick(999999, rec);   TEST_ASSERT_EQUAL(0, ran.size());
   p.tick(1000000, rec);  TEST_ASSERT_EQUAL(1, ran.size());
@@ -54,7 +54,7 @@ static void test_late_start_catches_up() {
   PmPlayer p;
   int n = 0;
   p.start(&s, 0);
-  p.tick(5000000, [&](const PmStep &) { n++; });
+  p.tick(5000000, [&](const PmStep &, int64_t) { n++; });
   TEST_ASSERT_EQUAL(2, n);
 }
 
@@ -63,9 +63,9 @@ static void test_start_offset_skips_earlier_steps() {
   PmPlayer p;
   std::vector<uint32_t> ran;
   p.start(&s, 0, 500);  // play from 0.5 s in
-  p.tick(400000, [&](const PmStep &st) { ran.push_back(st.t_ms); });
+  p.tick(400000, [&](const PmStep &st, int64_t) { ran.push_back(st.t_ms); });
   TEST_ASSERT_EQUAL(0, ran.size());
-  p.tick(500000, [&](const PmStep &st) { ran.push_back(st.t_ms); });
+  p.tick(500000, [&](const PmStep &st, int64_t) { ran.push_back(st.t_ms); });
   TEST_ASSERT_EQUAL(1, ran.size());
   TEST_ASSERT_EQUAL(1000, ran[0]);
 }
@@ -74,7 +74,7 @@ static void test_retrigger_restarts_from_top() {
   PmSequence s = seq(1, {{0, PM_CHANNEL_KIND_RELAY, 1, 1}, {1000, PM_CHANNEL_KIND_RELAY, 1, 0}});
   PmPlayer p;
   int n = 0;
-  auto cnt = [&](const PmStep &) { n++; };
+  auto cnt = [&](const PmStep &, int64_t) { n++; };
   p.start(&s, 0);
   p.tick(0, cnt);
   p.start(&s, 500000);
@@ -90,7 +90,7 @@ static void test_concurrent_limit_and_stop() {
   TEST_ASSERT_FALSE(p.start(&a[PM_MAX_PLAYING], 0));
   p.stop_all();
   int n = 0;
-  TEST_ASSERT_EQUAL(0, p.tick(99000000, [&](const PmStep &) { n++; }));
+  TEST_ASSERT_EQUAL(0, p.tick(99000000, [&](const PmStep &, int64_t) { n++; }));
   TEST_ASSERT_EQUAL(0, n);
 }
 
@@ -206,6 +206,52 @@ static void test_show_put_replace_remove() {
   TEST_ASSERT_NOT_NULL(sh.find(6));
 }
 
+// --- ramps -------------------------------------------------------------
+
+// A ramp step fires at its START (t - dur), with the start time passed
+// through, and sorts by start even when its t is later.
+static void test_ramp_step_fires_at_its_start() {
+  PmSequence s = seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 900, 1500, PM_EASE_INOUT},   // starts at 500
+                         {1000, PM_CHANNEL_KIND_RELAY, 1, 1}});
+  TEST_ASSERT_EQUAL(500, s.steps[0].start_ms());
+  TEST_ASSERT_EQUAL(1000, s.steps[1].start_ms());
+  PmPlayer p;
+  std::vector<std::pair<uint32_t, int64_t>> ran;
+  auto rec = [&](const PmStep &st, int64_t start) { ran.push_back({st.t_ms, start}); };
+  p.start(&s, 1000000);
+  p.tick(1499999, rec);  TEST_ASSERT_EQUAL(0, ran.size());
+  p.tick(1500000, rec);  TEST_ASSERT_EQUAL(1, ran.size());
+  TEST_ASSERT_EQUAL(2000, ran[0].first);
+  TEST_ASSERT_EQUAL_INT64(1500000, ran[0].second);
+  p.tick(2000000, rec);  TEST_ASSERT_EQUAL(2, ran.size());
+}
+
+static void test_ramp_rules() {
+  PmNodeConfig c = node();
+  TEST_ASSERT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 500, 2000, PM_EASE_OUT}}), c));
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_RELAY, 1, 1, 500, 0}}), c));   // relays don't ramp
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 1500, 0}}), c)); // starts before 0
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 500, 9}}), c));  // bad ease
+}
+
+static void test_ramp_json_round_trip_and_short_form() {
+  JsonDocument d, out;
+  deserializeJson(d, "{\"id\":2,\"steps\":[[0,\"SERVO\",1,100],[1500,\"SERVO\",1,900,1500,\"inout\"],[3000,\"LED\",1,0,1000,\"out\"]]}");
+  PmSequence s;
+  TEST_ASSERT_NULL(pm_sequence_from_json(d.as<JsonVariantConst>(), s));
+  TEST_ASSERT_EQUAL(3, s.step_count);
+  TEST_ASSERT_EQUAL(0, s.steps[0].dur_ms);
+  TEST_ASSERT_EQUAL(1500, s.steps[1].dur_ms);
+  TEST_ASSERT_EQUAL(PM_EASE_INOUT, s.steps[1].ease);
+  TEST_ASSERT_EQUAL(PM_EASE_OUT, s.steps[2].ease);
+  pm_sequence_to_json(s, out.to<JsonObject>());
+  TEST_ASSERT_EQUAL(4, out["steps"][0].size());  // plain step keeps the short form
+  TEST_ASSERT_EQUAL(6, out["steps"][1].size());
+  TEST_ASSERT_EQUAL_STRING("inout", out["steps"][1][5]);
+  deserializeJson(d, "{\"id\":2,\"steps\":[[1500,\"SERVO\",1,900,1500,\"bouncy\"]]}");
+  TEST_ASSERT_NOT_NULL(pm_sequence_from_json(d.as<JsonVariantConst>(), s));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_steps_run_on_time_in_order);
@@ -222,5 +268,8 @@ int main() {
   RUN_TEST(test_full_sequence_fits_one_mesh_message);
   RUN_TEST(test_rules_json);
   RUN_TEST(test_show_put_replace_remove);
+  RUN_TEST(test_ramp_step_fires_at_its_start);
+  RUN_TEST(test_ramp_rules);
+  RUN_TEST(test_ramp_json_round_trip_and_short_form);
   return UNITY_END();
 }

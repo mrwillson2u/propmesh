@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "pm_config.h"
+#include "pm_ramp.h"
 
 #define PM_MAX_SEQUENCES 16
 #define PM_MAX_STEPS 96          // per sequence, on one node
@@ -25,12 +26,24 @@
 #define PM_CUE_COPIES 3          // a CUE is one unacknowledged frame — send it thrice
 #define PM_CUE_MEMORY_MS 3000    // ...and recognise the copies for this long
 
+// "Arrive at `value` at `t_ms`." With dur_ms > 0 that is a ramp from the
+// channel's then-current value, starting dur_ms earlier (a Timeline
+// keyframe with the line leading into it); dur_ms == 0 sets at t_ms.
 struct PmStep {
   uint32_t t_ms;
   uint8_t kind;   // pm_channel_kind_t
   uint8_t index;
   int32_t value;
+  uint32_t dur_ms = 0;
+  uint8_t ease = PM_EASE_LINEAR;
+  uint32_t start_ms() const { return dur_ms > t_ms ? 0 : t_ms - dur_ms; }
 };
+
+// Kinds a ramp makes sense for: a level or a position, not a switch.
+inline bool pm_kind_ramps(uint8_t kind) {
+  return kind == PM_CHANNEL_KIND_SERVO || kind == PM_CHANNEL_KIND_LED ||
+         kind == PM_CHANNEL_KIND_MOTOR;
+}
 
 struct PmSequence {
   uint16_t id = 0;
@@ -45,12 +58,13 @@ struct PmSequence {
     for (uint8_t i = 0; i < step_count; i++) if (steps[i].t_ms > m) m = steps[i].t_ms;
     return m;
   }
-  // Steps in time order — the player walks them front to back.
+  // Steps in order of when they START (a ramp starts dur_ms before its
+  // t_ms) — the player walks them front to back.
   void sort() {
     for (uint8_t i = 1; i < step_count; i++) {
       PmStep s = steps[i];
       uint8_t j = i;
-      while (j && steps[j - 1].t_ms > s.t_ms) { steps[j] = steps[j - 1]; j--; }
+      while (j && steps[j - 1].start_ms() > s.start_ms()) { steps[j] = steps[j - 1]; j--; }
       steps[j] = s;
     }
   }
@@ -113,6 +127,11 @@ inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cf
     if (st.t_ms > PM_MAX_STEP_MS) return "step time over 10 minutes";
     if (st.kind == PM_CHANNEL_KIND_DIGITAL_IN) return "a step can't drive an input";
     if (!pm_find_channel(cfg, st.kind, st.index)) return "step addresses a channel this node doesn't have";
+    if (st.dur_ms) {
+      if (!pm_kind_ramps(st.kind)) return "only servos, LED dimmers and motors can ramp";
+      if (st.dur_ms > st.t_ms) return "a ramp can't start before the sequence does";
+      if (st.ease >= PM_EASE_COUNT) return "unknown easing";
+    }
   }
   return nullptr;
 }
@@ -192,20 +211,26 @@ class PmPlayer {
     slot->seq = seq;
     slot->start_us = start_us - (int64_t)offset_ms * 1000;
     slot->next = 0;
+    // Skip steps that END before the offset; a ramp straddling it is
+    // started (late), so the output lands on its line.
     while (slot->next < seq->step_count && seq->steps[slot->next].t_ms < offset_ms) slot->next++;
     return true;
   }
 
-  // Run every step that is due. `run(step)` drives the output. Returns
-  // the number of sequences still playing.
+  // Run every step whose start is due. `run(step, start_us)` drives the
+  // output — for a ramp, `start_us` is the local time its line begins,
+  // so a late start lands mid-curve. Returns the number of sequences
+  // still playing.
   template <typename F>
   uint8_t tick(int64_t now_us, F run) {
     uint8_t live = 0;
     for (Play &p : m_p) {
       if (!p.seq) continue;
       while (p.next < p.seq->step_count &&
-             now_us >= p.start_us + (int64_t)p.seq->steps[p.next].t_ms * 1000)
-        run(p.seq->steps[p.next++]);
+             now_us >= p.start_us + (int64_t)p.seq->steps[p.next].start_ms() * 1000) {
+        const PmStep &st = p.seq->steps[p.next++];
+        run(st, p.start_us + (int64_t)st.start_ms() * 1000);
+      }
       if (p.next >= p.seq->step_count) p.seq = nullptr;
       else live++;
     }

@@ -18,7 +18,7 @@ inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
   JsonArrayConst steps = j["steps"];
   if (steps.size() > PM_MAX_STEPS) return "too many steps";
   for (JsonArrayConst st : steps) {
-    if (st.size() != 4) return "a step is [t_ms, kind, index, value]";
+    if (st.size() != 4 && st.size() != 6) return "a step is [t_ms, kind, index, value] or [..., dur_ms, ease]";
     const pm_function_t *f = pm_function_by_name(st[1] | "");
     if (!f) return "unknown channel kind in a step";
     long t = st[0] | -1L, idx = st[2] | 0L;
@@ -29,6 +29,15 @@ inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
     s.kind = f->kind;
     s.index = (uint8_t)idx;
     s.value = pm_clamp_value(*f, st[3] | 0L);
+    if (st.size() == 6) {
+      long dur = st[4] | -1L;
+      if (dur < 0) return "bad ramp duration";
+      s.dur_ms = (uint32_t)dur;
+      const char *e = st[5] | "";
+      s.ease = !strcmp(e, "linear") ? PM_EASE_LINEAR : !strcmp(e, "in") ? PM_EASE_IN
+             : !strcmp(e, "out") ? PM_EASE_OUT : !strcmp(e, "inout") ? PM_EASE_INOUT : 0xFF;
+      if (s.ease == 0xFF) return "easing must be linear, in, out or inout";
+    }
   }
   out.sort();
   return nullptr;
@@ -44,6 +53,11 @@ inline void pm_sequence_to_json(const PmSequence &s, JsonObject j) {
     st.add(pm_function(s.steps[i].kind)->name);
     st.add(s.steps[i].index);
     st.add(s.steps[i].value);
+    if (s.steps[i].dur_ms) {  // the 4-element form stays valid for plain steps
+      static const char *const EASE[] = {"linear", "in", "out", "inout"};
+      st.add(s.steps[i].dur_ms);
+      st.add(EASE[s.steps[i].ease < PM_EASE_COUNT ? s.steps[i].ease : 0]);
+    }
   }
 }
 

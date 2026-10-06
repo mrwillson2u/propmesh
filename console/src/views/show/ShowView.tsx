@@ -10,8 +10,8 @@ import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
 import {
-  deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
-  type Rule, type Sequence, type Show, type Step,
+  EASES, canRamp, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
+  type Ease, type Rule, type Sequence, type Show, type Step,
 } from "../../lib/show";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -27,8 +27,8 @@ const field: React.CSSProperties = {
 };
 // Step table columns. The table keeps a minimum width and scrolls
 // sideways in a narrow window rather than squashing the value slider.
-const STEP_COLS = "72px 150px 190px minmax(170px,1fr) 56px 24px";
-const STEP_MIN_W = 640;
+const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 150px 56px 24px";
+const STEP_MIN_W = 790;
 const label = { font: "600 10px system-ui", letterSpacing: ".08em", color: C.t5 } as const;
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
 const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) : 0);
@@ -314,7 +314,7 @@ function Editor({ conn }: { conn: Connection }) {
 
                 <div style={{ overflowX: "auto" }}><div style={{ minWidth: STEP_MIN_W }}>
                 <div style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", marginTop: 12, ...label }}>
-                  <span>AT (s)</span><span>BOARD</span><span>OUTPUT</span><span>VALUE</span><span /><span />
+                  <span>AT (s)</span><span>BOARD</span><span>OUTPUT</span><span>VALUE</span><span title="How long the output takes to get there — a ramp from where it was. 0 = jump at AT.">GET THERE OVER</span><span /><span />
                 </div>
                 {draft.steps.map((st, i) => {
                   const outs = outputs[st.node] ?? [];
@@ -342,6 +342,19 @@ function Editor({ conn }: { conn: Connection }) {
                         patchStep(i, { value: v });
                         if (live && LIVE_KINDS.includes(st.kind)) send({ ...st, value: v });
                       }} />
+                      {canRamp(st.kind) ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input type="number" min={0} step={0.1} value={(st.dur_ms ?? 0) / 1000}
+                            title="Seconds. 0 = jump. The ramp ends at AT, so it can't be longer than AT."
+                            onChange={(e) => patchStep(i, { dur_ms: Math.min(st.t_ms, Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000))) })}
+                            style={{ ...field, width: 54, ...mono(500, 12, (st.dur_ms ?? 0) > 0 ? C.t1 : C.t5) }} />
+                          <span style={sys(500, 11, C.t5)}>s</span>
+                          <select value={st.ease ?? "inout"} disabled={!(st.dur_ms ?? 0)} style={{ ...field, width: 86, opacity: (st.dur_ms ?? 0) ? 1 : 0.4 }}
+                            onChange={(e) => patchStep(i, { ease: e.target.value as Ease })}>
+                            {EASES.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+                          </select>
+                        </span>
+                      ) : <span style={sys(400, 11, C.t6)}>—</span>}
                       <button onClick={() => testStep(st)} title="Send this value to the board now" style={{ ...btn(), height: 26, padding: "0 8px" }}>Test</button>
                       <span onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) })}
                         title="Remove step" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
@@ -354,8 +367,9 @@ function Editor({ conn }: { conn: Connection }) {
                   <button onClick={() => setDraft({ ...draft, steps: [...draft.steps].sort((a, b) => a.t_ms - b.t_ms) })} style={btn()}>Sort by time</button>
                 </div>
                 <div style={{ ...sys(400, 11, C.t5), marginTop: 8, lineHeight: 1.5 }}>
-                  Each step sets an output at a time after the sequence starts. Servos glide using their smoothing setting;
-                  relays switch; LEDs and strips change at once. Every board starts its part at the same moment on the mesh clock.
+                  Each step says what an output should be at a time after the sequence starts. With <b>get there over</b> set,
+                  a servo, LED or motor ramps to it from wherever it was, ending at that time; at 0 it jumps (servos then glide
+                  with their smoothing setting). Two steps at the same time happen together, on every board, on the mesh clock.
                 </div>
               </div>
             ) : (

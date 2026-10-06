@@ -9,13 +9,29 @@ import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
 import type { Entry } from "./connection";
 
+export type Ease = "linear" | "in" | "out" | "inout";
+export const EASES: { id: Ease; label: string }[] = [
+  { id: "inout", label: "ease in & out" },
+  { id: "linear", label: "linear" },
+  { id: "in", label: "ease in" },
+  { id: "out", label: "ease out" },
+];
+
+// "Arrive at `value` at t_ms." With dur_ms > 0 it's a ramp from the
+// channel's previous value, starting dur_ms earlier — the Timeline's
+// line into a keyframe. Only servos, LED dimmers and motors ramp.
 export interface Step {
   t_ms: number;
   node: string; // which node's channel
   kind: ChannelKindName;
   index: number;
   value: number;
+  dur_ms?: number;
+  ease?: Ease;
 }
+
+export const RAMP_KINDS: ChannelKindName[] = ["SERVO", "LED", "MOTOR"];
+export const canRamp = (kind: ChannelKindName) => RAMP_KINDS.includes(kind);
 
 export interface Sequence {
   id: number;
@@ -49,7 +65,7 @@ export interface Show {
 const ask = (link: NodeLink, en: Entry, cmd: string, body: Record<string, unknown> = {}): Promise<Reply> =>
   target(link, en.usb ? null : en.node).request(cmd, body);
 
-type Wire = [number, ChannelKindName, number, number];
+type Wire = [number, ChannelKindName, number, number] | [number, ChannelKindName, number, number, number, Ease];
 
 export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> {
   const show: Show = { sequences: [], rules: [], configs: {}, armed: {}, unreachable: [] };
@@ -71,7 +87,12 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
         if (!seq.name && p.name) seq.name = p.name;
         seq.loadedOn.push(en.node);
         if (sum.problem) seq.problems.push(`${en.hello?.name || en.node}: ${sum.problem}`);
-        for (const [t_ms, kind, index, value] of p.steps) seq.steps.push({ t_ms, node: en.node, kind, index, value });
+        for (const w of p.steps) {
+          const [t_ms, kind, index, value] = w;
+          const st: Step = { t_ms, node: en.node, kind, index, value };
+          if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; st.ease = w[5]; }
+          seq.steps.push(st);
+        }
         byId.set(p.id, seq);
       }
     } catch {
@@ -92,7 +113,10 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
   const parts = new Map<string, Wire[]>();
   for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
     if (!parts.has(st.node)) parts.set(st.node, []);
-    parts.get(st.node)!.push([Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)]);
+    const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
+    parts.get(st.node)!.push(dur > 0
+      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease ?? "inout"]
+      : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)]);
   }
   const failed: SaveResult["failed"] = [];
   const nodes = new Set([...parts.keys(), ...seq.loadedOn]);

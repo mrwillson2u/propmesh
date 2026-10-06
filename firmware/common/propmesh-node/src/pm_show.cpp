@@ -113,16 +113,20 @@ void pm_show_on_input(uint8_t index, bool active) {
 }
 
 void pm_show_loop() {
-  player.tick(esp_timer_get_time(), [](const PmStep &st) {
-    pm_channel_set(st.kind, st.index, st.value);
+  player.tick(esp_timer_get_time(), [](const PmStep &st, int64_t start_us) {
+    if (st.dur_ms) pm_channel_ramp(st.kind, st.index, st.value, start_us, st.dur_ms, st.ease);
+    else pm_channel_set(st.kind, st.index, st.value);
   });
 }
 
-void pm_show_stop() { player.stop_all(); }
+void pm_show_stop() {
+  player.stop_all();
+  pm_channels_freeze();
+}
 
 void pm_show_arm(bool on) {
   armed = on;
-  if (!on) player.stop_all();
+  if (!on) pm_show_stop();
   triggers.reset();
 }
 

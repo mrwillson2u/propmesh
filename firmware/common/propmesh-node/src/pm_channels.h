@@ -21,6 +21,16 @@ const PmNodeConfig &pm_channels_config();
 
 bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value);
 
+// Ramp a SERVO, LED or MOTOR from its current value to `to`, arriving
+// dur_ms after `start_us` (local clock; may be in the past — the output
+// then lands on the line, not at its start). Takes over from the
+// servo's smoothing until it ends. False for other kinds / no channel.
+bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
+                     uint32_t dur_ms, uint8_t ease);
+
+// Cancel every running ramp, leaving outputs where they are.
+void pm_channels_freeze();
+
 // Calibration: drive a SERVO with a raw pulse width (µs, clamped to
 // 400-2600) regardless of its end stops, so a new end can be found
 // beyond the current ones.

@@ -269,6 +269,22 @@ with no laptop and no bridge. A trigger: "when `DIGITAL_IN_n` becomes
 active (or clear), play sequence N; then ignore this trigger for
 `cooldown_ms`".
 
+**Ramps** (2026-10-05 — the Timeline's line between keyframes;
+software-plan §6 decided ramps are a native node action). A step may
+carry `dur_ms` and `ease` (`linear` / `in` / `out` / `inout`,
+quadratic): "arrive at `value` at `t_ms`, having started `dur_ms`
+earlier from the channel's then-current value". The node interpolates
+at 50 Hz (`pm_ramp.h`); the ramp is anchored to the sequence clock, so
+a late cue lands mid-line rather than restarting, and every node is on
+the same point of its line at the same mesh time. While a ramp runs it
+takes over from a servo's smoothing; a direct `set` (console slider,
+all_off) cancels it. Only servos, LED dimmers and motors ramp (relays
+switch, strips step). Rules: `dur_ms ≤ t_ms`; a limp servo (position
+unknown) takes the end value at once. Wire form: a 6-element step
+`[t_ms, kind, index, value, dur_ms, ease]`; plain steps keep the
+4-element form. **Measured** on the heads board: hold → S-curve over
+2.0 s → hold → linear 1.0 s back, sampled every ~170 ms, all on time.
+
 **Firing.** The sensor's node broadcasts `CUE(sequence, fire_at =
 mesh now + 200 ms)` three times (same `cue_id`; receivers play it once)
 and plays its own part. Every node holding a part starts it at
@@ -293,7 +309,7 @@ reports the problem and the console shows ⚠.
 | `cmd` | Request | Reply |
 |---|---|---|
 | `get_show` | — | `armed`, `sequences[]` (`id`, `name`, `steps` count, `length_ms`, `problem?`), `rules[]` |
-| `get_sequence` | `seq` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]`) |
+| `get_sequence` | `seq` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]` or `[…, dur_ms, "ease"]`) |
 | `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
 | `delete_sequence` | `seq` | — |
 | `set_rules` | `rules[]` of `{input, on: "active"\|"clear", seq, cooldown_ms, enabled}` | — (replaces all this node's triggers) |
@@ -305,7 +321,7 @@ Event: `{"evt":"cue","node":<who fired>,"seq":N,"cue":id,"armed":bool,"here":boo
 log shows each one with the sensor change that caused it.
 
 **Console → Cues.** Sequences list; step editor (time, board, output,
-value — sliders for servos/LEDs/motors, on/off for relays, colour for
+value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, colour for
 strips — and a *Test* button per step; with *Live preview* on (default)
 dragging a servo, LED or strip value moves the real output, coalesced
 to one request in flight per output; relays and motors only change on

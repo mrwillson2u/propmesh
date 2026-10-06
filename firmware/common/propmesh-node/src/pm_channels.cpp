@@ -2,6 +2,8 @@
 #include <Adafruit_NeoPixel.h>
 #include "pm_channels.h"
 #include "pm_motion.h"
+#include "pm_ramp.h"
+#include "pm_show_core.h"  // pm_kind_ramps
 
 // LEDC resolutions. The core shares one timer between channels with the
 // same (frequency, resolution), so three PWM classes cost three timers
@@ -19,6 +21,7 @@ struct Runtime {
   int32_t value;        // last commanded value (a smoothed servo's target)
   PmMotion motion;      // SERVO with smoothing: where it actually is now
   bool moving;
+  PmRamp ramp;          // a sequence ramp in progress (SERVO / LED / MOTOR)
   Adafruit_NeoPixel *strip;
   bool raw;             // last sampled input level (active = true)
   uint32_t changed_ms;  // when `raw` last differed from `value`
@@ -98,7 +101,28 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
   return ok;
 }
 
+// Put a level on the pins with no smoothing — a ramp's own interpolation
+// is the motion.
+static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
+  switch (c.kind) {
+    case PM_CHANNEL_KIND_SERVO:
+      servo_out(c, v);
+      r.motion.jump(v);
+      r.moving = false;
+      break;
+    case PM_CHANNEL_KIND_LED:
+      ledcWrite(c.pins[0], pm_duty(v, LED_BITS));
+      break;
+    case PM_CHANNEL_KIND_MOTOR:
+      ledcWrite(c.pins[0], v > 0 ? pm_duty(v, MOTOR_BITS) : 0);
+      ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
+      break;
+  }
+  r.value = v;
+}
+
 static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
+  r.ramp.active = false;  // a direct set (console slider, all_off) wins over a ramp
   switch (c.kind) {
     case PM_CHANNEL_KIND_RELAY:
       digitalWrite(c.pins[0], (v != 0) != c.active_low ? HIGH : LOW);
@@ -172,6 +196,27 @@ bool pm_servo_set_pulse(uint8_t index, uint32_t us) {
   return true;
 }
 
+bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
+                     uint32_t dur_ms, uint8_t ease) {
+  int i = find(kind, index);
+  if (i < 0 || !pm_kind_ramps(kind)) return false;
+  const PmChannelCfg &c = active.channels[i];
+  Runtime &r = rt[i];
+  to = pm_clamp_value(*pm_function(kind), to);
+  // A limp servo's position is unknown: nothing to ramp from, so it
+  // takes the end value at once.
+  int32_t from = (kind == PM_CHANNEL_KIND_SERVO && r.value < 0) ? to : r.value;
+  if (kind == PM_CHANNEL_KIND_SERVO && r.moving) from = (int32_t)(r.motion.pos + 0.5f);
+  r.moving = false;
+  r.ramp.begin(from, to, start_us, dur_ms, ease);
+  raw_out(c, r, r.ramp.at(esp_timer_get_time()));
+  return true;
+}
+
+void pm_channels_freeze() {
+  for (uint8_t i = 0; i < active.channel_count; i++) rt[i].ramp.active = false;
+}
+
 int32_t pm_channel_get(uint8_t kind, uint8_t index) {
   int i = find(kind, index);
   return i < 0 ? 0 : rt[i].value;
@@ -193,9 +238,14 @@ void pm_channels_loop() {
   if (dt >= MOTION_TICK_MS) {
     last_motion_ms = now;
     if (dt > 100) dt = 100;  // after a stall, don't leap
+    int64_t now_us = esp_timer_get_time();
     for (uint8_t i = 0; i < active.channel_count; i++) {
       const PmChannelCfg &c = active.channels[i];
       Runtime &r = rt[i];
+      if (r.ramp.active) {
+        raw_out(c, r, r.ramp.at(now_us));
+        continue;
+      }
       if (c.kind != PM_CHANNEL_KIND_SERVO || !r.moving) continue;
       r.moving = r.motion.step((float)dt, c.travel_ms, c.ease_ms);
       servo_out(c, (int32_t)(r.motion.pos + 0.5f));
