@@ -6,6 +6,7 @@
 #include "pm_api.h"
 #include "pm_mesh.h"
 #include "pm_reassembly.h"
+#include "pm_show.h"
 
 // Per attempt; a lost chunk costs one attempt, not the request.
 #define REMOTE_TIMEOUT_MS 900
@@ -259,6 +260,13 @@ void pm_link_loop() {
     switch (f.hdr.msg_type) {
       case PM_MSG_TYPE_HEARTBEAT: on_heartbeat(f); break;
       case PM_MSG_TYPE_STATE: on_state(f); break;
+      case PM_MSG_TYPE_CUE:
+        if (f.len >= sizeof(pm_cue_t)) {
+          pm_cue_t c;
+          memcpy(&c, f.payload, sizeof(c));
+          pm_show_on_cue(f.hdr.src_id, c);
+        }
+        break;
       case PM_MSG_TYPE_API_REQ:
       case PM_MSG_TYPE_API_RESP: on_api(f); break;
     }
@@ -284,6 +292,8 @@ void pm_link_input(uint8_t index, bool active) {
   st.at_us = pm_time_synced() ? pm_mesh_time_us() : 0;
   send_frame(PM_MSG_TYPE_STATE, &st, sizeof(st));
 }
+
+void pm_link_event(JsonDocument &evt) { emit(evt); }
 
 uint32_t pm_link_highest_seen() { return s_highest; }
 void pm_link_reset_highest_seen() { s_highest = pm_node_id(); }

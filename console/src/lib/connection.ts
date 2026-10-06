@@ -33,6 +33,19 @@ export interface LocalMesh {
   neighbors: { node: string; rssi: number }[];
 }
 
+// What the mesh did, newest first — sensor changes and cues as the USB
+// node heard them. The Cues view shows it as the activity log.
+export interface Activity {
+  at: number; // ms timestamp
+  kind: "input" | "cue";
+  node: string; // whose sensor / who fired
+  index?: number; // DIGITAL_IN index
+  value?: number; // input: 1 active, 0 clear
+  seq?: number; // cue: sequence id
+  armed?: boolean; // cue: was the USB node armed when it heard it
+}
+const ACTIVITY_MAX = 60;
+
 export interface Connection {
   link: NodeLink;
   hello: NodeHello; // the USB node's, at connect time
@@ -40,6 +53,7 @@ export interface Connection {
   selected: string | null; // the node open in Nodes & Channels
   local?: LocalMesh;
   lastEvent: number; // ms timestamp of the last heartbeat heard
+  activity: Activity[];
 }
 
 type InputCb = (kind: string, index: number, value: number) => void;
@@ -101,7 +115,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
   const t = Date.now();
   lastError = null;
   current = {
-    link, hello, selected: hello.node, lastEvent: t,
+    link, hello, selected: hello.node, lastEvent: t, activity: [],
     entries: { [hello.node]: { node: hello.node, usb: true, hello, seen: t, firstSeen: t, helloTries: 0 } },
   };
   const helloAt = new Map<string, number>([[hello.node, t]]);
@@ -120,6 +134,9 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
     } else if (e.evt === "input") {
       const node = (e.node as string | undefined) ?? hello.node;
       inputSubs.get(node)?.forEach((cb) => cb(e.kind as string, e.index as number, e.value as number));
+      log({ at: Date.now(), kind: "input", node, index: e.index as number, value: e.value as number });
+    } else if (e.evt === "cue") {
+      log({ at: Date.now(), kind: "cue", node: e.node as string, seq: e.seq as number, armed: e.armed as boolean });
     } else if (e.evt === "boot" && e.node === hello.node) {
       helloAt.delete(hello.node); // it rebooted: re-read its role
     }
@@ -154,6 +171,12 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
   changed();
 }
 
+function log(a: Activity) {
+  if (!current) return;
+  current = { ...current, activity: [a, ...current.activity].slice(0, ACTIVITY_MAX) };
+  changed();
+}
+
 function end() {
   teardown?.();
   current = null;
@@ -178,16 +201,26 @@ export function refreshHello(node: string) {
   }).catch(() => { /* the poll will catch up */ });
 }
 
-// STOP ALL: every output off on every node the console knows about,
-// the USB node first. Each node is asked independently so one that
-// doesn't answer can't hold up the rest. Resolves with the ids that
-// did not confirm.
-export async function stopAll(): Promise<string[]> {
+// Ask every known node; resolves with the ids that did not confirm.
+// Each is asked independently so one that doesn't answer can't hold up
+// the rest.
+async function everyNode(cmd: string, body: Record<string, unknown> = {}): Promise<string[]> {
   const c = current;
   if (!c) return [];
   const results = await Promise.all(Object.values(c.entries).map((n) =>
-    target(c.link, n.usb ? null : n.node).request("all_off")
+    target(c.link, n.usb ? null : n.node).request(cmd, body)
       .then((r) => (r.ok ? null : n.node))
       .catch(() => n.node)));
   return results.filter((x): x is string => !!x);
 }
+
+// STOP ALL: disarm first (so no trigger fires mid-stop), then every
+// output off, on every node the console knows about.
+export async function stopAll(): Promise<string[]> {
+  const a = await everyNode("arm", { on: false });
+  const b = await everyNode("all_off");
+  return [...new Set([...a, ...b])];
+}
+
+// Arm or disarm every node's triggers and cues.
+export const armAll = (on: boolean) => everyNode("arm", { on });

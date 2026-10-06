@@ -1,0 +1,214 @@
+// Show logic for a node: its part of each sequence, the triggers on its
+// sensors, and the player that runs steps on the mesh clock. Pure —
+// no Arduino/ESP — so it is tested host-native; pm_show.cpp wires it
+// to pins, flash and the radio. docs/generic-boards.md §"Sequences and
+// triggers".
+//
+// A sequence is show-wide (one id), but each node stores only the steps
+// for its own channels. A trigger lives on the node that owns the
+// sensor; when it fires, that node broadcasts CUE(sequence, fire_at),
+// and every node holding steps for the sequence starts them at the same
+// mesh time.
+#pragma once
+#include <stdint.h>
+#include <string.h>
+#include "pm_config.h"
+
+#define PM_MAX_SEQUENCES 16
+#define PM_MAX_STEPS 96          // per sequence, on one node
+#define PM_MAX_RULES 16
+#define PM_MAX_PLAYING 4         // sequences running at once on one node
+#define PM_SEQ_NAME_LEN 24
+#define PM_MAX_STEP_MS 600000u   // 10 minutes
+#define PM_MAX_COOLDOWN_MS 3600000u
+#define PM_CUE_LEAD_MS 200       // fire_at = now + this: absorbs hops and relay jitter
+#define PM_CUE_COPIES 3          // a CUE is one unacknowledged frame — send it thrice
+#define PM_CUE_MEMORY_MS 3000    // ...and recognise the copies for this long
+
+struct PmStep {
+  uint32_t t_ms;
+  uint8_t kind;   // pm_channel_kind_t
+  uint8_t index;
+  int32_t value;
+};
+
+struct PmSequence {
+  uint16_t id = 0;
+  char name[PM_SEQ_NAME_LEN] = {};
+  uint8_t step_count = 0;
+  PmStep steps[PM_MAX_STEPS];
+  uint32_t length_ms() const {
+    uint32_t m = 0;
+    for (uint8_t i = 0; i < step_count; i++) if (steps[i].t_ms > m) m = steps[i].t_ms;
+    return m;
+  }
+  // Steps in time order — the player walks them front to back.
+  void sort() {
+    for (uint8_t i = 1; i < step_count; i++) {
+      PmStep s = steps[i];
+      uint8_t j = i;
+      while (j && steps[j - 1].t_ms > s.t_ms) { steps[j] = steps[j - 1]; j--; }
+      steps[j] = s;
+    }
+  }
+};
+
+struct PmRule {
+  uint8_t input = 0;        // DIGITAL_IN index on this node
+  bool on_active = true;    // fire when the input becomes active (else: becomes clear)
+  uint16_t sequence = 0;    // show-wide sequence id
+  uint32_t cooldown_ms = 0; // ignore this rule's triggers this long after it fires
+  bool enabled = true;
+};
+
+struct PmShow {
+  uint8_t seq_count = 0;
+  PmSequence seqs[PM_MAX_SEQUENCES];
+  uint8_t rule_count = 0;
+  PmRule rules[PM_MAX_RULES];
+
+  PmSequence *find(uint16_t id) {
+    for (uint8_t i = 0; i < seq_count; i++) if (seqs[i].id == id) return &seqs[i];
+    return nullptr;
+  }
+  // Insert or replace by id. False if full.
+  bool put(const PmSequence &s) {
+    PmSequence *at = find(s.id);
+    if (!at) {
+      if (seq_count >= PM_MAX_SEQUENCES) return false;
+      at = &seqs[seq_count++];
+    }
+    *at = s;
+    at->sort();
+    return true;
+  }
+  bool remove(uint16_t id) {
+    for (uint8_t i = 0; i < seq_count; i++) {
+      if (seqs[i].id != id) continue;
+      for (uint8_t j = i + 1; j < seq_count; j++) seqs[j - 1] = seqs[j];
+      seq_count--;
+      return true;
+    }
+    return false;
+  }
+};
+
+// --- validation ------------------------------------------------------------
+// Returns nullptr if the sequence can run on a node with config `cfg`,
+// else a reason. Steps must address this node's OUTPUT channels.
+inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cfg) {
+  if (!s.id) return "sequence id must be 1-65535";
+  if (s.step_count > PM_MAX_STEPS) return "too many steps";
+  for (uint8_t i = 0; i < s.step_count; i++) {
+    const PmStep &st = s.steps[i];
+    if (st.t_ms > PM_MAX_STEP_MS) return "step time over 10 minutes";
+    if (st.kind == PM_CHANNEL_KIND_DIGITAL_IN) return "a step can't drive an input";
+    if (!pm_find_channel(cfg, st.kind, st.index)) return "step addresses a channel this node doesn't have";
+  }
+  return nullptr;
+}
+
+inline const char *pm_check_rules(const PmRule *rules, uint8_t n, const PmNodeConfig &cfg) {
+  if (n > PM_MAX_RULES) return "too many triggers";
+  for (uint8_t i = 0; i < n; i++) {
+    if (!pm_find_channel(cfg, PM_CHANNEL_KIND_DIGITAL_IN, rules[i].input))
+      return "trigger uses a sensor input this node doesn't have";
+    if (!rules[i].sequence) return "trigger has no sequence";
+    if (rules[i].cooldown_ms > PM_MAX_COOLDOWN_MS) return "cooldown over an hour";
+  }
+  return nullptr;
+}
+
+// --- triggers ----------------------------------------------------------------
+// Which sequence (if any) an input change fires, honouring each rule's
+// cooldown. Several rules may watch one input; the first that fires wins
+// for this change (one change, one cue).
+class PmTriggers {
+ public:
+  uint16_t on_input(const PmShow &show, uint8_t index, bool active, uint32_t now_ms) {
+    for (uint8_t i = 0; i < show.rule_count; i++) {
+      const PmRule &r = show.rules[i];
+      if (!r.enabled || r.input != index || r.on_active != active) continue;
+      if (m_fired[i] && (uint32_t)(now_ms - m_last[i]) < r.cooldown_ms) continue;
+      m_fired[i] = true;
+      m_last[i] = now_ms;
+      return r.sequence;
+    }
+    return 0;
+  }
+  void reset() { memset(m_fired, 0, sizeof(m_fired)); }
+
+ private:
+  bool m_fired[PM_MAX_RULES] = {};
+  uint32_t m_last[PM_MAX_RULES] = {};
+};
+
+// --- duplicate cues ------------------------------------------------------------
+// Each CUE goes out PM_CUE_COPIES times (different frame seq, same
+// cue_id); play it once.
+class PmCueMemory {
+ public:
+  bool seen(uint32_t src, uint16_t cue_id, uint32_t now_ms) {
+    Slot *free_slot = nullptr, *oldest = &m_s[0];
+    for (Slot &s : m_s) {
+      bool live = s.used && (uint32_t)(now_ms - s.at) < PM_CUE_MEMORY_MS;
+      if (live && s.src == src && s.cue == cue_id) return true;
+      if (!live) { s.used = false; if (!free_slot) free_slot = &s; }
+      else if ((int32_t)(s.at - oldest->at) < 0) oldest = &s;
+    }
+    Slot *s = free_slot ? free_slot : oldest;
+    *s = {true, src, cue_id, now_ms};
+    return false;
+  }
+
+ private:
+  struct Slot { bool used; uint32_t src; uint16_t cue; uint32_t at; };
+  Slot m_s[12] = {};
+};
+
+// --- player ------------------------------------------------------------------
+// Runs sequences against a local microsecond clock. A sequence started
+// again while playing restarts from its top.
+class PmPlayer {
+ public:
+  // `start_us`: local time at which t=0 of the sequence happens (may be
+  // in the past — late cue — then the overdue steps run at once, which
+  // keeps the end state right). `offset_ms` skips that far in.
+  // Returns false if every slot is busy.
+  bool start(const PmSequence *seq, int64_t start_us, uint32_t offset_ms = 0) {
+    Play *slot = nullptr;
+    for (Play &p : m_p) if (p.seq == seq) { slot = &p; break; }  // restart
+    if (!slot) for (Play &p : m_p) if (!p.seq) { slot = &p; break; }
+    if (!slot) return false;
+    slot->seq = seq;
+    slot->start_us = start_us - (int64_t)offset_ms * 1000;
+    slot->next = 0;
+    while (slot->next < seq->step_count && seq->steps[slot->next].t_ms < offset_ms) slot->next++;
+    return true;
+  }
+
+  // Run every step that is due. `run(step)` drives the output. Returns
+  // the number of sequences still playing.
+  template <typename F>
+  uint8_t tick(int64_t now_us, F run) {
+    uint8_t live = 0;
+    for (Play &p : m_p) {
+      if (!p.seq) continue;
+      while (p.next < p.seq->step_count &&
+             now_us >= p.start_us + (int64_t)p.seq->steps[p.next].t_ms * 1000)
+        run(p.seq->steps[p.next++]);
+      if (p.next >= p.seq->step_count) p.seq = nullptr;
+      else live++;
+    }
+    return live;
+  }
+
+  void stop_all() { for (Play &p : m_p) p.seq = nullptr; }
+  // Forget a sequence (it is being replaced or deleted).
+  void forget(const PmSequence *seq) { for (Play &p : m_p) if (p.seq == seq) p.seq = nullptr; }
+  bool playing(const PmSequence *seq) const { for (const Play &p : m_p) if (p.seq == seq) return true; return false; }
+
+ private:
+  struct Play { const PmSequence *seq = nullptr; int64_t start_us = 0; uint8_t next = 0; };
+  Play m_p[PM_MAX_PLAYING];
+};

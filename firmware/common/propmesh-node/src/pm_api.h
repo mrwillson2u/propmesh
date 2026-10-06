@@ -7,7 +7,7 @@
 #include "boards_gen.h"
 #include "pm_config.h"
 
-#define PM_FW_VERSION 3
+#define PM_FW_VERSION 4
 
 void pm_api_begin(const pm_board_t &board);
 

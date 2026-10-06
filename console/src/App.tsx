@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
-import { counts, stopAll, useConnection } from "./lib/connection";
+import { armAll, counts, stopAll, useConnection } from "./lib/connection";
 import { Logo, StopOctagon, mono } from "./ui";
 import Yard, { type YardLayout } from "./views/Yard";
 import Nodes from "./views/Nodes";
@@ -13,6 +13,7 @@ import ShowGraph from "./views/ShowGraph";
 import Settings from "./views/Settings";
 import NotWired from "./views/NotWired";
 import RealYard from "./views/yard/RealYard";
+import ShowView from "./views/show/ShowView";
 import { select } from "./lib/connection";
 
 const VIEWS = [
@@ -177,10 +178,10 @@ export default function App() {
             <span style={mono(500, 11.5, stopFailed.length ? C.red : C.t2)}>
               {!conn ? "no boards connected — nothing was sent"
                 : stopFailed.length ? `all-off sent · NO CONFIRMATION from ${stopFailed.join(", ")} — check those boards`
-                : "all-off sent to every connected board"}
+                : "every board disarmed and all outputs off · RE-ARM SHOW re-enables triggers"}
             </span>
             <div style={{ flex: 1 }} />
-            <button onClick={() => setStopped(false)} style={{ height: 32, padding: "0 16px", background: C.ember, border: "none", borderRadius: 6, color: C.onEmber, font: `800 12px ${MONO}`, letterSpacing: ".06em" }}>
+            <button onClick={() => { setStopped(false); void armAll(true); }} style={{ height: 32, padding: "0 16px", background: C.ember, border: "none", borderRadius: 6, color: C.onEmber, font: `800 12px ${MONO}`, letterSpacing: ".06em" }}>
               RE-ARM SHOW
             </button>
           </div>
@@ -192,12 +193,9 @@ export default function App() {
                 onOpenNode={(id) => { select(id); setView("Nodes & Channels"); }}
                 onConnect={() => setView("Nodes & Channels")} />)}
           {view === "Nodes & Channels" && <Nodes />}
-          {view === "Cues" && (demo ? <Cues stopped={stopped} /> : (
-            <NotWired title="Cues aren't built yet">
-              Sensor triggers — a sensor on one board firing a timed sequence across the others — are
-              Stage 3 of the October plan (docs/generic-boards.md §8).
-            </NotWired>
-          ))}
+          {view === "Cues" && (demo
+            ? <Cues stopped={stopped} />
+            : <ShowView onConnect={() => setView("Nodes & Channels")} />)}
           {view === "Show Graph" && (demo ? <ShowGraph /> : (
             <NotWired title="The show graph is a design preview">
               The node-graph editor for wiring triggers to sequences is planned for after the October

@@ -28,6 +28,10 @@ void pm_link_loop();
 // Tell the mesh (and the local console) that an input changed.
 void pm_link_input(uint8_t index, bool active);
 
+// Send an {"evt":...} document up to the console.
+#include <ArduinoJson.h>
+void pm_link_event(JsonDocument &evt);
+
 // Highest node id heard since the last call to reset — the election in
 // firmware/node uses it to decide who becomes conductor when no bridge
 // is around.

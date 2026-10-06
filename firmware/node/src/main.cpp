@@ -15,6 +15,7 @@
 #include "pm_config_store.h"
 #include "pm_link.h"
 #include "pm_pinrules.h"
+#include "pm_show.h"
 
 #ifndef PM_CHANNEL
 #define PM_CHANNEL 1
@@ -37,6 +38,13 @@ static bool line_overflow;
 static uint32_t last_heartbeat;
 static uint32_t unsynced_since;
 static bool mesh_up;
+
+// A debounced input change: tell the console and the mesh, then let
+// this node's triggers decide whether it starts a sequence.
+static void on_input(uint8_t index, bool active) {
+  pm_link_input(index, active);
+  pm_show_on_input(index, active);
+}
 
 static void out_line(const char *json, size_t len) {
   Serial.write((const uint8_t *)json, len);
@@ -131,8 +139,9 @@ void setup() {
   mesh_up = pm_mesh_init(PM_CHANNEL, PM_NET_ID, PM_NODE_ROLE_RELAY);
   if (!mesh_up) Serial.println("pm_mesh_init FAILED — running without mesh");
   pm_link_begin(out_line);
-  pm_on_input(pm_link_input);
+  pm_on_input(on_input);
   pm_node_apply(cfg);
+  pm_show_begin();
 
   char id[9];
   snprintf(id, sizeof(id), "%08lx", (unsigned long)pm_node_id());
@@ -150,6 +159,7 @@ void setup() {
 void loop() {
   serial_loop();
   pm_channels_loop();
+  pm_show_loop();
   if (!mesh_up) return;
   pm_mesh_loop();
   pm_link_loop();

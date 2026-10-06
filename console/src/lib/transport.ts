@@ -14,6 +14,7 @@ export interface NodeHello {
   name: string;
   bridge?: boolean;
   role?: number; // NodeRole flags
+  armed?: boolean; // show triggers and cues active
 }
 
 // A heartbeat heard on the mesh, as the USB node reports it.
@@ -211,9 +212,16 @@ const SIM_REMOTES = [
   { node: "5c0ffee2", hops: 1, rssi: -77, nbrs: [{ node: "5c0ffee1", rssi: -79 }] },
 ];
 
+interface SimSeq { id: number; name: string; steps: [number, string, number, number][] }
+interface SimRule { input: number; on: "active" | "clear"; seq: number; cooldown_ms: number; enabled: boolean }
+
 interface SimNode {
   cfg: NodeConfig;
   values: Map<string, number>;
+  seqs: Map<number, SimSeq>;
+  rules: SimRule[];
+  armed: boolean;
+  lastFired: Map<number, number>; // rule index -> ms
 }
 
 class SimLink implements NodeLink {
@@ -226,7 +234,12 @@ class SimLink implements NodeLink {
     for (const id of [SIM_LOCAL, ...SIM_REMOTES.map((r) => r.node)]) {
       let cfg: NodeConfig | null = null;
       try { cfg = JSON.parse(localStorage.getItem(SIM_KEY + id) ?? "null"); } catch { /* ignore */ }
-      this.nodes.set(id, { cfg: cfg ?? EMPTY_CONFIG, values: new Map() });
+      let show: { seqs: SimSeq[]; rules: SimRule[] } | null = null;
+      try { show = JSON.parse(localStorage.getItem(SIM_KEY + "show." + id) ?? "null"); } catch { /* ignore */ }
+      this.nodes.set(id, {
+        cfg: cfg ?? EMPTY_CONFIG, values: new Map(), armed: true, lastFired: new Map(),
+        seqs: new Map((show?.seqs ?? []).map((q) => [q.id, q])), rules: show?.rules ?? [],
+      });
     }
     this.timers.push(setInterval(() => {
       this.nodes.forEach((n, node) => {
@@ -236,6 +249,14 @@ class SimLink implements NodeLink {
         const v = n.values.get(k) ? 0 : 1;
         n.values.set(k, v);
         this.events.emit({ evt: "input", node, kind: "DIGITAL_IN", index: input.index, value: v });
+        // This node's triggers, as the firmware runs them.
+        n.rules.forEach((r, i) => {
+          if (!n.armed || !r.enabled || r.input !== input.index || (r.on === "active") !== (v === 1)) return;
+          const last = n.lastFired.get(i);
+          if (last !== undefined && Date.now() - last < r.cooldown_ms) return;
+          n.lastFired.set(i, Date.now());
+          this.fire(node, r.seq);
+        });
       });
     }, 4000));
     const beat = () => SIM_REMOTES.forEach((r, i) => {
@@ -259,7 +280,7 @@ class SimLink implements NodeLink {
     if (!n) return { ok: false, error: `no reply from node ${node}` };
     switch (cmd) {
       case "hello":
-        return { ok: true, node, fw: 3, board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0) };
+        return { ok: true, node, fw: 4, board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed };
       case "get_config":
         return { ok: true, config: n.cfg };
       case "set_config": {
@@ -298,6 +319,43 @@ class SimLink implements NodeLink {
           neighbors: node === SIM_LOCAL ? [{ node: "5c0ffee1", rssi: -53 }] : [],
         };
       }
+      case "get_show":
+        return {
+          ok: true, armed: n.armed, rules: n.rules,
+          sequences: [...n.seqs.values()].map((q) => ({ id: q.id, name: q.name, steps: q.steps.length, length_ms: Math.max(0, ...q.steps.map((x) => x[0])) })),
+        };
+      case "get_sequence": {
+        const q = n.seqs.get(body.id as number);
+        return q ? { ok: true, sequence: q } : { ok: false, error: "no such sequence on this node" };
+      }
+      case "set_sequence": {
+        const q = body.sequence as SimSeq;
+        const bad = q.steps.find(([, kind, index]) => kind === "DIGITAL_IN" || !n.cfg.channels.some((c) => c.kind === kind && c.index === index));
+        if (bad) return { ok: false, error: "step addresses a channel this node doesn't have" };
+        n.seqs.set(q.id, { ...q, steps: [...q.steps].sort((a, b) => a[0] - b[0]) });
+        this.saveShow(node, n);
+        return { ok: true };
+      }
+      case "delete_sequence":
+        n.seqs.delete(body.id as number);
+        this.saveShow(node, n);
+        return { ok: true };
+      case "set_rules": {
+        const rules = body.rules as SimRule[];
+        if (rules.some((r) => !n.cfg.channels.some((c) => c.kind === "DIGITAL_IN" && c.index === r.input)))
+          return { ok: false, error: "trigger uses a sensor input this node doesn't have" };
+        n.rules = rules;
+        n.lastFired.clear();
+        this.saveShow(node, n);
+        return { ok: true };
+      }
+      case "cue":
+        if (!n.armed) return { ok: false, error: "disarmed — arm the show first" };
+        this.fire(node, body.seq as number);
+        return { ok: true };
+      case "arm":
+        n.armed = body.on !== false;
+        return { ok: true, armed: n.armed };
       case "all_off":
         n.cfg.channels.forEach((c) => {
           if (c.kind !== "DIGITAL_IN") n.values.set(`${c.kind}_${c.index}`, c.kind === "SERVO" ? -1 : 0);
@@ -306,6 +364,21 @@ class SimLink implements NodeLink {
       default:
         return { ok: false, error: "unknown command" };
     }
+  }
+
+  // CUE: every armed node with a part plays it 200 ms from now.
+  private fire(from: string, seq: number) {
+    this.events.emit({ evt: "cue", node: from, seq, armed: this.nodes.get(SIM_LOCAL)!.armed, here: this.nodes.get(SIM_LOCAL)!.seqs.has(seq) });
+    this.nodes.forEach((n) => {
+      const part = n.seqs.get(seq);
+      if (!part || !n.armed) return;
+      for (const [t, kind, index, value] of part.steps)
+        setTimeout(() => { if (n.armed) n.values.set(`${kind}_${index}`, value); }, 200 + t);
+    });
+  }
+
+  private saveShow(node: string, n: SimNode) {
+    try { localStorage.setItem(SIM_KEY + "show." + node, JSON.stringify({ seqs: [...n.seqs.values()], rules: n.rules })); } catch { /* private mode */ }
   }
 
   onEvent(cb: (e: NodeEvent) => void) { return this.events.add(cb); }

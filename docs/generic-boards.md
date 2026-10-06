@@ -256,6 +256,59 @@ Issue codes (shared by `pm_pinrules.h` and `pinRules.ts`):
 `unknown_kind`, `servo_range`, `pixel_count`, `pwm_budget`,
 `strip_budget`, `too_many_channels`.
 
+## 6b. Sequences and triggers (Stage 3, 2026-10-05)
+
+**Model.** A *sequence* is show-wide (id 1–65535, a name) and is a list
+of timed steps `[t_ms, kind, index, value]` on any node's outputs. Each
+node stores only **its own part** of each sequence, plus the
+*triggers* on **its own sensors**, in `/show.json` — so the show runs
+with no laptop and no bridge. A trigger: "when `DIGITAL_IN_n` becomes
+active (or clear), play sequence N; then ignore this trigger for
+`cooldown_ms`".
+
+**Firing.** The sensor's node broadcasts `CUE(sequence, fire_at =
+mesh now + 200 ms)` three times (same `cue_id`; receivers play it once)
+and plays its own part. Every node holding a part starts it at
+`fire_at` on its own clock via mesh time, so a sequence spanning the yard
+starts together. A late cue runs overdue steps at once (the prop still
+ends in the right state); a start more than 5 s off (a node that just
+rejoined with a different clock) plays now. Servo steps glide with the
+servo's smoothing setting. Up to 4 sequences play at once per node;
+re-firing a playing sequence restarts it.
+
+**Arming.** Disarmed nodes ignore triggers and cues and stop playing.
+Nodes **boot armed** (a power cut never leaves the show dead). STOP ALL
+disarms every node, then turns every output off; RE-ARM SHOW arms them.
+
+**Limits per node:** 16 sequences × 96 steps, 16 triggers, steps ≤ 10
+min, cooldown ≤ 1 h. A full 96-step sequence fits one mesh message
+(tested). If a pin change removes a channel a sequence uses, `get_show`
+reports the problem and the console shows ⚠.
+
+**API** (any node; add `"node"` to send over the mesh):
+
+| `cmd` | Request | Reply |
+|---|---|---|
+| `get_show` | — | `armed`, `sequences[]` (`id`, `name`, `steps` count, `length_ms`, `problem?`), `rules[]` |
+| `get_sequence` | `id` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]`) |
+| `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
+| `delete_sequence` | `id` | — |
+| `set_rules` | `rules[]` of `{input, on: "active"\|"clear", seq, cooldown_ms, enabled}` | — (replaces all this node's triggers) |
+| `cue` | `seq`, `offset_ms?` | — (fires show-wide from this node; refused while disarmed) |
+| `arm` | `on` | `armed` |
+
+Event: `{"evt":"cue","node":<who fired>,"seq":N,"cue":id,"armed":bool,"here":bool}`
+— the USB node hears every cue on the mesh, so the console's activity
+log shows each one with the sensor change that caused it.
+
+**Console → Cues.** Sequences list; step editor (time, board, output,
+value — sliders for servos/LEDs/motors, on/off for relays, colour for
+strips — and a *Test* button per step); *Save to boards* splits the
+sequence into per-board parts (and deletes the part from boards that no
+longer have steps); *▶ Play*; triggers ("When Porch · PIR becomes active
+play Head turn, then wait 30 s"); *Arm all / Disarm all*; live activity
+log. *Reload from boards* re-reads everything.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
@@ -317,7 +370,7 @@ next one (6 LEDC channels — the budget check exists for it).
 |---|---|---|---|
 | **1 — one devkit on USB** | ~Oct 8 | everything above | §7 |
 | **2 — config over the mesh** ✍ written 10-05 | ~Oct 15 | the USB node forwards requests to other node ids over ESP-NOW (`SET` + chunked `CONFIG` messages in `schema/`); real heartbeats replace the console's mock node list | one devkit on USB, two on wall power; configure and test-fire the remote two |
-| **3 — triggers** | ~Oct 22, **then freeze** | per-node rules: `DIGITAL_IN_n` → timed step list (`t_ms`, channel, value, `ramp`) with cooldown; steps on other nodes go out as a `CUE` at mesh time T | shelf rehearsal (PIR on A → servo on B + relay on C), then a yard dress rehearsal ≥ 1 week before Halloween |
+| **3 — triggers** ✍ written 10-05 | ~Oct 22, **then freeze** | per-node rules: `DIGITAL_IN_n` → timed step list (`t_ms`, channel, value, `ramp`) with cooldown; steps on other nodes go out as a `CUE` at mesh time T | shelf rehearsal (PIR on A → servo on B + relay on C), then a yard dress rehearsal ≥ 1 week before Halloween |
 
 **Cut line:** if Stage 2 isn't solid by Oct 15, the show runs Stage 1
 nodes with per-node configs and same-node triggers only. No new

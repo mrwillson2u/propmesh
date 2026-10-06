@@ -5,6 +5,7 @@
 #include "pm_config_json.h"
 #include "pm_config_store.h"
 #include "pm_channels.h"
+#include "pm_show.h"
 
 static const pm_board_t *board;
 
@@ -52,6 +53,7 @@ static void cmd_hello(JsonObject resp) {
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;
   resp["role"] = pm_role();
+  resp["armed"] = pm_show_armed();
 }
 
 static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
@@ -122,7 +124,7 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
   else if (!strcmp(cmd, "state")) cmd_state(resp);
-  else if (!strcmp(cmd, "all_off")) pm_channels_all_off();
+  else if (!strcmp(cmd, "all_off")) { pm_show_stop(); pm_channels_all_off(); }
   else if (!strcmp(cmd, "mesh")) cmd_mesh(resp);
-  else fail(resp, "unknown command");
+  else if (!pm_show_handle(cmd, req, resp)) fail(resp, "unknown command");
 }
