@@ -18,6 +18,7 @@ static uint16_t s_net_id;
 static uint8_t s_role;
 static uint32_t s_node_id;
 static uint16_t s_seq;
+static uint16_t s_boot_id;  // random per boot — see FrameHeader.boot_id
 static pm_rx_handler_t s_handler;
 static pm_stats_t s_stats;
 static PmDedup s_dedup;
@@ -50,7 +51,7 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   if (hdr.src_id == s_node_id) return;             // our own flood echoed back
 
   uint32_t now_ms = millis();
-  if (s_dedup.seen(hdr.src_id, hdr.seq, now_ms)) {
+  if (s_dedup.seen(hdr.src_id, hdr.seq, now_ms, hdr.boot_id)) {
     s_stats.dropped_dupe++;
     return;
   }
@@ -122,6 +123,7 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
 bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   s_net_id = net_id;
   s_role = role;
+  do s_boot_id = (uint16_t)esp_random(); while (!s_boot_id);
 
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -169,6 +171,7 @@ bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
   hdr.net_id = s_net_id;
   hdr.src_id = s_node_id;
   hdr.seq = ++s_seq;
+  hdr.boot_id = s_boot_id;
   hdr.ttl = ttl;
   hdr.msg_type = (uint8_t)type;
   hdr.auth_tag = 0;  // TODO(proto v1): truncated AES-CMAC

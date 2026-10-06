@@ -221,8 +221,9 @@ Issue codes (shared by `pm_pinrules.h` and `pinRules.ts`):
    resets the devkit; the console waits for it to boot.
 4. Assign **D2 → LED dimmer**. *Save to node*. Drag the test slider —
    the onboard blue LED dims.
-5. Assign **D13 → Servo** with a servo on 5 V (not the devkit's 3V3
-   pin) and a common ground. Save, drag the slider. Adjust min/max µs
+5. Assign **D13 → Servo**. Power the servo from its **own 5 V supply**
+   (not the devkit's 5 V/VIN or 3V3 pins — §9), grounds joined, signal
+   wire to D13. Save, drag the slider. Adjust min/max µs
    until the end stops are right for the prop.
 6. Assign **D27 → Sensor**, pull *down*; jumper D27 to 3V3 — the row
    shows ● ACTIVE.
@@ -277,6 +278,25 @@ nodes with per-node configs and same-node triggers only. No new
 features after Oct 22.
 
 ## 9. Known gaps
+
+- **Fixed 2026-10-05 — a restarted bridge was ignored for 30 s+.**
+  Opening a classic devkit's USB port resets it (DTR/RTS drive EN
+  through the auto-program transistors), so connecting the console
+  restarts the bridge and its frame counter starts again at 1. Receivers
+  only recognised a restart after a jump back of 1024+ frames; a bridge
+  a few minutes old had sent a few hundred, so all its frames were
+  dropped as old duplicates until the new counter overtook the old one.
+  Every frame now carries a random per-boot `boot_id`; a new one resets
+  that sender's duplicate window. Measured after the fix: bridge reset
+  alone, after 300 frames of traffic, ×3 — both remotes answered on the
+  first try 0.9–1.0 s later and resynced to the bridge's clock. **Frame
+  format change: every node must run the same firmware.**
+- **Servos powered from a devkit corrupt flashing.** With two servos on
+  the Type-C board's 5 V, its upload failed MD5 verify twice (at 460 800
+  and 115 200 baud); with servo + disconnected it flashed first time.
+  Power servos from their own 5 V supply (≥ 2 A), grounds joined, signal
+  only to the GPIO — and that also keeps a stalling servo from browning
+  out the board mid-show.
 
 - **Measured fix, 2026-10-05.** First hardware run: 80 % of 9-chunk
   messages lost a chunk (rescued by the 0.9 s retry) and 1 in 20

@@ -12,6 +12,10 @@
 
 // Sequence gap beyond which a source is assumed to have rebooted (its
 // counter restarts at 1) rather than to be sending a very late frame.
+// Only a fallback since boot_id: it catches a restart only after the
+// source had sent 1024+ frames, which a bridge reset after a few minutes
+// had not — its frames were dropped as "old" until its new counter
+// overtook the old one (30 s to minutes, found on the bench 2026-10-05).
 #define PM_REBOOT_GAP 1024
 
 // A (src, seq) pair is a duplicate if it falls inside that source's
@@ -23,12 +27,17 @@
 // numbers behind `newest` — the IPsec anti-replay shape.
 class PmDedup {
  public:
-  // Records the pair and returns true if it was already seen.
-  bool seen(uint32_t src, uint16_t seq, uint32_t now_ms) {
+  // Records the frame and returns true if it was already seen.
+  // `boot_id` is the sender's random per-boot id (0 = unknown): a new
+  // one means the sender restarted, so its sequence starts over.
+  bool seen(uint32_t src, uint16_t seq, uint32_t now_ms, uint16_t boot_id = 0) {
     Src *s = claim(src, now_ms);
     s->last_ms = now_ms;
 
-    if (!s->primed) {  // first frame from this source
+    if (boot_id && s->primed && boot_id != s->boot_id) s->primed = false;  // restarted
+    if (boot_id) s->boot_id = boot_id;
+
+    if (!s->primed) {  // first frame from this source (or this boot of it)
       s->primed = true;
       s->newest = seq;
       s->bitmap = 0;
@@ -75,6 +84,7 @@ class PmDedup {
     uint32_t last_ms;
     uint32_t bitmap;  // bit i set => seq (newest - 1 - i) was seen
     uint16_t newest;
+    uint16_t boot_id;
     bool used;
     bool primed;
   };

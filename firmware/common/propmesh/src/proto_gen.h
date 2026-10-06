@@ -70,6 +70,7 @@ typedef struct {
     uint16_t net_id;  // derived from network key
     uint32_t src_id;  // last 4 bytes of efuse MAC
     uint16_t seq;
+    uint16_t boot_id;  // random per boot, never 0: a changed boot_id tells receivers the sender restarted and its seq began again (2026-10-05 — without it a rebooted bridge was ignored until its seq passed the old one)
     uint8_t ttl;
     uint8_t msg_type;  // MsgType
     uint8_t flags;

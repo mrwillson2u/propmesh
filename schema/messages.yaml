@@ -81,6 +81,7 @@ structs:
     - {name: net_id, type: u16, note: "derived from network key"}
     - {name: src_id, type: u32, note: "last 4 bytes of efuse MAC"}
     - {name: seq, type: u16}
+    - {name: boot_id, type: u16, note: "random per boot, never 0: a changed boot_id tells receivers the sender restarted and its seq began again (2026-10-05 — without it a rebooted bridge was ignored until its seq passed the old one)"}
     - {name: ttl, type: u8}
     - {name: msg_type, type: u8, note: "MsgType"}
     - {name: flags, type: u8}

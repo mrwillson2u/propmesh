@@ -62,6 +62,33 @@ static void test_source_reboot_is_accepted() {
   TEST_ASSERT_FALSE(d.seen(0xAABB, 2, 2));
 }
 
+// The bench bug of 2026-10-05: a bridge reset a few minutes in (counter
+// ~300, far below PM_REBOOT_GAP) restarted at 1 and every frame it sent
+// looked like an old duplicate. A new boot_id must reset the window at
+// once, whatever the numbers.
+static void test_new_boot_id_resets_window() {
+  PmDedup d;
+  for (uint16_t s = 1; s <= 300; s++) d.seen(0xAABB, s, s, 0x1111);
+  TEST_ASSERT_FALSE(d.seen(0xAABB, 1, 400, 0x2222));  // restarted: new
+  TEST_ASSERT_FALSE(d.seen(0xAABB, 2, 401, 0x2222));
+  TEST_ASSERT_TRUE(d.seen(0xAABB, 2, 402, 0x2222));   // and dedup still works
+}
+
+// A reset seconds after boot — new counter within the old window.
+static void test_quick_reboot_within_window() {
+  PmDedup d;
+  for (uint16_t s = 1; s <= 10; s++) d.seen(0xAABB, s, s, 0x1111);
+  TEST_ASSERT_FALSE(d.seen(0xAABB, 1, 20, 0x3333));
+  TEST_ASSERT_FALSE(d.seen(0xAABB, 2, 21, 0x3333));
+}
+
+// The same boot id: an old copy is still a duplicate.
+static void test_same_boot_id_keeps_dedup() {
+  PmDedup d;
+  for (uint16_t s = 1; s <= 300; s++) d.seen(0xAABB, s, s, 0x1111);
+  TEST_ASSERT_TRUE(d.seen(0xAABB, 1, 400, 0x1111));
+}
+
 static void test_sources_are_independent() {
   PmDedup d;
   d.seen(0xAABB, 5, 0);
@@ -209,6 +236,9 @@ int main() {
   RUN_TEST(test_sequence_wraparound);
   RUN_TEST(test_source_reboot_is_accepted);
   RUN_TEST(test_sources_are_independent);
+  RUN_TEST(test_new_boot_id_resets_window);
+  RUN_TEST(test_quick_reboot_within_window);
+  RUN_TEST(test_same_boot_id_keeps_dedup);
   RUN_TEST(test_source_table_evicts_stalest);
   RUN_TEST(test_neighbor_observed_and_reported);
   RUN_TEST(test_neighbor_rssi_is_smoothed);

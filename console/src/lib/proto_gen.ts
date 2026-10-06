@@ -84,12 +84,13 @@ export interface FrameHeader {
   net_id: number;  // derived from network key
   src_id: number;  // last 4 bytes of efuse MAC
   seq: number;
+  boot_id: number;  // random per boot, never 0: a changed boot_id tells receivers the sender restarted and its seq began again (2026-10-05 — without it a rebooted bridge was ignored until its seq passed the old one)
   ttl: number;
   msg_type: number;  // MsgType
   flags: number;
   auth_tag: number;  // truncated CMAC; 0 in v0
 }
-export const FrameHeader_SIZE = 18;
+export const FrameHeader_SIZE = 20;
 export function decodeFrameHeader(dv: DataView, off = 0): FrameHeader {
   let o = off;
   const magic = dv.getUint16(o, true); o += 2;
@@ -97,11 +98,12 @@ export function decodeFrameHeader(dv: DataView, off = 0): FrameHeader {
   const net_id = dv.getUint16(o, true); o += 2;
   const src_id = dv.getUint32(o, true); o += 4;
   const seq = dv.getUint16(o, true); o += 2;
+  const boot_id = dv.getUint16(o, true); o += 2;
   const ttl = dv.getUint8(o); o += 1;
   const msg_type = dv.getUint8(o); o += 1;
   const flags = dv.getUint8(o); o += 1;
   const auth_tag = dv.getUint32(o, true); o += 4;
-  return { magic, proto_version, net_id, src_id, seq, ttl, msg_type, flags, auth_tag };
+  return { magic, proto_version, net_id, src_id, seq, boot_id, ttl, msg_type, flags, auth_tag };
 }
 export function encodeFrameHeader(v: FrameHeader, dv: DataView, off = 0): number {
   let o = off;
@@ -110,6 +112,7 @@ export function encodeFrameHeader(v: FrameHeader, dv: DataView, off = 0): number
   dv.setUint16(o, v.net_id, true); o += 2;
   dv.setUint32(o, v.src_id, true); o += 4;
   dv.setUint16(o, v.seq, true); o += 2;
+  dv.setUint16(o, v.boot_id, true); o += 2;
   dv.setUint8(o, v.ttl); o += 1;
   dv.setUint8(o, v.msg_type); o += 1;
   dv.setUint8(o, v.flags); o += 1;
