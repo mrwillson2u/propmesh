@@ -35,6 +35,9 @@ static struct {
   uint8_t frame[sizeof(pm_frame_header_t) + PM_MAX_PAYLOAD];
 } s_relay[RELAY_QUEUE];
 
+// Election priority this node would beacon with: bridges outrank all.
+static uint8_t priority() { return (s_role & PM_NODE_ROLE_BRIDGE) ? 1 : 0; }
+
 static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
                     int len) {
   if (len < (int)sizeof(pm_frame_header_t)) { s_stats.dropped_bad++; return; }
@@ -66,24 +69,39 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
     pm_time_t t;
     memcpy(&t, payload, sizeof(t));
     // Two conductors can only coexist until they hear each other; the
-    // higher id wins, so the loser steps down and follows.
-    if ((s_role & PM_NODE_ROLE_CONDUCTOR) && t.conductor_id > s_node_id)
+    // higher (priority, id) wins, so the loser steps down and follows.
+    // A bridge never steps down to a plain node.
+    if ((s_role & PM_NODE_ROLE_CONDUCTOR) &&
+        PmClock::rank(t.priority, t.conductor_id) >
+            PmClock::rank(priority(), s_node_id)) {
       s_role &= ~PM_NODE_ROLE_CONDUCTOR;
+      s_clock.resign();
+    }
     // A conductor keeps its own clock; everyone else follows the best
     // beacon on offer.
     if (!(s_role & PM_NODE_ROLE_CONDUCTOR) &&
-        s_clock.should_adopt(t.conductor_id, t.hop, now_ms)) {
+        s_clock.should_adopt(t.conductor_id, t.priority, t.hop, now_ms)) {
       int64_t offset = (int64_t)t.mesh_time_us - (int64_t)esp_timer_get_time();
-      s_clock.adopt(t.conductor_id, t.hop, offset, now_ms);
+      s_clock.adopt(t.conductor_id, t.priority, t.hop, offset, now_ms);
     }
   }
 
   s_stats.rx++;
   if (s_handler) s_handler(&hdr, payload, plen, rssi);
 
+  // An API frame addressed to us has arrived; nobody downstream needs
+  // it, and rebroadcasting would put this radio in TX while the next
+  // chunk of the same message is in the air (measured 2026-10-05: 80 %
+  // of 9-chunk messages lost a chunk until this and the wider chunk gap
+  // in pm_link.cpp).
+  bool for_us = (hdr.msg_type == PM_MSG_TYPE_API_REQ ||
+                 hdr.msg_type == PM_MSG_TYPE_API_RESP) &&
+                plen >= 4 && ((uint32_t)payload[0] | (uint32_t)payload[1] << 8 |
+                              (uint32_t)payload[2] << 16 | (uint32_t)payload[3] << 24) == s_node_id;
+
   // Relay: powered backbone nodes rebroadcast once, after 2-10 ms jitter
   // so simultaneous relays don't collide.
-  if ((s_role & PM_NODE_ROLE_RELAY) && hdr.ttl > 0) {
+  if ((s_role & PM_NODE_ROLE_RELAY) && hdr.ttl > 0 && !for_us) {
     for (int i = 0; i < RELAY_QUEUE; i++) {
       if (s_relay[i].used) continue;
       s_relay[i].used = true;
@@ -110,7 +128,8 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   s_node_id = ((uint32_t)mac[2] << 24) | ((uint32_t)mac[3] << 16) |
               ((uint32_t)mac[4] << 8) | mac[5];
 
-  if (role & PM_NODE_ROLE_CONDUCTOR) s_clock.become_conductor(s_node_id, millis());
+  if (role & PM_NODE_ROLE_CONDUCTOR)
+    s_clock.become_conductor(s_node_id, priority(), millis());
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();  // no AP association — ESP-NOW only (bridge differs)
@@ -135,7 +154,9 @@ void pm_set_role(uint8_t role) {
   bool was = s_role & PM_NODE_ROLE_CONDUCTOR;
   s_role = role;
   if ((role & PM_NODE_ROLE_CONDUCTOR) && !was)
-    s_clock.become_conductor(s_node_id, millis());
+    s_clock.become_conductor(s_node_id, priority(), millis());
+  else if (!(role & PM_NODE_ROLE_CONDUCTOR) && was)
+    s_clock.resign();  // follow the next beacon instead of our own clock
 }
 
 bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
@@ -190,6 +211,7 @@ void pm_mesh_loop() {
     t.mesh_time_us = (uint64_t)esp_timer_get_time();
     t.hop = 0;
     t.conductor_id = s_node_id;
+    t.priority = priority();
     pm_send(PM_MSG_TYPE_TIME, &t, sizeof(t));
   }
 }

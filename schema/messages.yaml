@@ -21,6 +21,7 @@ constants:
   PM_DEDUP_WINDOW: 32
   PM_MAX_NEIGHBORS: 8
   PM_BROADCAST_GROUP: 0xFFFF
+  PM_API_CHUNK: 180           # JSON bytes per API frame (header + 9 + 180 <= 250)
 
 enums:
   MsgType:
@@ -32,6 +33,8 @@ enums:
     OTA_ANNOUNCE: 6
     OTA_CHUNK: 7
     OTA_NAK: 8
+    API_REQ: 9                # console request carried over the mesh (chunked JSON)
+    API_RESP: 10              # the target node's reply, back to the requester
 
   BoardType:
     DEVKIT: 0
@@ -51,6 +54,18 @@ enums:
     SEQUENCE_STARTED: 3
     SEQUENCE_ENDED: 4
     FAULT: 5
+
+  # What a logical channel is. A channel is addressed as (kind, index) —
+  # SERVO_2 is (SERVO, 2) — never as a GPIO number. On Pro/Mini the
+  # channels come from pinmap.yaml; on generic boards the user creates
+  # them by assigning pins (boards/*.yaml, docs/generic-boards.md).
+  ChannelKind:
+    RELAY: 1                  # on/off output
+    LED: 2                    # PWM-dimmed DC output
+    SERVO: 3
+    MOTOR: 4                  # brushed DC, two inputs, signed speed
+    LED_STRIP: 5              # addressable pixels
+    DIGITAL_IN: 6             # PIR, button, beam — debounced
 
 # Reusable structs (must be defined before the messages that use them)
 structs:
@@ -90,6 +105,7 @@ messages:
       - {name: mesh_time_us, type: u64, note: "conductor clock at send"}
       - {name: hop, type: u8, note: "incremented per relay for latency comp"}
       - {name: conductor_id, type: u32}
+      - {name: priority, type: u8, note: "1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)"}
 
   Cue:
     type: CUE
@@ -117,6 +133,32 @@ messages:
       - {name: fw_version, type: u16}
       - {name: board, type: u8, note: "BoardType target"}
       - {name: chunk_size, type: u16}
+
+  # The console API (docs/generic-boards.md §6) over the mesh: the USB /
+  # bridge node forwards a request addressed to another node as JSON
+  # text split into chunks; the target answers the same way. This is
+  # the request/response wrapper software-plan §5.1 reserved. Frames
+  # are flooded like everything else; `dst` picks the one node that
+  # acts. Only the first `len` bytes of `data` are sent.
+  ApiRequest:
+    type: API_REQ
+    fields:
+      - {name: dst, type: u32, note: "target node id"}
+      - {name: req_id, type: u16, note: "per requester; a retry reuses it"}
+      - {name: chunk, type: u8}
+      - {name: chunks, type: u8}
+      - {name: len, type: u8, note: "valid bytes in data"}
+      - {name: data, type: "u8[180]"}
+
+  ApiResponse:
+    type: API_RESP
+    fields:
+      - {name: dst, type: u32, note: "the requester"}
+      - {name: req_id, type: u16, note: "echoes the request"}
+      - {name: chunk, type: u8}
+      - {name: chunks, type: u8}
+      - {name: len, type: u8}
+      - {name: data, type: "u8[180]"}
 
   OtaNak:
     type: OTA_NAK

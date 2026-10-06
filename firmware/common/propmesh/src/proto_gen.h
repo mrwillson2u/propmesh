@@ -12,6 +12,7 @@
 #define PM_DEDUP_WINDOW 32
 #define PM_MAX_NEIGHBORS 8
 #define PM_BROADCAST_GROUP 65535  // 0xffff
+#define PM_API_CHUNK 180
 
 typedef enum {
     PM_MSG_TYPE_HEARTBEAT = 1,
@@ -22,6 +23,8 @@ typedef enum {
     PM_MSG_TYPE_OTA_ANNOUNCE = 6,
     PM_MSG_TYPE_OTA_CHUNK = 7,
     PM_MSG_TYPE_OTA_NAK = 8,
+    PM_MSG_TYPE_API_REQ = 9,
+    PM_MSG_TYPE_API_RESP = 10,
 } pm_msg_type_t;
 
 typedef enum {
@@ -44,6 +47,15 @@ typedef enum {
     PM_STATE_KIND_SEQUENCE_ENDED = 4,
     PM_STATE_KIND_FAULT = 5,
 } pm_state_kind_t;
+
+typedef enum {
+    PM_CHANNEL_KIND_RELAY = 1,
+    PM_CHANNEL_KIND_LED = 2,
+    PM_CHANNEL_KIND_SERVO = 3,
+    PM_CHANNEL_KIND_MOTOR = 4,
+    PM_CHANNEL_KIND_LED_STRIP = 5,
+    PM_CHANNEL_KIND_DIGITAL_IN = 6,
+} pm_channel_kind_t;
 
 #pragma pack(push, 1)
 
@@ -79,6 +91,7 @@ typedef struct {
     uint64_t mesh_time_us;  // conductor clock at send
     uint8_t hop;  // incremented per relay for latency comp
     uint32_t conductor_id;
+    uint8_t priority;  // 1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)
 } pm_time_t;
 
 typedef struct {
@@ -104,6 +117,24 @@ typedef struct {
     uint8_t board;  // BoardType target
     uint16_t chunk_size;
 } pm_ota_announce_t;
+
+typedef struct {
+    uint32_t dst;  // target node id
+    uint16_t req_id;  // per requester; a retry reuses it
+    uint8_t chunk;
+    uint8_t chunks;
+    uint8_t len;  // valid bytes in data
+    uint8_t data[180];
+} pm_api_request_t;
+
+typedef struct {
+    uint32_t dst;  // the requester
+    uint16_t req_id;  // echoes the request
+    uint8_t chunk;
+    uint8_t chunks;
+    uint8_t len;
+    uint8_t data[180];
+} pm_api_response_t;
 
 typedef struct {
     uint16_t fw_version;

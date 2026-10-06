@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "name": "Example node",
+  "channels": [
+    {"kind": "LED", "index": 1, "label": "onboard LED", "pins": [2]}
+  ]
+}

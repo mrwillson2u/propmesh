@@ -22,7 +22,10 @@ Deep-link a view with `?view=survey|nodes|cues|blueprint|show`.
   (drawn yard with staked positions — "where is that physically").
   One selection, one detail panel, one link model across both. Includes
   locate blink and placement mode (the phone layout). Fully interactive.
-- **Nodes & Channels** — fault banners, expandable node table,
+- **Nodes & Channels** — the **pin editor** for generic boards at the
+  top (connect a devkit over USB, or a simulated node, assign pins to
+  functions, save, test-fire — `docs/generic-boards.md`), then fault
+  banners, expandable node table,
   per-channel test fire / relay toggle, and the **prop-type picker**
   (click a node's icon).
 - **Cues** — armed bar, rule list with enable toggles, cue editor panel.
@@ -62,6 +65,11 @@ render at on the map, and detail disappears fast.
 - `src/lib/mesh.ts` is the data model + 1 s simulated telemetry tick.
   Its shapes are the contract the bridge WebSocket API should serve;
   swap the simulation for the stream, keep the shapes.
+- `src/lib/transport.ts` is how the console reaches a node: USB
+  (Web Serial — Chrome/Edge only) or the simulated node. The bridge
+  WebSocket becomes a third carrier with the same request shapes.
+- `src/lib/boards_gen.ts` is **generated** from `boards/*.yaml`
+  (`python3 tools/genboards.py`) — never hand-edit.
 - `src/lib/proto_gen.ts` is **generated** from `schema/messages.yaml`
   (`python3 tools/genmsg.py`) — never hand-edit.
 - For flash serving, self-host the two IBM Plex Mono woff2 weights

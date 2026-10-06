@@ -12,6 +12,8 @@ jobs:
         run: python3 tools/genpins.py --check
       - name: Bindings match schema/messages.yaml
         run: python3 tools/genmsg.py --check
+      - name: Board bindings match boards/*.yaml
+        run: python3 tools/genboards.py --check
       - name: Connection specs are well-formed
         run: for f in hardware/*/sheets/*.net.yaml; do python3 tools/checknet.py "$f" --lint || exit 1; done
 
@@ -25,6 +27,8 @@ jobs:
         run: pio test -d firmware/test -e native
       - name: Build devkit testbed
         run: pio run -d firmware/mesh-node
+      - name: Build generic-board node
+        run: pio run -d firmware/node
 
   console:
     name: console typecheck and build

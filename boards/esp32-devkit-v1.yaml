@@ -1,0 +1,53 @@
+# ESP32 DevKit V1 (DOIT, 30-pin, ESP32-WROOM-32) — generic-board profile.
+#
+# Edit, then run:  python3 tools/genboards.py
+# Never hand-edit boards_gen.h / boards_gen.ts.
+#
+# This is NOT a pin assignment (that is what the user does in the
+# console) — it is what each pin is ABLE to do, and what to warn about.
+#
+# caps:  in, out, pullup, pulldown, adc
+# tier:  good     — offered first, no caveats
+#        caution  — usable, but the note is shown as a warning
+#        reserved — listed so the UI can explain why, never assignable
+#
+# Sources: ESP32 datasheet §2.2 pin table + §2.4 strapping pins,
+# ESP32-WROOM-32 datasheet (GPIO 6-11 = module flash). ⚠ The boot-time
+# behaviour notes on 5/14/15 are from the datasheet's power-up glitch
+# table and bench folklore — confirm on a scope before a relay goes on one.
+
+id: esp32-devkit-v1
+name: ESP32 DevKit V1 (30-pin)
+mcu: ESP32-WROOM-32
+board_type: DEVKIT            # BoardType in schema/messages.yaml
+ledc_channels: 16
+rmt_tx_channels: 8
+
+pins:
+  # left header, top (EN end) to bottom
+  - {gpio: 36, label: VP,  caps: [in, adc], tier: good, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 39, label: VN,  caps: [in, adc], tier: good, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 34, label: D34, caps: [in, adc], tier: good, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 35, label: D35, caps: [in, adc], tier: good, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 32, label: D32, caps: [in, out, pullup, pulldown, adc], tier: good}
+  - {gpio: 33, label: D33, caps: [in, out, pullup, pulldown, adc], tier: good}
+  - {gpio: 25, label: D25, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 26, label: D26, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 27, label: D27, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 14, label: D14, caps: [in, out, pullup, pulldown], tier: caution, note: "pulses briefly at power-up — a relay or motor here may twitch on boot"}
+  - {gpio: 12, label: D12, caps: [out], tier: caution, note: "STRAPPING: must be LOW at power-up or the board will not boot. Outputs only, and nothing that pulls it high (many relay modules do)"}
+  - {gpio: 13, label: D13, caps: [in, out, pullup, pulldown], tier: good}
+  # right header, top to bottom
+  - {gpio: 23, label: D23, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 22, label: D22, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 1,  label: TX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
+  - {gpio: 3,  label: RX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
+  - {gpio: 21, label: D21, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 19, label: D19, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 18, label: D18, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 5,  label: D5,  caps: [out], tier: caution, note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"}
+  - {gpio: 17, label: TX2, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 16, label: RX2, caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 4,  label: D4,  caps: [in, out, pullup, pulldown], tier: good}
+  - {gpio: 2,  label: D2,  caps: [out], tier: caution, note: "STRAPPING + the onboard blue LED. Outputs only; anything holding it high blocks flashing"}
+  - {gpio: 15, label: D15, caps: [out], tier: caution, note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"}

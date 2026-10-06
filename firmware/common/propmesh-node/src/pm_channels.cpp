@@ -1,0 +1,172 @@
+#include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
+#include "pm_channels.h"
+
+// LEDC resolutions. The core shares one timer between channels with the
+// same (frequency, resolution), so three PWM classes cost three timers
+// however many channels use them. 14 bits is the C3's ceiling and gives
+// 1.2 us servo steps; 10 bits is the most 25 kHz allows from 80 MHz.
+#define LED_BITS 12
+#define SERVO_BITS 14
+#define MOTOR_BITS 10
+#define DEBOUNCE_MS 30
+
+struct Runtime {
+  int32_t value;
+  Adafruit_NeoPixel *strip;
+  bool raw;             // last sampled input level (active = true)
+  uint32_t changed_ms;  // when `raw` last differed from `value`
+};
+
+static PmNodeConfig active;
+static Runtime rt[PM_MAX_CHANNELS];
+static pm_input_handler_t input_handler;
+
+static uint32_t pwm_hz(uint8_t kind) { return pm_function(kind)->pwm_hz; }
+
+static bool read_input(const PmChannelCfg &c) {
+  return (digitalRead(c.pins[0]) == HIGH) != c.active_low;
+}
+
+static void release(const PmChannelCfg &c, Runtime &r) {
+  switch (c.kind) {
+    case PM_CHANNEL_KIND_LED:
+    case PM_CHANNEL_KIND_SERVO:
+    case PM_CHANNEL_KIND_MOTOR:
+      for (uint8_t p = 0; p < c.pin_count; p++) ledcDetach(c.pins[p]);
+      break;
+    case PM_CHANNEL_KIND_LED_STRIP:
+      if (r.strip) {
+        r.strip->clear();
+        r.strip->show();
+        delete r.strip;
+      }
+      break;
+  }
+  for (uint8_t p = 0; p < c.pin_count; p++) pinMode(c.pins[p], INPUT);
+  r = Runtime();
+}
+
+static bool attach(const PmChannelCfg &c, Runtime &r) {
+  bool ok = true;
+  r = Runtime();
+  switch (c.kind) {
+    case PM_CHANNEL_KIND_RELAY:
+      // Level first, direction second: the pin must never drive the
+      // "on" level, even for the instant between the two calls.
+      digitalWrite(c.pins[0], c.active_low ? HIGH : LOW);
+      pinMode(c.pins[0], OUTPUT);
+      break;
+    case PM_CHANNEL_KIND_LED:
+      ok = ledcAttach(c.pins[0], pwm_hz(c.kind), LED_BITS);
+      ledcWrite(c.pins[0], 0);
+      break;
+    case PM_CHANNEL_KIND_SERVO:
+      ok = ledcAttach(c.pins[0], pwm_hz(c.kind), SERVO_BITS);
+      ledcWrite(c.pins[0], 0);  // no pulses: limp until commanded
+      r.value = -1;
+      break;
+    case PM_CHANNEL_KIND_MOTOR:
+      for (uint8_t p = 0; p < 2; p++) {
+        ok &= ledcAttach(c.pins[p], pwm_hz(c.kind), MOTOR_BITS);
+        ledcWrite(c.pins[p], 0);
+      }
+      break;
+    case PM_CHANNEL_KIND_LED_STRIP:
+      r.strip = new Adafruit_NeoPixel(c.pixels, c.pins[0], NEO_GRB + NEO_KHZ800);
+      r.strip->begin();
+      r.strip->show();
+      break;
+    case PM_CHANNEL_KIND_DIGITAL_IN:
+      pinMode(c.pins[0], c.pull == PM_PULL_UP ? INPUT_PULLUP
+                       : c.pull == PM_PULL_DOWN ? INPUT_PULLDOWN : INPUT);
+      r.raw = read_input(c);
+      r.value = r.raw;
+      break;
+  }
+  return ok;
+}
+
+static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
+  switch (c.kind) {
+    case PM_CHANNEL_KIND_RELAY:
+      digitalWrite(c.pins[0], (v != 0) != c.active_low ? HIGH : LOW);
+      break;
+    case PM_CHANNEL_KIND_LED:
+      ledcWrite(c.pins[0], pm_duty(v, LED_BITS));
+      break;
+    case PM_CHANNEL_KIND_SERVO:
+      ledcWrite(c.pins[0], v < 0 ? 0
+                : pm_pulse_duty(pm_servo_pulse_us(c, v), pwm_hz(c.kind), SERVO_BITS));
+      break;
+    case PM_CHANNEL_KIND_MOTOR:
+      // Drive one input, hold the other low: coasts at 0.
+      ledcWrite(c.pins[0], v > 0 ? pm_duty(v, MOTOR_BITS) : 0);
+      ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
+      break;
+    case PM_CHANNEL_KIND_LED_STRIP:
+      r.strip->fill((uint32_t)v & 0xFFFFFF);
+      r.strip->show();
+      break;
+  }
+  r.value = v;
+}
+
+static int find(uint8_t kind, uint8_t index) {
+  for (uint8_t i = 0; i < active.channel_count; i++)
+    if (active.channels[i].kind == kind && active.channels[i].index == index)
+      return i;
+  return -1;
+}
+
+bool pm_channels_apply(const PmNodeConfig &cfg) {
+  for (uint8_t i = 0; i < active.channel_count; i++)
+    release(active.channels[i], rt[i]);
+  active = cfg;
+  bool ok = true;
+  for (uint8_t i = 0; i < active.channel_count; i++)
+    ok &= attach(active.channels[i], rt[i]);
+  return ok;
+}
+
+const PmNodeConfig &pm_channels_config() { return active; }
+
+bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value) {
+  int i = find(kind, index);
+  if (i < 0 || kind == PM_CHANNEL_KIND_DIGITAL_IN) return false;
+  write(active.channels[i], rt[i], pm_clamp_value(*pm_function(kind), value));
+  return true;
+}
+
+int32_t pm_channel_get(uint8_t kind, uint8_t index) {
+  int i = find(kind, index);
+  return i < 0 ? 0 : rt[i].value;
+}
+
+void pm_channels_all_off() {
+  for (uint8_t i = 0; i < active.channel_count; i++) {
+    const PmChannelCfg &c = active.channels[i];
+    if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN) continue;
+    write(c, rt[i], c.kind == PM_CHANNEL_KIND_SERVO ? -1 : 0);
+  }
+}
+
+void pm_on_input(pm_input_handler_t handler) { input_handler = handler; }
+
+void pm_channels_loop() {
+  uint32_t now = millis();
+  for (uint8_t i = 0; i < active.channel_count; i++) {
+    const PmChannelCfg &c = active.channels[i];
+    if (c.kind != PM_CHANNEL_KIND_DIGITAL_IN) continue;
+    Runtime &r = rt[i];
+    bool level = read_input(c);
+    if (level != r.raw) {
+      r.raw = level;
+      r.changed_ms = now;
+    }
+    if ((int32_t)level != r.value && (uint32_t)(now - r.changed_ms) >= DEBOUNCE_MS) {
+      r.value = level;
+      if (input_handler) input_handler(c.index, level);
+    }
+  }
+}

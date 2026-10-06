@@ -17,6 +17,18 @@ When a pin assignment changes, edit `pinmap.yaml`, regenerate, and update
 `docs/hardware-spec.md` in the same commit. A pin map that disagrees with
 the schematic is the bug class most likely to cost an evening at bring-up.
 
+**Generic ESP32 boards (devkits) have no fixed pin map** — users assign
+pins to functions in the console. What each pin *can* do lives in
+`boards/<board>.yaml`; what each function *needs* in
+`boards/functions.yaml`. Never edit `boards_gen.h` / `boards_gen.ts`:
+
+```
+python3 tools/genboards.py          # regenerate
+python3 tools/genboards.py --check  # CI
+```
+
+Full design, serial protocol and October plan: `docs/generic-boards.md`.
+
 ## Locked design decisions — do not relitigate
 
 These were settled after analysis. If a change is proposed, say why the

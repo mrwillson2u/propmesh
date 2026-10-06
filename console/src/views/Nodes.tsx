@@ -6,6 +6,7 @@ import { NODES, CHANNELS, statusStroke, type YardNode } from "../lib/mesh";
 import { PropIcon, PROP_TYPES, type PropType } from "../lib/propIcons";
 import { useProps } from "../lib/propStore";
 import { mono, sys } from "../ui";
+import MeshPanel from "./nodes/MeshPanel";
 
 const GRID = "280px 90px 130px 120px 1fr 40px";
 const CH_GRID = "130px 220px 120px 1fr 110px";
@@ -126,6 +127,13 @@ export default function Nodes() {
 
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto", background: C.bg }}>
+      <MeshPanel />
+      {/* Everything below is the design handoff's mock fleet (lib/mesh.ts) —
+          labelled so it isn't mistaken for the real boards above. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: C.bg, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
+        <span style={{ padding: "2px 7px", borderRadius: 99, background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 9.5, C.t3), letterSpacing: ".06em" }}>DEMO DATA</span>
+        <span style={sys(500, 11.5, C.t4)}>The fleet below is a design mockup, not your boards. Real boards appear in the panel above once a USB node is connected.</span>
+      </div>
       <div style={{ display: "flex", gap: 10, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         {banner(C.redBg2, C.redB, "✕", C.red, "Driveway PIR — missing 42 min", C.red,
           "last seen 20:02 · last RSSI −79 · battery was 3.71 V · 1 cue depends on it",

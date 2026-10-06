@@ -19,8 +19,9 @@
 class PmClock {
  public:
   // The conductor is its own time authority.
-  void become_conductor(uint32_t self_id, uint32_t now_ms) {
+  void become_conductor(uint32_t self_id, uint8_t priority, uint32_t now_ms) {
     m_conductor = self_id;
+    m_priority = priority;
     m_hop = 0;
     m_offset_us = 0;
     m_synced = true;
@@ -29,25 +30,37 @@ class PmClock {
 
   bool is_conductor() const { return m_synced && m_hop == 0; }
 
-  // Election: highest node id wins, so the mesh converges on one
-  // conductor without negotiation. A closer path to the SAME conductor
-  // is preferred (fewer hops = less accumulated error). A stale sync
-  // loses to anything — a show must not stop because the bridge died.
-  bool should_adopt(uint32_t conductor, uint8_t hop, uint32_t now_ms) const {
+  // Stop being the authority; the next beacon heard is adopted.
+  void resign() { m_synced = false; m_hop = 0xFF; }
+
+  // Election order: priority first (a bridge is 1), then node id.
+  static uint64_t rank(uint8_t priority, uint32_t id) {
+    return ((uint64_t)priority << 32) | id;
+  }
+
+  // Election: highest (priority, node id) wins, so the mesh converges
+  // on one conductor without negotiation — the bridge when there is
+  // one, else the highest id. A closer path to the SAME conductor is
+  // preferred (fewer hops = less accumulated error). A stale sync loses
+  // to anything — a show must not stop because the bridge died.
+  bool should_adopt(uint32_t conductor, uint8_t priority, uint8_t hop,
+                    uint32_t now_ms) const {
     if (!m_synced) return true;
     if (stale(now_ms)) return true;
-    if (conductor != m_conductor) return conductor > m_conductor;
+    if (conductor != m_conductor)
+      return rank(priority, conductor) > rank(m_priority, m_conductor);
     return hop <= m_hop;
   }
 
   // `offset_us` is (beacon mesh time) - (local time at receipt).
-  void adopt(uint32_t conductor, uint8_t hop, int64_t offset_us,
-             uint32_t now_ms) {
+  void adopt(uint32_t conductor, uint8_t priority, uint8_t hop,
+             int64_t offset_us, uint32_t now_ms) {
     int64_t delta = offset_us - m_offset_us;
     bool jump = !m_synced || conductor != m_conductor ||
                 delta > PM_SYNC_JUMP_US || delta < -PM_SYNC_JUMP_US;
     m_offset_us = jump ? offset_us : m_offset_us + delta / 4;
     m_conductor = conductor;
+    m_priority = priority;
     m_hop = hop;
     m_synced = true;
     m_last_ms = now_ms;
@@ -72,6 +85,7 @@ class PmClock {
 
  private:
   uint32_t m_conductor = 0;
+  uint8_t m_priority = 0;
   uint32_t m_last_ms = 0;
   int64_t m_offset_us = 0;
   uint8_t m_hop = 0xFF;

@@ -12,6 +12,12 @@ Halloween 2027):
   `reference/halloween-stepper` and `lantern-fire-test`, plus — if remote
   triggering is wanted — one last season of the proven painlessMesh rig
   from `reference/prop-mesh`. Zero new protocol work before Halloween.
+- **Exception, decided 2026-10-03: generic-board support is October
+  work.** Off-the-shelf ESP32 devkits get pins assigned from the console
+  (`docs/generic-boards.md`), staged so each step is a usable fallback
+  for this year's show: USB config (Stage 1) → config over the mesh
+  (Stage 2) → sensor-triggered sequences (Stage 3), frozen Oct 22.
+  Channels stay logical; GPIO numbers never leave the node.
 - **The real stack (ESP-NOW mesh, cue engine, console) is winter work**,
   built on devkits *and* the field-tested v0.1 boards, replacing the
   painlessMesh rig before the 2027 season. Nothing below blocks on v0.2

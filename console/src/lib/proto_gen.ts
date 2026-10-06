@@ -10,6 +10,7 @@ export const PM_HEARTBEAT_PERIOD_MS = 5000; // 0x1388
 export const PM_DEDUP_WINDOW = 32;
 export const PM_MAX_NEIGHBORS = 8;
 export const PM_BROADCAST_GROUP = 65535; // 0xffff
+export const PM_API_CHUNK = 180;
 
 export const MsgType = {
   HEARTBEAT: 1,
@@ -20,6 +21,8 @@ export const MsgType = {
   OTA_ANNOUNCE: 6,
   OTA_CHUNK: 7,
   OTA_NAK: 8,
+  API_REQ: 9,
+  API_RESP: 10,
 } as const;
 export type MsgType = (typeof MsgType)[keyof typeof MsgType];
 
@@ -46,6 +49,16 @@ export const StateKind = {
   FAULT: 5,
 } as const;
 export type StateKind = (typeof StateKind)[keyof typeof StateKind];
+
+export const ChannelKind = {
+  RELAY: 1,
+  LED: 2,
+  SERVO: 3,
+  MOTOR: 4,
+  LED_STRIP: 5,
+  DIGITAL_IN: 6,
+} as const;
+export type ChannelKind = (typeof ChannelKind)[keyof typeof ChannelKind];
 
 export interface Neighbor {
   node_id: number;
@@ -145,20 +158,23 @@ export interface Time {
   mesh_time_us: bigint;  // conductor clock at send
   hop: number;  // incremented per relay for latency comp
   conductor_id: number;
+  priority: number;  // 1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)
 }
-export const Time_SIZE = 13;
+export const Time_SIZE = 14;
 export function decodeTime(dv: DataView, off = 0): Time {
   let o = off;
   const mesh_time_us = dv.getBigUint64(o, true); o += 8;
   const hop = dv.getUint8(o); o += 1;
   const conductor_id = dv.getUint32(o, true); o += 4;
-  return { mesh_time_us, hop, conductor_id };
+  const priority = dv.getUint8(o); o += 1;
+  return { mesh_time_us, hop, conductor_id, priority };
 }
 export function encodeTime(v: Time, dv: DataView, off = 0): number {
   let o = off;
   dv.setBigUint64(o, v.mesh_time_us, true); o += 8;
   dv.setUint8(o, v.hop); o += 1;
   dv.setUint32(o, v.conductor_id, true); o += 4;
+  dv.setUint8(o, v.priority); o += 1;
   return o - off;
 }
 
@@ -240,6 +256,68 @@ export function encodeOtaAnnounce(v: OtaAnnounce, dv: DataView, off = 0): number
   dv.setUint16(o, v.fw_version, true); o += 2;
   dv.setUint8(o, v.board); o += 1;
   dv.setUint16(o, v.chunk_size, true); o += 2;
+  return o - off;
+}
+
+export interface ApiRequest {
+  dst: number;  // target node id
+  req_id: number;  // per requester; a retry reuses it
+  chunk: number;
+  chunks: number;
+  len: number;  // valid bytes in data
+  data: number[];
+}
+export const ApiRequest_SIZE = 189;
+export function decodeApiRequest(dv: DataView, off = 0): ApiRequest {
+  let o = off;
+  const dst = dv.getUint32(o, true); o += 4;
+  const req_id = dv.getUint16(o, true); o += 2;
+  const chunk = dv.getUint8(o); o += 1;
+  const chunks = dv.getUint8(o); o += 1;
+  const len = dv.getUint8(o); o += 1;
+  const data = [];
+  for (let i = 0; i < 180; i++) { data.push(dv.getUint8(o)); o += 1; }
+  return { dst, req_id, chunk, chunks, len, data };
+}
+export function encodeApiRequest(v: ApiRequest, dv: DataView, off = 0): number {
+  let o = off;
+  dv.setUint32(o, v.dst, true); o += 4;
+  dv.setUint16(o, v.req_id, true); o += 2;
+  dv.setUint8(o, v.chunk); o += 1;
+  dv.setUint8(o, v.chunks); o += 1;
+  dv.setUint8(o, v.len); o += 1;
+  for (let i = 0; i < 180; i++) { dv.setUint8(o, v.data[i] ?? 0); o += 1; }
+  return o - off;
+}
+
+export interface ApiResponse {
+  dst: number;  // the requester
+  req_id: number;  // echoes the request
+  chunk: number;
+  chunks: number;
+  len: number;
+  data: number[];
+}
+export const ApiResponse_SIZE = 189;
+export function decodeApiResponse(dv: DataView, off = 0): ApiResponse {
+  let o = off;
+  const dst = dv.getUint32(o, true); o += 4;
+  const req_id = dv.getUint16(o, true); o += 2;
+  const chunk = dv.getUint8(o); o += 1;
+  const chunks = dv.getUint8(o); o += 1;
+  const len = dv.getUint8(o); o += 1;
+  const data = [];
+  for (let i = 0; i < 180; i++) { data.push(dv.getUint8(o)); o += 1; }
+  return { dst, req_id, chunk, chunks, len, data };
+}
+export function encodeApiResponse(v: ApiResponse, dv: DataView, off = 0): number {
+  let o = off;
+  dv.setUint32(o, v.dst, true); o += 4;
+  dv.setUint16(o, v.req_id, true); o += 2;
+  dv.setUint8(o, v.chunk); o += 1;
+  dv.setUint8(o, v.chunks); o += 1;
+  dv.setUint8(o, v.len); o += 1;
+  for (let i = 0; i < 180; i++) { dv.setUint8(o, v.data[i] ?? 0); o += 1; }
   return o - off;
 }
 

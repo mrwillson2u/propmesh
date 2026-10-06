@@ -125,59 +125,78 @@ static void test_neighbors_sorted_strongest_first() {
 
 static void test_unsynced_adopts_anything() {
   PmClock c;
-  TEST_ASSERT_TRUE(c.should_adopt(0x100, 3, 0));
+  TEST_ASSERT_TRUE(c.should_adopt(0x100, 0, 3, 0));
 }
 
 static void test_higher_conductor_id_wins() {
   PmClock c;
-  c.adopt(0x100, 1, 5000, 0);
-  TEST_ASSERT_TRUE(c.should_adopt(0x200, 2, 0));   // higher id, worse hop
-  TEST_ASSERT_FALSE(c.should_adopt(0x050, 0, 0));  // lower id, better hop
+  c.adopt(0x100, 0, 1, 5000, 0);
+  TEST_ASSERT_TRUE(c.should_adopt(0x200, 0, 2, 0));   // higher id, worse hop
+  TEST_ASSERT_FALSE(c.should_adopt(0x050, 0, 0, 0));  // lower id, better hop
 }
 
 static void test_closer_path_to_same_conductor_wins() {
   PmClock c;
-  c.adopt(0x100, 3, 5000, 0);
-  TEST_ASSERT_TRUE(c.should_adopt(0x100, 1, 0));
-  TEST_ASSERT_FALSE(c.should_adopt(0x100, 4, 0));
+  c.adopt(0x100, 0, 3, 5000, 0);
+  TEST_ASSERT_TRUE(c.should_adopt(0x100, 0, 1, 0));
+  TEST_ASSERT_FALSE(c.should_adopt(0x100, 0, 4, 0));
 }
 
 // If the conductor dies mid-show, any beacon beats none.
 static void test_stale_sync_adopts_lesser_conductor() {
   PmClock c;
-  c.adopt(0x200, 0, 5000, 0);
-  TEST_ASSERT_FALSE(c.should_adopt(0x050, 1, 100));
-  TEST_ASSERT_TRUE(c.should_adopt(0x050, 1, PM_SYNC_STALE_MS + 1));
+  c.adopt(0x200, 0, 0, 5000, 0);
+  TEST_ASSERT_FALSE(c.should_adopt(0x050, 0, 1, 100));
+  TEST_ASSERT_TRUE(c.should_adopt(0x050, 0, 1, PM_SYNC_STALE_MS + 1));
 }
 
 static void test_first_sync_jumps_then_smooths() {
   PmClock c;
-  c.adopt(0x100, 1, 10000, 0);
+  c.adopt(0x100, 0, 1, 10000, 0);
   TEST_ASSERT_EQUAL_INT64(10000, c.offset_us());
-  c.adopt(0x100, 1, 10400, 1);  // small correction: smoothed, not stepped
+  c.adopt(0x100, 0, 1, 10400, 1);  // small correction: smoothed, not stepped
   TEST_ASSERT_EQUAL_INT64(10100, c.offset_us());
 }
 
 static void test_large_delta_jumps() {
   PmClock c;
-  c.adopt(0x100, 1, 0, 0);
-  c.adopt(0x100, 1, PM_SYNC_JUMP_US * 2, 1);
+  c.adopt(0x100, 0, 1, 0, 0);
+  c.adopt(0x100, 0, 1, PM_SYNC_JUMP_US * 2, 1);
   TEST_ASSERT_EQUAL_INT64(PM_SYNC_JUMP_US * 2, c.offset_us());
 }
 
 static void test_mesh_and_local_time_round_trip() {
   PmClock c;
-  c.adopt(0x100, 1, 12345, 0);
+  c.adopt(0x100, 0, 1, 12345, 0);
   TEST_ASSERT_EQUAL_INT64(1012345, c.mesh_us(1000000));
   TEST_ASSERT_EQUAL_INT64(1000000, c.local_us(1012345));
 }
 
 static void test_conductor_is_its_own_authority() {
   PmClock c;
-  c.become_conductor(0xABC, 0);
+  c.become_conductor(0xABC, 0, 0);
   TEST_ASSERT_TRUE(c.is_conductor());
   TEST_ASSERT_EQUAL_INT64(0, c.offset_us());
   TEST_ASSERT_EQUAL_INT64(500, c.mesh_us(500));
+}
+
+// A bridge (priority 1) wins the election over any plain node, whatever
+// the ids — so the mesh clock lives on the bridge when there is one.
+static void test_bridge_outranks_higher_id() {
+  PmClock c;
+  c.adopt(0xFFFFFF00, 0, 1, 0, 0);
+  TEST_ASSERT_TRUE(c.should_adopt(0x00000010, 1, 3, 0));
+  c.adopt(0x00000010, 1, 3, 0, 0);
+  TEST_ASSERT_FALSE(c.should_adopt(0xFFFFFFFF, 0, 0, 0));
+  TEST_ASSERT_TRUE(PmClock::rank(1, 0x10) > PmClock::rank(0, 0xFFFFFFFF));
+}
+
+static void test_resigned_conductor_follows() {
+  PmClock c;
+  c.become_conductor(0xABC, 0, 0);
+  c.resign();
+  TEST_ASSERT_FALSE(c.is_conductor());
+  TEST_ASSERT_TRUE(c.should_adopt(0x001, 0, 2, 0));
 }
 
 int main() {
@@ -203,5 +222,7 @@ int main() {
   RUN_TEST(test_large_delta_jumps);
   RUN_TEST(test_mesh_and_local_time_round_trip);
   RUN_TEST(test_conductor_is_its_own_authority);
+  RUN_TEST(test_bridge_outranks_higher_id);
+  RUN_TEST(test_resigned_conductor_follows);
   return UNITY_END();
 }

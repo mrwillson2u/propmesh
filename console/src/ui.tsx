@@ -46,3 +46,16 @@ export const mono = (weight: number, size: number, color: string) =>
 
 export const sys = (weight: number, size: number, color: string) =>
   ({ font: `${weight} ${size}px system-ui`, color }) as const;
+
+// "Still waiting on the mesh" — used wherever the console has sent a
+// request and nothing has come back yet, so a slow reply never looks
+// like nothing happening.
+export function Spinner({ size = 12, color = C.t4 }: { size?: number; color?: string }) {
+  return (
+    <span className="pm-spin" aria-label="loading" style={{
+      display: "inline-block", width: size, height: size, flex: "none", borderRadius: "50%",
+      border: `1.5px solid ${C.b3}`, borderTopColor: color,
+      animation: "pm-spin .8s linear infinite",
+    }} />
+  );
+}
