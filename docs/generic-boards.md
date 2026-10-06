@@ -320,6 +320,21 @@ Event: `{"evt":"cue","node":<who fired>,"seq":N,"cue":id,"armed":bool,"here":boo
 — the USB node hears every cue on the mesh, so the console's activity
 log shows each one with the sensor change that caused it.
 
+**Timeline** (2026-10-05 — software-plan §6 item 5, pulled forward
+from 2027). Above the step list, the same steps drawn as keyframes:
+time across, value up, **one track per output** (servo/LED/motor as a
+0–100 % line, motor −100…+100, relay on/off, strip as colour bars).
+The line into a keyframe is its ramp (eased curve) or a hold-then-jump.
+Drag a key to move it in time and value (snaps 50 ms / 1 %; live
+preview moves the real servo); double-click a track to add a key (on a
+rampable track the line leads into it from the previous key, ease
+in & out); click a line to switch ramp ⇄ jump; Delete removes the
+selected key; drag the ruler to **scrub** every output to that moment;
+▶ Play runs a playhead across. A key selected in the timeline is
+highlighted in the list and vice-versa — `lib/timeline.ts` is the
+model, `views/show/Timeline.tsx` the SVG. Not yet: bezier handles
+(easing presets only), audio tracks, zoom (the view fits the sequence).
+
 **Console → Cues.** Sequences list; step editor (time, board, output,
 value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, colour for
 strips — and a *Test* button per step; with *Live preview* on (default)

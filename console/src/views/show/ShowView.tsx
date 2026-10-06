@@ -9,6 +9,7 @@ import { Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
+import Timeline, { type Output } from "./Timeline";
 import {
   EASES, canRamp, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
   type Ease, type Rule, type Sequence, type Show, type Step,
@@ -67,6 +68,8 @@ function Editor({ conn }: { conn: Connection }) {
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [live, setLive] = useState(true);
+  const [selStep, setSelStep] = useState<number | null>(null); // keyframe / row selected in both views
+  const [playingFrom, setPlayingFrom] = useState<number | null>(null);
 
   // Send a value to a real output, coalesced per output: one request in
   // flight, and only the newest value queued behind it — so dragging a
@@ -129,6 +132,7 @@ function Editor({ conn }: { conn: Connection }) {
     return out;
   }, [show]);
   const outNodes = Object.keys(outputs).filter((n) => outputs[n].length);
+  const allOutputs: Output[] = outNodes.flatMap((n) => outputs[n].map((o) => ({ node: n, ...o })));
 
   const armedVals = Object.values(show?.armed ?? {});
   const allArmed = armedVals.length > 0 && armedVals.every(Boolean);
@@ -140,6 +144,7 @@ function Editor({ conn }: { conn: Connection }) {
     const s = show?.sequences.find((x) => x.id === id) ?? null;
     setSel(id);
     setDraft(s ? structuredClone(s) : null);
+    setSelStep(null);
     setConfirmDelete(false);
   };
 
@@ -189,6 +194,7 @@ function Editor({ conn }: { conn: Connection }) {
     try {
       const r = await conn.link.request("cue", { seq: sel });
       if (!r.ok) setMsg({ text: `Couldn't play: ${r.error}`, bad: true });
+      else setPlayingFrom(Date.now() + 200); // the cue's lead time — the playhead then tracks the boards
     } finally {
       setBusy(null);
     }
@@ -312,6 +318,11 @@ function Editor({ conn }: { conn: Connection }) {
                 </div>
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
 
+                <div style={{ marginTop: 12 }}>
+                  <Timeline seq={draft} onChange={setDraft} selected={selStep} onSelect={setSelStep}
+                    nameOf={nameOf} outputs={allOutputs} live={live} onLive={send} playingFrom={playingFrom} />
+                </div>
+
                 <div style={{ overflowX: "auto" }}><div style={{ minWidth: STEP_MIN_W }}>
                 <div style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", marginTop: 12, ...label }}>
                   <span>AT (s)</span><span>BOARD</span><span>OUTPUT</span><span>VALUE</span><span title="How long the output takes to get there — a ramp from where it was. 0 = jump at AT.">GET THERE OVER</span><span /><span />
@@ -319,8 +330,10 @@ function Editor({ conn }: { conn: Connection }) {
                 {draft.steps.map((st, i) => {
                   const outs = outputs[st.node] ?? [];
                   const exists = outs.some((o) => o.kind === st.kind && o.index === st.index);
+                  const on = selStep === i;
                   return (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", padding: "5px 0", borderBottom: "1px solid #181c22" }}>
+                    <div key={i} onClick={() => setSelStep(i)}
+                      style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", padding: "5px 0 5px 6px", borderBottom: "1px solid #181c22", borderLeft: `3px solid ${on ? C.ember : "transparent"}`, background: on ? C.emberBg2 : undefined }}>
                       <input type="number" min={0} step={0.1} value={st.t_ms / 1000}
                         onChange={(e) => patchStep(i, { t_ms: Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000)) })}
                         style={{ ...field, ...mono(500, 12, C.t1) }} />
@@ -356,7 +369,7 @@ function Editor({ conn }: { conn: Connection }) {
                         </span>
                       ) : <span style={sys(400, 11, C.t6)}>—</span>}
                       <button onClick={() => testStep(st)} title="Send this value to the board now" style={{ ...btn(), height: 26, padding: "0 8px" }}>Test</button>
-                      <span onClick={() => setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) })}
+                      <span onClick={(e) => { e.stopPropagation(); setSelStep(null); setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) }); }}
                         title="Remove step" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
                     </div>
                   );
@@ -364,7 +377,7 @@ function Editor({ conn }: { conn: Connection }) {
                 </div></div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <button onClick={addStep} disabled={!outNodes.length} style={btn(false, !outNodes.length)}>+ Add step</button>
-                  <button onClick={() => setDraft({ ...draft, steps: [...draft.steps].sort((a, b) => a.t_ms - b.t_ms) })} style={btn()}>Sort by time</button>
+                  <button onClick={() => { setSelStep(null); setDraft({ ...draft, steps: [...draft.steps].sort((a, b) => a.t_ms - b.t_ms) }); }} style={btn()}>Sort by time</button>
                 </div>
                 <div style={{ ...sys(400, 11, C.t5), marginTop: 8, lineHeight: 1.5 }}>
                   Each step says what an output should be at a time after the sequence starts. With <b>get there over</b> set,

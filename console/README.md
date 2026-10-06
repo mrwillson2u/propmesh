@@ -52,7 +52,11 @@ is missing (red, dashed links). "direct" = one link to the bridge;
   banners, expandable node table,
   per-channel test fire / relay toggle, and the **prop-type picker**
   (click a node's icon).
-- **Cues** — armed bar, rule list with enable toggles, cue editor panel.
+- **Cues** — on real boards: sequences with a **Timeline** (tracks per
+  output, draggable keyframes, ramps with easing, scrub) over a step
+  list, triggers with cooldowns, arm/disarm, live activity log
+  (`docs/generic-boards.md` §6b). With demo data on, the design
+  handoff's static cue list.
 - **Show Graph** — static reference of the node-graph editor; React
   Flow replaces it in v2.
 

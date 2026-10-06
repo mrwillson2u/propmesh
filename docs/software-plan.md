@@ -388,6 +388,14 @@ reflash) is a later option. Bundle size is checked in CI.
 
 #### Timeline — implementation approach (decided 2026-09-05)
 
+**Shipped early, 2026-10-05**, on the generic-board track
+(`docs/generic-boards.md` §6b): native `ramp` steps on the node
+(`pm_ramp.h`, anchored to the sequence clock), and the console Timeline
+— tracks per output, draggable keyframes, ramp ⇄ jump, easing presets,
+scrub with live preview, playhead. Deferred from the design below:
+bezier/curve editor (presets only), audio tracks and waveforms, stepper
+tracks, pre-roll offsets, zoom.
+
 **Decided:** ramps are a native node action, and live scrub ships in
 v1 — it is the demo that sells the board. `Cue.start_offset_ms` is in
 the schema as of the same day.
