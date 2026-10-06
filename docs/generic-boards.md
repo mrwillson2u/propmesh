@@ -277,7 +277,9 @@ between (a trapezoidal velocity profile; in + out ≤ 100). 0/0 is
 linear, and 50/50, 100/0, 0/100 are exactly the earlier named curves
 (`inout`, `in`, `out` — still accepted on the wire, so stored shows keep
 their shape). Console presets: ease in & out 50/50, gentle 30/30,
-linear, ease in, ease out, soft landing 15/70, or any two numbers. A step is "arrive at `value` at `t_ms`, having started `dur_ms`
+linear, ease in, ease out, soft landing 15/70, or drag the two handles
+of the ease bar (left = where speeding up ends, right = where slowing
+down starts; they can't cross, and moving one never moves the other). A step is "arrive at `value` at `t_ms`, having started `dur_ms`
 earlier from the channel's then-current value". The node interpolates
 at 50 Hz (`pm_ramp.h`); the ramp is anchored to the sequence clock, so
 a late cue lands mid-line rather than restarting, and every node is on
@@ -334,8 +336,9 @@ The line into a keyframe is its ramp (eased curve) or a hold-then-jump.
 Drag a key to move it in time and value (snaps 50 ms / 1 %; live
 preview moves the real servo); double-click a track to add a key (on a
 rampable track the line leads into it from the previous key, ease
-in & out); click a line to switch ramp ⇄ jump; Delete removes the
-selected key; drag the ruler to **scrub** every output to that moment;
+in & out); click a line to select the key it leads into; **R** switches
+the selected key's line between ramp and jump (its ease amounts are
+kept for when it goes back to a ramp); Delete removes the selected key; drag the ruler to **scrub** every output to that moment;
 ▶ Play runs a playhead across. A key selected in the timeline is
 highlighted in the list and vice-versa — `lib/timeline.ts` is the
 model, `views/show/Timeline.tsx` the SVG. **Zoom and scroll**
@@ -425,6 +428,25 @@ nodes with per-node configs and same-node triggers only. No new
 features after Oct 22.
 
 ## 9. Known gaps
+
+- **Fixed 2026-10-06 — timeline/step-list editing bugs** (found by
+  Colin; reproduced in Chrome with real mouse and keyboard input):
+  (1) double-clicking ON a line to add a key toggled the later key's
+  ramp off on the first click, wiping its easing — a click on a line now
+  only selects, R toggles; (2) steps were tracked by list position, so
+  a key added between two others went to the end and edits could land on
+  the wrong step — steps now carry a console-only uid and the list is
+  always in time order (a typed time re-sorts when the field loses
+  focus); (3) the two ease number boxes adjusted each other (50/50 is
+  already 100) — replaced by a two-handle bar; (4) Fit re-scaled the
+  view on every edit, shifting keys under the pointer — Fit is measured
+  when a sequence opens or Fit is pressed, then held; (5) a background
+  reload as boards reported in could wipe a new unsaved sequence, and a
+  saved one could still show "unsaved" — reloads keep unsaved edits and
+  "unsaved" compares content, not JSON key order; (6) a ramp typed or
+  re-timed in the list could overlap the previous key's — every edit
+  clamps a ramp to the gap back to the previous key on its output;
+  (7) the arm badge said DISARMED before any board had answered.
 
 - **Fixed 2026-10-05 — Stage 3 firmware crash-looped every board.**
   `show = PmShow()` built a 19 KB temporary on the 8 KB loop-task stack;

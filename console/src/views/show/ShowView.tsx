@@ -11,7 +11,7 @@ import { armAll, useConnection, type Activity, type Connection } from "../../lib
 import { target } from "../../lib/transport";
 import Timeline, { type Output } from "./Timeline";
 import {
-  EASE_PRESETS, canRamp, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
+  EASE_PRESETS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
   type Rule, type Sequence, type Show, type Step,
 } from "../../lib/show";
 
@@ -28,8 +28,8 @@ const field: React.CSSProperties = {
 };
 // Step table columns. The table keeps a minimum width and scrolls
 // sideways in a narrow window rather than squashing the value slider.
-const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 290px 56px 24px";
-const STEP_MIN_W = 930;
+const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 380px 56px 24px";
+const STEP_MIN_W = 1020;
 const label = { font: "600 10px system-ui", letterSpacing: ".08em", color: C.t5 } as const;
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
 const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) : 0);
@@ -68,7 +68,11 @@ function Editor({ conn }: { conn: Connection }) {
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [live, setLive] = useState(true);
-  const [selStep, setSelStep] = useState<number | null>(null); // keyframe / row selected in both views
+  const [selStep, setSelStep] = useState<number | null>(null); // step uid selected in both views
+  const [opened, setOpened] = useState(0); // bumps per sequence opened: remounts the timeline
+  // Every edit leaves the steps in time order — except while the AT box
+  // is being typed in (the row would jump mid-keystroke); it sorts on blur.
+  const setSorted = (s: Sequence) => setDraft(sortSteps(s));
   const [playingFrom, setPlayingFrom] = useState<number | null>(null);
 
   // Send a value to a real output, coalesced per output: one request in
@@ -100,6 +104,13 @@ function Editor({ conn }: { conn: Connection }) {
   // only the newest may land, or an early load that saw fewer boards
   // can finish last and blank the list (seen 2026-10-06).
   const loadGen = useRef(0);
+  // The draft as of now, for load(): a reload must never throw away
+  // unsaved edits — one landing a moment after "+ New sequence" used to
+  // wipe it (2026-10-06).
+  const draftRef = useRef<Sequence | null>(null);
+  const showRef = useRef<Show | null>(null);
+  draftRef.current = draft;
+  showRef.current = show;
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
@@ -107,11 +118,19 @@ function Editor({ conn }: { conn: Connection }) {
     try {
       const sh = await loadShow(conn.link, known);
       if (gen !== loadGen.current) return;
+      const d = draftRef.current;
+      const before = d && showRef.current?.sequences.find((x) => x.id === d.id);
+      // Unsaved = not on the boards as it stands. After a save the new
+      // load already holds it, so that counts as saved too.
+      const onBoards = d && sh.sequences.find((x) => x.id === d.id);
+      const unsaved = !!d && !sameSequence(d, before) && !sameSequence(d, onBoards);
       setShow(sh);
       setRules(sh.rules);
-      const keep = sh.sequences.find((s) => s.id === sel) ?? sh.sequences[0] ?? null;
-      setSel(keep?.id ?? null);
-      setDraft(keep ? structuredClone(keep) : null);
+      if (!unsaved) {
+        const keep = sh.sequences.find((s) => s.id === sel) ?? sh.sequences[0] ?? null;
+        setSel(keep?.id ?? null);
+        setDraft(keep ? sortSteps(structuredClone(keep)) : null);
+      }
       if (sh.unreachable.length) setMsg({ text: `No answer from ${sh.unreachable.map(nameOf).join(", ")} — its part of the show isn't shown.`, bad: true });
     } finally {
       if (gen === loadGen.current) setLoading(false);
@@ -122,7 +141,7 @@ function Editor({ conn }: { conn: Connection }) {
   useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey]);
 
   const saved = show?.sequences.find((s) => s.id === sel) ?? null;
-  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(saved ?? { ...draft, steps: [], name: "\u0000" });
+  const dirty = !!draft && !sameSequence(draft, saved);
   const rulesDirty = JSON.stringify(rules) !== JSON.stringify(show?.rules ?? []);
 
   const outputs = useMemo(() => {
@@ -142,14 +161,16 @@ function Editor({ conn }: { conn: Connection }) {
 
   const armedVals = Object.values(show?.armed ?? {});
   const allArmed = armedVals.length > 0 && armedVals.every(Boolean);
-  const noneArmed = armedVals.every((a) => !a);
+  const noneArmed = armedVals.length > 0 && armedVals.every((a) => !a);
+  const armKnown = armedVals.length > 0; // nothing reported yet: don't claim either way
 
   // ---- actions --------------------------------------------------------------
 
   const select = (id: number) => {
     const s = show?.sequences.find((x) => x.id === id) ?? null;
     setSel(id);
-    setDraft(s ? structuredClone(s) : null);
+    setDraft(s ? sortSteps(structuredClone(s)) : null);
+    setOpened((n) => n + 1);
     setSelStep(null);
     setConfirmDelete(false);
   };
@@ -161,23 +182,31 @@ function Editor({ conn }: { conn: Connection }) {
     const first = firstNode ? outputs[firstNode][0] : undefined;
     const seq: Sequence = {
       id, name: `Sequence ${id}`, loadedOn: [], problems: [],
-      steps: first ? [{ t_ms: 0, node: firstNode, kind: first.kind, index: first.index, value: first.kind === "RELAY" ? 1 : 500 }] : [],
+      steps: first ? [{ uid: newUid(), t_ms: 0, node: firstNode, kind: first.kind, index: first.index, value: first.kind === "RELAY" ? 1 : 500 }] : [],
     };
     setSel(id);
     setDraft(seq);
+    setOpened((n) => n + 1);
   };
 
+  // Typing a time leaves the row where it is until the field loses focus
+  // (onBlur sorts); every other edit re-sorts and re-applies the ramp
+  // limits at once.
   const patchStep = (i: number, p: Partial<Step>) =>
-    setDraft((d) => d && { ...d, steps: d.steps.map((s, j) => (j === i ? { ...s, ...p } : s)) });
+    setDraft((d) => {
+      if (!d) return d;
+      const next = { ...d, steps: d.steps.map((s, j) => (j === i ? { ...s, ...p } : s)) };
+      return "t_ms" in p ? next : sortSteps(next);
+    });
 
-  const addStep = () => setDraft((d) => {
-    if (!d) return d;
+  const addStep = () => setDraft((d) => d && sortSteps(addStepTo(d)));
+  const addStepTo = (d: Sequence): Sequence => {
     const last = d.steps[d.steps.length - 1];
     const node = last?.node ?? outNodes[0];
     const ch = last ? { kind: last.kind, index: last.index } : outputs[node]?.[0];
     if (!node || !ch) return d;
-    return { ...d, steps: [...d.steps, { t_ms: (last?.t_ms ?? 0) + 500, node, kind: ch.kind, index: ch.index, value: last?.value ?? 500 }] };
-  });
+    return { ...d, steps: [...d.steps, { uid: newUid(), t_ms: (last?.t_ms ?? 0) + 500, node, kind: ch.kind, index: ch.index, value: last?.value ?? 500 }] };
+  };
 
   const saveSeq = async () => {
     if (!draft) return;
@@ -248,12 +277,13 @@ function Editor({ conn }: { conn: Connection }) {
         <span style={sys(700, 13, C.t1)}>Cues</span>
         <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
-          ...(allArmed ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
+          ...(!armKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
+            : allArmed ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
             : noneArmed ? { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }
             : { background: C.amberBg, border: `1px solid ${C.amberB}`, ...mono(700, 10.5, C.amber) }),
-        }}>{allArmed ? "ARMED" : noneArmed ? "DISARMED" : "PARTLY ARMED"}</span>
+        }}>{!armKnown ? "…" : allArmed ? "ARMED" : noneArmed ? "DISARMED" : "PARTLY ARMED"}</span>
         <span style={sys(400, 11.5, C.t4)}>
-          {allArmed ? "Sensors fire their sequences." : "Triggers and cues are ignored on disarmed boards."}
+          {!armKnown ? "" : allArmed ? "Sensors fire their sequences." : "Triggers and cues are ignored on disarmed boards."}
         </span>
         <div style={{ flex: 1 }} />
         {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
@@ -325,7 +355,7 @@ function Editor({ conn }: { conn: Connection }) {
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
 
                 <div style={{ marginTop: 12 }}>
-                  <Timeline seq={draft} onChange={setDraft} selected={selStep} onSelect={setSelStep}
+                  <Timeline key={opened} seq={draft} onChange={setSorted} selected={selStep} onSelect={setSelStep}
                     nameOf={nameOf} outputs={allOutputs} live={live} onLive={send} playingFrom={playingFrom} />
                 </div>
 
@@ -336,12 +366,13 @@ function Editor({ conn }: { conn: Connection }) {
                 {draft.steps.map((st, i) => {
                   const outs = outputs[st.node] ?? [];
                   const exists = outs.some((o) => o.kind === st.kind && o.index === st.index);
-                  const on = selStep === i;
+                  const on = selStep !== null && st.uid === selStep;
                   return (
-                    <div key={i} onClick={() => setSelStep(i)}
+                    <div key={st.uid ?? i} onClick={() => setSelStep(st.uid ?? null)}
                       style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", padding: "5px 0 5px 6px", borderBottom: "1px solid #181c22", borderLeft: `3px solid ${on ? C.ember : "transparent"}`, background: on ? C.emberBg2 : undefined }}>
                       <input type="number" min={0} step={0.1} value={st.t_ms / 1000}
                         onChange={(e) => patchStep(i, { t_ms: Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000)) })}
+                        onBlur={() => setDraft((d) => d && sortSteps(d))}
                         style={{ ...field, ...mono(500, 12, C.t1) }} />
                       <select value={st.node} style={field} onChange={(e) => {
                         const o = outputs[e.target.value]?.[0];
@@ -372,7 +403,7 @@ function Editor({ conn }: { conn: Connection }) {
                         </span>
                       ) : <span style={sys(400, 11, C.t6)}>—</span>}
                       <button onClick={() => testStep(st)} title="Send this value to the board now" style={{ ...btn(), height: 26, padding: "0 8px" }}>Test</button>
-                      <span onClick={(e) => { e.stopPropagation(); setSelStep(null); setDraft({ ...draft, steps: draft.steps.filter((_, j) => j !== i) }); }}
+                      <span onClick={(e) => { e.stopPropagation(); setSelStep(null); setDraft({ ...draft, steps: draft.steps.filter((x) => x.uid !== st.uid) }); }}
                         title="Remove step" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
                     </div>
                   );
@@ -380,7 +411,7 @@ function Editor({ conn }: { conn: Connection }) {
                 </div></div>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <button onClick={addStep} disabled={!outNodes.length} style={btn(false, !outNodes.length)}>+ Add step</button>
-                  <button onClick={() => { setSelStep(null); setDraft({ ...draft, steps: [...draft.steps].sort((a, b) => a.t_ms - b.t_ms) }); }} style={btn()}>Sort by time</button>
+
                 </div>
                 <div style={{ ...sys(400, 11, C.t5), marginTop: 8, lineHeight: 1.5 }}>
                   Each step says what an output should be at a time after the sequence starts. With <b>get there over</b> set,
@@ -479,29 +510,75 @@ function ActivityRow({ a, nameOf, seqName, show }: {
   );
 }
 
-// Ease amounts for a ramp: a preset, or the two percentages directly.
-// in + out can't exceed 100 — raising one past that lowers the other.
+// Ease amounts for a ramp: a preset, or drag the two handles of the
+// bar. Left handle = how far into the move it stops speeding up (ease
+// in %), right handle = where it starts slowing down (100 - ease out %).
+// The shaded ends are the easing, the middle is steady speed. The
+// handles can't cross, and moving one never moves the other — two
+// linked number boxes did, and fought the user (2026-10-06).
+const BAR_W = 112;
+
 function EaseInput({ step, onChange }: { step: Step; onChange: (p: Partial<Step>) => void }) {
   const on = (step.dur_ms ?? 0) > 0;
   const ein = step.ease_in ?? 50, eout = step.ease_out ?? 50;
   const preset = EASE_PRESETS.find((p) => p.in === ein && p.out === eout);
-  const pct = (s: string) => Math.max(0, Math.min(100, Math.round(parseFloat(s) || 0)));
-  const num: React.CSSProperties = { ...field, width: 46, padding: "0 4px", ...mono(500, 11.5, on ? C.t1 : C.t5) };
+  const bar = useRef<HTMLDivElement>(null);
+  // "pick": the handles were on top of each other (e.g. the 50/50
+  // default) — the first movement decides: left takes the in handle,
+  // right the out handle. Otherwise one handle would be unreachable.
+  const [drag, setDrag] = useState<{ which: "in" | "out" | "pick"; x0: number } | null>(null);
+
+  const pctAt = (clientX: number) => {
+    const r = bar.current!.getBoundingClientRect();
+    return Math.max(0, Math.min(100, Math.round(((clientX - r.left) / r.width) * 100 / 5) * 5));
+  };
+  const move = (clientX: number, which: "in" | "out") => {
+    const p = pctAt(clientX);
+    if (which === "in") onChange({ ease_in: Math.min(p, 100 - eout) });
+    else onChange({ ease_out: Math.min(100 - p, 100 - ein) });
+  };
+  const grab = (which: "in" | "out") => (e: React.PointerEvent) => {
+    if (!on) return;
+    e.stopPropagation();
+    e.preventDefault();
+    try { bar.current!.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    setDrag({ which: ein === 100 - eout ? "pick" : which, x0: e.clientX });
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drag) return;
+    let which = drag.which;
+    if (which === "pick") {
+      if (Math.abs(e.clientX - drag.x0) < 2) return;
+      which = e.clientX < drag.x0 ? "in" : "out";
+      setDrag({ which, x0: drag.x0 });
+    }
+    move(e.clientX, which);
+  };
+  const handle = (x: number, which: "in" | "out"): React.CSSProperties => ({
+    position: "absolute", top: -3, left: `calc(${x}% - 5px)`, width: 10, height: 18, borderRadius: 3,
+    background: drag?.which === which ? C.emberT : C.t2, border: `1px solid ${C.bg}`, cursor: on ? "ew-resize" : "default",
+    touchAction: "none",
+  });
+
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 4, opacity: on ? 1 : 0.4 }}
-      title="Ease in: % of the ramp spent speeding up. Ease out: % spent slowing down. The rest is steady.">
-      <select value={preset?.id ?? "custom"} disabled={!on} style={{ ...field, width: 96 }}
+    <span style={{ display: "flex", alignItems: "center", gap: 6, opacity: on ? 1 : 0.4 }}
+      title="Drag the handles: the shaded ends are speeding up (left) and slowing down (right); the middle is steady speed.">
+      <select value={preset?.id ?? "custom"} disabled={!on} style={{ ...field, width: 100 }}
         onChange={(e) => { const p = EASE_PRESETS.find((x) => x.id === e.target.value); if (p) onChange({ ease_in: p.in, ease_out: p.out }); }}>
         {EASE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         {!preset && <option value="custom">custom</option>}
       </select>
-      <span style={sys(500, 10.5, C.t5)}>in</span>
-      <input type="number" min={0} max={100} step={5} value={ein} disabled={!on} style={num}
-        onChange={(e) => { const v = pct(e.target.value); onChange({ ease_in: v, ease_out: Math.min(eout, 100 - v) }); }} />
-      <span style={sys(500, 10.5, C.t5)}>out</span>
-      <input type="number" min={0} max={100} step={5} value={eout} disabled={!on} style={num}
-        onChange={(e) => { const v = pct(e.target.value); onChange({ ease_out: v, ease_in: Math.min(ein, 100 - v) }); }} />
-      <span style={sys(500, 10.5, C.t5)}>%</span>
+      <div ref={bar}
+        onPointerMove={onMove}
+        onPointerUp={() => setDrag(null)}
+        onPointerCancel={() => setDrag(null)}
+        style={{ position: "relative", width: BAR_W, height: 12, borderRadius: 3, background: C.raised, border: `1px solid ${C.b3}`, flex: "none" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${ein}%`, background: C.emberB, borderRadius: "3px 0 0 3px" }} />
+        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: `${eout}%`, background: C.emberB, borderRadius: "0 3px 3px 0" }} />
+        <div onPointerDown={grab("in")} style={handle(ein, "in")} />
+        <div onPointerDown={grab("out")} style={handle(100 - eout, "out")} />
+      </div>
+      <span style={{ ...mono(500, 10.5, C.t4), width: 62, flex: "none" }}>{ein} / {eout} %</span>
     </span>
   );
 }

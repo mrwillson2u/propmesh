@@ -27,6 +27,11 @@ const LEGACY: Record<string, [number, number]> = { linear: [0, 0], in: [100, 0],
 // channel's previous value, starting dur_ms earlier — the Timeline's
 // line into a keyframe. Only servos, LED dimmers and motors ramp.
 export interface Step {
+  // Console-only identity: steps are re-sorted as they're edited, so
+  // selection and row identity must not ride on array position (adding
+  // a key between two others used to retarget edits to the wrong step).
+  // Never sent to a board.
+  uid?: number;
   t_ms: number;
   node: string; // which node's channel
   kind: ChannelKindName;
@@ -35,6 +40,41 @@ export interface Step {
   dur_ms?: number;
   ease_in?: number; // % of the ramp spent speeding up
   ease_out?: number; // % spent slowing down; in + out <= 100
+}
+
+let uidSeq = 1;
+export const newUid = () => uidSeq++;
+
+// Steps in time order (stable: equal times keep their order), with
+// every ramp no longer than the gap back to the previous key on its
+// output — otherwise two ramps on one servo overlap and the earlier
+// key is never reached. The list and the timeline always see this.
+// Same sequence content? Ignores the console-only uids (a reload hands
+// out new ones) and step order.
+export function sameSequence(a: Sequence | null | undefined, b: Sequence | null | undefined): boolean {
+  if (!a || !b) return a === b;
+  // Explicit fields in a fixed order: JSON.stringify follows property
+  // insertion order, which differs between a new and a loaded sequence.
+  const norm = (s: Sequence) => JSON.stringify([s.id, s.name, sortSteps(s).steps.map((x) => [
+    x.t_ms, x.node, x.kind, x.index, x.value,
+    (x.dur_ms ?? 0) > 0 ? x.dur_ms : 0,
+    (x.dur_ms ?? 0) > 0 ? x.ease_in ?? 50 : 0,
+    (x.dur_ms ?? 0) > 0 ? x.ease_out ?? 50 : 0,
+  ])]);
+  return norm(a) === norm(b);
+}
+
+export function sortSteps(seq: Sequence): Sequence {
+  const steps = [...seq.steps].sort((a, b) => a.t_ms - b.t_ms).map((s) => ({ ...s }));
+  const prevT = new Map<string, number>();
+  for (const s of steps) {
+    const k = `${s.node}/${s.kind}_${s.index}`;
+    const gap = s.t_ms - (prevT.get(k) ?? 0);
+    if ((s.dur_ms ?? 0) > gap) s.dur_ms = gap > 0 ? gap : undefined;
+    if (s.dur_ms === undefined) delete s.dur_ms;
+    prevT.set(k, s.t_ms);
+  }
+  return { ...seq, steps };
 }
 
 export const RAMP_KINDS: ChannelKindName[] = ["SERVO", "LED", "MOTOR"];
@@ -99,7 +139,7 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
         if (sum.problem) seq.problems.push(`${en.hello?.name || en.node}: ${sum.problem}`);
         for (const w of p.steps) {
           const [t_ms, kind, index, value] = w;
-          const st: Step = { t_ms, node: en.node, kind, index, value };
+          const st: Step = { uid: newUid(), t_ms, node: en.node, kind, index, value };
           if (w.length === 7 && w[4] > 0) { st.dur_ms = w[4]; st.ease_in = w[5]; st.ease_out = w[6]; }
           if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; [st.ease_in, st.ease_out] = LEGACY[w[5]] ?? [50, 50]; }
           seq.steps.push(st);

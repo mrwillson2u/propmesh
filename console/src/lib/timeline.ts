@@ -4,7 +4,7 @@
 // pm_ramp.h). Pure functions — the editor calls these and the step
 // list sees the same steps.
 import type { ChannelKindName } from "./boards_gen";
-import { canRamp, type Sequence, type Step } from "./show";
+import { canRamp, newUid, type Sequence, type Step } from "./show";
 import { ease } from "./ease";
 
 export { ease };
@@ -91,8 +91,8 @@ export function moveKey(seq: Sequence, stepIdx: number, t_ms: number, value: num
 // Add a keyframe on a track at (t, value). On a rampable track the line
 // leads into it from the previous keyframe (or from wherever the output
 // is, for the first one); switches just jump.
-export function addKey(seq: Sequence, track: Omit<Track, "steps" | "key">, t_ms: number, value: number): { seq: Sequence; index: number } {
-  const step: Step = { t_ms: Math.max(0, t_ms), node: track.node, kind: track.kind, index: track.index, value };
+export function addKey(seq: Sequence, track: Omit<Track, "steps" | "key">, t_ms: number, value: number): { seq: Sequence; uid: number } {
+  const step: Step = { uid: newUid(), t_ms: Math.max(0, t_ms), node: track.node, kind: track.kind, index: track.index, value };
   const steps = [...seq.steps, step];
   const out = { ...seq, steps };
   const index = steps.length - 1;
@@ -106,10 +106,12 @@ export function addKey(seq: Sequence, track: Omit<Track, "steps" | "key">, t_ms:
     if (nextIdx !== undefined && (out.steps[nextIdx].dur_ms ?? 0) > 0)
       out.steps[nextIdx] = { ...out.steps[nextIdx], dur_ms: Math.min(out.steps[nextIdx].dur_ms!, maxDur(out, tr, nextIdx)) };
   }
-  return { seq: out, index };
+  return { seq: out, uid: step.uid! };
 }
 
 // Toggle the line into a keyframe: jump <-> ramp over the whole gap.
+// The ease amounts are kept while it's a jump, so toggling back restores
+// the shape the user set.
 export function toggleRamp(seq: Sequence, stepIdx: number): Sequence {
   const s = seq.steps[stepIdx];
   if (!canRamp(s.kind)) return seq;
@@ -117,7 +119,7 @@ export function toggleRamp(seq: Sequence, stepIdx: number): Sequence {
   const gap = maxDur(seq, tr, stepIdx);
   const steps = seq.steps.map((x, i) => {
     if (i !== stepIdx) return x;
-    const { dur_ms: _d, ease_in: _i, ease_out: _o, ...rest } = x;
+    const { dur_ms: _d, ...rest } = x;
     return (x.dur_ms ?? 0) > 0 || gap === 0 ? rest : { ...rest, dur_ms: gap, ease_in: x.ease_in ?? 50, ease_out: x.ease_out ?? 50 };
   });
   return { ...seq, steps };

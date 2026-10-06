@@ -44,8 +44,8 @@ export interface Output { node: string; kind: ChannelKindName; index: number; la
 export default function Timeline({ seq, onChange, selected, onSelect, nameOf, outputs, live, onLive, playingFrom }: {
   seq: Sequence;
   onChange: (s: Sequence) => void;
-  selected: number | null; // step index
-  onSelect: (i: number | null) => void;
+  selected: number | null; // step uid
+  onSelect: (uid: number | null) => void;
   nameOf: (node: string) => string;
   outputs: Output[]; // every output on the mesh, for Add track
   live: boolean;
@@ -68,8 +68,11 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   };
   const [scrollMs, setScrollMs] = useState(0);
   // A different sequence starts at its beginning; the zoom is kept.
+  // (The parent also remounts this per sequence it opens — an id can be
+  // reused after a delete, so seq.id alone isn't enough.)
   useEffect(() => { setScrollMs(0); }, [seq.id]);
-  type Drag = { pps: number; scroll: number } & ({ idx: number } | { scrub: true } | { bar: true; startX: number });
+  type Drag = { pps: number; scroll: number } & ({ uid: number } | { scrub: true } | { bar: true; startX: number });
+  const idxOf = (uid: number | null | undefined) => (uid == null ? -1 : seq.steps.findIndex((s) => s.uid === uid));
   const [drag, setDrag] = useState<Drag | null>(null);
   const clipId = useId();
   const [scrubT, setScrubT] = useState<number | null>(null);
@@ -85,7 +88,12 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   const trs = tracks(seq);
   const length = lengthMs(seq);
   const plotW = width - LABEL_W - PAD_R;
-  const fitPps = (plotW / Math.max(2000, Math.ceil((length * 1.15) / 500) * 500)) * 1000;
+  // Fit is measured when the sequence opens (or Fit is pressed) and then
+  // held: re-fitting on every edit rescaled the view under the pointer
+  // as soon as a key went past the end (2026-10-06).
+  const fitSpanFor = (len: number) => Math.max(2000, Math.ceil((len * 1.15) / 500) * 500);
+  const [fitSpan, setFitSpan] = useState(() => fitSpanFor(lengthMs(seq)));
+  const fitPps = (plotW / fitSpan) * 1000;
   const pps = drag ? drag.pps : Math.min(MAX_PPS, Math.max(MIN_PPS, zoom ?? fitPps));
   const visibleMs = (plotW / pps) * 1000;
   // Scrollable span: the sequence plus half a screen to add keys beyond its end.
@@ -189,14 +197,16 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
       setScrollMs(next);
       setDrag({ ...drag, scroll: next });
     }
-    const s = seq.steps[drag.idx];
-    const ti = trs.findIndex((tr) => tr.steps.includes(drag.idx));
+    const idx = idxOf(drag.uid);
+    if (idx < 0) return;
+    const s = seq.steps[idx];
+    const ti = trs.findIndex((tr) => tr.steps.includes(idx));
     if (ti < 0) return;
     const tr = trs[ti];
     const t = Math.max(0, Math.min(D + 50, snapT(xt(x))));
     const v = tr.kind === "LED_STRIP" ? s.value : snapV(yv(tr, tops[ti], py), tr.kind);
     if (t === s.t_ms && v === s.value) return;
-    onChange(moveKey(seq, drag.idx, t, v));
+    onChange(moveKey(seq, idx, t, v));
     if (live && v !== s.value && LIVE_KINDS.includes(s.kind)) onLive({ ...s, value: v });
   };
   const endDrag = () => { setDrag(null); setScrubT(null); };
@@ -210,13 +220,18 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
     const v = tr.kind === "LED_STRIP" ? (valueAt(seq, tr, t) ?? 0xff5500) : snapV(yv(tr, tops[ti], py), tr.kind);
     const r = addKey(seq, tr, t, Math.round(v));
     onChange(r.seq);
-    onSelect(r.index);
+    onSelect(r.uid);
   };
 
   const onKey = (e: React.KeyboardEvent) => {
+    if ((e.key === "r" || e.key === "R") && selected !== null) {
+      const i = idxOf(selected);
+      if (i >= 0) { e.preventDefault(); onChange(toggleRamp(seq, i)); }
+      return;
+    }
     if ((e.key === "Delete" || e.key === "Backspace") && selected !== null) {
       e.preventDefault();
-      onChange({ ...seq, steps: seq.steps.filter((_, i) => i !== selected) });
+      onChange({ ...seq, steps: seq.steps.filter((s) => s.uid !== selected) });
       onSelect(null);
     }
   };
@@ -227,7 +242,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
     const v = o.kind === "RELAY" ? 1 : o.kind === "LED_STRIP" ? 0xff5500 : 500;
     const r = addKey(seq, o, 0, v);
     onChange(r.seq);
-    onSelect(r.index);
+    onSelect(r.uid);
   };
   const free = outputs.filter((o) => !trs.some((tr) => tr.node === o.node && tr.kind === o.kind && tr.index === o.index));
 
@@ -307,8 +322,11 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                     <path d={d} fill="none" stroke={color} strokeWidth={2} strokeDasharray={firstRamp ? "4 4" : ""} opacity={k === 0 && !firstRamp ? 0 : 0.9} />
                     {canRamp(tr.kind) && k > 0 && (
                       <path d={d} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: "pointer" }}
-                        onClick={(e) => { e.stopPropagation(); onChange(toggleRamp(seq, idx)); onSelect(idx); }}>
-                        <title>{(s.dur_ms ?? 0) > 0 ? "Ramp — click to make it a jump" : "Jump — click to make it a ramp"}</title>
+                        onClick={(e) => { e.stopPropagation(); onSelect(s.uid ?? null); }}>
+                        {/* Select only. Clicking used to toggle ramp/jump, and the first
+                            click of a double-click (to add a key on the line) wiped the
+                            later key's ramp and easing (2026-10-06). R toggles now. */}
+                        <title>{(s.dur_ms ?? 0) > 0 ? "Ramp into this key — R makes it a jump" : "Jump into this key — R makes it a ramp"}</title>
                       </path>
                     )}
                   </g>
@@ -326,10 +344,10 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
               {tr.steps.map((idx) => {
                 const s = seq.steps[idx];
                 const cx = tx(s.t_ms), cy = tr.kind === "LED_STRIP" ? top + h / 2 : vy(tr, top, s.value);
-                const on = selected === idx;
+                const on = selected !== null && s.uid === selected;
                 return (
                   <g key={"key" + idx} style={{ cursor: "grab" }}
-                    onPointerDown={(e) => { e.stopPropagation(); capture(e); setDrag({ idx, pps, scroll }); onSelect(idx); }}
+                    onPointerDown={(e) => { e.stopPropagation(); capture(e); if (s.uid != null) { setDrag({ uid: s.uid, pps, scroll }); onSelect(s.uid); } }}
                     onDoubleClick={(e) => e.stopPropagation()}>
                     {on && <circle cx={cx} cy={cy} r={11} fill="none" stroke={C.ember} strokeWidth={1.5} strokeDasharray="3 3" />}
                     {tr.kind === "LED_STRIP"
@@ -377,7 +395,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button onClick={() => zoomBy(1 / 1.5)} title="Zoom out (⌘/ctrl + scroll)" style={zbtn}>−</button>
           <button onClick={() => zoomBy(1.5)} title="Zoom in (⌘/ctrl + scroll)" style={zbtn}>+</button>
-          <button onClick={() => { setZoom(null); setScrollMs(0); }} title="Fit the whole sequence" style={{ ...zbtn, width: "auto", padding: "0 8px", opacity: zoom === null ? 0.5 : 1 }}>Fit</button>
+          <button onClick={() => { setZoom(null); setFitSpan(fitSpanFor(length)); setScrollMs(0); }} title="Fit the whole sequence" style={{ ...zbtn, width: "auto", padding: "0 8px", opacity: zoom === null && fitSpan === fitSpanFor(length) ? 0.5 : 1 }}>Fit</button>
           <span style={{ ...mono(500, 10.5, C.t5), marginLeft: 4 }}>{fmtT(Math.round(scroll / 10) * 10)} – {fmtT(Math.round((scroll + visibleMs) / 10) * 10)}</span>
         </span>
         <select value="" onChange={(e) => addTrack(e.target.value)} disabled={!free.length}
@@ -386,7 +404,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
           {free.map((o) => <option key={`${o.node}/${o.kind}_${o.index}`} value={`${o.node}/${o.kind}_${o.index}`}>{nameOf(o.node)} · {o.kind}_{o.index}{o.label ? ` (${o.label})` : ""}</option>)}
         </select>
         <span style={mono(500, 10.5, C.t5)}>
-          double-click: add keyframe · drag: move · click a line: ramp ⇄ jump · Delete: remove · scroll sideways / shift+scroll: pan · snaps 50 ms / 1 %
+          double-click: add keyframe · drag: move · R: ramp ⇄ jump · Delete: remove · scroll sideways / shift+scroll: pan · snaps 50 ms / 1 %
         </span>
       </div>
     </div>
