@@ -13,6 +13,7 @@ import {
   type Heartbeat, type NodeHello, type NodeLink,
 } from "../../lib/transport";
 import PinEditor from "./PinEditor";
+import { getConnection, setConnection } from "../../lib/connection";
 
 // A node not heard for three heartbeats is shown as missing.
 const MISSING_MS = 16000;
@@ -44,15 +45,32 @@ const tag = (text: string, color: string, bg: string): JSX.Element => (
   <span style={{ padding: "1px 6px", borderRadius: 99, background: bg, ...mono(700, 9.5, color), letterSpacing: ".05em" }}>{text}</span>
 );
 
+const usbEntry = (hello: NodeHello): Entry =>
+  ({ node: hello.node, usb: true, hello, seen: Date.now(), firstSeen: Date.now(), helloTries: 0 });
+
 export default function MeshPanel() {
-  const [link, setLink] = useState<NodeLink | null>(null);
-  const [entries, setEntries] = useState<Record<string, Entry>>({});
-  const [selected, setSelected] = useState<string | null>(null);
+  // Pick up a link opened before this panel last mounted (view switch,
+  // hot reload) — see lib/connection.ts.
+  const [link, setLink] = useState<NodeLink | null>(() => getConnection()?.link ?? null);
+  const [entries, setEntries] = useState<Record<string, Entry>>(() => {
+    const c = getConnection();
+    return c ? (c.roster as Record<string, Entry> | undefined) ?? { [c.hello.node]: usbEntry(c.hello) } : {};
+  });
+  const [selected, setSelected] = useState<string | null>(() => {
+    const c = getConnection();
+    return c ? c.selected ?? c.hello.node : null;
+  });
+
+  // Mirror the list into the connection so it outlives this panel.
+  useEffect(() => {
+    const c = getConnection();
+    if (c && c.link === link) { c.roster = entries; c.selected = selected; }
+  }, [entries, selected, link]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const inputSubs = useRef(new Map<string, Set<InputCb>>());
-  const local = useRef<string | null>(null);
+  const local = useRef<string | null>(getConnection()?.hello.node ?? null);
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
   const helloAt = useRef(new Map<string, number>()); // last hello attempt per node
@@ -68,7 +86,8 @@ export default function MeshPanel() {
     try {
       const { link, hello } = how === "usb" ? await connectUsb() : await connectSim();
       local.current = hello.node;
-      setEntries({ [hello.node]: { node: hello.node, usb: true, hello, seen: Date.now(), firstSeen: Date.now(), helloTries: 0 } });
+      setConnection({ link, hello });
+      setEntries({ [hello.node]: usbEntry(hello) });
       helloAt.current = new Map([[hello.node, Date.now()]]);
       setSelected(hello.node);
       setLink(link);
@@ -81,6 +100,7 @@ export default function MeshPanel() {
   };
 
   const disconnect = async () => {
+    setConnection(null);
     await link?.close();
     setLink(null);
     setEntries({});
@@ -91,6 +111,7 @@ export default function MeshPanel() {
     if (!link) return;
     const off = link.onEvent((e) => {
       if (e.evt === "disconnected") {
+        setConnection(null);
         setLink(null);
         setEntries({});
         setError("USB connection lost");
@@ -105,7 +126,10 @@ export default function MeshPanel() {
         helloAt.current.delete(e.node as string);
       }
     });
-    return () => { off(); void link.close(); };
+    // Unsubscribe only — never close here. This cleanup also runs on a
+    // view switch and on every dev hot reload; closing the port in it
+    // left the panel holding a dead link (2026-10-05).
+    return off;
   }, [link]);
 
   // Learn each node's name and board with a hello; refresh the USB

@@ -121,6 +121,9 @@ class SerialLink implements NodeLink {
     }
     this.failAll(new Error("USB connection lost"));
     if (!this.closed) this.events.emit({ evt: "disconnected" });
+    // Dead from here on: a panel that wasn't listening (other view
+    // open when the cable came out) gets a clear error, not a stream one.
+    this.closed = true;
   }
 
   // JSON lines are protocol; anything else (boot ROM chatter, mesh
@@ -148,6 +151,7 @@ class SerialLink implements NodeLink {
   }
 
   request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
+    if (this.closed) return Promise.reject(new Error("USB disconnected — reconnect the node"));
     const id = this.nextId++;
     return new Promise<Reply>((resolve, reject) => {
       const timer = setTimeout(() => {
