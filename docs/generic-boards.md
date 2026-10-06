@@ -110,7 +110,9 @@ it drives the servo the node is already running.
 **Servo smoothing** (2026-10-05). Per servo, `travel_ms` (a full
 0–100 % sweep at cruise speed) and `ease_ms` (time to reach cruise from
 rest); 0 / 0 = snap, the default — right for a jump scare. Console
-presets: Snappy 250/80, Smooth 600/200, Slow 1500/400, or Custom.
+presets: Snappy 250/80, Smooth 600/200, Gentle 1000/450, Slow
+1500/400, or Custom. Abruptness at start/stop comes from the ease, not
+the sweep — Gentle has the softest.
 The node runs a **follower**, not a per-move curve (`pm_motion.h`,
 50 Hz): it accelerates toward the target, cruises, and brakes to arrive
 without overshoot, and a new target mid-move keeps the current velocity

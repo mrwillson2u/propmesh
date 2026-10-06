@@ -45,6 +45,10 @@ export const SMOOTHING = [
   { id: "off", label: "Off — snap", travel_ms: 0, ease_ms: 0 },
   { id: "snappy", label: "Snappy", travel_ms: 250, ease_ms: 80 },
   { id: "smooth", label: "Smooth", travel_ms: 600, ease_ms: 200 },
+  // Between Smooth and Slow in speed, but with the softest ease: jerk at
+  // start and stop comes from the ease, so this one rounds them most
+  // (added 2026-10-05 — Smooth still felt abrupt on the heads prop).
+  { id: "gentle", label: "Gentle", travel_ms: 1000, ease_ms: 450 },
   { id: "slow", label: "Slow", travel_ms: 1500, ease_ms: 400 },
 ] as const;
 export const STRIP_MAX_PIXELS = 300;
