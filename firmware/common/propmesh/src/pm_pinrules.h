@@ -98,6 +98,9 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
          c.max_us < PM_SERVO_MIN_US || c.max_us > PM_SERVO_MAX_US ||
          (c.min_us > c.max_us ? c.min_us - c.max_us : c.max_us - c.min_us) < PM_SERVO_MIN_TRAVEL_US))
       out.add("servo_range", true, i);
+    if (c.kind == PM_CHANNEL_KIND_SERVO &&
+        (c.travel_ms > PM_MAX_TRAVEL_MS || c.ease_ms > PM_MAX_EASE_MS))
+      out.add("servo_motion", true, i);
     if (c.kind == PM_CHANNEL_KIND_LED_STRIP &&
         (c.pixels == 0 || c.pixels > PM_STRIP_MAX_PIXELS))
       out.add("pixel_count", true, i);

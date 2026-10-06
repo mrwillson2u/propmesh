@@ -7,7 +7,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
-  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, channelCode, newChannel, pinRole,
+  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, newChannel, pinRole,
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
@@ -369,6 +369,7 @@ function Options({ c, pin, in2, onChange }: {
               onChange={() => onChange({ min_us: c.max_us ?? 2500, max_us: c.min_us ?? 500 })} />
             reverse
           </label>
+          <Smoothing c={c} onChange={onChange} />
         </>
       )}
       {c.kind === "LED_STRIP" && (
@@ -382,6 +383,41 @@ function Options({ c, pin, in2, onChange }: {
             {in2.filter((p) => p.gpio !== c.pins[0]).map((p) => <option key={p.gpio} value={p.gpio}>{p.label}{p.tier === "caution" ? " ⚠" : ""}</option>)}
           </select>
         </label>
+      )}
+    </span>
+  );
+}
+
+// Servo smoothing: a preset, or Custom with the two numbers.
+function Smoothing({ c, onChange }: { c: ChannelCfg; onChange: (p: Partial<ChannelCfg>) => void }) {
+  const t = c.travel_ms ?? 0, e = c.ease_ms ?? 0;
+  const preset = SMOOTHING.find((p) => p.travel_ms === t && p.ease_ms === e);
+  const [custom, setCustom] = useState(!preset);
+  const showNums = custom || !preset;
+  const int = (s: string) => Math.max(0, parseInt(s, 10) || 0);
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+      title="How the servo gets to a new position. Off snaps at the servo's own speed; the presets accelerate, cruise and slow to a stop.">
+      <label style={optLabel}>smoothing
+        <select value={showNums ? "custom" : preset!.id} style={field}
+          onChange={(ev) => {
+            const p = SMOOTHING.find((x) => x.id === ev.target.value);
+            if (p) { setCustom(false); onChange({ travel_ms: p.travel_ms, ease_ms: p.ease_ms }); }
+            else setCustom(true);
+          }}>
+          {SMOOTHING.map((p) => (
+            <option key={p.id} value={p.id}>{p.label}{p.travel_ms ? ` · ${p.travel_ms} ms` : ""}</option>
+          ))}
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      {showNums && (
+        <>
+          <label style={optLabel} title="Time for a full 0–100 % sweep at cruise speed (0 = snap)">sweep
+            <input type="number" step={50} min={0} value={t} onChange={(ev) => onChange({ travel_ms: int(ev.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Time to speed up from rest (and to slow down before stopping)">ease
+            <input type="number" step={20} min={0} value={e} onChange={(ev) => onChange({ ease_ms: int(ev.target.value) })} style={num} /> ms</label>
+        </>
       )}
     </span>
   );

@@ -81,7 +81,7 @@ by hand in Chrome. Stages 2–3 not started (see [Plan](#8-plan-october-2026)).
 |---|---|---|---|---|
 | Relay / on-off | `RELAY_n` | 1 out | GPIO; *on = LOW* option for relay modules | 0 / 1 |
 | LED dimmer | `LED_n` | 1 out | LEDC 1 kHz, 12-bit | 0–1000 |
-| Servo | `SERVO_n` | 1 out | LEDC 50 Hz, 14-bit; per-channel end stops (µs); **reverse**; **calibrate** | 0–1000 between the end stops; or `us` (raw pulse, calibration) |
+| Servo | `SERVO_n` | 1 out | LEDC 50 Hz, 14-bit; per-channel end stops (µs); **reverse**; **calibrate**; **smoothing** | 0–1000 between the end stops; or `us` (raw pulse, calibration) |
 | DC motor | `MOTOR_n` | 2 out (IN1, IN2) | LEDC 25 kHz, 10-bit, into an H-bridge (DRV8871, L298N, TB6612 IN pins) | −1000 … +1000, 0 = coast |
 | LED strip | `LED_STRIP_n` | 1 out | WS2812 via RMT (Adafruit NeoPixel) | `0xRRGGBB`, whole strip |
 | Sensor / button | `DIGITAL_IN_n` | 1 in | debounced 30 ms; pull none/up/down; *active = LOW* option | read-only |
@@ -106,6 +106,21 @@ once the servo is saved) swaps the test slider for the raw pulse
 current ones; *Set as min / Set as max* captures the position into the
 draft, and one *Save* keeps both. Calibrating works with unsaved edits —
 it drives the servo the node is already running.
+
+**Servo smoothing** (2026-10-05). Per servo, `travel_ms` (a full
+0–100 % sweep at cruise speed) and `ease_ms` (time to reach cruise from
+rest); 0 / 0 = snap, the default — right for a jump scare. Console
+presets: Snappy 250/80, Smooth 600/200, Slow 1500/400, or Custom.
+The node runs a **follower**, not a per-move curve (`pm_motion.h`,
+50 Hz): it accelerates toward the target, cruises, and brakes to arrive
+without overshoot, and a new target mid-move keeps the current velocity
+— so a dragged slider (and, later, live scrub) is one fluid motion
+instead of a stutter of restarts. Position is clamped to the travel
+range, so reversing near an end never pushes past the end stop. The
+first move after power-up (servo limp, real position unknown) is always
+a snap; calibration pulses are immediate. This is also the engine the
+Timeline's native `ramp` action will use. Limits: sweep ≤ 10 s, ease
+≤ 5 s (`servo_motion`).
 
 **Cut from October:** steppers, audio, analog input, APA102 strips,
 effects beyond solid colour, sACN.

@@ -40,6 +40,8 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
            : !strcmp(pull, "none") ? PM_PULL_NONE : 0xFF;
     c.min_us = jc["min_us"] | c.min_us;
     c.max_us = jc["max_us"] | c.max_us;
+    c.travel_ms = jc["travel_ms"] | c.travel_ms;
+    c.ease_ms = jc["ease_ms"] | c.ease_ms;
     c.pixels = jc["pixels"] | c.pixels;
     out.channel_count++;
   }
@@ -74,6 +76,8 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root) {
       case PM_CHANNEL_KIND_SERVO:
         jc["min_us"] = c.min_us;
         jc["max_us"] = c.max_us;
+        jc["travel_ms"] = c.travel_ms;
+        jc["ease_ms"] = c.ease_ms;
         break;
       case PM_CHANNEL_KIND_LED_STRIP:
         jc["pixels"] = c.pixels;

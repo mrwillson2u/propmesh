@@ -19,6 +19,10 @@
 // The two ends must be at least this far apart — a guard against
 // saving a calibration with both ends captured at the same spot.
 #define PM_SERVO_MIN_TRAVEL_US 50
+// Smoothing limits (pm_motion.h): a full sweep slower than 10 s, or a
+// ramp-up over 5 s, is a misconfiguration, not a prop.
+#define PM_MAX_TRAVEL_MS 10000
+#define PM_MAX_EASE_MS 5000
 #define PM_STRIP_MAX_PIXELS 300
 
 enum { PM_PULL_NONE = 0, PM_PULL_UP = 1, PM_PULL_DOWN = 2 };
@@ -36,6 +40,10 @@ struct PmChannelCfg {
   // console's Reverse box swaps the two (decided 2026-10-05).
   uint16_t min_us = 500;
   uint16_t max_us = 2500;
+  // SERVO smoothing (pm_motion.h): time for a full 0-100 % sweep at
+  // cruise speed, and time to reach that speed. 0/0 = snap (default).
+  uint16_t travel_ms = 0;
+  uint16_t ease_ms = 0;
   uint16_t pixels = 30;           // LED_STRIP
 };
 

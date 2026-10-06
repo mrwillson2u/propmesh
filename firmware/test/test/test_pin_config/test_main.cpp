@@ -121,6 +121,26 @@ static void test_servo_range_checked() {
   TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_range"));
 }
 
+static void test_servo_motion_limits() {
+  PmChannelCfg s = ch(PM_CHANNEL_KIND_SERVO, 1, 13);
+  s.travel_ms = 600;
+  s.ease_ms = 200;
+  TEST_ASSERT_EQUAL(0, pm_validate(B, cfg({s})).count);
+  s.travel_ms = PM_MAX_TRAVEL_MS + 1;
+  TEST_ASSERT_TRUE(pm_validate(B, cfg({s})).has("servo_motion"));
+}
+
+static void test_servo_motion_round_trips() {
+  JsonDocument d, out;
+  deserializeJson(d, "{\"channels\":[{\"kind\":\"SERVO\",\"index\":1,\"pins\":[13],\"travel_ms\":600,\"ease_ms\":200}]}");
+  PmNodeConfig c;
+  TEST_ASSERT_NULL(pm_config_from_json(d.as<JsonVariantConst>(), c));
+  TEST_ASSERT_EQUAL(600, c.channels[0].travel_ms);
+  TEST_ASSERT_EQUAL(200, c.channels[0].ease_ms);
+  pm_config_to_json(c, out.to<JsonObject>());
+  TEST_ASSERT_EQUAL(600, out["channels"][0]["travel_ms"].as<int>());
+}
+
 // Reverse = min above max: value 0 is the high pulse.
 static void test_reversed_servo_maps_backwards() {
   PmChannelCfg s = ch(PM_CHANNEL_KIND_SERVO, 1, 13);
@@ -319,6 +339,8 @@ int main() {
   RUN_TEST(test_unknown_kind_and_zero_index_rejected);
   RUN_TEST(test_servo_range_checked);
   RUN_TEST(test_reversed_servo_maps_backwards);
+  RUN_TEST(test_servo_motion_limits);
+  RUN_TEST(test_servo_motion_round_trips);
   RUN_TEST(test_calibration_pulse_clamped);
   RUN_TEST(test_pixel_count_checked);
   RUN_TEST(test_pwm_budget_enforced);

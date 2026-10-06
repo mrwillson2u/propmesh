@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include "pm_channels.h"
+#include "pm_motion.h"
 
 // LEDC resolutions. The core shares one timer between channels with the
 // same (frequency, resolution), so three PWM classes cost three timers
@@ -10,9 +11,14 @@
 #define SERVO_BITS 14
 #define MOTOR_BITS 10
 #define DEBOUNCE_MS 30
+// Smoothed servos are re-positioned at 50 Hz — the servo's own frame
+// rate, so every new pulse width is actually used.
+#define MOTION_TICK_MS 20
 
 struct Runtime {
-  int32_t value;
+  int32_t value;        // last commanded value (a smoothed servo's target)
+  PmMotion motion;      // SERVO with smoothing: where it actually is now
+  bool moving;
   Adafruit_NeoPixel *strip;
   bool raw;             // last sampled input level (active = true)
   uint32_t changed_ms;  // when `raw` last differed from `value`
@@ -23,6 +29,11 @@ static Runtime rt[PM_MAX_CHANNELS];
 static pm_input_handler_t input_handler;
 
 static uint32_t pwm_hz(uint8_t kind) { return pm_function(kind)->pwm_hz; }
+static uint32_t last_motion_ms;
+
+static void servo_out(const PmChannelCfg &c, int32_t v) {
+  ledcWrite(c.pins[0], pm_pulse_duty(pm_servo_pulse_us(c, v), pwm_hz(c.kind), SERVO_BITS));
+}
 
 static bool read_input(const PmChannelCfg &c) {
   return (digitalRead(c.pins[0]) == HIGH) != c.active_low;
@@ -96,8 +107,19 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
       ledcWrite(c.pins[0], pm_duty(v, LED_BITS));
       break;
     case PM_CHANNEL_KIND_SERVO:
-      ledcWrite(c.pins[0], v < 0 ? 0
-                : pm_pulse_duty(pm_servo_pulse_us(c, v), pwm_hz(c.kind), SERVO_BITS));
+      if (v < 0) {  // limp
+        ledcWrite(c.pins[0], 0);
+        r.moving = false;
+      } else if (!c.travel_ms || r.value < 0) {
+        // Snap: smoothing off, or the servo was limp — its real position
+        // is unknown, so the first move can only be a jump.
+        r.motion.jump(v);
+        r.moving = false;
+        servo_out(c, v);
+      } else {
+        r.motion.target = v;  // pm_channels_loop() walks it there
+        r.moving = true;
+      }
       break;
     case PM_CHANNEL_KIND_MOTOR:
       // Drive one input, hold the other low: coasts at 0.
@@ -145,6 +167,8 @@ bool pm_servo_set_pulse(uint8_t index, uint32_t us) {
   us = pm_servo_clamp_us((int32_t)us);
   ledcWrite(c.pins[0], pm_pulse_duty(us, pwm_hz(c.kind), SERVO_BITS));
   rt[i].value = pm_servo_value_of(c, us);
+  rt[i].motion.jump(rt[i].value);  // smoothing resumes from here
+  rt[i].moving = false;
   return true;
 }
 
@@ -165,6 +189,18 @@ void pm_on_input(pm_input_handler_t handler) { input_handler = handler; }
 
 void pm_channels_loop() {
   uint32_t now = millis();
+  uint32_t dt = now - last_motion_ms;
+  if (dt >= MOTION_TICK_MS) {
+    last_motion_ms = now;
+    if (dt > 100) dt = 100;  // after a stall, don't leap
+    for (uint8_t i = 0; i < active.channel_count; i++) {
+      const PmChannelCfg &c = active.channels[i];
+      Runtime &r = rt[i];
+      if (c.kind != PM_CHANNEL_KIND_SERVO || !r.moving) continue;
+      r.moving = r.motion.step((float)dt, c.travel_ms, c.ease_ms);
+      servo_out(c, (int32_t)(r.motion.pos + 0.5f));
+    }
+  }
   for (uint8_t i = 0; i < active.channel_count; i++) {
     const PmChannelCfg &c = active.channels[i];
     if (c.kind != PM_CHANNEL_KIND_DIGITAL_IN) continue;

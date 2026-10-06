@@ -15,6 +15,8 @@ export interface ChannelCfg {
   pull?: Pull; // DIGITAL_IN
   min_us?: number; // SERVO: pulse at 0 %
   max_us?: number; // SERVO: pulse at 100 % — below min_us = reversed
+  travel_ms?: number; // SERVO smoothing: full sweep at cruise, 0 = snap
+  ease_ms?: number; // SERVO smoothing: time to reach cruise speed
   pixels?: number; // LED_STRIP
 }
 
@@ -34,6 +36,17 @@ export const MAX_CHANNELS = 16;
 export const SERVO_MIN_US = 400;
 export const SERVO_MAX_US = 2600;
 export const SERVO_MIN_TRAVEL_US = 50;
+export const MAX_TRAVEL_MS = 10000;
+export const MAX_EASE_MS = 5000;
+
+// Servo smoothing presets (firmware pm_motion.h). Off snaps — right for
+// a jump scare; the rest trade speed for a natural, creepier move.
+export const SMOOTHING = [
+  { id: "off", label: "Off — snap", travel_ms: 0, ease_ms: 0 },
+  { id: "snappy", label: "Snappy", travel_ms: 250, ease_ms: 80 },
+  { id: "smooth", label: "Smooth", travel_ms: 600, ease_ms: 200 },
+  { id: "slow", label: "Slow", travel_ms: 1500, ease_ms: 400 },
+] as const;
 export const STRIP_MAX_PIXELS = 300;
 export const LABEL_MAX = 23;
 export const NAME_MAX = 31;
@@ -49,7 +62,7 @@ export function newChannel(cfg: NodeConfig, kind: ChannelKindName, gpio: number)
   const c: ChannelCfg = { kind, index, label: "", pins: [gpio] };
   if (kind === "RELAY") c.active_low = false;
   if (kind === "DIGITAL_IN") { c.active_low = false; c.pull = "none"; }
-  if (kind === "SERVO") { c.min_us = 500; c.max_us = 2500; }
+  if (kind === "SERVO") { c.min_us = 500; c.max_us = 2500; c.travel_ms = 0; c.ease_ms = 0; }
   if (kind === "LED_STRIP") c.pixels = 30;
   return c;
 }
