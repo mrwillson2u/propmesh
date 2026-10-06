@@ -7,6 +7,7 @@ import { PropIcon, PROP_TYPES, type PropType } from "../lib/propIcons";
 import { useProps } from "../lib/propStore";
 import { mono, sys } from "../ui";
 import MeshPanel from "./nodes/MeshPanel";
+import { useSettings } from "../lib/settings";
 
 const GRID = "280px 90px 130px 120px 1fr 40px";
 const CH_GRID = "130px 220px 120px 1fr 110px";
@@ -78,6 +79,7 @@ function PropPicker({ nodeId, current, color, onPick, onClose }: {
 }
 
 export default function Nodes() {
+  const { demo } = useSettings();
   const props = useProps();
   const [picking, setPicking] = useState<string | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({ skeleton: true });
@@ -125,6 +127,15 @@ export default function Nodes() {
       ? { border: `1px solid ${C.redB}`, background: "#140e0d" }
       : { border: `1px solid ${C.b1}`, background: C.panel };
 
+  // Real boards only, unless demo data is on in Settings.
+  if (!demo) {
+    return (
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto", background: C.bg }}>
+        <MeshPanel />
+      </div>
+    );
+  }
+
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto", background: C.bg }}>
       <MeshPanel />
@@ -132,7 +143,7 @@ export default function Nodes() {
           labelled so it isn't mistaken for the real boards above. */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", background: C.bg, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         <span style={{ padding: "2px 7px", borderRadius: 99, background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 9.5, C.t3), letterSpacing: ".06em" }}>DEMO DATA</span>
-        <span style={sys(500, 11.5, C.t4)}>The fleet below is a design mockup, not your boards. Real boards appear in the panel above once a USB node is connected.</span>
+        <span style={sys(500, 11.5, C.t4)}>The fleet below is a design mockup, not your boards. Real boards appear in the panel above once a USB node is connected. Turn this off in Settings.</span>
       </div>
       <div style={{ display: "flex", gap: 10, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         {banner(C.redBg2, C.redB, "✕", C.red, "Driveway PIR — missing 42 min", C.red,

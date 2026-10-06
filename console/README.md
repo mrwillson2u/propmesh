@@ -15,6 +15,18 @@ npm run build      # output later embedded in bridge firmware
 
 Deep-link a view with `?view=survey|nodes|cues|blueprint|show`.
 
+## Demo data vs real boards
+
+The views were first built against the design handoff's mock yard
+(`src/lib/mesh.ts`: eight imaginary nodes, banners, cues). Since real
+boards arrived (docs/generic-boards.md) that mock is **off by
+default** — **Settings → Show demo data** turns it back on, per
+browser. With it off: Nodes & Channels shows only real boards; Yard,
+Cues and Show Graph say they aren't wired to real data yet; the sidebar
+shows the real USB connection; **STOP ALL sends `all_off` to every
+connected node** (it was cosmetic before 2026-10-05) and names any node
+that didn't confirm. Demo data is never sent to boards.
+
 ## Views
 
 - **Yard** — the mesh in two projections, switched by a layout toggle:

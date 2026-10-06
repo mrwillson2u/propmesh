@@ -13,7 +13,7 @@ import {
   type Heartbeat, type NodeHello, type NodeLink,
 } from "../../lib/transport";
 import PinEditor from "./PinEditor";
-import { getConnection, setConnection } from "../../lib/connection";
+import { changed, getConnection, setConnection } from "../../lib/connection";
 
 // A node not heard for three heartbeats is shown as missing.
 const MISSING_MS = 16000;
@@ -61,14 +61,22 @@ export default function MeshPanel() {
     return c ? c.selected ?? c.hello.node : null;
   });
 
-  // Mirror the list into the connection so it outlives this panel.
+  const [now, setNow] = useState(Date.now());
+
+  // Mirror the list into the connection so it outlives this panel and
+  // the sidebar / STOP ALL can see it.
   useEffect(() => {
     const c = getConnection();
-    if (c && c.link === link) { c.roster = entries; c.selected = selected; }
-  }, [entries, selected, link]);
+    if (!c || c.link !== link) return;
+    const t = Date.now();
+    const all = Object.values(entries);
+    const missing = all.filter((en) => !en.usb && t - en.seen > MISSING_MS).length;
+    const notify = c.nodeCount !== all.length || c.missingCount !== missing;
+    Object.assign(c, { roster: entries, selected, nodeCount: all.length, missingCount: missing });
+    if (notify) changed();
+  }, [entries, selected, link, now]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
   const inputSubs = useRef(new Map<string, Set<InputCb>>());
   const local = useRef<string | null>(getConnection()?.hello.node ?? null);
   const entriesRef = useRef(entries);

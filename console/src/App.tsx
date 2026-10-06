@@ -3,17 +3,22 @@
 import { useRef, useState } from "react";
 import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
+import { useSettings } from "./lib/settings";
+import { stopAll, useConnection } from "./lib/connection";
 import { Logo, StopOctagon, mono } from "./ui";
 import Yard, { type YardLayout } from "./views/Yard";
 import Nodes from "./views/Nodes";
 import Cues from "./views/Cues";
 import ShowGraph from "./views/ShowGraph";
+import Settings from "./views/Settings";
+import NotWired from "./views/NotWired";
 
 const VIEWS = [
   { name: "Yard", icon: "◎" },
   { name: "Nodes & Channels", icon: "☰" },
   { name: "Cues", icon: "▸" },
   { name: "Show Graph", icon: "⬡" },
+  { name: "Settings", icon: "⚙" },
 ] as const;
 type ViewName = (typeof VIEWS)[number]["name"];
 
@@ -36,7 +41,10 @@ function initialLayout(): YardLayout {
 export default function App() {
   const [view, setView] = useState<ViewName>(initialView);
   const mesh = useMesh();
+  const { demo } = useSettings();
+  const conn = useConnection();
   const [stopped, setStopped] = useState(false);
+  const [stopFailed, setStopFailed] = useState<string[]>([]);
   const [holding, setHolding] = useState(false);
   const [pct, setPct] = useState(0);
   const holdIv = useRef<ReturnType<typeof setInterval>>();
@@ -52,6 +60,10 @@ export default function App() {
           clearInterval(holdIv.current);
           setStopped(true);
           setHolding(false);
+          // Real boards: every output off, every node. (Demo data is
+          // never sent anything.)
+          setStopFailed([]);
+          void stopAll().then(setStopFailed);
           return 0;
         }
         setHolding(true);
@@ -93,13 +105,34 @@ export default function App() {
           <Logo />
           <div>
             <div style={{ font: `700 12px/1 ${MONO}`, letterSpacing: ".08em", color: C.t1 }}>PROPMESH</div>
-            <div style={{ ...mono(500, 9.5, C.t5), marginTop: 3 }}>bridge v0.9.4</div>
+            <div style={{ ...mono(500, 9.5, C.t5), marginTop: 3 }}>{demo ? "bridge v0.9.4 · demo" : "console"}</div>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "10px 8px", flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {VIEWS.map(navBtn)}
+          {VIEWS.filter((v) => v.name !== "Settings").map(navBtn)}
+          <div style={{ flex: 1 }} />
+          {navBtn(VIEWS.find((v) => v.name === "Settings")!)}
         </div>
-        <div style={{ flex: "none", padding: "10px 12px", borderTop: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 7, font: `600 10.5px ${MONO}` }}>
+        {!demo && (
+          <div style={{ flex: "none", padding: "10px 12px", borderTop: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 7, font: `600 10.5px ${MONO}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: C.t5 }}>BRIDGE</span>
+              {conn
+                ? <span style={{ color: C.green }}>● {conn.link.via === "usb" ? "USB" : "SIM"}</span>
+                : <span style={{ color: C.t4 }}>○ not connected</span>}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: C.t5 }}>NODES</span>
+              {conn
+                ? <span>
+                    <span style={{ color: C.green }}>{(conn.nodeCount ?? 1) - (conn.missingCount ?? 0)}</span>
+                    {!!conn.missingCount && <span style={{ color: C.red }}> / {conn.missingCount} missing</span>}
+                  </span>
+                : <span style={{ color: C.t5 }}>—</span>}
+            </div>
+          </div>
+        )}
+        {demo && <div style={{ flex: "none", padding: "10px 12px", borderTop: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 7, font: `600 10.5px ${MONO}` }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: C.t5 }}>BRIDGE</span>
             <span style={{ color: C.green }}>● LINKED</span>
@@ -116,7 +149,7 @@ export default function App() {
               <span style={{ color: C.red }}> / {mesh.counts.missing}</span>
             </span>
           </div>
-        </div>
+        </div>}
         <button
           onMouseDown={stopDown} onMouseUp={stopUp} onMouseLeave={stopUp}
           onTouchStart={stopDown} onTouchEnd={stopUp}
@@ -139,7 +172,11 @@ export default function App() {
         {stopped && (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", background: C.emberBg, borderBottom: `1px solid ${C.ember}`, flex: "none" }}>
             <span style={{ font: `800 12.5px ${MONO}`, letterSpacing: ".1em", color: C.emberT }}>⬣ ALL OUTPUTS STOPPED</span>
-            <span style={mono(500, 11.5, C.t2)}>every motor, relay, LED and audio killed · cues suppressed</span>
+            <span style={mono(500, 11.5, stopFailed.length ? C.red : C.t2)}>
+              {!conn ? "no boards connected — nothing was sent"
+                : stopFailed.length ? `all-off sent · NO CONFIRMATION from ${stopFailed.join(", ")} — check those boards`
+                : "all-off sent to every connected board"}
+            </span>
             <div style={{ flex: 1 }} />
             <button onClick={() => setStopped(false)} style={{ height: 32, padding: "0 16px", background: C.ember, border: "none", borderRadius: 6, color: C.onEmber, font: `800 12px ${MONO}`, letterSpacing: ".06em" }}>
               RE-ARM SHOW
@@ -147,10 +184,26 @@ export default function App() {
           </div>
         )}
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-          {view === "Yard" && <Yard mesh={mesh} initialLayout={initialLayout()} />}
+          {view === "Yard" && (demo ? <Yard mesh={mesh} initialLayout={initialLayout()} /> : (
+            <NotWired title="The yard map isn't connected to real boards yet">
+              It will draw your nodes and the radio links between them from the heartbeats the bridge
+              already reports. Until then, your real boards are in Nodes &amp; Channels.
+            </NotWired>
+          ))}
           {view === "Nodes & Channels" && <Nodes />}
-          {view === "Cues" && <Cues stopped={stopped} />}
-          {view === "Show Graph" && <ShowGraph />}
+          {view === "Cues" && (demo ? <Cues stopped={stopped} /> : (
+            <NotWired title="Cues aren't built yet">
+              Sensor triggers — a sensor on one board firing a timed sequence across the others — are
+              Stage 3 of the October plan (docs/generic-boards.md §8).
+            </NotWired>
+          ))}
+          {view === "Show Graph" && (demo ? <ShowGraph /> : (
+            <NotWired title="The show graph is a design preview">
+              The node-graph editor for wiring triggers to sequences is planned for after the October
+              show. Stage 3 sensor triggers come first.
+            </NotWired>
+          ))}
+          {view === "Settings" && <Settings />}
         </div>
       </div>
     </div>
