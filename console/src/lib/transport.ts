@@ -6,6 +6,7 @@
 import { BOARDS } from "./boards_gen";
 import { EMPTY_CONFIG, type NodeConfig } from "./nodeConfig";
 import { validate } from "./pinRules";
+import { ease } from "./ease";
 
 export interface NodeHello {
   node: string; // 8 hex digits
@@ -216,7 +217,9 @@ const SIM_REMOTES = [
   { node: "5c0ffee2", hops: 1, rssi: -77, nbrs: [{ node: "5c0ffee1", rssi: -79 }] },
 ];
 
-interface SimSeq { id: number; name: string; steps: ([number, string, number, number] | [number, string, number, number, number, string])[] }
+// A step on the wire: [t, kind, index, value] or [..., dur, ease_in, ease_out].
+type SimStep = [number, string, number, number] | [number, string, number, number, number, number, number];
+interface SimSeq { id: number; name: string; steps: SimStep[] }
 interface SimRule { input: number; on: "active" | "clear"; seq: number; cooldown_ms: number; enabled: boolean }
 
 interface SimNode {
@@ -337,9 +340,10 @@ class SimLink implements NodeLink {
         const bad = q.steps.find(([, kind, index]) => kind === "DIGITAL_IN" || !n.cfg.channels.some((c) => c.kind === kind && c.index === index));
         if (bad) return { ok: false, error: "step addresses a channel this node doesn't have" };
         for (const w of q.steps) {
-          if (w.length !== 6 || !(w[4] > 0)) continue;
+          if (w.length !== 7 || !(w[4] > 0)) continue;
           if (w[4] > w[0]) return { ok: false, error: "a ramp can't start before the sequence does" };
           if (!["SERVO", "LED", "MOTOR"].includes(w[1])) return { ok: false, error: "only servos, LED dimmers and motors can ramp" };
+          if (w[5] + w[6] > 100) return { ok: false, error: "ease in + ease out must be at most 100 %" };
         }
         n.seqs.set(q.id, { ...q, steps: [...q.steps].sort((a, b) => a[0] - b[0]) });
         this.saveShow(node, n);
@@ -383,7 +387,8 @@ class SimLink implements NodeLink {
       if (!part || !n.armed) return;
       for (const w of part.steps) {
         const [t, kind, index, value] = w;
-        const dur = w.length === 6 ? w[4] : 0;
+        const dur = w.length === 7 ? w[4] : 0;
+        const [ein, eout] = w.length === 7 ? [w[5], w[6]] : [0, 0];
         if (!dur) { setTimeout(() => { if (n.armed) n.values.set(`${kind}_${index}`, value); }, 200 + t); continue; }
         // A ramp: walk the line in 50 ms ticks from t - dur to t.
         const key = `${kind}_${index}`;
@@ -392,7 +397,7 @@ class SimLink implements NodeLink {
           const t0 = Date.now();
           const iv = setInterval(() => {
             const p = Math.min(1, (Date.now() - t0) / dur);
-            if (n.armed) n.values.set(key, Math.round(from + (value - from) * p));
+            if (n.armed) n.values.set(key, Math.round(from + (value - from) * ease(ein, eout, p)));
             if (p >= 1) clearInterval(iv);
           }, 50);
         }, 200 + t - dur);

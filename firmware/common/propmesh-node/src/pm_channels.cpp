@@ -197,7 +197,7 @@ bool pm_servo_set_pulse(uint8_t index, uint32_t us) {
 }
 
 bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
-                     uint32_t dur_ms, uint8_t ease) {
+                     uint32_t dur_ms, uint8_t ease_in, uint8_t ease_out) {
   int i = find(kind, index);
   if (i < 0 || !pm_kind_ramps(kind)) return false;
   const PmChannelCfg &c = active.channels[i];
@@ -208,7 +208,7 @@ bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
   int32_t from = (kind == PM_CHANNEL_KIND_SERVO && r.value < 0) ? to : r.value;
   if (kind == PM_CHANNEL_KIND_SERVO && r.moving) from = (int32_t)(r.motion.pos + 0.5f);
   r.moving = false;
-  r.ramp.begin(from, to, start_us, dur_ms, ease);
+  r.ramp.begin(from, to, start_us, dur_ms, ease_in, ease_out);
   raw_out(c, r, r.ramp.at(esp_timer_get_time()));
   return true;
 }

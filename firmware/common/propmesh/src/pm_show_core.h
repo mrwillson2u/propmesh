@@ -35,7 +35,7 @@ struct PmStep {
   uint8_t index;
   int32_t value;
   uint32_t dur_ms = 0;
-  uint8_t ease = PM_EASE_LINEAR;
+  uint8_t ease_in = 0, ease_out = 0;  // percent of the ramp spent speeding up / slowing down
   uint32_t start_ms() const { return dur_ms > t_ms ? 0 : t_ms - dur_ms; }
 };
 
@@ -130,7 +130,8 @@ inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cf
     if (st.dur_ms) {
       if (!pm_kind_ramps(st.kind)) return "only servos, LED dimmers and motors can ramp";
       if (st.dur_ms > st.t_ms) return "a ramp can't start before the sequence does";
-      if (st.ease >= PM_EASE_COUNT) return "unknown easing";
+      if (st.ease_in > 100 || st.ease_out > 100 || st.ease_in + st.ease_out > 100)
+        return "ease in + ease out must be at most 100 %";
     }
   }
   return nullptr;

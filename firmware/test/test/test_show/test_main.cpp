@@ -211,7 +211,7 @@ static void test_show_put_replace_remove() {
 // A ramp step fires at its START (t - dur), with the start time passed
 // through, and sorts by start even when its t is later.
 static void test_ramp_step_fires_at_its_start() {
-  PmSequence s = seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 900, 1500, PM_EASE_INOUT},   // starts at 500
+  PmSequence s = seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 900, 1500, 50, 50},   // starts at 500
                          {1000, PM_CHANNEL_KIND_RELAY, 1, 1}});
   TEST_ASSERT_EQUAL(500, s.steps[0].start_ms());
   TEST_ASSERT_EQUAL(1000, s.steps[1].start_ms());
@@ -228,27 +228,33 @@ static void test_ramp_step_fires_at_its_start() {
 
 static void test_ramp_rules() {
   PmNodeConfig c = node();
-  TEST_ASSERT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 500, 2000, PM_EASE_OUT}}), c));
-  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_RELAY, 1, 1, 500, 0}}), c));   // relays don't ramp
-  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 1500, 0}}), c)); // starts before 0
-  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 500, 9}}), c));  // bad ease
+  TEST_ASSERT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_SERVO, 1, 500, 2000, 0, 100}}), c));
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{2000, PM_CHANNEL_KIND_RELAY, 1, 1, 500, 0, 0}}), c));     // relays don't ramp
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 1500, 0, 0}}), c));  // starts before 0
+  TEST_ASSERT_NOT_NULL(pm_check_sequence(seq(1, {{1000, PM_CHANNEL_KIND_SERVO, 1, 500, 500, 70, 40}}), c)); // in + out > 100
 }
 
-static void test_ramp_json_round_trip_and_short_form() {
+static void test_ramp_json_round_trip_and_legacy_names() {
   JsonDocument d, out;
-  deserializeJson(d, "{\"id\":2,\"steps\":[[0,\"SERVO\",1,100],[1500,\"SERVO\",1,900,1500,\"inout\"],[3000,\"LED\",1,0,1000,\"out\"]]}");
+  // a plain step, a ramp with amounts, and a ramp in the old named form
+  deserializeJson(d, "{\"id\":2,\"steps\":[[0,\"SERVO\",1,100],[1500,\"SERVO\",1,900,1500,20,60],[3000,\"LED\",1,0,1000,\"out\"]]}");
   PmSequence s;
   TEST_ASSERT_NULL(pm_sequence_from_json(d.as<JsonVariantConst>(), s));
   TEST_ASSERT_EQUAL(3, s.step_count);
   TEST_ASSERT_EQUAL(0, s.steps[0].dur_ms);
   TEST_ASSERT_EQUAL(1500, s.steps[1].dur_ms);
-  TEST_ASSERT_EQUAL(PM_EASE_INOUT, s.steps[1].ease);
-  TEST_ASSERT_EQUAL(PM_EASE_OUT, s.steps[2].ease);
+  TEST_ASSERT_EQUAL(20, s.steps[1].ease_in);
+  TEST_ASSERT_EQUAL(60, s.steps[1].ease_out);
+  TEST_ASSERT_EQUAL(0, s.steps[2].ease_in);    // "out" = 0/100
+  TEST_ASSERT_EQUAL(100, s.steps[2].ease_out);
   pm_sequence_to_json(s, out.to<JsonObject>());
   TEST_ASSERT_EQUAL(4, out["steps"][0].size());  // plain step keeps the short form
-  TEST_ASSERT_EQUAL(6, out["steps"][1].size());
-  TEST_ASSERT_EQUAL_STRING("inout", out["steps"][1][5]);
+  TEST_ASSERT_EQUAL(7, out["steps"][1].size());
+  TEST_ASSERT_EQUAL(60, out["steps"][1][6].as<int>());
+  TEST_ASSERT_EQUAL(7, out["steps"][2].size());  // legacy name written back as amounts
   deserializeJson(d, "{\"id\":2,\"steps\":[[1500,\"SERVO\",1,900,1500,\"bouncy\"]]}");
+  TEST_ASSERT_NOT_NULL(pm_sequence_from_json(d.as<JsonVariantConst>(), s));
+  deserializeJson(d, "{\"id\":2,\"steps\":[[1500,\"SERVO\",1,900,1500,120,0]]}");
   TEST_ASSERT_NOT_NULL(pm_sequence_from_json(d.as<JsonVariantConst>(), s));
 }
 
@@ -270,6 +276,6 @@ int main() {
   RUN_TEST(test_show_put_replace_remove);
   RUN_TEST(test_ramp_step_fires_at_its_start);
   RUN_TEST(test_ramp_rules);
-  RUN_TEST(test_ramp_json_round_trip_and_short_form);
+  RUN_TEST(test_ramp_json_round_trip_and_legacy_names);
   return UNITY_END();
 }

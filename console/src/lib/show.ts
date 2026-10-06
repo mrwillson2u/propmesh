@@ -9,13 +9,19 @@ import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
 import type { Entry } from "./connection";
 
-export type Ease = "linear" | "in" | "out" | "inout";
-export const EASES: { id: Ease; label: string }[] = [
-  { id: "inout", label: "ease in & out" },
-  { id: "linear", label: "linear" },
-  { id: "in", label: "ease in" },
-  { id: "out", label: "ease out" },
+// Easing = how much of a ramp is spent speeding up (ease_in %) and
+// slowing down (ease_out %), cruising in between (firmware pm_ramp.h).
+// The presets are points on that scale; 50/50, 100/0, 0/100 and 0/0
+// are exactly the old named curves.
+export const EASE_PRESETS: { id: string; label: string; in: number; out: number }[] = [
+  { id: "inout", label: "ease in & out", in: 50, out: 50 },
+  { id: "gentle", label: "gentle start & stop", in: 30, out: 30 },
+  { id: "linear", label: "linear", in: 0, out: 0 },
+  { id: "in", label: "ease in", in: 100, out: 0 },
+  { id: "out", label: "ease out", in: 0, out: 100 },
+  { id: "land", label: "soft landing", in: 15, out: 70 },
 ];
+const LEGACY: Record<string, [number, number]> = { linear: [0, 0], in: [100, 0], out: [0, 100], inout: [50, 50] };
 
 // "Arrive at `value` at t_ms." With dur_ms > 0 it's a ramp from the
 // channel's previous value, starting dur_ms earlier — the Timeline's
@@ -27,7 +33,8 @@ export interface Step {
   index: number;
   value: number;
   dur_ms?: number;
-  ease?: Ease;
+  ease_in?: number; // % of the ramp spent speeding up
+  ease_out?: number; // % spent slowing down; in + out <= 100
 }
 
 export const RAMP_KINDS: ChannelKindName[] = ["SERVO", "LED", "MOTOR"];
@@ -65,7 +72,10 @@ export interface Show {
 const ask = (link: NodeLink, en: Entry, cmd: string, body: Record<string, unknown> = {}): Promise<Reply> =>
   target(link, en.usb ? null : en.node).request(cmd, body);
 
-type Wire = [number, ChannelKindName, number, number] | [number, ChannelKindName, number, number, number, Ease];
+type Wire =
+  | [number, ChannelKindName, number, number]
+  | [number, ChannelKindName, number, number, number, number, number]
+  | [number, ChannelKindName, number, number, number, string]; // named preset, before 2026-10-06
 
 export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> {
   const show: Show = { sequences: [], rules: [], configs: {}, armed: {}, unreachable: [] };
@@ -90,7 +100,8 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
         for (const w of p.steps) {
           const [t_ms, kind, index, value] = w;
           const st: Step = { t_ms, node: en.node, kind, index, value };
-          if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; st.ease = w[5]; }
+          if (w.length === 7 && w[4] > 0) { st.dur_ms = w[4]; st.ease_in = w[5]; st.ease_out = w[6]; }
+          if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; [st.ease_in, st.ease_out] = LEGACY[w[5]] ?? [50, 50]; }
           seq.steps.push(st);
         }
         byId.set(p.id, seq);
@@ -115,7 +126,7 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
     if (!parts.has(st.node)) parts.set(st.node, []);
     const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
     parts.get(st.node)!.push(dur > 0
-      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease ?? "inout"]
+      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
       : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)]);
   }
   const failed: SaveResult["failed"] = [];

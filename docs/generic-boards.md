@@ -271,8 +271,13 @@ active (or clear), play sequence N; then ignore this trigger for
 
 **Ramps** (2026-10-05 — the Timeline's line between keyframes;
 software-plan §6 decided ramps are a native node action). A step may
-carry `dur_ms` and `ease` (`linear` / `in` / `out` / `inout`,
-quadratic): "arrive at `value` at `t_ms`, having started `dur_ms`
+carry `dur_ms` and two **ease amounts** (2026-10-06): `ease_in` % of
+the ramp spent speeding up, `ease_out` % slowing down, a steady cruise
+between (a trapezoidal velocity profile; in + out ≤ 100). 0/0 is
+linear, and 50/50, 100/0, 0/100 are exactly the earlier named curves
+(`inout`, `in`, `out` — still accepted on the wire, so stored shows keep
+their shape). Console presets: ease in & out 50/50, gentle 30/30,
+linear, ease in, ease out, soft landing 15/70, or any two numbers. A step is "arrive at `value` at `t_ms`, having started `dur_ms`
 earlier from the channel's then-current value". The node interpolates
 at 50 Hz (`pm_ramp.h`); the ramp is anchored to the sequence clock, so
 a late cue lands mid-line rather than restarting, and every node is on
@@ -280,8 +285,9 @@ the same point of its line at the same mesh time. While a ramp runs it
 takes over from a servo's smoothing; a direct `set` (console slider,
 all_off) cancels it. Only servos, LED dimmers and motors ramp (relays
 switch, strips step). Rules: `dur_ms ≤ t_ms`; a limp servo (position
-unknown) takes the end value at once. Wire form: a 6-element step
-`[t_ms, kind, index, value, dur_ms, ease]`; plain steps keep the
+unknown) takes the end value at once. Wire form: a 7-element step
+`[t_ms, kind, index, value, dur_ms, ease_in, ease_out]` (the 6-element
+`[…, dur_ms, "name"]` form is still read); plain steps keep the
 4-element form. **Measured** on the heads board: hold → S-curve over
 2.0 s → hold → linear 1.0 s back, sampled every ~170 ms, all on time.
 
@@ -336,7 +342,8 @@ model, `views/show/Timeline.tsx` the SVG. **Zoom and scroll**
 (2026-10-06): − / + / Fit buttons, ⌘/ctrl + scroll zooms around the
 pointer (4–2000 px/s); sideways scroll or shift + scroll pans; a
 scrollbar under the tracks; dragging a key past the right edge scrolls
-with it. Opens in Fit (the whole sequence). Not yet: bezier handles
+with it. The zoom is remembered per browser (Fit until you zoom);
+another sequence opens at its start, same zoom. Not yet: bezier handles
 (easing presets only), audio tracks.
 
 **Console → Cues.** Sequences list; step editor (time, board, output,

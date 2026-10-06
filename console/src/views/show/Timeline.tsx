@@ -28,6 +28,9 @@ const capture = (e: React.PointerEvent) => {
   try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* fine */ }
 };
 
+// Zoom (px/s) is remembered per browser; absent = Fit.
+const ZOOM_KEY = "propmesh.timeline.zoom";
+
 const zbtn: React.CSSProperties = {
   width: 26, height: 26, padding: 0, borderRadius: 5, background: C.raised, border: `1px solid ${C.b3}`,
   font: `600 13px ${MONO}`, color: C.t2, cursor: "pointer",
@@ -56,8 +59,16 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   // left edge. Both are frozen in `drag` while something is dragged: in
   // fit mode the scale would otherwise change under the pointer as a
   // key is dragged past the end.
-  const [zoom, setZoom] = useState<number | null>(null);
+  const [zoom, setZoomState] = useState<number | null>(() => {
+    try { const z = Number(localStorage.getItem(ZOOM_KEY)); return z > 0 ? z : null; } catch { return null; }
+  });
+  const setZoom = (z: number | null) => {
+    setZoomState(z);
+    try { z ? localStorage.setItem(ZOOM_KEY, String(z)) : localStorage.removeItem(ZOOM_KEY); } catch { /* private mode */ }
+  };
   const [scrollMs, setScrollMs] = useState(0);
+  // A different sequence starts at its beginning; the zoom is kept.
+  useEffect(() => { setScrollMs(0); }, [seq.id]);
   type Drag = { pps: number; scroll: number } & ({ idx: number } | { scrub: true } | { bar: true; startX: number });
   const [drag, setDrag] = useState<Drag | null>(null);
   const clipId = useId();
@@ -324,7 +335,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                     {tr.kind === "LED_STRIP"
                       ? <rect x={cx - 7} y={cy - 7} width={14} height={14} rx={3} fill={hex(s.value)} stroke={on ? C.ember : C.t1} strokeWidth={1.5} />
                       : <circle cx={cx} cy={cy} r={on ? 6.5 : 5.5} fill={C.card} stroke={on ? C.ember : color} strokeWidth={2.5} />}
-                    <title>{`${(s.t_ms / 1000).toFixed(2)} s · ${tr.kind === "RELAY" ? (s.value ? "on" : "off") : tr.kind === "LED_STRIP" ? hex(s.value) : `${Math.round(s.value / 10)}%`}${(s.dur_ms ?? 0) ? ` · ramp over ${(s.dur_ms! / 1000).toFixed(2)} s (${s.ease ?? "inout"})` : ""}\nDrag to move · Delete to remove`}</title>
+                    <title>{`${(s.t_ms / 1000).toFixed(2)} s · ${tr.kind === "RELAY" ? (s.value ? "on" : "off") : tr.kind === "LED_STRIP" ? hex(s.value) : `${Math.round(s.value / 10)}%`}${(s.dur_ms ?? 0) ? ` · ramp over ${(s.dur_ms! / 1000).toFixed(2)} s, ease in ${s.ease_in ?? 50} % / out ${s.ease_out ?? 50} %` : ""}\nDrag to move · Delete to remove`}</title>
                   </g>
                 );
               })}

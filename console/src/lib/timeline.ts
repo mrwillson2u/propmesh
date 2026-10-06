@@ -4,7 +4,10 @@
 // pm_ramp.h). Pure functions — the editor calls these and the step
 // list sees the same steps.
 import type { ChannelKindName } from "./boards_gen";
-import { canRamp, type Ease, type Sequence, type Step } from "./show";
+import { canRamp, type Sequence, type Step } from "./show";
+import { ease } from "./ease";
+
+export { ease };
 
 export interface Track {
   key: string; // "node/KIND_index"
@@ -27,19 +30,6 @@ export function tracks(seq: Sequence): Track[] {
   return [...out.values()];
 }
 
-// Same curves as the firmware (quadratic), so the drawn line is the
-// line the servo follows.
-export function ease(e: Ease | undefined, p: number): number {
-  if (p <= 0) return 0;
-  if (p >= 1) return 1;
-  switch (e) {
-    case "in": return p * p;
-    case "out": return 1 - (1 - p) * (1 - p);
-    case "inout": return p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
-    default: return p;
-  }
-}
-
 // Value range per kind, for the y axis.
 export function range(kind: ChannelKindName): [number, number] {
   return kind === "MOTOR" ? [-1000, 1000] : kind === "RELAY" ? [0, 1] : kind === "LED_STRIP" ? [0, 0xffffff] : [0, 1000];
@@ -56,7 +46,7 @@ export function valueAt(seq: Sequence, track: Track, t: number): number | null {
     if (t < start) break;
     if (t >= s.t_ms || dur === 0) { v = s.value; continue; }
     const from = v ?? s.value;
-    return from + (s.value - from) * ease(s.ease, (t - start) / dur);
+    return from + (s.value - from) * ease(s.ease_in, s.ease_out, (t - start) / dur);
   }
   return v;
 }
@@ -109,7 +99,7 @@ export function addKey(seq: Sequence, track: Omit<Track, "steps" | "key">, t_ms:
   if (canRamp(track.kind)) {
     const tr = tracks(out).find((x) => x.key === trackKey(step))!;
     const gap = maxDur(out, tr, index);
-    if (gap > 0) { step.dur_ms = gap; step.ease = "inout"; }
+    if (gap > 0) { step.dur_ms = gap; step.ease_in = 50; step.ease_out = 50; }
     // The next key's ramp (if full) now only reaches back to this one.
     const at = tr.steps.indexOf(index);
     const nextIdx = tr.steps[at + 1];
@@ -127,8 +117,8 @@ export function toggleRamp(seq: Sequence, stepIdx: number): Sequence {
   const gap = maxDur(seq, tr, stepIdx);
   const steps = seq.steps.map((x, i) => {
     if (i !== stepIdx) return x;
-    const { dur_ms: _d, ease: _e, ...rest } = x;
-    return (x.dur_ms ?? 0) > 0 || gap === 0 ? rest : { ...rest, dur_ms: gap, ease: x.ease ?? "inout" };
+    const { dur_ms: _d, ease_in: _i, ease_out: _o, ...rest } = x;
+    return (x.dur_ms ?? 0) > 0 || gap === 0 ? rest : { ...rest, dur_ms: gap, ease_in: x.ease_in ?? 50, ease_out: x.ease_out ?? 50 };
   });
   return { ...seq, steps };
 }
@@ -155,7 +145,7 @@ export function segmentPoints(seq: Sequence, track: Track, stepIdx: number, n = 
     pts.push({ t: start, v: from });
     for (let i = 1; i <= n; i++) {
       const p = i / n;
-      pts.push({ t: start + dur * p, v: from + (s.value - from) * ease(s.ease, p) });
+      pts.push({ t: start + dur * p, v: from + (s.value - from) * ease(s.ease_in, s.ease_out, p) });
     }
   } else {
     if (prev) pts.push({ t: s.t_ms, v: from }); // hold, then jump

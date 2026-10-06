@@ -12,20 +12,28 @@
 #include <math.h>
 #include <stdint.h>
 
-enum { PM_EASE_LINEAR = 0, PM_EASE_IN = 1, PM_EASE_OUT = 2, PM_EASE_INOUT = 3 };
-#define PM_EASE_COUNT 4
+// Easing is set by two amounts (2026-10-06): the share of the ramp spent
+// speeding up (`in`, %) and slowing down (`out`, %), cruising in
+// between — a trapezoidal velocity profile. in + out <= 100.
+//   0/0 = linear · 50/50 = the old quadratic "ease in & out"
+//   100/0 = old "ease in" · 0/100 = old "ease out" — the same curves,
+// so sequences stored with the old named presets keep their shape.
+#define PM_EASE_PRESET_LINEAR 0, 0
+#define PM_EASE_PRESET_INOUT 50, 50
+#define PM_EASE_PRESET_IN 100, 0
+#define PM_EASE_PRESET_OUT 0, 100
 
-// Progress 0..1 -> eased 0..1. Quadratic: gentle enough for props,
-// cheap enough for 50 Hz on every channel.
-inline float pm_ease(uint8_t ease, float p) {
+// Progress 0..1 -> eased 0..1 for in/out given in percent.
+inline float pm_ease(uint8_t in_pct, uint8_t out_pct, float p) {
   if (p <= 0) return 0;
   if (p >= 1) return 1;
-  switch (ease) {
-    case PM_EASE_IN: return p * p;
-    case PM_EASE_OUT: return 1 - (1 - p) * (1 - p);
-    case PM_EASE_INOUT: return p < 0.5f ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
-    default: return p;
-  }
+  float a = in_pct / 100.0f, b = out_pct / 100.0f;
+  if (a + b > 1) { float k = 1 / (a + b); a *= k; b *= k; }  // defensive; validated elsewhere
+  float v = 1 / (1 - a / 2 - b / 2);  // cruise speed so the total distance is 1
+  if (p < a) return v * p * p / (2 * a);
+  if (p <= 1 - b) return v * (a / 2 + (p - a));
+  float q = 1 - p;
+  return 1 - v * q * q / (2 * b);
 }
 
 struct PmRamp {
@@ -33,14 +41,15 @@ struct PmRamp {
   int32_t from = 0, to = 0;
   int64_t start_us = 0;
   uint32_t dur_us = 0;
-  uint8_t ease = PM_EASE_LINEAR;
+  uint8_t ease_in = 0, ease_out = 0;  // percent
 
-  void begin(int32_t f, int32_t t, int64_t start, uint32_t dur_ms, uint8_t e) {
+  void begin(int32_t f, int32_t t, int64_t start, uint32_t dur_ms, uint8_t ein, uint8_t eout) {
     from = f;
     to = t;
     start_us = start;
     dur_us = dur_ms * 1000u;
-    ease = e;
+    ease_in = ein;
+    ease_out = eout;
     active = true;
   }
 
@@ -51,6 +60,6 @@ struct PmRamp {
       return to;
     }
     float p = now_us <= start_us ? 0.0f : (float)(now_us - start_us) / (float)dur_us;
-    return from + (int32_t)lroundf((float)(to - from) * pm_ease(ease, p));
+    return from + (int32_t)lroundf((float)(to - from) * pm_ease(ease_in, ease_out, p));
   }
 };

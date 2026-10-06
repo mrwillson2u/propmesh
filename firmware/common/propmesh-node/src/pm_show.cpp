@@ -114,7 +114,7 @@ void pm_show_on_input(uint8_t index, bool active) {
 
 void pm_show_loop() {
   player.tick(esp_timer_get_time(), [](const PmStep &st, int64_t start_us) {
-    if (st.dur_ms) pm_channel_ramp(st.kind, st.index, st.value, start_us, st.dur_ms, st.ease);
+    if (st.dur_ms) pm_channel_ramp(st.kind, st.index, st.value, start_us, st.dur_ms, st.ease_in, st.ease_out);
     else pm_channel_set(st.kind, st.index, st.value);
   });
 }

@@ -11,8 +11,8 @@ import { armAll, useConnection, type Activity, type Connection } from "../../lib
 import { target } from "../../lib/transport";
 import Timeline, { type Output } from "./Timeline";
 import {
-  EASES, canRamp, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
-  type Ease, type Rule, type Sequence, type Show, type Step,
+  EASE_PRESETS, canRamp, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
+  type Rule, type Sequence, type Show, type Step,
 } from "../../lib/show";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -28,8 +28,8 @@ const field: React.CSSProperties = {
 };
 // Step table columns. The table keeps a minimum width and scrolls
 // sideways in a narrow window rather than squashing the value slider.
-const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 150px 56px 24px";
-const STEP_MIN_W = 790;
+const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 290px 56px 24px";
+const STEP_MIN_W = 930;
 const label = { font: "600 10px system-ui", letterSpacing: ".08em", color: C.t5 } as const;
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
 const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) : 0);
@@ -96,11 +96,17 @@ function Editor({ conn }: { conn: Connection }) {
   const known = Object.values(entries).filter((e) => e.hello);
   const nameOf = (node: string) => entries[node]?.hello?.name || node;
 
+  // Loads overlap (one starts each time a board introduces itself);
+  // only the newest may land, or an early load that saw fewer boards
+  // can finish last and blank the list (seen 2026-10-06).
+  const loadGen = useRef(0);
   const load = async () => {
+    const gen = ++loadGen.current;
     setLoading(true);
     setMsg(null);
     try {
       const sh = await loadShow(conn.link, known);
+      if (gen !== loadGen.current) return;
       setShow(sh);
       setRules(sh.rules);
       const keep = sh.sequences.find((s) => s.id === sel) ?? sh.sequences[0] ?? null;
@@ -108,7 +114,7 @@ function Editor({ conn }: { conn: Connection }) {
       setDraft(keep ? structuredClone(keep) : null);
       if (sh.unreachable.length) setMsg({ text: `No answer from ${sh.unreachable.map(nameOf).join(", ")} — its part of the show isn't shown.`, bad: true });
     } finally {
-      setLoading(false);
+      if (gen === loadGen.current) setLoading(false);
     }
   };
   // Load once the boards have introduced themselves.
@@ -362,10 +368,7 @@ function Editor({ conn }: { conn: Connection }) {
                             onChange={(e) => patchStep(i, { dur_ms: Math.min(st.t_ms, Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000))) })}
                             style={{ ...field, width: 54, ...mono(500, 12, (st.dur_ms ?? 0) > 0 ? C.t1 : C.t5) }} />
                           <span style={sys(500, 11, C.t5)}>s</span>
-                          <select value={st.ease ?? "inout"} disabled={!(st.dur_ms ?? 0)} style={{ ...field, width: 86, opacity: (st.dur_ms ?? 0) ? 1 : 0.4 }}
-                            onChange={(e) => patchStep(i, { ease: e.target.value as Ease })}>
-                            {EASES.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-                          </select>
+                          <EaseInput step={st} onChange={(p) => patchStep(i, p)} />
                         </span>
                       ) : <span style={sys(400, 11, C.t6)}>—</span>}
                       <button onClick={() => testStep(st)} title="Send this value to the board now" style={{ ...btn(), height: 26, padding: "0 8px" }}>Test</button>
@@ -473,6 +476,33 @@ function ActivityRow({ a, nameOf, seqName, show }: {
       <span style={{ color: C.t5, fontWeight: 500 }}>{clock(a.at)}</span> ▶ {seqName(a.seq ?? 0)} — fired by {nameOf(a.node)}
       {a.armed === false && <span> (bridge disarmed)</span>}
     </div>
+  );
+}
+
+// Ease amounts for a ramp: a preset, or the two percentages directly.
+// in + out can't exceed 100 — raising one past that lowers the other.
+function EaseInput({ step, onChange }: { step: Step; onChange: (p: Partial<Step>) => void }) {
+  const on = (step.dur_ms ?? 0) > 0;
+  const ein = step.ease_in ?? 50, eout = step.ease_out ?? 50;
+  const preset = EASE_PRESETS.find((p) => p.in === ein && p.out === eout);
+  const pct = (s: string) => Math.max(0, Math.min(100, Math.round(parseFloat(s) || 0)));
+  const num: React.CSSProperties = { ...field, width: 46, padding: "0 4px", ...mono(500, 11.5, on ? C.t1 : C.t5) };
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 4, opacity: on ? 1 : 0.4 }}
+      title="Ease in: % of the ramp spent speeding up. Ease out: % spent slowing down. The rest is steady.">
+      <select value={preset?.id ?? "custom"} disabled={!on} style={{ ...field, width: 96 }}
+        onChange={(e) => { const p = EASE_PRESETS.find((x) => x.id === e.target.value); if (p) onChange({ ease_in: p.in, ease_out: p.out }); }}>
+        {EASE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        {!preset && <option value="custom">custom</option>}
+      </select>
+      <span style={sys(500, 10.5, C.t5)}>in</span>
+      <input type="number" min={0} max={100} step={5} value={ein} disabled={!on} style={num}
+        onChange={(e) => { const v = pct(e.target.value); onChange({ ease_in: v, ease_out: Math.min(eout, 100 - v) }); }} />
+      <span style={sys(500, 10.5, C.t5)}>out</span>
+      <input type="number" min={0} max={100} step={5} value={eout} disabled={!on} style={num}
+        onChange={(e) => { const v = pct(e.target.value); onChange({ ease_out: v, ease_in: Math.min(ein, 100 - v) }); }} />
+      <span style={sys(500, 10.5, C.t5)}>%</span>
+    </span>
   );
 }
 

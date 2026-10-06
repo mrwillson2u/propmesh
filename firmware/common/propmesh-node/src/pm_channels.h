@@ -26,7 +26,7 @@ bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value);
 // then lands on the line, not at its start). Takes over from the
 // servo's smoothing until it ends. False for other kinds / no channel.
 bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
-                     uint32_t dur_ms, uint8_t ease);
+                     uint32_t dur_ms, uint8_t ease_in, uint8_t ease_out);
 
 // Cancel every running ramp, leaving outputs where they are.
 void pm_channels_freeze();
