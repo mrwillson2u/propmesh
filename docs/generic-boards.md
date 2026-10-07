@@ -581,6 +581,24 @@ bonus for when the laptop's network happens to reach.
 - **Simulated mesh:** `ota` "downloads" for 6 s; the node then reports the
   build named by the URL's last path segment.
 
+## 6d. WiFi bridge — decided 2026-10-07, not yet built
+
+The bridge joins Colin's home WiFi so the console reaches it over the
+network (and, later, is served by it — software-plan §5). ESP-NOW shares
+the one radio and a station follows its AP's channel, so **the mesh
+follows the bridge**: the bridge announces its current channel in its
+heartbeats; a node that stops hearing the bridge for ~30 s scans channels
+1–13 for heartbeats and moves. The router may hop channels whenever it
+likes; nothing is pinned. Fallback for show night away from a router: the
+bridge as its own access point on the mesh channel (nearly free once the
+WiFi stack is in). Rejected: a two-radio bridge (second ESP32 over
+serial) — a dead end for the one-radio Pro board.
+
+Costs to design around: airtime shared with the router (negligible for
+console traffic; a modest slowdown during a firmware push), and the
+"lost the bridge" case must not make nodes wander mid-show — test that
+first. Order: after the 921600 rollout.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
