@@ -5,7 +5,9 @@
 #
 # Keys must match ChannelKind in schema/messages.yaml (genboards checks).
 # `pins`: one entry per GPIO the function takes; `need` is the pin
-# capability it requires (see boards/<board>.yaml `caps`).
+# capability it requires (see boards/<board>.yaml `caps`). An empty
+# list is a virtual output that uses no pin (BLE_LIGHT).
+# `ble`: the node's Bluetooth radio is used.
 # `ledc`: LEDC channels consumed per instance (counts against the
 # board's ledc_channels). `rmt`: RMT TX channels consumed.
 # Value range is what `set` accepts for a channel of this kind.
@@ -42,3 +44,8 @@ functions:
     label: Sensor / button input
     pins: [{role: IN, need: in}]
     value: {min: 0, max: 1}
+  BLE_LIGHT:
+    label: BLE flood light (BRMesh)
+    pins: []
+    ble: true
+    value: {min: 0, max: 16777215}   # 0xRRGGBB; 0 = off

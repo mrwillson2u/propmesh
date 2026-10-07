@@ -522,7 +522,9 @@ Sep 2026, field season Oct 2026, Mini v0.1 Nov–Dec, launch Sep 2027.
 | **Sep 2027** | Ship. Console v2 features (graph editor) are post-ship | ship |
 
 **De-scope line (protect the ship date):** v1 ships without Blueprint
-drawing tools, Node-RED nodes, ESPHome, MQTT, BRMesh adapter, projector
+drawing tools, Node-RED nodes, ESPHome, MQTT, BRMesh adapter (*built
+early for October 2026 as the `BLE_LIGHT` output on generic boards —
+docs/generic-boards.md §6a; BLE as a peripheral output, not the mesh*), projector
 node, and multi-hop streaming. **Show Graph and Timeline are both v1**
 — triggers-to-actions and action-authoring are the two halves of the
 product's core, and neither is an extra — **and the Timeline's live

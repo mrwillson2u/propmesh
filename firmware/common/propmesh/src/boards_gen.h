@@ -56,8 +56,9 @@ static const pm_function_t PM_FUNCTIONS[] = {
     {PM_CHANNEL_KIND_MOTOR, "MOTOR", 2, {PM_CAP_OUT, PM_CAP_OUT}, {"IN1", "IN2"}, 2, 0, 25000, -1000, 1000},
     {PM_CHANNEL_KIND_LED_STRIP, "LED_STRIP", 1, {PM_CAP_OUT}, {"DATA"}, 0, 1, 0, 0, 16777215},
     {PM_CHANNEL_KIND_DIGITAL_IN, "DIGITAL_IN", 1, {PM_CAP_IN}, {"IN"}, 0, 0, 0, 0, 1},
+    {PM_CHANNEL_KIND_BLE_LIGHT, "BLE_LIGHT", 0, {0}, {nullptr}, 0, 0, 0, 0, 16777215},
 };
-#define PM_FUNCTION_COUNT 6
+#define PM_FUNCTION_COUNT 7
 
 // ESP32 DevKit V1 (30-pin) — ESP32-WROOM-32
 static const pm_board_pin_t PM_BOARD_ESP32_DEVKIT_V1_PINS[] = {

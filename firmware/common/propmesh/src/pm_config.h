@@ -44,6 +44,7 @@ struct PmChannelCfg {
   // cruise speed, and time to reach that speed. 0/0 = snap (default).
   uint16_t travel_ms = 0;
   uint16_t ease_ms = 0;
+  uint8_t light_id = 1;           // BLE_LIGHT: the light's number in the BRMesh app
   uint16_t pixels = 30;           // LED_STRIP
 };
 
@@ -53,6 +54,10 @@ struct PmNodeConfig {
   // the mesh's clock (it outranks every plain node in the conductor
   // election). docs/generic-boards.md §1.
   bool bridge = false;
+  // BRMesh BLE lights (BLE_LIGHT channels): the 4-byte key from the
+  // BRMesh app. A secret of sorts — kept only here, never in the repo.
+  bool has_brmesh_key = false;
+  uint8_t brmesh_key[4] = {};
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

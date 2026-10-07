@@ -9,6 +9,7 @@ import { Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
+import { isColour } from "../../lib/nodeConfig";
 import Timeline, { type Output } from "./Timeline";
 import {
   EASE_PRESETS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
@@ -36,7 +37,7 @@ const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) 
 // Kinds whose step slider drives the real output while you drag it.
 // Relays and motors are left to the Test button: a fogger clicking on
 // or a motor spinning as a slider moves would be a surprise.
-const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP"];
+const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "BLE_LIGHT"];
 
 const clock = (t: number) => new Date(t).toTimeString().slice(0, 8);
 
@@ -592,7 +593,7 @@ function ValueInput({ kind, value, onChange }: { kind: ChannelKindName; value: n
         <option value={0}>off</option>
       </select>
     );
-  if (kind === "LED_STRIP")
+  if (isColour(kind))
     return (
       <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input type="color" value={hex(value)} onChange={(e) => onChange(parseInt(e.target.value.slice(1), 16))}

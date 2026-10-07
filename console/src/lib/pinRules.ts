@@ -59,6 +59,12 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
     }
     if (c.kind === "SERVO" && ((c.travel_ms ?? 0) > MAX_TRAVEL_MS || (c.ease_ms ?? 0) > MAX_EASE_MS))
       add("servo_motion", true, i);
+    if (c.kind === "BLE_LIGHT") {
+      if (!(c.light && c.light >= 1 && c.light <= 255)) add("ble_light_id", true, i);
+      if (cfg.channels.slice(0, i).some((o) => o.kind === "BLE_LIGHT" && o.light === c.light)) add("ble_light_dup", true, i);
+      if (!/^[0-9a-fA-F]{8}$/.test(cfg.brmesh_key ?? "") && !out.some((x) => x.code === "ble_no_key"))
+        add("ble_no_key", true, -1); // once per board
+    }
     if (c.kind === "LED_STRIP") {
       const n = c.pixels ?? 30;
       if (!(n >= 1 && n <= STRIP_MAX_PIXELS)) add("pixel_count", true, i);
@@ -88,6 +94,9 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "no_pull": return `${who}: ${pin} has no internal pull resistor — set pull to "none" and add one externally`;
     case "servo_range": return `${who}: min and max must each be ${SERVO_MIN_US}–${SERVO_MAX_US} µs and at least ${SERVO_MIN_TRAVEL_US} µs apart`;
     case "servo_motion": return `${who}: smoothing must be at most ${MAX_TRAVEL_MS / 1000} s per sweep and ${MAX_EASE_MS / 1000} s to reach speed`;
+    case "ble_light_id": return `${who}: light number must be 1–255 (the number the BRMesh app gives the light)`;
+    case "ble_light_dup": return `${who}: another light on this board already uses number ${c?.light}`;
+    case "ble_no_key": return "Bluetooth lights need the BRMesh key (8 hex digits) — enter it above the light list";
     case "pixel_count": return `${who}: pixel count must be 1–${STRIP_MAX_PIXELS}`;
     case "pwm_budget": return `Too many PWM outputs — this board has ${board.ledcChannels} PWM channels (a motor uses 2)`;
     case "strip_budget": return `Too many LED strips — this board drives ${board.rmtTxChannels}`;

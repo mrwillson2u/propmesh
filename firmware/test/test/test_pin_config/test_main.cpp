@@ -322,6 +322,38 @@ static void test_bridge_flag_round_trips() {
   TEST_ASSERT_TRUE(out["bridge"].as<bool>());
 }
 
+// BLE lights use no pin; they need the BRMesh key and distinct numbers.
+static void test_ble_light_rules() {
+  PmChannelCfg a; a.kind = PM_CHANNEL_KIND_BLE_LIGHT; a.index = 1; a.light_id = 1;
+  PmChannelCfg b = a; b.index = 2; b.light_id = 2;
+  PmNodeConfig c = cfg({a, b});
+  TEST_ASSERT_TRUE(pm_validate(B, c).has("ble_no_key"));
+  c.has_brmesh_key = true;
+  TEST_ASSERT_EQUAL(0, pm_validate(B, c).count);
+  c.channels[1].light_id = 1;
+  TEST_ASSERT_TRUE(pm_validate(B, c).has("ble_light_dup"));
+  c.channels[1].light_id = 0;
+  TEST_ASSERT_TRUE(pm_validate(B, c).has("ble_light_id"));
+}
+
+static void test_ble_light_json() {
+  JsonDocument d, out;
+  deserializeJson(d, "{\"brmesh_key\":\"5a13c79e\",\"channels\":[{\"kind\":\"BLE_LIGHT\",\"index\":1,\"label\":\"porch flood\",\"pins\":[],\"light\":3}]}");
+  PmNodeConfig c;
+  TEST_ASSERT_NULL(pm_config_from_json(d.as<JsonVariantConst>(), c));
+  TEST_ASSERT_TRUE(c.has_brmesh_key);
+  TEST_ASSERT_EQUAL_HEX8(0x5a, c.brmesh_key[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x9e, c.brmesh_key[3]);
+  TEST_ASSERT_EQUAL(3, c.channels[0].light_id);
+  TEST_ASSERT_EQUAL(0, c.channels[0].pin_count);
+  TEST_ASSERT_EQUAL(0, pm_validate(B, c).count);
+  pm_config_to_json(c, out.to<JsonObject>());
+  TEST_ASSERT_EQUAL_STRING("5a13c79e", out["brmesh_key"]);
+  TEST_ASSERT_EQUAL(3, out["channels"][0]["light"].as<int>());
+  deserializeJson(d, "{\"brmesh_key\":\"5a13zz9e\",\"channels\":[]}");
+  TEST_ASSERT_NOT_NULL(pm_config_from_json(d.as<JsonVariantConst>(), c));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_plain_config_is_clean);
@@ -355,5 +387,7 @@ int main() {
   RUN_TEST(test_long_label_truncated_not_overflowed);
   RUN_TEST(test_bridge_with_pins_rejected);
   RUN_TEST(test_bridge_flag_round_trips);
+  RUN_TEST(test_ble_light_rules);
+  RUN_TEST(test_ble_light_json);
   return UNITY_END();
 }

@@ -18,7 +18,11 @@ export interface ChannelCfg {
   travel_ms?: number; // SERVO smoothing: full sweep at cruise, 0 = snap
   ease_ms?: number; // SERVO smoothing: time to reach cruise speed
   pixels?: number; // LED_STRIP
+  light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
+
+// Outputs whose value is a colour (0xRRGGBB, 0 = off) rather than a level.
+export const isColour = (kind: string) => kind === "LED_STRIP" || kind === "BLE_LIGHT";
 
 export interface NodeConfig {
   v: 1;
@@ -26,6 +30,7 @@ export interface NodeConfig {
   // A bridge drives no pins: it is the console's way into the mesh and
   // the mesh's clock. docs/generic-boards.md §1.
   bridge?: boolean;
+  brmesh_key?: string; // 8 hex digits from the BRMesh app, for BLE_LIGHT channels
   channels: ChannelCfg[];
 }
 

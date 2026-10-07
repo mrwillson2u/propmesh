@@ -6,6 +6,7 @@
 #include "pm_config_store.h"
 #include "pm_channels.h"
 #include "pm_show.h"
+#include "pm_ble_tx.h"
 
 static const pm_board_t *board;
 
@@ -126,5 +127,14 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "state")) cmd_state(resp);
   else if (!strcmp(cmd, "all_off")) { pm_show_stop(); pm_channels_all_off(); }
   else if (!strcmp(cmd, "mesh")) cmd_mesh(resp);
+  else if (!strcmp(cmd, "ble")) {
+    PmBleStats b = pm_ble_stats();
+    resp["running"] = b.running;
+    resp["bursts"] = b.bursts;          // colour commands put on air
+    resp["cmd_ok"] = b.cmd_ok;          // HCI commands the controller confirmed
+    resp["cmd_failed"] = b.cmd_failed;
+    resp["last_status"] = b.last_status;
+    resp["last_opcode"] = b.last_opcode;
+  }
   else if (!pm_show_handle(cmd, req, resp)) fail(resp, "unknown command");
 }

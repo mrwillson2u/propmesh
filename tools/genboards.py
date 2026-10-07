@@ -47,8 +47,8 @@ def validate(funcs, boards, enums, consts):
         errs.append(f"functions.yaml keys {sorted(funcs)} != ChannelKind "
                     f"{sorted(kinds)} in schema/messages.yaml")
     for name, f in funcs.items():
-        if not 1 <= len(f["pins"]) <= MAX_FN_PINS:
-            errs.append(f"{name}: needs 1..{MAX_FN_PINS} pins")
+        if not 0 <= len(f["pins"]) <= MAX_FN_PINS:
+            errs.append(f"{name}: needs 0..{MAX_FN_PINS} pins")
         for p in f["pins"]:
             if p["need"] not in CAPS:
                 errs.append(f"{name}: unknown capability '{p['need']}'")
@@ -173,8 +173,8 @@ def render_c(funcs, boards, enums):
     for name in sorted(funcs, key=lambda n: kinds[n]):
         f = funcs[name]
         pins = f["pins"]
-        need = ", ".join(f"PM_CAP_{p['need'].upper()}" for p in pins)
-        role = ", ".join(cstr(p["role"]) for p in pins)
+        need = ", ".join(f"PM_CAP_{p['need'].upper()}" for p in pins) or "0"
+        role = ", ".join(cstr(p["role"]) for p in pins) or "nullptr"
         L.append(f"    {{PM_CHANNEL_KIND_{name}, {cstr(name)}, {len(pins)}, "
                  f"{{{need}}}, {{{role}}}, {f.get('ledc', 0)}, {f.get('rmt', 0)}, "
                  f"{f.get('pwm_hz', 0)}, {f['value']['min']}, {f['value']['max']}}},")

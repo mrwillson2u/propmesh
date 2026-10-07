@@ -6,6 +6,7 @@
 import type { ChannelKindName } from "./boards_gen";
 import { canRamp, newUid, type Sequence, type Step } from "./show";
 import { ease } from "./ease";
+import { isColour } from "./nodeConfig";
 
 export { ease };
 
@@ -32,7 +33,7 @@ export function tracks(seq: Sequence): Track[] {
 
 // Value range per kind, for the y axis.
 export function range(kind: ChannelKindName): [number, number] {
-  return kind === "MOTOR" ? [-1000, 1000] : kind === "RELAY" ? [0, 1] : kind === "LED_STRIP" ? [0, 0xffffff] : [0, 1000];
+  return kind === "MOTOR" ? [-1000, 1000] : kind === "RELAY" ? [0, 1] : isColour(kind) ? [0, 0xffffff] : [0, 1000];
 }
 
 // The track's value at time t, or null before anything has set it

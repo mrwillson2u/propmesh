@@ -6,6 +6,8 @@
 // is safe to apply. Header-only: tested host-native.
 #pragma once
 #include <ArduinoJson.h>
+#include <ctype.h>
+#include <stdio.h>
 #include "pm_config.h"
 
 // Returns nullptr on success, else a short reason.
@@ -14,6 +16,19 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   if (!root.is<JsonObjectConst>()) return "config is not an object";
   pm_copy(out.name, root["name"] | "", sizeof(out.name));
   out.bridge = root["bridge"] | false;
+  // "brmesh_key": 8 hex digits, e.g. "5a13c79e"
+  const char *key = root["brmesh_key"] | "";
+  if (*key) {
+    if (strlen(key) != 8) return "brmesh_key must be 8 hex digits";
+    for (int i = 0; i < 4; i++) {
+      unsigned v;
+      char two[3] = {key[2 * i], key[2 * i + 1], 0};
+      if (!isxdigit((unsigned char)two[0]) || !isxdigit((unsigned char)two[1])) return "brmesh_key must be 8 hex digits";
+      sscanf(two, "%2x", &v);
+      out.brmesh_key[i] = (uint8_t)v;
+    }
+    out.has_brmesh_key = true;
+  }
 
   JsonArrayConst chans = root["channels"];
   if (chans.size() > PM_MAX_CHANNELS) return "too many channels";
@@ -43,6 +58,9 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
     c.travel_ms = jc["travel_ms"] | c.travel_ms;
     c.ease_ms = jc["ease_ms"] | c.ease_ms;
     c.pixels = jc["pixels"] | c.pixels;
+    long light = jc["light"] | (long)c.light_id;
+    if (light < 0 || light > 255) return "light must be 1-255";
+    c.light_id = (uint8_t)light;
     out.channel_count++;
   }
   return nullptr;
@@ -54,6 +72,12 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root) {
   root["v"] = 1;
   root["name"] = cfg.name;
   root["bridge"] = cfg.bridge;
+  if (cfg.has_brmesh_key) {
+    char hex[9];
+    snprintf(hex, sizeof(hex), "%02x%02x%02x%02x", cfg.brmesh_key[0], cfg.brmesh_key[1],
+             cfg.brmesh_key[2], cfg.brmesh_key[3]);
+    root["brmesh_key"] = hex;
+  }
   JsonArray chans = root["channels"].to<JsonArray>();
   for (uint8_t i = 0; i < cfg.channel_count; i++) {
     const PmChannelCfg &c = cfg.channels[i];
@@ -81,6 +105,9 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root) {
         break;
       case PM_CHANNEL_KIND_LED_STRIP:
         jc["pixels"] = c.pixels;
+        break;
+      case PM_CHANNEL_KIND_BLE_LIGHT:
+        jc["light"] = c.light_id;
         break;
     }
   }

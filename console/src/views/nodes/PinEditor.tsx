@@ -7,7 +7,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
-  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, newChannel, pinRole,
+  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColour, newChannel, pinRole,
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
@@ -19,7 +19,9 @@ import type { NodeHello, NodeTarget } from "../../lib/transport";
 // left, so a narrow window squeezes them instead of clipping the test
 // controls off the right edge.
 const ROW = "64px minmax(150px, 200px) 92px minmax(100px, 150px) minmax(150px, 1fr) minmax(170px, 1fr)";
-const KINDS = Object.keys(FUNCTIONS) as ChannelKindName[];
+// Kinds a pin can be given. BLE lights use no pin — they get their own
+// section below the pins.
+const KINDS = (Object.keys(FUNCTIONS) as ChannelKindName[]).filter((k) => FUNCTIONS[k].pins.length > 0);
 
 const field: React.CSSProperties = {
   height: 28, padding: "0 8px", background: C.card, border: `1px solid ${C.b2}`,
@@ -319,7 +321,71 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
             </div>
           );
         })}
+        <BleLights draft={draft} setDraft={setDraft} values={values} dirty={dirty}
+          onFire={(c, v) => fire(c, v)} />
       </div>}
+    </div>
+  );
+}
+
+// BRMesh flood lights: no pins — the board broadcasts colours over
+// Bluetooth (firmware pm_ble_tx). One key per board, one row per light.
+function BleLights({ draft, setDraft, values, dirty, onFire }: {
+  draft: NodeConfig;
+  setDraft: React.Dispatch<React.SetStateAction<NodeConfig>>;
+  values: Record<string, number>;
+  dirty: boolean;
+  onFire: (c: ChannelCfg, v: number) => void;
+}) {
+  const lights = draft.channels.filter((c) => c.kind === "BLE_LIGHT");
+  const add = () => setDraft((d) => {
+    const used = new Set(d.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.light));
+    let light = 1;
+    while (used.has(light)) light++;
+    const c = newChannel(d, "BLE_LIGHT", 0);
+    return { ...d, channels: [...d.channels, { ...c, pins: [], light }] };
+  });
+  const patchLight = (c: ChannelCfg, p: Partial<ChannelCfg>) =>
+    setDraft((d) => ({ ...d, channels: d.channels.map((x) => (x === c ? { ...x, ...p } : x)) }));
+  const remove = (c: ChannelCfg) => setDraft((d) => ({ ...d, channels: d.channels.filter((x) => x !== c) }));
+  const keyOk = /^[0-9a-fA-F]{8}$/.test(draft.brmesh_key ?? "");
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.b1}` }}>
+        <span style={{ font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5 }}>BLUETOOTH LIGHTS</span>
+        <span style={sys(400, 11, C.t5)}>BRMesh flood lights — this board broadcasts their colour, no wiring</span>
+        <div style={{ flex: 1 }} />
+        <button onClick={add} style={btn()}>+ Add light</button>
+      </div>
+      {(lights.length > 0 || draft.brmesh_key) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #181c22" }}>
+          <span style={{ ...sys(500, 12, C.t3), width: 110 }}>BRMesh key</span>
+          <input value={draft.brmesh_key ?? ""} placeholder="8 hex digits" maxLength={8} spellCheck={false}
+            onChange={(e) => setDraft((d) => ({ ...d, brmesh_key: e.target.value.trim() || undefined }))}
+            style={{ ...field, width: 120, ...mono(600, 12, keyOk ? C.t1 : C.amber) }} />
+          <span style={sys(400, 11, C.t5)}>
+            From the BRMesh app (it's <code>my_key[]</code> in your old BRMeshToMQTT code). Stored on this board only.
+          </span>
+        </div>
+      )}
+      {lights.map((c) => (
+        <div key={c.index} style={{ display: "grid", gridTemplateColumns: "110px 120px 160px 1fr 24px", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #181c22" }}>
+          <span style={mono(600, 11.5, C.emberT)}>{channelCode(c)}</span>
+          <label style={optLabel} title="The light's number in the BRMesh app (1, 2, …)">light #
+            <input type="number" min={1} max={255} value={c.light ?? 1}
+              onChange={(e) => patchLight(c, { light: Math.max(0, Math.min(255, parseInt(e.target.value, 10) || 0)) })} style={num} />
+          </label>
+          <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?" onChange={(e) => patchLight(c, { label: e.target.value })} style={field} />
+          <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => onFire(c, v)} />
+          <span onClick={() => remove(c)} title="Remove light" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
+        </div>
+      ))}
+      {lights.length === 0 && (
+        <div style={{ ...sys(400, 11.5, C.t5), padding: "8px 0" }}>
+          None. Add one per flood light this board should control — put it on the board nearest the lights.
+        </div>
+      )}
     </div>
   );
 }
@@ -451,7 +517,7 @@ function Test({ c, value, disabled, onFire, cal }: {
         <span style={mono(700, 11, v ? C.green : C.t5)}>{v ? "● ON" : "○ OFF"}</span>
       </span>
     );
-  if (c.kind === "LED_STRIP")
+  if (isColour(c.kind))
     return (
       <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>
         <input type="color" value={hex(v)} onChange={(e) => onFire(parseInt(e.target.value.slice(1), 16))}

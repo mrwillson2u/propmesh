@@ -259,6 +259,47 @@ Issue codes (shared by `pm_pinrules.h` and `pinRules.ts`):
 `unknown_kind`, `servo_range`, `pixel_count`, `pwm_budget`,
 `strip_budget`, `too_many_channels`.
 
+## 6a. Bluetooth flood lights (BRMesh, 2026-10-06)
+
+Cheap BRMesh RGB flood lights are controlled by BLE **advertisements**
+— no pairing, no connection, nothing comes back — carrying a whitened,
+key-XORed, CRC'd payload (manufacturer id 0xFFF0). A node with
+`BLE_LIGHT` channels broadcasts them; one node near the floods is
+enough (the lights relay among themselves).
+
+- **Channel:** `BLE_LIGHT_n`, **no pin**; config `light` = the light's
+  number in the BRMesh app. Value `0xRRGGBB`, 0 = off; brightness comes
+  from the colour's peak (the colour goes out at full scale with a
+  0–127 brightness, as the lights expect). Shows up everywhere an
+  output does: test colour picker, sequences and the timeline (colour
+  steps, like strips), live preview, STOP ALL (turns them off).
+- **Key:** node config `brmesh_key` = 8 hex digits from the BRMesh app
+  (adb logcat — Colin's is `my_key[]` in the gitignored
+  `reference/old_files/BRMeshToMQTT2/src/main.cpp`). Stored on the node
+  only, never in the repo. Missing key → `ble_no_key`; light numbers
+  1–255 (`ble_light_id`), unique per board (`ble_light_dup`).
+- **Encoder:** `pm_brmesh.h`, header-only; host tests compare it
+  **byte-for-byte** with the reference code that drove the lights.
+- **Radio:** no Bluetooth host stack — `pm_ble_tx.cpp` drives the BLE
+  controller directly over VHCI with three HCI commands (advertising
+  parameters 20 ms / non-connectable, advertising data, enable). The
+  controller is started in BLE-only mode (the framework default is dual
+  mode; enable must match). `btInUse()` is overridden so the Arduino
+  core keeps the controller's memory (≈3 KB of heap observed). Each
+  light's newest colour goes out as a 200 ms advertising burst; a colour
+  that changes again before it went out replaces the queued one, so a
+  dragged picker never builds a backlog. Flash 78 % → 91 % of the app
+  partition.
+- **Measured** (Prop board, test light with a dummy key): controller
+  confirmed 125 HCI commands, 0 failed; 41 colour bursts for 50 colour
+  changes (merging); mesh requests during broadcasting 100/100, median
+  42 ms — same as without Bluetooth. Not yet seen on the real floods.
+- **API:** `{"cmd":"ble"}` → `running`, `bursts`, `cmd_ok`,
+  `cmd_failed`, `last_status`, `last_opcode` — "is the radio sending?"
+- **Console:** Nodes & Channels → a board → **Bluetooth lights**: key,
+  *+ Add light* (numbers 1, 2, … auto-assigned), name, test colour.
+  Put them on a prop board near the floods — the bridge stays pin-free.
+
 ## 6b. Sequences and triggers (Stage 3, 2026-10-05)
 
 **Model.** A *sequence* is show-wide (id 1–65535, a name) and is a list

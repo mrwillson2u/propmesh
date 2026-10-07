@@ -101,6 +101,13 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
     if (c.kind == PM_CHANNEL_KIND_SERVO &&
         (c.travel_ms > PM_MAX_TRAVEL_MS || c.ease_ms > PM_MAX_EASE_MS))
       out.add("servo_motion", true, i);
+    if (c.kind == PM_CHANNEL_KIND_BLE_LIGHT) {
+      if (c.light_id == 0) out.add("ble_light_id", true, i);
+      for (uint8_t j = 0; j < i; j++)
+        if (cfg.channels[j].kind == PM_CHANNEL_KIND_BLE_LIGHT && cfg.channels[j].light_id == c.light_id)
+          out.add("ble_light_dup", true, i);
+      if (!cfg.has_brmesh_key && !out.has("ble_no_key")) out.add("ble_no_key", true, -1);  // once per board
+    }
     if (c.kind == PM_CHANNEL_KIND_LED_STRIP &&
         (c.pixels == 0 || c.pixels > PM_STRIP_MAX_PIXELS))
       out.add("pixel_count", true, i);

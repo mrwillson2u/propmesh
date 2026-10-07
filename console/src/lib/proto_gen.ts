@@ -57,6 +57,7 @@ export const ChannelKind = {
   MOTOR: 4,
   LED_STRIP: 5,
   DIGITAL_IN: 6,
+  BLE_LIGHT: 7,
 } as const;
 export type ChannelKind = (typeof ChannelKind)[keyof typeof ChannelKind];
 

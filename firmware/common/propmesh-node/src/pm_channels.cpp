@@ -4,6 +4,7 @@
 #include "pm_motion.h"
 #include "pm_ramp.h"
 #include "pm_show_core.h"  // pm_kind_ramps
+#include "pm_ble_tx.h"
 
 // LEDC resolutions. The core shares one timer between channels with the
 // same (frequency, resolution), so three PWM classes cost three timers
@@ -91,6 +92,10 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       r.strip->begin();
       r.strip->show();
       break;
+    case PM_CHANNEL_KIND_BLE_LIGHT:
+      // No pin. The light keeps whatever it was showing until commanded.
+      ok = pm_ble_begin(active.brmesh_key);
+      break;
     case PM_CHANNEL_KIND_DIGITAL_IN:
       pinMode(c.pins[0], c.pull == PM_PULL_UP ? INPUT_PULLUP
                        : c.pull == PM_PULL_DOWN ? INPUT_PULLDOWN : INPUT);
@@ -153,6 +158,9 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
     case PM_CHANNEL_KIND_LED_STRIP:
       r.strip->fill((uint32_t)v & 0xFFFFFF);
       r.strip->show();
+      break;
+    case PM_CHANNEL_KIND_BLE_LIGHT:
+      pm_ble_light(c.light_id, (uint32_t)v & 0xFFFFFF);
       break;
   }
   r.value = v;
@@ -234,6 +242,7 @@ void pm_on_input(pm_input_handler_t handler) { input_handler = handler; }
 
 void pm_channels_loop() {
   uint32_t now = millis();
+  pm_ble_loop();
   uint32_t dt = now - last_motion_ms;
   if (dt >= MOTION_TICK_MS) {
     last_motion_ms = now;
