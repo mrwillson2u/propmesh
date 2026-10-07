@@ -5,7 +5,7 @@
 // docs/generic-boards.md §"Sequences and triggers".
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { Spinner, Toggle, mono, sys } from "../../ui";
+import { ColourPicker, Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
@@ -595,10 +595,9 @@ function ValueInput({ kind, value, onChange }: { kind: ChannelKindName; value: n
     );
   if (isColour(kind))
     return (
-      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <input type="color" value={hex(value)} onChange={(e) => onChange(parseInt(e.target.value.slice(1), 16))}
-          style={{ width: 44, height: 28, padding: 0, background: "none", border: `1px solid ${C.b2}`, borderRadius: 5 }} />
-        <span style={mono(500, 11, C.t4)}>{hex(value)}{value === 0 ? " (off)" : ""}</span>
+      <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 8 }}>
+        <ColourPicker value={value} onChange={onChange} />
+        <span style={{ ...mono(500, 11, C.t4), flex: "none" }}>{hex(value)}{value === 0 ? " (off)" : ""}</span>
       </span>
     );
   const pct = Math.round(value / 10);

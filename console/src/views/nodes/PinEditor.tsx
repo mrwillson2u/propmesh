@@ -4,7 +4,7 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { Spinner, Toggle, mono, sys } from "../../ui";
+import { ColourPicker, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
   EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColour, newChannel, pinRole,
@@ -621,9 +621,8 @@ function Test({ c, value, disabled, onFire, cal }: {
     );
   if (isColour(c.kind))
     return (
-      <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>
-        <input type="color" value={hex(v)} onChange={(e) => onFire(parseInt(e.target.value.slice(1), 16))}
-          style={{ width: 44, height: 28, padding: 0, background: "none", border: `1px solid ${C.b2}`, borderRadius: 5 }} />
+      <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 10, ...dim }}>
+        <ColourPicker value={v} onChange={onFire} />
         <button onClick={() => onFire(0)} style={btn()}>Off</button>
         {readout(hex(v))}
       </span>
