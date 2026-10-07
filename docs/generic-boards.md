@@ -547,8 +547,11 @@ bonus for when the laptop's network happens to reach.
   1.28 MB image. At 115200 baud the cable cost ~150 s on its own (6 min a
   board in all), so the boards talk at **921600** since 2026-10-07
   (`PM_SERIAL_BAUD`; the console tries 921600 then 115200), leaving the
-  mesh as the limit (~3–3.5 min a board). The board reboots 1 s after
-  acknowledging `ota_end`.
+  mesh as the limit. **Measured 2026-10-07 on Prop (one hop): ~6 min at
+  115200, ~3.5 min at 921600**, both verified by SHA-256 on the board and
+  a clean reboot into the new image. The board reboots 1 s after
+  acknowledging `ota_end`. Next lever is the mesh side: broadcast chunks
+  to every board at once, so N boards take the time of one.
   Console: `lib/ota.ts` (`streamImage`), image from `ota_serve.py`'s URL
   (CORS) or a local .bin.
 - **Over WiFi (bonus):** below.
