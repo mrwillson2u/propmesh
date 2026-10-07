@@ -13,9 +13,11 @@ extern "C" bool btInUse() { return true; }
 #define TX_GAP_MS 15       // between bursts, so a light sees distinct frames
 #define MAX_LIGHTS 16
 #define MAX_FOUND 16
+#define MAX_RAW 8
 
 static bool started, failed;
 static uint8_t key[4];
+static bool key_set;
 static uint8_t seq;
 static bool advertising;
 static uint32_t until_ms;
@@ -31,6 +33,9 @@ static int pair_target = -1;
 static void (*paired_cb)(uint8_t, const char *);
 
 static volatile uint32_t cmd_ok, cmd_failed, bursts, heard, reports;
+static uint8_t pair_key_match;
+static PmBleRaw raws[MAX_RAW];
+static volatile uint8_t raw_n;
 static volatile uint8_t last_status;
 static volatile uint16_t last_opcode, failed_opcode;
 static volatile uint8_t failed_status;
@@ -44,9 +49,17 @@ static QueueHandle_t rxq;
 
 static void on_send_available() {}
 
+// Phone and laptop chatter, left out of the "others" list: Apple,
+// Microsoft, Samsung, Google company ids (little-endian).
+static bool noisy_company(const uint8_t *id) {
+  return id[1] == 0 && (id[0] == 0x4C || id[0] == 0x06 || id[0] == 0x75 || id[0] == 0xE0);
+}
+
 // Runs on the controller's task: count Command Complete events, and pass
 // on 18-byte manufacturer-data adverts (what a BRMesh light sends) while
-// finding or pairing.
+// finding or pairing. While searching, anything else that isn't phone
+// chatter is kept (last MAX_RAW addresses) so an unrecognised light still
+// shows up somewhere.
 static int on_receive(uint8_t *d, uint16_t len) {
   if (len >= 7 && d[0] == 0x04 && d[1] == 0x0E) {
     last_opcode = d[4] | d[5] << 8;
@@ -63,6 +76,7 @@ static int on_receive(uint8_t *d, uint16_t len) {
   if (14 + dlen + 1 > len) return 0;
   const uint8_t *ad = d + 14;
   int8_t rssi = (int8_t)d[14 + dlen];
+  bool light = false, noise = false;
   for (uint8_t i = 0; i + 1 < dlen;) {
     uint8_t flen = ad[i];
     if (!flen || i + 1 + flen > dlen) break;
@@ -72,10 +86,24 @@ static int on_receive(uint8_t *d, uint16_t len) {
       h.rssi = rssi;
       memcpy(h.mdata, ad + i + 2, 18);
       heard++;
+      light = true;
       if (rxq) xQueueSend(rxq, &h, 0);
+    } else if (ad[i + 1] == 0xFF && flen >= 3 && noisy_company(ad + i + 2)) {
+      noise = true;
     }
     i += 1 + flen;
   }
+  if (light || noise || mode != PM_BLE_SCANNING || !dlen) return 0;
+  uint8_t at = raw_n;
+  for (uint8_t i = 0; i < raw_n; i++) if (!memcmp(raws[i].addr, addr, 6)) at = i;
+  if (at == raw_n) {
+    if (raw_n >= MAX_RAW) return 0;
+    raw_n++;
+  }
+  memcpy(raws[at].addr, addr, 6);
+  raws[at].rssi = rssi;
+  raws[at].len = dlen > 31 ? 31 : dlen;
+  memcpy(raws[at].ad, ad, raws[at].len);
   return 0;
 }
 static esp_vhci_host_callback_t callbacks = {on_send_available, on_receive};
@@ -153,7 +181,10 @@ bool pm_ble_start() {
 }
 
 bool pm_ble_running() { return started; }
-void pm_ble_set_key(const uint8_t k[4]) { memcpy(key, k, 4); }
+void pm_ble_set_key(const uint8_t k[4]) {
+  memcpy(key, k, 4);
+  key_set = k[0] || k[1] || k[2] || k[3];
+}
 
 void pm_ble_light(uint8_t light, uint32_t rgb) {
   int free_slot = -1;
@@ -186,8 +217,11 @@ void pm_ble_scan_duty(uint16_t window_ms, uint16_t interval_ms) {
   scan_window_ms = window_ms;
   scan_interval_ms = interval_ms;
 }
-static bool apply_scan_params() {
+// `full`: listen all the time — for the few seconds of a pairing, where the
+// light's one confirmation matters more than answering the mesh.
+static bool apply_scan_params(bool full = false) {
   uint16_t iv = scan_interval_ms * 1000 / 625, wn = scan_window_ms * 1000 / 625;  // 0.625 ms units
+  if (full) wn = iv;
   const uint8_t sp[7] = {0x01, (uint8_t)iv, (uint8_t)(iv >> 8), (uint8_t)wn, (uint8_t)(wn >> 8), 0x00, 0x00};
   return hci(LE_SET_SCAN_PARAMS, sp, sizeof(sp));
 }
@@ -200,6 +234,7 @@ bool pm_ble_scan(uint32_t ms) {
   uint8_t keep = 0;
   for (uint8_t i = 0; i < found_n; i++) if (found[i].state == PM_BLE_PAIRED) found[keep++] = found[i];
   found_n = keep;
+  raw_n = 0;
   uint8_t adv[PM_BRMESH_ADV_LEN];
   pm_brmesh_wake(++seq, adv);
   if (!adv_data(adv) || !adv_enable(true) || !scan_enable(true)) return false;
@@ -208,18 +243,21 @@ bool pm_ble_scan(uint32_t ms) {
   return true;
 }
 
-bool pm_ble_pair(const uint8_t addr[6], uint8_t number, uint32_t ms) {
+bool pm_ble_pair(const uint8_t mac[6], uint8_t number, uint32_t ms) {
   if (!pm_ble_start() || mode == PM_BLE_PAIRING) return false;
   int t = -1;
-  for (uint8_t i = 0; i < found_n; i++) if (!memcmp(found[i].addr, addr, 6)) t = i;
+  for (uint8_t i = 0; i < found_n; i++) if (!memcmp(found[i].seen.mac, mac, 6)) t = i;
   if (t < 0) return false;
   stop_radio();
-  apply_scan_params();
+  apply_scan_params(true);
   found[t].state = PM_BLE_PAIR_WAIT;
   found[t].number = number;
+  found[t].acked = false;
   pair_target = t;
   uint8_t adv[PM_BRMESH_ADV_LEN];
-  pm_brmesh_add(found[t].seen.mac, number, key, ++seq, adv);
+  // Encoded with the key the light holds now: the default if unpaired,
+  // otherwise the one it advertised — that's how a take-over works.
+  pm_brmesh_add(found[t].seen.mac, number, key, ++seq, adv, found[t].seen.key);
   if (!adv_data(adv) || !adv_enable(true) || !scan_enable(true)) return false;
   mode = PM_BLE_PAIRING;
   mode_until = millis() + ms;
@@ -232,33 +270,73 @@ uint32_t pm_ble_remaining_ms() {
   return mode == PM_BLE_IDLE || left < 0 ? 0 : (uint32_t)left;
 }
 uint8_t pm_ble_found(const PmBleLight **list) { *list = found; return found_n; }
+uint8_t pm_ble_others(const PmBleRaw **list) { *list = raws; return raw_n; }
 void pm_ble_on_paired(void (*cb)(uint8_t, const char *)) { paired_cb = cb; }
+
+// Lights share one placeholder Bluetooth address, so match on the
+// key-independent identity in the data — or on the raw mac field, in case
+// the identity turns out not to survive a key change.
+static int find_light(const uint8_t id[8], const uint8_t mac[6]) {
+  for (uint8_t i = 0; i < found_n; i++)
+    if (!memcmp(found[i].id, id, 8) || !memcmp(found[i].seen.mac, mac, 6)) return i;
+  return -1;
+}
 
 static void handle_heard(const Heard &h) {
   PmBrmeshSeen s;
   if (!pm_brmesh_parse(h.mdata, 18, s)) return;
-  int at = -1;
-  for (uint8_t i = 0; i < found_n; i++) if (!memcmp(found[i].addr, h.addr, 6)) at = i;
+  uint8_t id[8];
+  pm_brmesh_id(h.mdata, s.key, id);
+  int at = find_light(id, s.mac);
   if (mode == PM_BLE_SCANNING) {
-    if (!pm_brmesh_unpaired(s)) return;  // paired to someone else's key: not ours to take
     if (at < 0) {
       if (found_n >= MAX_FOUND) return;
       at = found_n++;
       memcpy(found[at].addr, h.addr, 6);
-      found[at].state = PM_BLE_FOUND;
+      memcpy(found[at].id, id, 8);
       found[at].number = 0;
+      found[at].acked = false;
+    } else if (found[at].state == PM_BLE_PAIRED) {
+      found[at].rssi = h.rssi;
+      memcpy(found[at].raw, h.mdata, 18);
+      return;
     }
     found[at].seen = s;
     found[at].rssi = h.rssi;
-  } else if (mode == PM_BLE_PAIRING && at == pair_target && !pm_brmesh_unpaired(s)) {
-    // It came back advertising a key that isn't the default: ours.
-    found[at].state = PM_BLE_PAIRED;
-    found[at].rssi = h.rssi;
+    memcpy(found[at].raw, h.mdata, 18);
+    if (pm_brmesh_unpaired(s)) {
+      found[at].state = PM_BLE_FOUND;
+    } else if (key_set && !memcmp(s.key, key, 4)) {
+      // Already on our key: a pairing whose confirmation we missed. Adopt it.
+      found[at].state = PM_BLE_PAIRED;
+      found[at].acked = true;
+      found[at].number = pm_brmesh_number(h.mdata, key);
+      if (paired_cb && found[at].number) paired_cb(found[at].number, pm_brmesh_type_name(s));
+    } else {
+      found[at].state = PM_BLE_OTHER;
+    }
+  } else if (mode == PM_BLE_PAIRING && pair_target >= 0) {
+    // Only the light we're pairing, and only once its key has changed from
+    // the one it held when found — another light already on our key must
+    // not confirm for it.
+    PmBleLight &t = found[pair_target];
+    if (at != pair_target && memcmp(s.mac, t.seen.mac, 6)) {
+      uint8_t ours[8];
+      pm_brmesh_id(h.mdata, key, ours);
+      if (memcmp(ours, t.id, 8)) return;
+    }
+    if (!memcmp(s.key, t.seen.key, 4)) return;
+    pair_key_match = !memcmp(s.key, key, 4) ? 1 : 2;
+    t.state = PM_BLE_PAIRED;
+    t.acked = true;
+    t.rssi = h.rssi;
+    memcpy(t.raw, h.mdata, 18);
+    memcpy(t.seen.key, s.key, 4);
     uint8_t n = pm_brmesh_number(h.mdata, key);
-    if (n) found[at].number = n;
+    if (n) t.number = n;
     stop_radio();
     mode = PM_BLE_IDLE;
-    if (paired_cb) paired_cb(found[at].number, pm_brmesh_type_name(found[at].seen.type));
+    if (paired_cb) paired_cb(t.number, pm_brmesh_type_name(t.seen));
   }
 }
 
@@ -272,10 +350,17 @@ void pm_ble_loop() {
     Heard h;
     while (rxq && xQueueReceive(rxq, &h, 0) == pdTRUE) handle_heard(h);
     if (mode != PM_BLE_IDLE && (int32_t)(now - mode_until) >= 0) {
-      if (mode == PM_BLE_PAIRING && pair_target >= 0) found[pair_target].state = PM_BLE_PAIR_FAILED;
       stop_radio();
       mode = PM_BLE_IDLE;
       until_ms = now + TX_GAP_MS;
+      if (pair_target >= 0 && found[pair_target].state == PM_BLE_PAIR_WAIT) {
+        // The burst went out; lights don't answer. Count it as paired.
+        PmBleLight &t = found[pair_target];
+        t.state = PM_BLE_PAIRED;
+        memcpy(t.seen.key, key, 4);
+        if (paired_cb) paired_cb(t.number, pm_brmesh_type_name(t.seen));
+      }
+      pair_target = -1;
     }
     return;  // colours wait while finding/pairing
   }
@@ -308,5 +393,5 @@ void pm_ble_loop() {
 }
 
 PmBleStats pm_ble_stats() {
-  return {started, bursts, cmd_ok, cmd_failed, last_status, last_opcode, failed_opcode, failed_status, heard, reports};
+  return {started, bursts, cmd_ok, cmd_failed, last_status, last_opcode, failed_opcode, failed_status, heard, reports, pair_key_match};
 }

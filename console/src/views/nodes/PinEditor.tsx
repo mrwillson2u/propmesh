@@ -359,6 +359,7 @@ function BleLights({ draft, setDraft, values, dirty, onFire, node, reload }: {
         <span style={{ font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5 }}>BLUETOOTH LIGHTS</span>
         <span style={sys(400, 11, C.t5)}>BRMesh flood lights — this board broadcasts their colour, no wiring</span>
         <div style={{ flex: 1 }} />
+        {dirty && <span style={mono(600, 11, C.amber)}>save or revert your changes to find lights</span>}
         <button onClick={() => setFinding(!finding)} disabled={dirty}
           title={dirty ? "Save or revert your changes first — pairing adds lights to the saved config" : "Find unpaired lights and pair them to this board"}
           style={btn(!finding, dirty)}>{finding ? "Close" : "Find lights…"}</button>
@@ -398,10 +399,12 @@ function BleLights({ draft, setDraft, values, dirty, onFire, node, reload }: {
   );
 }
 
-// Find + pair BRMesh lights from this board (firmware pm_ble_tx). Lights
-// answer only while unpaired; the board makes its own key on the first
-// pairing, saves it, and adds each paired light as a BLE_LIGHT output.
-interface FoundLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed"; number?: number }
+// Find + pair BRMesh lights from this board (firmware pm_ble_tx). Every
+// light heard is listed: unpaired ("found"), holding another controller's
+// key ("other" — pairing it is a take-over), or already on this board's
+// key ("paired" — adopted on the spot). The board makes its own key on
+// the first pairing, saves it, and adds each paired light as a BLE_LIGHT.
+interface FoundLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; acked?: boolean }
 
 function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promise<void> }) {
   const [mode, setMode] = useState<"idle" | "scanning" | "pairing">("idle");
@@ -436,7 +439,9 @@ function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promi
       const r = await node.request("ble_scan", { ms: 8000 });
       if (!r.ok) { setError(r.error ?? "couldn't start the search"); return; }
       setMode("scanning");
-      await poll();
+      const after = await poll();
+      // A light already on this board's key is adopted during the search.
+      if (after.some((l) => l.state === "paired")) await onPaired();
     } catch (e) { setError((e as Error).message); }
   };
 
@@ -449,7 +454,7 @@ function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promi
       const after = await poll();
       const me = after.find((x) => x.addr === l.addr);
       if (me?.state === "paired") await onPaired();
-      else setError(`${l.type} light ${l.addr} didn't confirm — power-cycle it, search again and retry`);
+      else setError(`${l.type} light ${l.addr}: the pairing didn't go out — search again and retry`);
     } catch (e) { setError((e as Error).message); }
   };
 
@@ -458,9 +463,9 @@ function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promi
     <div style={{ margin: "8px 0", padding: 12, border: `1px solid ${C.b2}`, borderRadius: 8, background: C.card }}>
       <div style={{ ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
         <b style={{ color: C.t1 }}>1.</b> Put the floods near this board and switch them <b>off</b>.{" "}
-        <b style={{ color: C.t1 }}>2.</b> Click <b>Search</b>, then switch them <b>on</b> within a few seconds.{" "}
-        Only lights not paired to anything answer — a light still paired to the BRMesh app must be reset first
-        (often: switch it off and on several times). Pairing takes the light away from the BRMesh app.
+        <b style={{ color: C.t1 }}>2.</b> Click <b>Search</b>, then switch them <b>on</b> — a light only announces
+        itself for a short while after power-up. Lights paired to the BRMesh app or another board show as
+        <b> paired elsewhere</b>: <b>Take over</b> moves them to this board, and the app loses them.
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
         <button onClick={() => void search()} disabled={busy} style={btn(true, busy)}>Search (8 s)</button>
@@ -473,19 +478,24 @@ function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promi
           <span style={mono(500, 11, C.t4)}>{l.addr} · {l.rssi} dBm</span>
           <div style={{ flex: 1 }} />
           {l.state === "paired"
-            ? <span style={mono(700, 11, C.green)}>✓ paired as light #{l.number}</span>
+            ? <span style={mono(700, 11, C.green)} title={l.acked ? "the light confirmed the new key" : "lights don't usually answer — check it with a test colour below"}>
+                ✓ paired as light #{l.number}{l.acked ? "" : " — try its colour below"}
+              </span>
             : l.state === "pairing"
               ? <span style={mono(600, 11, C.t4)}>pairing as #{l.number}…</span>
               : <>
                   {l.state === "failed" && <span style={mono(600, 11, C.amber)}>didn't confirm</span>}
-                  <button onClick={() => void pair(l)} disabled={busy} style={btn(true, busy)}>{l.state === "failed" ? "Retry" : "Pair"}</button>
+                  {l.state === "other" && <span style={mono(600, 11, C.amber)} title={`holds key ${l.key}`}>paired elsewhere{l.number ? ` as #${l.number}` : ""}</span>}
+                  <button onClick={() => void pair(l)} disabled={busy} style={btn(true, busy)}>
+                    {l.state === "failed" ? "Retry" : l.state === "other" ? "Take over" : "Pair"}
+                  </button>
                 </>}
         </div>
       ))}
       {searched && !busy && lights.length === 0 && !error && (
         <div style={{ ...sys(400, 11.5, C.t5), marginTop: 8 }}>
-          No unpaired lights answered. Check they were switched on during the search, are close to this board,
-          and aren't still paired to the BRMesh app.
+          No lights answered. They only announce themselves just after power-up: switch them off, start a
+          search, then switch them on close to this board.
         </div>
       )}
     </div>

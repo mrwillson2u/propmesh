@@ -203,6 +203,38 @@ static void test_parse_light_advert() {
   TEST_ASSERT_EQUAL(3, pm_brmesh_number(m, key));
 }
 
+// A real Melpo RGBW flood heard unpaired on 2026-10-07 (from the placeholder
+// address 11:22:33:44:55:66 every light uses). Bytes 6..17 are XORed with the
+// key it holds: the key slot is zero underneath, and the type code is the
+// one the reference lists for RGBW only once the default key is XORed out.
+static void test_real_advert_identity_survives_key_change() {
+  const uint8_t m[18] = {0xf0, 0xff, 0x4e, 0x56, 0x7a, 0x02, 0xec, 0x0b, 0xf1, 0x1a, 0x3f, 0xf8,
+                         0xa1, 0xa8, 0x5e, 0x36, 0x7b, 0xc4};
+  PmBrmeshSeen s;
+  TEST_ASSERT_TRUE(pm_brmesh_parse(m, 18, s));
+  TEST_ASSERT_TRUE(pm_brmesh_unpaired(s));
+  TEST_ASSERT_EQUAL_STRING("RGBW", pm_brmesh_type_name(s));
+  uint8_t clean[12];
+  pm_brmesh_clean(m, s.key, clean);
+  for (int j = 8; j < 12; j++) TEST_ASSERT_EQUAL_HEX8(0, clean[j]);
+  uint8_t id_before[8], id_after[8];
+  pm_brmesh_id(m, s.key, id_before);
+  // The same light after it takes key 1a2b3c4d as light 7: bytes 6..17 re-XORed.
+  const uint8_t k[4] = {0x1a, 0x2b, 0x3c, 0x4d};
+  uint8_t m2[18];
+  memcpy(m2, m, 18);
+  clean[1] = 7;
+  for (int j = 0; j < 12; j++) m2[6 + j] = clean[j] ^ k[j & 3];
+  PmBrmeshSeen s2;
+  pm_brmesh_parse(m2, 18, s2);
+  TEST_ASSERT_FALSE(pm_brmesh_unpaired(s2));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(k, s2.key, 4);       // the key slot reads as the key
+  TEST_ASSERT_EQUAL_STRING("RGBW", pm_brmesh_type_name(s2));
+  TEST_ASSERT_EQUAL(7, pm_brmesh_number(m2, k));
+  pm_brmesh_id(m2, s2.key, id_after);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(id_before, id_after, 8);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_matches_reference_colour);
@@ -210,5 +242,6 @@ int main() {
   RUN_TEST(test_command_bytes);
   RUN_TEST(test_pairing_frames_match_reference);
   RUN_TEST(test_parse_light_advert);
+  RUN_TEST(test_real_advert_identity_survives_key_change);
   return UNITY_END();
 }

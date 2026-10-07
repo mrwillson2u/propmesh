@@ -121,6 +121,11 @@ static void hex_addr(char out[18], const uint8_t a[6]) {
   // HCI gives the address little-endian; show it the usual way round.
   snprintf(out, 18, "%02x:%02x:%02x:%02x:%02x:%02x", a[5], a[4], a[3], a[2], a[1], a[0]);
 }
+// A light's mac as it advertises it (in order) — lights share one placeholder
+// Bluetooth address, so this is what the console addresses a light by.
+static void hex_mac(char out[18], const uint8_t m[6]) {
+  snprintf(out, 18, "%02x:%02x:%02x:%02x:%02x:%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
+}
 
 // A confirmed pairing becomes a BLE_LIGHT output on this board straight
 // away, so nothing is lost if the console goes away mid-pairing.
@@ -154,9 +159,14 @@ static void cmd_ble_scan(JsonObjectConst req, JsonObject resp) {
   if (!pm_ble_scan(req["ms"] | 6000)) return fail(resp, "Bluetooth didn't start");
 }
 
+static void hex_bytes(char *out, const uint8_t *d, uint8_t n) {
+  for (uint8_t i = 0; i < n; i++) sprintf(out + 2 * i, "%02x", d[i]);
+  out[2 * n] = 0;
+}
+
 static void cmd_ble_found(JsonObject resp) {
   static const char *const MODE[] = {"idle", "scanning", "pairing"};
-  static const char *const STATE[] = {"found", "pairing", "paired", "failed"};
+  static const char *const STATE[] = {"found", "pairing", "paired", "failed", "other"};
   resp["mode"] = MODE[pm_ble_mode() % 3];
   resp["remaining_ms"] = pm_ble_remaining_ms();
   resp["key_set"] = pm_channels_config().has_brmesh_key;
@@ -164,21 +174,41 @@ static void cmd_ble_found(JsonObject resp) {
   uint8_t n = pm_ble_found(&list);
   JsonArray arr = resp["lights"].to<JsonArray>();
   for (uint8_t i = 0; i < n; i++) {
-    char a[18];
-    hex_addr(a, list[i].addr);
+    char a[18], k[9], raw[37];
+    hex_mac(a, list[i].seen.mac);
+    hex_bytes(k, list[i].seen.key, 4);
+    hex_bytes(raw, list[i].raw, 18);
     JsonObject o = arr.add<JsonObject>();
     o["addr"] = a;
-    o["type"] = pm_brmesh_type_name(list[i].seen.type);
+    o["type"] = pm_brmesh_type_name(list[i].seen);
     o["rssi"] = list[i].rssi;
-    o["state"] = STATE[list[i].state % 4];
+    o["state"] = STATE[list[i].state % 5];
+    o["key"] = k;      // what the light holds (the default key while unpaired)
+    o["raw"] = raw;    // its manufacturer data, for working out new light types
     if (list[i].number) o["number"] = list[i].number;
+    else if (list[i].state == PM_BLE_OTHER) o["number"] = pm_brmesh_number(list[i].raw, list[i].seen.key);
+    if (list[i].state == PM_BLE_PAIRED) o["acked"] = list[i].acked;
+  }
+  // Everything else heard that wasn't a phone — a light in a format we
+  // don't know yet would be here.
+  const PmBleRaw *others;
+  uint8_t m = pm_ble_others(&others);
+  JsonArray oarr = resp["others"].to<JsonArray>();
+  for (uint8_t i = 0; i < m; i++) {
+    char a[18], hex[63];
+    hex_addr(a, others[i].addr);
+    hex_bytes(hex, others[i].ad, others[i].len);
+    JsonObject o = oarr.add<JsonObject>();
+    o["addr"] = a;
+    o["rssi"] = others[i].rssi;
+    o["adv"] = hex;
   }
 }
 
 static void cmd_ble_pair(JsonObjectConst req, JsonObject resp) {
   if (pm_channels_config().bridge) return fail(resp, "the bridge drives no outputs");
   unsigned a[6];
-  if (sscanf(req["addr"] | "", "%x:%x:%x:%x:%x:%x", &a[5], &a[4], &a[3], &a[2], &a[1], &a[0]) != 6)
+  if (sscanf(req["addr"] | "", "%x:%x:%x:%x:%x:%x", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5]) != 6)
     return fail(resp, "addr must look like aa:bb:cc:dd:ee:ff");
   uint8_t addr[6];
   for (int i = 0; i < 6; i++) addr[i] = (uint8_t)a[i];
@@ -208,7 +238,7 @@ static void cmd_ble_pair(JsonObjectConst req, JsonObject resp) {
     }
   }
   pm_ble_on_paired(on_paired);
-  if (!pm_ble_pair(addr, number, req["ms"] | 4000)) return fail(resp, "light not found — scan again with it powered on");
+  if (!pm_ble_pair(addr, number, req["ms"] | 1500)) return fail(resp, "light not found — scan again with it powered on");
   resp["number"] = number;
 }
 
@@ -230,6 +260,7 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "ble")) {
     PmBleStats b = pm_ble_stats();
     resp["adverts_heard"] = b.adverts_heard;
+    resp["pair_key_match"] = b.pair_key_match;
     resp["reports"] = b.reports;
     resp["failed_opcode"] = b.failed_opcode;
     resp["failed_status"] = b.failed_status;

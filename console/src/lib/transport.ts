@@ -231,7 +231,7 @@ interface SimNode {
   lastFired: Map<number, number>; // rule index -> ms
 }
 
-interface SimBleLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed"; number?: number; at: number }
+interface SimBleLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; at: number }
 
 class SimLink implements NodeLink {
   readonly via = "sim" as const;
@@ -325,6 +325,7 @@ class SimLink implements NodeLink {
           lights: [
             { addr: "a4:c1:38:5e:12:07", type: "RGB", rssi: -58, state: "found", at: now + 2000 },
             { addr: "a4:c1:38:5e:12:3b", type: "RGBW", rssi: -71, state: "found", at: now + 3200 },
+            { addr: "a4:c1:38:5e:12:9c", type: "RGB", rssi: -64, state: "other", key: "b2fd16aa", number: 3, at: now + 4000 },
           ],
         });
         return { ok: true };
@@ -333,6 +334,7 @@ class SimLink implements NodeLink {
         const b = this.ble.get(node);
         const l = b?.lights.find((x) => x.addr === body.addr && Date.now() >= x.at);
         if (!b || !l) return { ok: false, error: "that light hasn't been heard — search again" };
+        if (l.state === "paired") return { ok: false, error: "already paired to this board" };
         const used = new Set(n.cfg.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.light));
         let num = 1;
         while (used.has(num)) num++;
@@ -347,6 +349,7 @@ class SimLink implements NodeLink {
           if (b.mode === "pairing") {
             for (const l of b.lights.filter((x) => x.state === "pairing")) {
               l.state = "paired";
+              (l as SimBleLight & { acked?: boolean }).acked = false;
               const index = Math.max(0, ...n.cfg.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.index)) + 1;
               n.cfg = {
                 ...n.cfg,

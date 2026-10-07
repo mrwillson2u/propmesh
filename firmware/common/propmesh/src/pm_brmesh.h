@@ -137,24 +137,31 @@ inline void pm_brmesh_wake(uint8_t seq, uint8_t adv[PM_BRMESH_ADV_LEN]) {
   pm_brmesh_frame(0, false, nokey, seq, zero, 6, adv);
 }
 
-// Add device: tell the unpaired light with `light_mac` (as it reported
-// it) to join with `key`, as light number `number`, group 1.
+// Add device: tell the light with `light_mac` (as it reported it) to join
+// with `key`, as light number `number`, group 1. The frame is encoded with
+// the key the light holds now: DEFAULT_KEY for an unpaired light; the key
+// it advertises for one paired to another controller (take-over).
 inline void pm_brmesh_add(const uint8_t light_mac[6], uint8_t number, const uint8_t key[4],
-                          uint8_t seq, uint8_t adv[PM_BRMESH_ADV_LEN]) {
+                          uint8_t seq, uint8_t adv[PM_BRMESH_ADV_LEN],
+                          const uint8_t cur_key[4] = pm_brmesh::DEFAULT_KEY) {
   uint8_t d[12];
   memcpy(d, light_mac, 6);
   d[6] = number;
   d[7] = 0x01;
   memcpy(d + 8, key, 4);
-  pm_brmesh_frame(2, false, pm_brmesh::DEFAULT_KEY, seq, d, 12, adv);
+  pm_brmesh_frame(2, false, cur_key, seq, d, 12, adv);
 }
 
 // A light's own advertisement (manufacturer data, 18 bytes including the
-// 2-byte company id) while it is being found / paired.
+// 2-byte company id) while it is being found / paired. Bytes 6..17 are
+// XORed with the key the light holds (so the key slot, zero underneath,
+// reads as the key itself). Lights advertise from a shared placeholder
+// Bluetooth address (11:22:33:44:55:66 seen 2026-10-07), so a light's
+// identity is the key-independent part of this data, never the address.
 struct PmBrmeshSeen {
   uint8_t mac[6];   // what the add-device command must quote
   uint8_t type[2];  // A0 A8 RGB · A1 A8 RGBW · 39 AE smart (on/off)
-  uint8_t key[4];   // DEFAULT_KEY while unpaired
+  uint8_t key[4];   // DEFAULT_KEY while unpaired; otherwise the key it holds
 };
 
 inline bool pm_brmesh_parse(const uint8_t *mdata, uint8_t len, PmBrmeshSeen &out) {
@@ -167,6 +174,26 @@ inline bool pm_brmesh_parse(const uint8_t *mdata, uint8_t len, PmBrmeshSeen &out
 
 inline bool pm_brmesh_unpaired(const PmBrmeshSeen &s) { return !memcmp(s.key, pm_brmesh::DEFAULT_KEY, 4); }
 
+// Bytes 6..17 with the light's key XORed back out (dsclee1's
+// cleanManufacturerData): [1] = its light number, [8..11] = 0.
+inline void pm_brmesh_clean(const uint8_t *mdata, const uint8_t key[4], uint8_t out[12]) {
+  for (uint8_t j = 0; j < 12; j++) out[j] = mdata[6 + j] ^ key[j & 3];
+}
+// What identifies a light across a key change: clean bytes 0..7 without
+// [1], its light number, which pairing changes too.
+inline void pm_brmesh_id(const uint8_t *mdata, const uint8_t key[4], uint8_t id[8]) {
+  uint8_t c[12];
+  pm_brmesh_clean(mdata, key, c);
+  c[1] = 0;
+  memcpy(id, c, 8);
+}
+// Type bytes as an unpaired light shows them (the codes below were read
+// off unpaired lights, i.e. XORed with the default key).
+inline void pm_brmesh_type_norm(const PmBrmeshSeen &s, uint8_t t[2]) {
+  t[0] = s.type[0] ^ s.key[2] ^ pm_brmesh::DEFAULT_KEY[2];
+  t[1] = s.type[1] ^ s.key[3] ^ pm_brmesh::DEFAULT_KEY[3];
+}
+
 // After pairing, the light's number, read back with our key.
 inline uint8_t pm_brmesh_number(const uint8_t *mdata, const uint8_t key[4]) { return key[1] ^ mdata[7]; }
 
@@ -175,4 +202,9 @@ inline const char *pm_brmesh_type_name(const uint8_t t[2]) {
   if (t[0] == 0xA1 && t[1] == 0xA8) return "RGBW";
   if (t[0] == 0x39 && t[1] == 0xAE) return "on/off";
   return "unknown";
+}
+inline const char *pm_brmesh_type_name(const PmBrmeshSeen &s) {
+  uint8_t t[2];
+  pm_brmesh_type_norm(s, t);
+  return pm_brmesh_type_name(t);
 }

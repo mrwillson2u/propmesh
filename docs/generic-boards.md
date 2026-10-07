@@ -293,6 +293,13 @@ enough (the lights relay among themselves).
   A light already paired to the BRMesh app keeps that key and does not
   answer — reset it first (usually: switch off and on several times).
   Pairing takes a light away from the app.
+- **Lights have no Bluetooth address of their own** (found 2026-10-07):
+  every flood advertises from the placeholder `11:22:33:44:55:66`. A
+  light's identity is the key-independent part of its manufacturer data
+  (`pm_brmesh_id`: bytes 6..17 with its key XORed out, minus the light
+  number) — never the address. Keying the found-list on the address made
+  every light collapse into one entry, so only one would ever pair. The
+  console addresses a light by the mac field it advertises.
 - **Scanning shares the radio with ESP-NOW.** Duty sweep (2026-10-06,
   Prop board): 100/100 ms heard 28 adverts/s but the node answered 2 of 4
   mesh requests; **50/100 (default)** heard 6/s and answered 10 of 11;
@@ -328,9 +335,21 @@ enough (the lights relay among themselves).
   board's config reloads with the new light. *+ Add by number* is for
   lights already on this board's key. Use a prop board near the floods
   — the bridge stays pin-free. Simulated mesh: two fake lights answer.
-- **Not yet seen on real floods** — pairing is built from the protocol
-  and golden-tested against the reference encoder, but untested with a
-  light; first real test: Find lights with a reset flood.
+- **Bench facts, three Melpo BLFL-LFCA RGBW floods (2026-10-07):**
+  lights announce themselves (18-byte manufacturer data, default key)
+  **only for ~15 s after power-up** — hence "switch them off, Search,
+  switch them on"; our wake frame does not make a powered light announce.
+  The add-device burst (1.5 s, 20 ms interval) took **3 of 3** times —
+  all three answered colours on the new key — but **no light ever came
+  back advertising the new key**, so a pairing counts as done once its
+  burst has gone out (`acked` marks the rare light that does answer).
+  Power-cycling a light several times resets it to the default key (that
+  is how a light paired to the app comes back). Pairing fast after the
+  announcement is not required (12–28 s later still took).
+- **Lesson — the first "successful" pairing was a false positive:** the
+  old confirm logic accepted any light on the shared address answering
+  with a non-default key, and a light still holding the app's key did
+  exactly that. One real test light beats any amount of reasoning.
 
 ## 6b. Sequences and triggers (Stage 3, 2026-10-05)
 
