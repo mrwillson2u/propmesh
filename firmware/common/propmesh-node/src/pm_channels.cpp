@@ -94,7 +94,8 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       // No pin. The light keeps whatever it was showing until commanded.
-      ok = pm_ble_begin(active.brmesh_key);
+      ok = pm_ble_start();
+      pm_ble_set_key(active.brmesh_key);
       break;
     case PM_CHANNEL_KIND_DIGITAL_IN:
       pinMode(c.pins[0], c.pull == PM_PULL_UP ? INPUT_PULLUP

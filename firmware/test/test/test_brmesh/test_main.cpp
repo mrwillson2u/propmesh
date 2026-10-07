@@ -1,6 +1,7 @@
-// pm_brmesh.h against the code that drove Colin's lights
-// (reference/brmesh-to-mqtt/src/main.cpp), reproduced here verbatim in
-// its logic — mallocs and all — as the golden reference.
+// pm_brmesh.h against dsclee1/BRmesh-esp32-mqtt (the pairing-capable
+// code; its control path is identical to Colin's working BRMeshToMQTT
+// with the real default key), reproduced here in its logic — mallocs and
+// all — as the golden reference.
 #include <unity.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,7 +12,7 @@ void tearDown() {}
 
 namespace ref {
 static uint8_t my_key[4];
-static const uint8_t default_key[] = {0, 0, 0, 0};
+static const uint8_t default_key[] = {0x5e, 0x36, 0x7b, 0xc4};  // the real constant
 static uint8_t SEND_SEQ = 0, SEND_COUNT = 1;
 static const uint8_t ADDR[] = {0xC1, 0xC2, 0xC3};
 static const uint8_t addrLength = 3;
@@ -29,13 +30,19 @@ uint8_t package_ble_fastcon_body(int i, int i2, uint8_t sequence, uint8_t safe_k
   for (int j = 0; j < length + 4; j++) { if (j == 3) continue; checksum = (checksum + payload[j]) & 0xff; }
   payload[3] = checksum;
   for (int j = 0; j < 4; j++) payload[j] = default_key[j & 3] ^ payload[j];
-  for (int j = 0; j < 12; j++) payload[4 + j] = my_key[j & 3] ^ payload[4 + j];
+  for (int j = 0; j < 12; j++) payload[4 + j] = key[j & 3] ^ payload[4 + j];
   return payloadLength;
 }
 uint8_t get_payload_with_inner_retry(int i, const uint8_t* data, int length, int i2, const uint8_t* key, int forward, uint8_t*& payload) {
   SEND_COUNT++;
   SEND_SEQ = SEND_COUNT;
-  return package_ble_fastcon_body(i, i2, SEND_SEQ, key[3], forward, data, length, key, payload);
+  uint8_t safe_key = 0xff;
+  bool hasKey = false;
+  for (int k = 0; k < 4; k++) if (key[k] != 0) { hasKey = true; break; }
+  if (hasKey) safe_key = key[3];
+  uint8_t result = package_ble_fastcon_body(i, i2, SEND_SEQ, safe_key, forward, data, length, key, payload);
+  if (!hasKey) for (int k = 4; k < 16; k++) payload[k] = default_key[k & 3];
+  return result;
 }
 void whiteningInit(uint8_t val, uint8_t* ctx) {
   ctx[0] = 1; ctx[1] = (val >> 5) & 1; ctx[2] = (val >> 4) & 1; ctx[3] = (val >> 3) & 1;
@@ -98,20 +105,21 @@ uint8_t do_generate_command(int i, const uint8_t* data, uint8_t length, const ui
 }
 // What single_control()+send() put on air: flags 02 01 04 (setFlags(0x04)),
 // then the AD structure built from ble_adv_data[4..] + rfPayload.
-int advertisement(const uint8_t* key, const uint8_t* cmd, uint8_t* out) {
+int frame(int cls, int forward, const uint8_t* key, const uint8_t* cmd, int len, uint8_t* out) {
   const uint8_t ble_adv_data[] = {0x02, 0x01, 0x1A, 0x1B, 0xFF, 0xF0, 0xFF};
   uint8_t* rf = 0;
-  uint8_t n = do_generate_command(5, cmd, 6, key, true, true, 0, rf);
+  uint8_t n = do_generate_command(cls, cmd, len, key, forward, true, 0, rf);
   uint8_t pkt[64];
   memcpy(pkt, ble_adv_data, 7);
   memcpy(pkt + 7, rf, n);
   free(rf);
-  int len = 7 + n;
+  int total = 7 + n;
   out[0] = 0x02; out[1] = 0x01; out[2] = 0x04;  // setFlags(0x04)
-  out[3] = (uint8_t)(len - 4);                    // strServiceData length byte
-  memcpy(out + 4, pkt + 4, len - 4);
-  return 3 + 1 + (len - 4);
+  out[3] = (uint8_t)(total - 4);                  // strServiceData length byte
+  memcpy(out + 4, pkt + 4, total - 4);
+  return 3 + 1 + (total - 4);
 }
+int advertisement(const uint8_t* key, const uint8_t* cmd, uint8_t* out) { return frame(5, true, key, cmd, 6, out); }
 }  // namespace ref
 
 static void check(const uint8_t key[4], uint8_t light, uint32_t rgb) {
@@ -161,10 +169,46 @@ static void test_command_bytes() {
   TEST_ASSERT_EQUAL(128, c[5]);
 }
 
+// Wake (class 0, no key) and add-device (class 2, default key, 12 bytes:
+// light mac, number, group 1, new key) — the pairing frames.
+static void test_pairing_frames_match_reference() {
+  uint8_t want[64], got[PM_BRMESH_ADV_LEN];
+  const uint8_t zero6[6] = {}, nokey[4] = {};
+  ref::SEND_COUNT = 9;
+  TEST_ASSERT_EQUAL(PM_BRMESH_ADV_LEN, ref::frame(0, false, nokey, zero6, 6, want));
+  pm_brmesh_wake(10, got);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
+
+  const uint8_t mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, newkey[4] = {0xA5, 0x0F, 0x3C, 0x99};
+  uint8_t d[12] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 3, 0x01, 0xA5, 0x0F, 0x3C, 0x99};
+  ref::SEND_COUNT = 99;
+  TEST_ASSERT_EQUAL(PM_BRMESH_ADV_LEN, ref::frame(2, false, ref::default_key, d, 12, want));
+  pm_brmesh_add(mac, 3, newkey, 100, got);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
+}
+
+static void test_parse_light_advert() {
+  uint8_t m[18] = {0xF0, 0xFF, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 0xA0, 0xA8, 0x5E, 0x36, 0x7B, 0xC4};
+  PmBrmeshSeen s;
+  TEST_ASSERT_TRUE(pm_brmesh_parse(m, 18, s));
+  TEST_ASSERT_TRUE(pm_brmesh_unpaired(s));
+  TEST_ASSERT_EQUAL_STRING("RGB", pm_brmesh_type_name(s.type));
+  TEST_ASSERT_EQUAL_HEX8(1, s.mac[0]);
+  m[14] = 0x00;  // a light holding some other key
+  pm_brmesh_parse(m, 18, s);
+  TEST_ASSERT_FALSE(pm_brmesh_unpaired(s));
+  TEST_ASSERT_FALSE(pm_brmesh_parse(m, 17, s));
+  const uint8_t key[4] = {0, 0x40, 0, 0};
+  m[7] = 0x43;  // number 3, XORed with key[1]
+  TEST_ASSERT_EQUAL(3, pm_brmesh_number(m, key));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_matches_reference_colour);
   RUN_TEST(test_matches_reference_off_and_other_keys);
   RUN_TEST(test_command_bytes);
+  RUN_TEST(test_pairing_frames_match_reference);
+  RUN_TEST(test_parse_light_advert);
   return UNITY_END();
 }

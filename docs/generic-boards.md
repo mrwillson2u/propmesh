@@ -262,7 +262,7 @@ Issue codes (shared by `pm_pinrules.h` and `pinRules.ts`):
 ## 6a. Bluetooth flood lights (BRMesh, 2026-10-06)
 
 Cheap BRMesh RGB flood lights are controlled by BLE **advertisements**
-— no pairing, no connection, nothing comes back — carrying a whitened,
+— no connection, nothing comes back on the control path — carrying a whitened,
 key-XORed, CRC'd payload (manufacturer id 0xFFF0). A node with
 `BLE_LIGHT` channels broadcasts them; one node near the floods is
 enough (the lights relay among themselves).
@@ -273,11 +273,31 @@ enough (the lights relay among themselves).
   0–127 brightness, as the lights expect). Shows up everywhere an
   output does: test colour picker, sequences and the timeline (colour
   steps, like strips), live preview, STOP ALL (turns them off).
-- **Key:** node config `brmesh_key` = 8 hex digits from the BRMesh app
-  (adb logcat — Colin's is `my_key[]` in the gitignored
-  `reference/old_files/BRMeshToMQTT2/src/main.cpp`). Stored on the node
-  only, never in the repo. Missing key → `ble_no_key`; light numbers
-  1–255 (`ble_light_id`), unique per board (`ble_light_dup`).
+- **Key:** node config `brmesh_key` (8 hex digits). **The board makes
+  its own** (`esp_random`) the first time it pairs a light, and saves it
+  in its config **before** sending the pairing frame — so a reset never
+  loses a pairing (the reference code kept its key in RAM, which is why
+  its pairings didn't survive a reset). Stored on the node only, never
+  in the repo. Typing a key in is only for taking over lights paired by
+  another controller (e.g. the app's key via adb). Missing key with
+  lights → `ble_no_key`; light numbers 1–255 (`ble_light_id`), unique
+  per board (`ble_light_dup`).
+- **Pairing** (no app, no key from the user): unpaired lights advertise
+  18 bytes of manufacturer data — mac [6..11], type [12..13] (`A0A8`
+  RGB, `A1A8` RGBW, `39AE` on/off), key [14..17] (all zero / the
+  default key `5E367BC4` while unpaired). `ble_scan` listens; `ble_pair`
+  sends a *wake* frame (class 0) then an *add-device* frame (class 2,
+  default key; data = the light's mac, its new number, group 1, our key),
+  and watches its adverts until they carry our key → `paired`. The
+  firmware then adds a `BLE_LIGHT` channel ("flood N (type)") and saves.
+  A light already paired to the BRMesh app keeps that key and does not
+  answer — reset it first (usually: switch off and on several times).
+  Pairing takes a light away from the app.
+- **Scanning shares the radio with ESP-NOW.** Duty sweep (2026-10-06,
+  Prop board): 100/100 ms heard 28 adverts/s but the node answered 2 of 4
+  mesh requests; **50/100 (default)** heard 6/s and answered 10 of 11;
+  20/100 answered everything and heard nothing. Colours pause while
+  searching/pairing. After an 8 s search the mesh answered 20/20.
 - **Encoder:** `pm_brmesh.h`, header-only; host tests compare it
   **byte-for-byte** with the reference code that drove the lights.
 - **Radio:** no Bluetooth host stack — `pm_ble_tx.cpp` drives the BLE
@@ -290,15 +310,27 @@ enough (the lights relay among themselves).
   that changes again before it went out replaces the queued one, so a
   dragged picker never builds a backlog. Flash 78 % → 91 % of the app
   partition.
-- **Measured** (Prop board, test light with a dummy key): controller
+- **Measured** (Prop board, test light with a dummy key, before pairing existed): controller
   confirmed 125 HCI commands, 0 failed; 41 colour bursts for 50 colour
   changes (merging); mesh requests during broadcasting 100/100, median
   42 ms — same as without Bluetooth. Not yet seen on the real floods.
 - **API:** `{"cmd":"ble"}` → `running`, `bursts`, `cmd_ok`,
-  `cmd_failed`, `last_status`, `last_opcode` — "is the radio sending?"
-- **Console:** Nodes & Channels → a board → **Bluetooth lights**: key,
-  *+ Add light* (numbers 1, 2, … auto-assigned), name, test colour.
-  Put them on a prop board near the floods — the bridge stays pin-free.
+  `cmd_failed`, `last_status`, `last_opcode`, `reports`, `adverts_heard`
+  — "is the radio sending / hearing?". `{"cmd":"ble_scan","ms":8000}`
+  (optional `window_ms`, `interval_ms`; refused on the bridge).
+  `{"cmd":"ble_found"}` → `mode` (idle/scanning/pairing),
+  `remaining_ms`, `key_set`, `lights[{addr, type, rssi, state
+  found|pairing|paired|failed, number}]`. `{"cmd":"ble_pair","addr":
+  "aa:bb:…"}` (optional `number`; default = lowest free).
+- **Console:** Nodes & Channels → a board → **Bluetooth lights** →
+  **Find lights…**: switch the floods off, *Search (8 s)*, switch them
+  on; each answering light gets a *Pair* button; when it confirms, the
+  board's config reloads with the new light. *+ Add by number* is for
+  lights already on this board's key. Use a prop board near the floods
+  — the bridge stays pin-free. Simulated mesh: two fake lights answer.
+- **Not yet seen on real floods** — pairing is built from the protocol
+  and golden-tested against the reference encoder, but untested with a
+  light; first real test: Find lights with a reset flood.
 
 ## 6b. Sequences and triggers (Stage 3, 2026-10-05)
 

@@ -231,11 +231,16 @@ interface SimNode {
   lastFired: Map<number, number>; // rule index -> ms
 }
 
+interface SimBleLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed"; number?: number; at: number }
+
 class SimLink implements NodeLink {
   readonly via = "sim" as const;
   private nodes = new Map<string, SimNode>();
   private events = new Listeners<NodeEvent>();
   private timers: ReturnType<typeof setInterval>[] = [];
+  // Simulated BRMesh search/pair (firmware pm_ble_tx): two lights answer
+  // ~2 s into a search; pairing confirms after ~1.5 s.
+  private ble = new Map<string, { mode: "idle" | "scanning" | "pairing"; until: number; lights: SimBleLight[] }>();
 
   constructor(private boardId: string) {
     for (const id of [SIM_LOCAL, ...SIM_REMOTES.map((r) => r.node)]) {
@@ -310,6 +315,53 @@ class SimLink implements NodeLink {
         }
         n.values.set(`${c.kind}_${c.index}`, body.value as number);
         return { ok: true };
+      }
+      case "ble_scan": {
+        if (n.cfg.bridge) return { ok: false, error: "the bridge doesn't drive Bluetooth lights — search from a prop board" };
+        const now = Date.now();
+        const ms = (body.ms as number) ?? 8000;
+        this.ble.set(node, {
+          mode: "scanning", until: now + ms,
+          lights: [
+            { addr: "a4:c1:38:5e:12:07", type: "RGB", rssi: -58, state: "found", at: now + 2000 },
+            { addr: "a4:c1:38:5e:12:3b", type: "RGBW", rssi: -71, state: "found", at: now + 3200 },
+          ],
+        });
+        return { ok: true };
+      }
+      case "ble_pair": {
+        const b = this.ble.get(node);
+        const l = b?.lights.find((x) => x.addr === body.addr && Date.now() >= x.at);
+        if (!b || !l) return { ok: false, error: "that light hasn't been heard — search again" };
+        const used = new Set(n.cfg.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.light));
+        let num = 1;
+        while (used.has(num)) num++;
+        Object.assign(l, { state: "pairing", number: num });
+        Object.assign(b, { mode: "pairing", until: Date.now() + 1500 });
+        return { ok: true, number: num };
+      }
+      case "ble_found": {
+        const b = this.ble.get(node) ?? { mode: "idle" as const, until: 0, lights: [] };
+        const now = Date.now();
+        if (b.mode !== "idle" && now >= b.until) {
+          if (b.mode === "pairing") {
+            for (const l of b.lights.filter((x) => x.state === "pairing")) {
+              l.state = "paired";
+              const index = Math.max(0, ...n.cfg.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.index)) + 1;
+              n.cfg = {
+                ...n.cfg,
+                brmesh_key: n.cfg.brmesh_key ?? "1a2b3c4d",
+                channels: [...n.cfg.channels, { kind: "BLE_LIGHT", index, pins: [], light: l.number, label: `flood ${l.number} (${l.type})` }],
+              };
+              try { localStorage.setItem(SIM_KEY + node, JSON.stringify(n.cfg)); } catch { /* private mode */ }
+            }
+          }
+          b.mode = "idle";
+        }
+        return {
+          ok: true, mode: b.mode, remaining_ms: Math.max(0, b.until - now), key_set: !!n.cfg.brmesh_key,
+          lights: b.lights.filter((l) => now >= l.at).map(({ at: _at, ...l }) => l),
+        };
       }
       case "state":
         return {

@@ -322,7 +322,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           );
         })}
         <BleLights draft={draft} setDraft={setDraft} values={values} dirty={dirty}
-          onFire={(c, v) => fire(c, v)} />
+          onFire={(c, v) => fire(c, v)} node={node} reload={load} />
       </div>}
     </div>
   );
@@ -330,13 +330,16 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
 // BRMesh flood lights: no pins — the board broadcasts colours over
 // Bluetooth (firmware pm_ble_tx). One key per board, one row per light.
-function BleLights({ draft, setDraft, values, dirty, onFire }: {
+function BleLights({ draft, setDraft, values, dirty, onFire, node, reload }: {
   draft: NodeConfig;
   setDraft: React.Dispatch<React.SetStateAction<NodeConfig>>;
   values: Record<string, number>;
   dirty: boolean;
   onFire: (c: ChannelCfg, v: number) => void;
+  node: NodeTarget;
+  reload: () => Promise<void>;
 }) {
+  const [finding, setFinding] = useState(false);
   const lights = draft.channels.filter((c) => c.kind === "BLE_LIGHT");
   const add = () => setDraft((d) => {
     const used = new Set(d.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.light));
@@ -356,8 +359,12 @@ function BleLights({ draft, setDraft, values, dirty, onFire }: {
         <span style={{ font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5 }}>BLUETOOTH LIGHTS</span>
         <span style={sys(400, 11, C.t5)}>BRMesh flood lights — this board broadcasts their colour, no wiring</span>
         <div style={{ flex: 1 }} />
-        <button onClick={add} style={btn()}>+ Add light</button>
+        <button onClick={() => setFinding(!finding)} disabled={dirty}
+          title={dirty ? "Save or revert your changes first — pairing adds lights to the saved config" : "Find unpaired lights and pair them to this board"}
+          style={btn(!finding, dirty)}>{finding ? "Close" : "Find lights…"}</button>
+        <button onClick={add} style={btn()} title="Add a light by number — for lights already paired with this board's key">+ Add by number</button>
       </div>
+      {finding && <BleFinder node={node} onPaired={reload} />}
       {(lights.length > 0 || draft.brmesh_key) && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #181c22" }}>
           <span style={{ ...sys(500, 12, C.t3), width: 110 }}>BRMesh key</span>
@@ -365,7 +372,8 @@ function BleLights({ draft, setDraft, values, dirty, onFire }: {
             onChange={(e) => setDraft((d) => ({ ...d, brmesh_key: e.target.value.trim() || undefined }))}
             style={{ ...field, width: 120, ...mono(600, 12, keyOk ? C.t1 : C.amber) }} />
           <span style={sys(400, 11, C.t5)}>
-            From the BRMesh app (it's <code>my_key[]</code> in your old BRMeshToMQTT code). Stored on this board only.
+            Made by this board when it paired its first light, and stored on it only. Change it only to take over
+            lights paired by another controller.
           </span>
         </div>
       )}
@@ -383,7 +391,101 @@ function BleLights({ draft, setDraft, values, dirty, onFire }: {
       ))}
       {lights.length === 0 && (
         <div style={{ ...sys(400, 11.5, C.t5), padding: "8px 0" }}>
-          None. Add one per flood light this board should control — put it on the board nearest the lights.
+          None. Use <b>Find lights…</b> with the floods next to this board — it pairs them, no app or key needed.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Find + pair BRMesh lights from this board (firmware pm_ble_tx). Lights
+// answer only while unpaired; the board makes its own key on the first
+// pairing, saves it, and adds each paired light as a BLE_LIGHT output.
+interface FoundLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed"; number?: number }
+
+function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promise<void> }) {
+  const [mode, setMode] = useState<"idle" | "scanning" | "pairing">("idle");
+  const [lights, setLights] = useState<FoundLight[]>([]);
+  const [left, setLeft] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+
+  // Poll until the board says it's idle. A request can miss while the
+  // board's radio is busy listening — the next poll catches up.
+  const poll = async () => {
+    for (let i = 0; i < 60 && alive.current; i++) {
+      await new Promise((r) => setTimeout(r, 700));
+      try {
+        const r = await node.request("ble_found");
+        if (!r.ok) continue;
+        setLights(r.lights as FoundLight[]);
+        setLeft(r.remaining_ms as number);
+        setMode(r.mode as "idle");
+        if (r.mode === "idle") return r.lights as FoundLight[];
+      } catch { /* try again */ }
+    }
+    return [];
+  };
+
+  const search = async () => {
+    setError(null);
+    setSearched(true);
+    try {
+      const r = await node.request("ble_scan", { ms: 8000 });
+      if (!r.ok) { setError(r.error ?? "couldn't start the search"); return; }
+      setMode("scanning");
+      await poll();
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const pair = async (l: FoundLight) => {
+    setError(null);
+    try {
+      const r = await node.request("ble_pair", { addr: l.addr });
+      if (!r.ok) { setError(r.error ?? "couldn't pair"); return; }
+      setMode("pairing");
+      const after = await poll();
+      const me = after.find((x) => x.addr === l.addr);
+      if (me?.state === "paired") await onPaired();
+      else setError(`${l.type} light ${l.addr} didn't confirm — power-cycle it, search again and retry`);
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const busy = mode !== "idle";
+  return (
+    <div style={{ margin: "8px 0", padding: 12, border: `1px solid ${C.b2}`, borderRadius: 8, background: C.card }}>
+      <div style={{ ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
+        <b style={{ color: C.t1 }}>1.</b> Put the floods near this board and switch them <b>off</b>.{" "}
+        <b style={{ color: C.t1 }}>2.</b> Click <b>Search</b>, then switch them <b>on</b> within a few seconds.{" "}
+        Only lights not paired to anything answer — a light still paired to the BRMesh app must be reset first
+        (often: switch it off and on several times). Pairing takes the light away from the BRMesh app.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+        <button onClick={() => void search()} disabled={busy} style={btn(true, busy)}>Search (8 s)</button>
+        {busy && <><Spinner /><span style={mono(500, 11, C.t4)}>{mode === "scanning" ? `listening… ${Math.ceil(left / 1000)} s` : "pairing…"}</span></>}
+        {error && <span style={mono(500, 11, C.red)}>✕ {error}</span>}
+      </div>
+      {lights.map((l) => (
+        <div key={l.addr} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0", borderTop: "1px solid #181c22", marginTop: 6 }}>
+          <span style={sys(600, 12, C.t1)}>{l.type} light</span>
+          <span style={mono(500, 11, C.t4)}>{l.addr} · {l.rssi} dBm</span>
+          <div style={{ flex: 1 }} />
+          {l.state === "paired"
+            ? <span style={mono(700, 11, C.green)}>✓ paired as light #{l.number}</span>
+            : l.state === "pairing"
+              ? <span style={mono(600, 11, C.t4)}>pairing as #{l.number}…</span>
+              : <>
+                  {l.state === "failed" && <span style={mono(600, 11, C.amber)}>didn't confirm</span>}
+                  <button onClick={() => void pair(l)} disabled={busy} style={btn(true, busy)}>{l.state === "failed" ? "Retry" : "Pair"}</button>
+                </>}
+        </div>
+      ))}
+      {searched && !busy && lights.length === 0 && !error && (
+        <div style={{ ...sys(400, 11.5, C.t5), marginTop: 8 }}>
+          No unpaired lights answered. Check they were switched on during the search, are close to this board,
+          and aren't still paired to the BRMesh app.
         </div>
       )}
     </div>
