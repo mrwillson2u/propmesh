@@ -115,7 +115,11 @@ static void heartbeat() {
 
 void setup() {
   Serial.setRxBufferSize(LINE_MAX_LEN);
-  Serial.begin(115200);
+  // 921600: the console's link, and the firmware-update pipe — at 115200
+  // the cable (1.75 MB of base64 per image) cost more than the mesh did
+  // (2026-10-07). The console tries this speed first, then 115200 for
+  // boards not yet updated. The CP2102/CH340 on the devkits both do it.
+  Serial.begin(PM_SERIAL_BAUD);
   delay(300);
 
   pm_api_begin(BOARD);

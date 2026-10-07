@@ -187,20 +187,28 @@ class SerialLink implements NodeLink {
 // Ask the user for a port and wait for the node to answer. Opening the
 // port resets a classic devkit (DTR/RTS drive EN through the auto-
 // program transistors), so the first hello is retried through the boot.
+// Speeds to try, newest first: firmware since 2026-10-07 talks at 921600
+// (an update image is 1.75 MB of base64 — the cable was the bottleneck);
+// older boards still answer at 115200.
+export const SERIAL_BAUDS = [921600, 115200];
+
 export async function connectUsb(): Promise<{ link: NodeLink; hello: NodeHello }> {
   const serial = (navigator as unknown as { serial: { requestPort(): Promise<SerialPortLike> } }).serial;
   const port = await serial.requestPort();
-  await port.open({ baudRate: 115200, bufferSize: 8192 });
-  try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch { /* not all adapters */ }
-  const link = new SerialLink(port);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      const r = await link.request("hello");
-      if (r.ok) return { link, hello: r as unknown as NodeHello };
-    } catch { /* still booting */ }
+  for (const baudRate of SERIAL_BAUDS) {
+    await port.open({ baudRate, bufferSize: 8192 });
+    try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch { /* not all adapters */ }
+    const link = new SerialLink(port);
+    // The first open resets a classic devkit (DTR/RTS drive EN): allow for the boot.
+    for (let attempt = 0; attempt < (baudRate === SERIAL_BAUDS[0] ? 4 : 2); attempt++) {
+      try {
+        const r = await link.request("hello");
+        if (r.ok) return { link, hello: r as unknown as NodeHello };
+      } catch { /* still booting, or the wrong speed */ }
+    }
+    await link.close();  // closes the port; reopened at the next speed
   }
-  await link.close();
-  throw new Error("The board did not answer. Is it flashed with firmware/node, and is the serial monitor closed?");
+  throw new Error("The board did not answer at 921600 or 115200 baud. Is it flashed with firmware/node, and is the serial monitor closed?");
 }
 
 // ---- Simulated mesh ---------------------------------------------------

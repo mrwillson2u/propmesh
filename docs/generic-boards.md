@@ -544,8 +544,11 @@ bonus for when the laptop's network happens to reach.
   `written`, so a lost request resumes from the board's count; the board
   checks SHA-256 before committing (`pm_ota_begin/data/end`, Update
   library, 3 kB heap buffer — static RAM is full). ~475 requests for a
-  1.28 MB image, about 6 min a board at 115200 baud (a faster serial baud
-  is the lever). The board reboots 1 s after acknowledging `ota_end`.
+  1.28 MB image. At 115200 baud the cable cost ~150 s on its own (6 min a
+  board in all), so the boards talk at **921600** since 2026-10-07
+  (`PM_SERIAL_BAUD`; the console tries 921600 then 115200), leaving the
+  mesh as the limit (~3–3.5 min a board). The board reboots 1 s after
+  acknowledging `ota_end`.
   Console: `lib/ota.ts` (`streamImage`), image from `ota_serve.py`'s URL
   (CORS) or a local .bin.
 - **Over WiFi (bonus):** below.
