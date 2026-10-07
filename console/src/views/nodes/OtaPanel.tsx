@@ -108,7 +108,12 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     const en = entries[node];
     if (!en) return;
     const t = target(link, en.usb ? null : node);
-    const failed = (note: string) => setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note } }));
+    const failed = (note: string) => setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note: explain(note) } }));
+    // A board running firmware from before mesh updates existed doesn't
+    // know ota_begin; it needs one update by USB (or over WiFi) first.
+    const explain = (note: string) => /unknown command|unknown cmd/i.test(note)
+      ? "this board's firmware predates mesh updates — update it once over USB or WiFi, then the mesh works"
+      : note;
     if (mode === "mesh") {
       if (typeof image !== "object" || !image) return;
       const sig = { stop: false };
