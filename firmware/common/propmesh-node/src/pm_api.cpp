@@ -274,6 +274,22 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     if (!*url || !*ssid) return fail(resp, "ota needs url and ssid");
     if (!pm_ota_start(url, ssid, pass, PM_CHANNEL)) return fail(resp, "an update is already running (or the URL/name is too long)");
   }
+  else if (!strcmp(cmd, "ota_begin")) {
+    const char *e = pm_ota_begin(req["size"] | 0UL, req["sha256"] | "");
+    if (e) return fail(resp, e);
+    resp["chunk"] = 2700;  // bytes of image per ota_data (fits a 4320-byte mesh request as base64)
+  }
+  else if (!strcmp(cmd, "ota_data")) {
+    uint32_t written = 0;
+    const char *e = pm_ota_data(req["off"] | 0UL, req["data"] | (const char *)nullptr, &written);
+    resp["written"] = written;
+    if (e) return fail(resp, e);
+  }
+  else if (!strcmp(cmd, "ota_end")) {
+    const char *e = pm_ota_end();
+    if (e) return fail(resp, e);
+  }
+  else if (!strcmp(cmd, "ota_abort")) pm_ota_abort();
   else if (!strcmp(cmd, "ota_status")) {
     static const char *const ST[] = {"idle", "connecting", "downloading", "rebooting", "failed"};
     resp["state"] = ST[pm_ota_state() % 5];

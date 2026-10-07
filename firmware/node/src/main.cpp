@@ -174,6 +174,7 @@ void loop() {
   pm_show_loop();
   if (!mesh_up) return;
   confirm_image();
+  pm_ota_loop();
   pm_mesh_loop();
   pm_link_loop();
   election();

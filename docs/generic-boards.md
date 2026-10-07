@@ -532,7 +532,23 @@ log. *Reload from boards* re-reads everything.
 
 ## 6c. Firmware updates over the air (2026-10-07)
 
-Boards pull a new image over WiFi; the console only sends the order.
+**Over the mesh is the real path** — Colin's principle: nodes live in
+props, out of reach and often out of home-WiFi range; anything that needs
+a node unplugged or brought indoors defeats a mesh product. WiFi is a
+bonus for when the laptop's network happens to reach.
+
+- **Over the mesh (default):** the console streams the image through the
+  USB bridge: `ota_begin {size, sha256}` → `ota_data {off, data}` (base64,
+  2700 image bytes per request — fits the 4320-byte mesh request and the
+  4096-byte serial line) → `ota_end`. Every chunk is answered with
+  `written`, so a lost request resumes from the board's count; the board
+  checks SHA-256 before committing (`pm_ota_begin/data/end`, Update
+  library, 3 kB heap buffer — static RAM is full). ~475 requests for a
+  1.28 MB image, about 6 min a board at 115200 baud (a faster serial baud
+  is the lever). The board reboots 1 s after acknowledging `ota_end`.
+  Console: `lib/ota.ts` (`streamImage`), image from `ota_serve.py`'s URL
+  (CORS) or a local .bin.
+- **Over WiFi (bonus):** below.
 
 - **Serve:** `python3 tools/ota_serve.py --build` builds, then serves
   `firmware/node/.pio/build/esp32-devkit-v1/` on port 8266 with CORS open

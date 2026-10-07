@@ -1,12 +1,15 @@
-// Update firmware over the air (docs/generic-boards.md §6c): the laptop
-// serves firmware.bin (tools/ota_serve.py); each node is told the URL and
-// your WiFi, pulls the image, reboots and comes back on the mesh with the
-// new build id. WiFi details stay in this browser.
+// Update firmware over the air (docs/generic-boards.md §6c). Over the
+// mesh (the default — props are out of WiFi reach): the console streams the
+// image through the USB bridge in acknowledged chunks. Over WiFi (when the
+// laptop's network reaches the board): the board is told the URL and your
+// WiFi and pulls it itself. Either way it reboots and comes back on the
+// mesh with the new build id. WiFi details stay in this browser.
 import { useEffect, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
+import { fetchImage, fileImage, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -21,11 +24,15 @@ const field: React.CSSProperties = {
 };
 
 interface Served { build: string; size: number; sha256: string }
-type Job = { state: "sent" | "waiting" | "done" | "failed"; since: number; was?: string; note?: string };
+type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: number; was?: string; note?: string; progress?: number };
 const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
 export default function OtaPanel({ link, entries }: { link: NodeLink; entries: Record<string, Entry> }) {
-  const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string }>;
+  const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string; mode: string }>;
+  const [mode, setMode] = useState<"mesh" | "wifi">(stored.mode === "wifi" ? "wifi" : "mesh");
+  const [image, setImage] = useState<Image | "loading" | null>(null);
+  const [imageErr, setImageErr] = useState<string | null>(null);
+  const stops = useRef(new Map<string, { stop: boolean }>());
   const [url, setUrl] = useState(stored.url ?? "");
   const [ssid, setSsid] = useState(stored.ssid ?? "");
   const [pass, setPass] = useState(stored.pass ?? "");
@@ -37,7 +44,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   // outlive renders, so it reads the latest entries through a ref.
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
-  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass })); } catch { /* private mode */ } }, [url, ssid, pass]);
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass, mode })); } catch { /* private mode */ } }, [url, ssid, pass, mode]);
 
   const known = Object.values(entries).filter((e) => e.hello)
     .sort((a, b) => Number(a.usb) - Number(b.usb) || (a.hello!.name || a.node).localeCompare(b.hello!.name || b.node));
@@ -59,6 +66,23 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   };
   useEffect(() => { if (url) void check(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // The image for the mesh path: from the serve script's URL, or a file.
+  const loadImage = async (file?: File) => {
+    setImage("loading");
+    setImageErr(null);
+    try {
+      if (link.via === "sim") {  // no server behind the URL: a fake image of the right size
+        const build = url.replace(/\/firmware\.bin$/, "").split("/").pop() || "simnew";
+        setImage({ bytes: new Uint8Array(27000), sha256: "0".repeat(64), build: build.slice(0, 12) });
+        return;
+      }
+      setImage(file ? await fileImage(file) : await fetchImage(url));
+    } catch (e) {
+      setImage(null);
+      setImageErr((e as Error).message);
+    }
+  };
+
   // A board that was sent an update is done when its hello shows a
   // different build; it goes quiet (missing) while it downloads and reboots.
   useEffect(() => {
@@ -73,7 +97,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         // Back with a different build, or back on probation (same build re-sent).
         if (en && build && (build !== j.was || (j.state === "waiting" && en.hello?.pending))) { next[node] = { ...j, state: "done", note: `now ${build}` }; changed = true; }
         else if (j.state === "sent" && en && isMissing(en, now)) { next[node] = { ...j, state: "waiting" }; changed = true; }
-        else if (now - j.since > CAME_BACK_MS) { next[node] = { ...j, state: "failed", note: "didn't come back with a new build — check its serial log" }; changed = true; }
+        else if (j.state !== "sending" && now - j.since > CAME_BACK_MS) { next[node] = { ...j, state: "failed", note: "didn't come back with a new build — check its serial log" }; changed = true; }
       }
       if (changed) setJobs(next);
     }, 1000);
@@ -83,42 +107,84 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const update = async (node: string) => {
     const en = entries[node];
     if (!en) return;
+    const t = target(link, en.usb ? null : node);
+    const failed = (note: string) => setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note } }));
+    if (mode === "mesh") {
+      if (typeof image !== "object" || !image) return;
+      const sig = { stop: false };
+      stops.current.set(node, sig);
+      setJobs((j) => ({ ...j, [node]: { state: "sending", since: Date.now(), was: en.hello?.build, progress: 0 } }));
+      try {
+        await streamImage(t, image, (w, total) => setJobs((j) => ({ ...j, [node]: { ...j[node], progress: w / total, since: Date.now() } })), sig);
+        // Accepted and verified: it reboots now; the checker waits for it to come back.
+        setJobs((j) => ({ ...j, [node]: { ...j[node], state: "waiting", since: Date.now(), progress: 1 } }));
+      } catch (e) { failed((e as Error).message); }
+      return;
+    }
     setJobs((j) => ({ ...j, [node]: { state: "sent", since: Date.now(), was: en.hello?.build } }));
     try {
-      const r = await target(link, en.usb ? null : node).request("ota", { url, ssid, pass });
-      if (!r.ok) setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note: r.error ?? "refused" } }));
-    } catch (e) {
-      setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note: (e as Error).message } }));
-    }
+      const r = await t.request("ota", { url, ssid, pass });
+      if (!r.ok) failed(r.error ?? "refused");
+    } catch (e) { failed((e as Error).message); }
   };
   // Everyone but the USB board: that one takes the console down with it,
   // so it gets its own click, last.
   const updateAll = async () => { for (const en of known) if (!en.usb) await update(en.node); };
 
-  const servedBuild = typeof served === "object" && served ? served.build : null;
-  const ready = !!url && !!ssid && servedBuild !== null;
+  const servedBuild = mode === "mesh"
+    ? (typeof image === "object" && image ? image.build : null)
+    : (typeof served === "object" && served ? served.build : null);
+  const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
   const busy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
+  const pill = (on: boolean): React.CSSProperties => ({
+    ...btn(on), height: 26, padding: "0 10px",
+  });
 
   return (
     <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={sys(700, 14, C.t1)}>Update firmware</span>
+        <span style={{ display: "flex", gap: 4 }}>
+          <button onClick={() => setMode("mesh")} style={pill(mode === "mesh")}>Over the mesh</button>
+          <button onClick={() => setMode("wifi")} style={pill(mode === "wifi")}>Over WiFi</button>
+        </span>
         <span style={sys(400, 12, C.t3)}>
-          On the laptop run <code style={mono(600, 11.5, C.t2)}>python3 tools/ota_serve.py --build</code>, paste the URL it prints, and the boards fetch it over your WiFi.
-          WiFi details stay in this browser.
+          {mode === "mesh"
+            ? "The image streams through the bridge to each board in turn — nothing to unplug, no WiFi needed. About six minutes a board."
+            : "Each board joins your WiFi and fetches the image itself — fast, when your WiFi reaches the board. Details stay in this browser."}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://192.168.1.20:8266/firmware.bin" style={{ ...field, width: 320 }} />
-        <button onClick={() => void check()} disabled={!url} style={btn(false, !url)}>Check</button>
-        {served === "checking" && <Spinner />}
-        {served === "error" && <span style={mono(600, 11, C.red)}>✕ nothing served there — is ota_serve.py running, and the laptop on the same WiFi?</span>}
-        {servedBuild !== null && typeof served === "object" && served && <span style={mono(600, 11, C.green)}>✓ serving build {served.build} · {(served.size / 1024).toFixed(0)} kB</span>}
+        <span style={sys(500, 11.5, C.t4)}>Run <code style={mono(600, 11, C.t2)}>python3 tools/ota_serve.py --build</code> on the laptop and paste its URL:</span>
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://192.168.1.20:8266/firmware.bin" style={{ ...field, width: 300 }} />
+        {mode === "mesh" ? (
+          <>
+            <button onClick={() => void loadImage()} disabled={!url || image === "loading"} style={btn(false, !url || image === "loading")}>Load image</button>
+            <label style={{ ...btn(), display: "inline-flex", alignItems: "center" }} title="…or pick a firmware.bin from this computer">
+              from file
+              <input type="file" accept=".bin" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadImage(f); }} />
+            </label>
+            {image === "loading" && <Spinner />}
+            {imageErr && <span style={mono(600, 11, C.red)}>✕ {imageErr} — is ota_serve.py running?</span>}
+            {typeof image === "object" && image && <span style={mono(600, 11, C.green)}>✓ image build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB</span>}
+          </>
+        ) : (
+          <>
+            <button onClick={() => void check()} disabled={!url} style={btn(false, !url)}>Check</button>
+            {served === "checking" && <Spinner />}
+            {served === "error" && <span style={mono(600, 11, C.red)}>✕ nothing served there — is ota_serve.py running, and the laptop on the same WiFi?</span>}
+            {typeof served === "object" && served && <span style={mono(600, 11, C.green)}>✓ serving build {served.build} · {(served.size / 1024).toFixed(0)} kB</span>}
+          </>
+        )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <input value={ssid} onChange={(e) => setSsid(e.target.value)} placeholder="WiFi name" style={{ ...field, width: 200 }} />
-        <input value={pass} onChange={(e) => setPass(e.target.value)} placeholder="WiFi password" type="password" autoComplete="off" style={{ ...field, width: 200 }} />
-        <span style={sys(400, 11.5, C.t4)}>2.4 GHz only — the boards can't see 5 GHz networks.</span>
+        {mode === "wifi" && (
+          <>
+            <input value={ssid} onChange={(e) => setSsid(e.target.value)} placeholder="WiFi name" style={{ ...field, width: 200 }} />
+            <input value={pass} onChange={(e) => setPass(e.target.value)} placeholder="WiFi password" type="password" autoComplete="off" style={{ ...field, width: 200 }} />
+            <span style={sys(400, 11.5, C.t4)}>2.4 GHz only — the boards can't see 5 GHz networks.</span>
+          </>
+        )}
         <div style={{ flex: 1 }} />
         <button onClick={() => void updateAll()} disabled={!ready} style={btn(true, !ready)}>Update all mesh boards</button>
       </div>
@@ -141,8 +207,17 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
             </span>,
             <span key={en.node + "b"} style={mono(600, 11.5, current ? C.green : C.t2)}>{build}{en.hello?.pending ? " · unconfirmed" : ""}</span>,
             <span key={en.node + "s"} style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, j?.state === "failed" ? C.red : j?.state === "done" ? C.green : C.t4) }}>
+              {j?.state === "sending" && (
+                <>
+                  <span style={{ width: 160, height: 8, borderRadius: 4, background: C.raised, overflow: "hidden", flex: "none" }}>
+                    <span style={{ display: "block", width: `${Math.round((j.progress ?? 0) * 100)}%`, height: "100%", background: C.ember }} />
+                  </span>
+                  {Math.round((j.progress ?? 0) * 100)} % sent
+                  <button onClick={() => { const s = stops.current.get(en.node); if (s) s.stop = true; }} style={{ ...btn(), height: 22, padding: "0 7px" }}>stop</button>
+                </>
+              )}
               {j?.state === "sent" && <><Spinner size={10} /> sent — joining WiFi and downloading…</>}
-              {j?.state === "waiting" && <><Spinner size={10} /> gone quiet — downloading, then rebooting…</>}
+              {j?.state === "waiting" && <><Spinner size={10} /> {mode === "mesh" ? "image accepted — rebooting into it…" : "gone quiet — downloading, then rebooting…"}</>}
               {j?.state === "done" && `✓ updated — ${j.note}`}
               {j?.state === "failed" && `✕ ${j.note}`}
               {!j && (current ? "up to date" : missing ? "not heard recently" : "")}
@@ -156,8 +231,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         })}
       </div>
       <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5 }}>
-        A board leaves the mesh for the download (about a minute) and comes back on reboot. A new image that crashes before it has run with
-        the mesh up for 20 s is rolled back automatically. The USB board takes the console down with it — do it last, then reconnect.
+        A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. The USB board takes the console
+        down with it when it reboots — do it last, then reconnect.{mode === "wifi" ? " Over WiFi a board leaves the mesh for the download (about a minute)." : ""}
       </div>
     </div>
   );

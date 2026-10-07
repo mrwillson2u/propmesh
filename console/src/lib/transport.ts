@@ -249,6 +249,7 @@ class SimLink implements NodeLink {
   private builds = new Map<string, string>();
   private ota = new Map<string, { until: number; build: string }>();
   private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
+  private rx = new Map<string, { size: number; written: number }>(); // an image arriving over the mesh
 
   constructor(private boardId: string) {
     for (const id of [SIM_LOCAL, ...SIM_REMOTES.map((r) => r.node)]) {
@@ -314,6 +315,30 @@ class SimLink implements NodeLink {
         this.ota.set(node, { until: Date.now() + 6000, build: build.slice(0, 12) });
         return { ok: true };
       }
+      case "ota_begin": {
+        if (!(body.size as number) || String(body.sha256 ?? "").length !== 64) return { ok: false, error: "ota_begin needs size and a 64-digit sha256" };
+        this.rx.set(node, { size: body.size as number, written: 0 });
+        return { ok: true, chunk: 2700 };
+      }
+      case "ota_data": {
+        const r = this.rx.get(node);
+        if (!r) return { ok: false, error: "no update in progress — ota_begin first", written: 0 };
+        if (body.off !== r.written) return { ok: false, error: "offset mismatch — resume from `written`", written: r.written };
+        const n = Math.ceil(String(body.data ?? "").length * 3 / 4);
+        r.written = Math.min(r.size, r.written + n);
+        return { ok: true, written: r.written };
+      }
+      case "ota_end": {
+        const r = this.rx.get(node);
+        this.rx.delete(node);
+        if (!r) return { ok: false, error: "no update in progress" };
+        if (r.written !== r.size) return { ok: false, error: "image incomplete" };
+        this.ota.set(node, { until: Date.now() + 2500, build: String(body.build ?? "meshnew").slice(0, 12) });
+        return { ok: true };
+      }
+      case "ota_abort":
+        this.rx.delete(node);
+        return { ok: true };
       case "ota_status": {
         const o = this.ota.get(node);
         const left = o ? o.until - Date.now() : 0;
