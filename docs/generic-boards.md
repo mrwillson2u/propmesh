@@ -329,12 +329,12 @@ enough (the lights relay among themselves).
   `remaining_ms`, `key_set`, `lights[{addr, type, rssi, state
   found|pairing|paired|failed, number}]`. `{"cmd":"ble_pair","addr":
   "aa:bb:…"}` (optional `number`; default = lowest free).
-- **Console:** Nodes & Channels → a board → **Bluetooth lights** →
-  **Find lights…**: switch the floods off, *Search (8 s)*, switch them
-  on; each answering light gets a *Pair* button; when it confirms, the
-  board's config reloads with the new light. *+ Add by number* is for
-  lights already on this board's key. Use a prop board near the floods
-  — the bridge stays pin-free. Simulated mesh: two fake lights answer.
+- **Console:** Nodes & Channels → **Floods** tab (§6a-ii) → **Find
+  lights…**: switch the floods off, *Search (8 s)*, switch them on; each
+  answering light gets *Pair* (or *Take over* if it holds another key);
+  the pairing lands on the board searched from and is copied to every
+  sending board. Simulated mesh: two unpaired lights and one paired
+  elsewhere answer.
 - **Bench facts, three Melpo BLFL-LFCA RGBW floods (2026-10-07):**
   lights announce themselves (18-byte manufacturer data, default key)
   **only for ~15 s after power-up** — hence "switch them off, Search,
@@ -359,6 +359,20 @@ they should look like one thing, not channels scattered across boards.
 BRMesh already works that way — one key, light numbers unique under it,
 lights relaying among themselves — so this is mostly moving where things
 are stored.
+
+**Built 2026-10-07 (console only — no firmware change).** Nodes & Channels
+has a **Floods** tab next to the boards (`views/nodes/FloodsPanel.tsx`,
+model in `lib/floods.ts`): tick the *sending boards*, Find lights from any
+of them (the pairing lands on that board and is copied to the others),
+name lights, test colours (sent to every sender), forget a light. Saving
+writes the same key and the same `BLE_LIGHT` channels (index = light
+number) to every ticked board and strips them from unticked ones. A
+board's own page no longer shows its flood lights, only a pointer to the
+tab. In Cues the floods are one pseudo-node, **Floods**: `loadShow`
+collapses each sender's copy of a flood step to one and hides the boards'
+`BLE_LIGHT` channels; `saveSequence` writes a flood step into every
+sender's part; live sliders fan out to every sender. If two boards hold
+different keys the tab says so and offers to spread either one.
 
 **Design (no new mesh message):**
 

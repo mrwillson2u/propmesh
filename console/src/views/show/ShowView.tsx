@@ -10,6 +10,7 @@ import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
 import { isColour } from "../../lib/nodeConfig";
+import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import Timeline, { type Output } from "./Timeline";
 import {
   EASE_PRESETS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
@@ -32,7 +33,6 @@ const field: React.CSSProperties = {
 const STEP_COLS = "72px 140px 180px minmax(160px,1fr) 380px 56px 24px";
 const STEP_MIN_W = 1020;
 const label = { font: "600 10px system-ui", letterSpacing: ".08em", color: C.t5 } as const;
-const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
 const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) : 0);
 // Kinds whose step slider drives the real output while you drag it.
 // Relays and motors are left to the Test button: a fogger clicking on
@@ -81,10 +81,15 @@ function Editor({ conn }: { conn: Connection }) {
   // slider over the mesh tracks without piling up stale moves.
   const inFlight = useRef(new Map<string, boolean>());
   const queued = useRef(new Map<string, Step>());
+  // A flood step goes to every sending board (lib/floods.ts).
   const send = (st: Step) => {
-    const key = `${st.node}/${st.kind}_${st.index}`;
+    const nodes = st.node === FLOODS ? showRef.current?.floods.senders ?? [] : [st.node];
+    for (const node of nodes) sendOne(node, st);
+  };
+  const sendOne = (node: string, st: Step) => {
+    const key = `${node}/${st.kind}_${st.index}`;
     if (inFlight.current.get(key)) { queued.current.set(key, st); return; }
-    const en = conn.entries[st.node];
+    const en = conn.entries[node];
     if (!en) return;
     inFlight.current.set(key, true);
     target(conn.link, en.usb ? null : en.node).request("set", { kind: st.kind, index: st.index, value: st.value })
@@ -93,13 +98,13 @@ function Editor({ conn }: { conn: Connection }) {
         inFlight.current.set(key, false);
         const next = queued.current.get(key);
         queued.current.delete(key);
-        if (next) send(next);
+        if (next) sendOne(node, next);
       });
   };
 
   const entries = conn.entries;
   const known = Object.values(entries).filter((e) => e.hello);
-  const nameOf = (node: string) => entries[node]?.hello?.name || node;
+  const nameOf = (node: string) => node === FLOODS ? FLOODS_NAME : entries[node]?.hello?.name || node;
 
   // Loads overlap (one starts each time a board introduces itself);
   // only the newest may land, or an early load that saw fewer boards
@@ -214,7 +219,7 @@ function Editor({ conn }: { conn: Connection }) {
     setBusy("save");
     setMsg(null);
     const steps = [...draft.steps].sort((a, b) => a.t_ms - b.t_ms);
-    const r = await saveSequence(conn.link, entries, { ...draft, steps });
+    const r = await saveSequence(conn.link, entries, { ...draft, steps }, show?.floods.senders ?? []);
     setBusy(null);
     if (r.failed.length) {
       setMsg({ text: `Not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
@@ -597,7 +602,7 @@ function ValueInput({ kind, value, onChange }: { kind: ChannelKindName; value: n
     return (
       <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 8 }}>
         <ColourPicker value={value} onChange={onChange} white={kind === "BLE_LIGHT"} />
-        <span style={{ ...mono(500, 11, C.t4), flex: "none" }}>{hex(value)}{value === 0 ? " (off)" : ""}</span>
+        {value === 0 && <span style={{ ...mono(500, 11, C.t4), flex: "none" }}>off</span>}
       </span>
     );
   const pct = Math.round(value / 10);

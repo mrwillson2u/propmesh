@@ -100,7 +100,7 @@ export function ColourPicker({ value, onChange, white }: { value: number; onChan
   }, [rgb]);
   const full = fromHsv(hs.h, hs.s, 1);
   const bright = Math.round(cur.v * 100);
-  const track = (bg: string): React.CSSProperties => ({ background: bg, flex: 1, minWidth: 60 });
+  const track = (bg: string): React.CSSProperties => ({ background: bg, flex: 1, minWidth: 36 });
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
       <input type="color" value={hex6(full)} title="Pick an exact colour"

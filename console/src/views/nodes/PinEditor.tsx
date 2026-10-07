@@ -321,83 +321,16 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
             </div>
           );
         })}
-        <BleLights draft={draft} setDraft={setDraft} values={values} dirty={dirty}
-          onFire={(c, v) => fire(c, v)} node={node} reload={load} />
+        {draft.channels.some((c) => c.kind === "BLE_LIGHT") && (
+          <div style={{ ...sys(400, 11.5, C.t4), padding: "10px 0 0" }}>
+            This board also sends to {draft.channels.filter((c) => c.kind === "BLE_LIGHT").length} flood light(s) — managed in the <b>Floods</b> tab, where they belong to the whole mesh.
+          </div>
+        )}
       </div>}
     </div>
   );
 }
 
-// BRMesh flood lights: no pins — the board broadcasts colours over
-// Bluetooth (firmware pm_ble_tx). One key per board, one row per light.
-function BleLights({ draft, setDraft, values, dirty, onFire, node, reload }: {
-  draft: NodeConfig;
-  setDraft: React.Dispatch<React.SetStateAction<NodeConfig>>;
-  values: Record<string, number>;
-  dirty: boolean;
-  onFire: (c: ChannelCfg, v: number) => void;
-  node: NodeTarget;
-  reload: () => Promise<void>;
-}) {
-  const [finding, setFinding] = useState(false);
-  const lights = draft.channels.filter((c) => c.kind === "BLE_LIGHT");
-  const add = () => setDraft((d) => {
-    const used = new Set(d.channels.filter((c) => c.kind === "BLE_LIGHT").map((c) => c.light));
-    let light = 1;
-    while (used.has(light)) light++;
-    const c = newChannel(d, "BLE_LIGHT", 0);
-    return { ...d, channels: [...d.channels, { ...c, pins: [], light }] };
-  });
-  const patchLight = (c: ChannelCfg, p: Partial<ChannelCfg>) =>
-    setDraft((d) => ({ ...d, channels: d.channels.map((x) => (x === c ? { ...x, ...p } : x)) }));
-  const remove = (c: ChannelCfg) => setDraft((d) => ({ ...d, channels: d.channels.filter((x) => x !== c) }));
-  const keyOk = /^[0-9a-fA-F]{8}$/.test(draft.brmesh_key ?? "");
-
-  return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.b1}` }}>
-        <span style={{ font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5 }}>BLUETOOTH LIGHTS</span>
-        <span style={sys(400, 11, C.t5)}>BRMesh flood lights — this board broadcasts their colour, no wiring</span>
-        <div style={{ flex: 1 }} />
-        {dirty && <span style={mono(600, 11, C.amber)}>save or revert your changes to find lights</span>}
-        <button onClick={() => setFinding(!finding)} disabled={dirty}
-          title={dirty ? "Save or revert your changes first — pairing adds lights to the saved config" : "Find unpaired lights and pair them to this board"}
-          style={btn(!finding, dirty)}>{finding ? "Close" : "Find lights…"}</button>
-        <button onClick={add} style={btn()} title="Add a light by number — for lights already paired with this board's key">+ Add by number</button>
-      </div>
-      {finding && <BleFinder node={node} onPaired={reload} />}
-      {(lights.length > 0 || draft.brmesh_key) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #181c22" }}>
-          <span style={{ ...sys(500, 12, C.t3), width: 110 }}>BRMesh key</span>
-          <input value={draft.brmesh_key ?? ""} placeholder="8 hex digits" maxLength={8} spellCheck={false}
-            onChange={(e) => setDraft((d) => ({ ...d, brmesh_key: e.target.value.trim() || undefined }))}
-            style={{ ...field, width: 120, ...mono(600, 12, keyOk ? C.t1 : C.amber) }} />
-          <span style={sys(400, 11, C.t5)}>
-            Made by this board when it paired its first light, and stored on it only. Change it only to take over
-            lights paired by another controller.
-          </span>
-        </div>
-      )}
-      {lights.map((c) => (
-        <div key={c.index} style={{ display: "grid", gridTemplateColumns: "110px 120px 160px 1fr 24px", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #181c22" }}>
-          <span style={mono(600, 11.5, C.emberT)}>{channelCode(c)}</span>
-          <label style={optLabel} title="The light's number in the BRMesh app (1, 2, …)">light #
-            <input type="number" min={1} max={255} value={c.light ?? 1}
-              onChange={(e) => patchLight(c, { light: Math.max(0, Math.min(255, parseInt(e.target.value, 10) || 0)) })} style={num} />
-          </label>
-          <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?" onChange={(e) => patchLight(c, { label: e.target.value })} style={field} />
-          <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => onFire(c, v)} />
-          <span onClick={() => remove(c)} title="Remove light" style={{ color: C.t5, cursor: "pointer", textAlign: "center" }}>✕</span>
-        </div>
-      ))}
-      {lights.length === 0 && (
-        <div style={{ ...sys(400, 11.5, C.t5), padding: "8px 0" }}>
-          None. Use <b>Find lights…</b> with the floods next to this board — it pairs them, no app or key needed.
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Find + pair BRMesh lights from this board (firmware pm_ble_tx). Every
 // light heard is listed: unpaired ("found"), holding another controller's
@@ -406,7 +339,7 @@ function BleLights({ draft, setDraft, values, dirty, onFire, node, reload }: {
 // the first pairing, saves it, and adds each paired light as a BLE_LIGHT.
 interface FoundLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; acked?: boolean }
 
-function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promise<void> }) {
+export function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promise<void> }) {
   const [mode, setMode] = useState<"idle" | "scanning" | "pairing">("idle");
   const [lights, setLights] = useState<FoundLight[]>([]);
   const [left, setLeft] = useState(0);

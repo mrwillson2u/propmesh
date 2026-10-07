@@ -4,6 +4,7 @@
 // sensors (firmware pm_show.*) — so loading reads every node and merges,
 // and saving splits a sequence back into per-node parts. A dead bridge
 // costs the console, never the show. docs/generic-boards.md.
+import { FLOODS, deriveFloods, floodsConfig, type FloodsState } from "./floods";
 import { target, type NodeLink, type Reply } from "./transport";
 import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
@@ -104,7 +105,8 @@ export interface Rule {
 export interface Show {
   sequences: Sequence[];
   rules: Rule[];
-  configs: Record<string, NodeConfig>; // each node's channels, for the pickers
+  configs: Record<string, NodeConfig>; // each node's channels, for the pickers (floods under FLOODS)
+  floods: FloodsState; // the mesh-wide flood lights and which boards send to them
   armed: Record<string, boolean>;
   unreachable: string[]; // nodes that didn't answer during load
 }
@@ -118,7 +120,7 @@ type Wire =
   | [number, ChannelKindName, number, number, number, string]; // named preset, before 2026-10-06
 
 export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> {
-  const show: Show = { sequences: [], rules: [], configs: {}, armed: {}, unreachable: [] };
+  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, unreachable: [] };
   const byId = new Map<number, Sequence>();
   await Promise.all(entries.map(async (en) => {
     try {
@@ -139,7 +141,8 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
         if (sum.problem) seq.problems.push(`${en.hello?.name || en.node}: ${sum.problem}`);
         for (const w of p.steps) {
           const [t_ms, kind, index, value] = w;
-          const st: Step = { uid: newUid(), t_ms, node: en.node, kind, index, value };
+          // Flood steps are the same on every sender: they belong to the Floods pseudo-node.
+          const st: Step = { uid: newUid(), t_ms, node: kind === "BLE_LIGHT" ? FLOODS : en.node, kind, index, value };
           if (w.length === 7 && w[4] > 0) { st.dur_ms = w[4]; st.ease_in = w[5]; st.ease_out = w[6]; }
           if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; [st.ease_in, st.ease_out] = LEGACY[w[5]] ?? [50, 50]; }
           seq.steps.push(st);
@@ -150,6 +153,22 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
       show.unreachable.push(en.node);
     }
   }));
+  // The floods: one pseudo-node in the pickers, and each sender's copy of a
+  // flood step collapses to one.
+  show.floods = deriveFloods(show.configs);
+  for (const [node, cfg] of Object.entries(show.configs))
+    show.configs[node] = { ...cfg, channels: (cfg.channels ?? []).filter((c) => c.kind !== "BLE_LIGHT") };
+  if (show.floods.lights.length || show.floods.senders.length) show.configs[FLOODS] = floodsConfig(show.floods);
+  for (const seq of byId.values()) {
+    const seen = new Set<string>();
+    seq.steps = seq.steps.filter((s) => {
+      if (s.node !== FLOODS) return true;
+      const k = [s.t_ms, s.index, s.value, s.dur_ms ?? 0, s.ease_in ?? 50, s.ease_out ?? 50].join("|");
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
   show.sequences = [...byId.values()].sort((a, b) => a.id - b.id);
   show.sequences.forEach((s) => s.steps.sort((a, b) => a.t_ms - b.t_ms));
   show.rules.sort((a, b) => a.node.localeCompare(b.node) || a.input - b.input);
@@ -159,17 +178,25 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
 export interface SaveResult { failed: { node: string; error: string }[] }
 
 // Push one sequence: each node gets the steps for its own channels;
-// nodes that had a part and now have none get it deleted.
-export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence): Promise<SaveResult> {
+// nodes that had a part and now have none get it deleted. Flood steps
+// (node FLOODS) go into every sender's part — each transmits them, so a
+// missing board costs nothing.
+export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = []): Promise<SaveResult> {
   const parts = new Map<string, Wire[]>();
-  for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
-    if (!parts.has(st.node)) parts.set(st.node, []);
-    const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
-    parts.get(st.node)!.push(dur > 0
-      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
-      : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)]);
-  }
   const failed: SaveResult["failed"] = [];
+  for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
+    const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
+    const w: Wire = dur > 0
+      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
+      : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)];
+    const to = st.node === FLOODS ? senders : [st.node];
+    if (st.node === FLOODS && !senders.length && !failed.some((f) => f.node === FLOODS))
+      failed.push({ node: FLOODS, error: "no board holds the floods key — tick a sending board in the Floods tab" });
+    for (const node of to) {
+      if (!parts.has(node)) parts.set(node, []);
+      parts.get(node)!.push(w);
+    }
+  }
   const nodes = new Set([...parts.keys(), ...seq.loadedOn]);
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];

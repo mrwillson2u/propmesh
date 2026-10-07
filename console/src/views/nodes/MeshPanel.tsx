@@ -10,6 +10,8 @@ import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
 import { connectSim, connectUsb, target, webSerialSupported } from "../../lib/transport";
 import PinEditor from "./PinEditor";
+import FloodsPanel from "./FloodsPanel";
+import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
   useConnection, type Entry,
@@ -120,6 +122,16 @@ export default function MeshPanel() {
             </button>
           );
         })}
+        {list.length > 0 && (
+          <button onClick={() => setSelected(FLOODS)} title="BRMesh flood lights — driven by every board you tick"
+            style={{
+              display: "flex", alignItems: "center", gap: 7, height: 32, padding: "0 10px", borderRadius: 6, cursor: "pointer",
+              background: selected === FLOODS ? C.emberBg2 : C.card, border: `1px solid ${selected === FLOODS ? C.emberB : C.b2}`,
+            }}>
+            <span style={{ fontSize: 12 }}>✺</span>
+            <span style={sys(600, 12, C.t1)}>{FLOODS_NAME}</span>
+          </button>
+        )}
         {list.length === 1 && (
           <span style={{ display: "flex", alignItems: "center", gap: 7, ...mono(500, 11, C.t5) }}>
             <Spinner size={10} />
@@ -132,6 +144,7 @@ export default function MeshPanel() {
         <button onClick={disconnect} style={btn()}>Disconnect</button>
       </div>
 
+      {selected === FLOODS && <FloodsPanel link={link} entries={entries} />}
       {sel && !sel.hello && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "14px 16px", ...mono(500, 11.5, C.t4) }}>
           <Spinner />
