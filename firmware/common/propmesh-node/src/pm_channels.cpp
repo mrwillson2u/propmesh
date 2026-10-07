@@ -123,6 +123,15 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
       ledcWrite(c.pins[0], v > 0 ? pm_duty(v, MOTOR_BITS) : 0);
       ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
       break;
+    // Colour fades (2026-10-07: a flood fade computed perfectly here and
+    // sent nothing — these two cases were missing).
+    case PM_CHANNEL_KIND_LED_STRIP:
+      r.strip->fill((uint32_t)v & 0xFFFFFF);
+      r.strip->show();
+      break;
+    case PM_CHANNEL_KIND_BLE_LIGHT:
+      pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);
+      break;
   }
   r.value = v;
 }
@@ -161,7 +170,7 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
       r.strip->show();
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
-      pm_ble_light(c.light_id, (uint32_t)v & 0xFFFFFF);
+      pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);  // 0xWWRRGGBB, W 0–127
       break;
   }
   r.value = v;
@@ -217,7 +226,7 @@ bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
   int32_t from = (kind == PM_CHANNEL_KIND_SERVO && r.value < 0) ? to : r.value;
   if (kind == PM_CHANNEL_KIND_SERVO && r.moving) from = (int32_t)(r.motion.pos + 0.5f);
   r.moving = false;
-  r.ramp.begin(from, to, start_us, dur_ms, ease_in, ease_out);
+  r.ramp.begin(from, to, start_us, dur_ms, ease_in, ease_out, pm_kind_colour(kind));
   raw_out(c, r, r.ramp.at(esp_timer_get_time()));
   return true;
 }

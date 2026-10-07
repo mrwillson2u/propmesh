@@ -119,12 +119,12 @@ int frame(int cls, int forward, const uint8_t* key, const uint8_t* cmd, int len,
   memcpy(out + 4, pkt + 4, total - 4);
   return 3 + 1 + (total - 4);
 }
-int advertisement(const uint8_t* key, const uint8_t* cmd, uint8_t* out) { return frame(5, true, key, cmd, 6, out); }
+int advertisement(const uint8_t* key, const uint8_t* cmd, uint8_t* out) { return frame(5, true, key, cmd, 8, out); }
 }  // namespace ref
 
 static void check(const uint8_t key[4], uint8_t light, uint32_t rgb) {
   memcpy(ref::my_key, key, 4);
-  uint8_t cmd[6];
+  uint8_t cmd[8];
   pm_brmesh_command(light, rgb, cmd);
   uint8_t want[64];
   ref::SEND_COUNT = 41;  // next seq the reference will use: 42
@@ -150,7 +150,7 @@ static void test_matches_reference_off_and_other_keys() {
 }
 
 static void test_command_bytes() {
-  uint8_t c[6];
+  uint8_t c[8];
   pm_brmesh_command(4, 0, c);              // off
   TEST_ASSERT_EQUAL_HEX8(0x22, c[0]);
   TEST_ASSERT_EQUAL(4, c[1]);
@@ -167,6 +167,32 @@ static void test_command_bytes() {
   pm_brmesh_command(1, 0x804000, c);       // orange, half brightness
   TEST_ASSERT_EQUAL(255, c[4]);
   TEST_ASSERT_EQUAL(128, c[5]);
+  TEST_ASSERT_EQUAL(0, c[6]);
+  pm_brmesh_command(2, 0x7F000000, c);     // white, full
+  TEST_ASSERT_EQUAL_HEX8(0x72, c[0]);
+  TEST_ASSERT_EQUAL(127, c[2]);
+  TEST_ASSERT_EQUAL(0, c[4]);
+  TEST_ASSERT_EQUAL(127, c[6]);
+  TEST_ASSERT_EQUAL(127, c[7]);
+  pm_brmesh_command(2, 0x40FF0000, c);     // white half + a colour: white wins, no RGB (lights reject a mix)
+  TEST_ASSERT_EQUAL(64, c[2]);
+  TEST_ASSERT_EQUAL(0, c[4]);
+  TEST_ASSERT_EQUAL(127, c[6]);
+}
+
+// The reference's colour-temperature command: 0x72, number, brightness,
+// no RGB, bytes 6–7 = 127 127 (the only white values the floods accept).
+static void test_white_matches_reference() {
+  const uint8_t k[4] = {0x5A, 0x13, 0xC7, 0x9E};
+  memcpy(ref::my_key, k, 4);
+  const uint8_t data[8] = {0x72, 5, 100, 0, 0, 0, 127, 127};
+  uint8_t want[64], got[PM_BRMESH_ADV_LEN], cmd[8];
+  ref::SEND_COUNT = 41;
+  ref::frame(5, true, k, data, 8, want);
+  pm_brmesh_command(5, 100u << 24, cmd);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(data, cmd, 8);
+  pm_brmesh_adv(k, 42, cmd, got);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
 }
 
 // Wake (class 0, no key) and add-device (class 2, default key, 12 bytes:
@@ -240,6 +266,7 @@ int main() {
   RUN_TEST(test_matches_reference_colour);
   RUN_TEST(test_matches_reference_off_and_other_keys);
   RUN_TEST(test_command_bytes);
+  RUN_TEST(test_white_matches_reference);
   RUN_TEST(test_pairing_frames_match_reference);
   RUN_TEST(test_parse_light_advert);
   RUN_TEST(test_real_advert_identity_survives_key_change);

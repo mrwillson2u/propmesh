@@ -33,7 +33,7 @@ export function tracks(seq: Sequence): Track[] {
 
 // Value range per kind, for the y axis.
 export function range(kind: ChannelKindName): [number, number] {
-  return kind === "MOTOR" ? [-1000, 1000] : kind === "RELAY" ? [0, 1] : isColour(kind) ? [0, 0xffffff] : [0, 1000];
+  return kind === "MOTOR" ? [-1000, 1000] : kind === "RELAY" ? [0, 1] : isColour(kind) ? [0, 0x7fffffff] : [0, 1000];
 }
 
 // The track's value at time t, or null before anything has set it
@@ -47,9 +47,21 @@ export function valueAt(seq: Sequence, track: Track, t: number): number | null {
     if (t < start) break;
     if (t >= s.t_ms || dur === 0) { v = s.value; continue; }
     const from = v ?? s.value;
-    return from + (s.value - from) * ease(s.ease_in, s.ease_out, (t - start) / dur);
+    const e = ease(s.ease_in, s.ease_out, (t - start) / dur);
+    return isColour(track.kind) ? lerpColour(from, s.value, e) : from + (s.value - from) * e;
   }
   return v;
+}
+
+// A colour value 0xWWRRGGBB faded per component (matches pm_ramp.h).
+export function lerpColour(a: number, b: number, e: number): number {
+  let out = 0;
+  for (let shift = 0; shift < 32; shift += 8) {
+    const ca = (a >>> shift) & 0xff, cb = (b >>> shift) & 0xff;
+    const c = Math.max(0, Math.min(0xff, Math.round(ca + (cb - ca) * e)));
+    out |= c << shift;
+  }
+  return out & 0x7fffffff;
 }
 
 // Gap from a keyframe back to the previous one on its track (or to the

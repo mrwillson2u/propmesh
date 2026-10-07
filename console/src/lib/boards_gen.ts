@@ -53,7 +53,7 @@ export const FUNCTIONS: Record<ChannelKindName, FunctionDef> = {
   MOTOR: { kind: "MOTOR", label: "DC motor (H-bridge IN1/IN2)", pins: [{ role: "IN1", need: 0x02 }, { role: "IN2", need: 0x02 }], ledc: 2, rmt: 0, pwmHz: 25000, min: -1000, max: 1000 },
   LED_STRIP: { kind: "LED_STRIP", label: "LED strip (WS2812)", pins: [{ role: "DATA", need: 0x02 }], ledc: 0, rmt: 1, pwmHz: 0, min: 0, max: 16777215 },
   DIGITAL_IN: { kind: "DIGITAL_IN", label: "Sensor / button input", pins: [{ role: "IN", need: 0x01 }], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 1 },
-  BLE_LIGHT: { kind: "BLE_LIGHT", label: "BLE flood light (BRMesh)", pins: [], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 16777215 },
+  BLE_LIGHT: { kind: "BLE_LIGHT", label: "BLE flood light (BRMesh)", pins: [], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 2147483647 },
 };
 
 export const BOARDS: Record<string, Board> = {

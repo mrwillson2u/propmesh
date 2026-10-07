@@ -39,10 +39,14 @@ struct PmStep {
   uint32_t start_ms() const { return dur_ms > t_ms ? 0 : t_ms - dur_ms; }
 };
 
-// Kinds a ramp makes sense for: a level or a position, not a switch.
+// Colour outputs: value 0xWWRRGGBB, ramped per component (pm_ramp.h).
+inline bool pm_kind_colour(uint8_t kind) {
+  return kind == PM_CHANNEL_KIND_LED_STRIP || kind == PM_CHANNEL_KIND_BLE_LIGHT;
+}
+// Kinds a ramp makes sense for: a level, a position or a colour — not a switch.
 inline bool pm_kind_ramps(uint8_t kind) {
   return kind == PM_CHANNEL_KIND_SERVO || kind == PM_CHANNEL_KIND_LED ||
-         kind == PM_CHANNEL_KIND_MOTOR;
+         kind == PM_CHANNEL_KIND_MOTOR || pm_kind_colour(kind);
 }
 
 struct PmSequence {
@@ -128,7 +132,7 @@ inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cf
     if (st.kind == PM_CHANNEL_KIND_DIGITAL_IN) return "a step can't drive an input";
     if (!pm_find_channel(cfg, st.kind, st.index)) return "step addresses a channel this node doesn't have";
     if (st.dur_ms) {
-      if (!pm_kind_ramps(st.kind)) return "only servos, LED dimmers and motors can ramp";
+      if (!pm_kind_ramps(st.kind)) return "relays and inputs can't ramp";
       if (st.dur_ms > st.t_ms) return "a ramp can't start before the sequence does";
       if (st.ease_in > 100 || st.ease_out > 100 || st.ease_in + st.ease_out > 100)
         return "ease in + ease out must be at most 100 %";

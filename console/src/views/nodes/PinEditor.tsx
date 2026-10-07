@@ -632,7 +632,7 @@ function Test({ c, value, disabled, onFire, cal }: {
   if (isColour(c.kind))
     return (
       <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 10, ...dim }}>
-        <ColourPicker value={v} onChange={onFire} />
+        <ColourPicker value={v} onChange={onFire} white={c.kind === "BLE_LIGHT"} />
         <button onClick={() => onFire(0)} style={btn()}>Off</button>
         {readout(hex(v))}
       </span>

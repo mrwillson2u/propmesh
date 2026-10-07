@@ -9,7 +9,10 @@
 // never start — and BLE lights can be added from the console at any time.
 extern "C" bool btInUse() { return true; }
 
-#define TX_WINDOW_MS 200   // one command's advertising burst (20 ms interval -> ~10 adverts)
+// One command's advertising burst (20 ms interval -> ~5 adverts at 100 ms).
+// Bench 2026-10-07 (Melpo floods, `ble_tx` sweep): 200 and 100 ms caught
+// every change, 60 ms dropped some. It bounds how fast a fade can step.
+static uint16_t tx_window_ms = 100;
 #define TX_GAP_MS 15       // between bursts, so a light sees distinct frames
 #define MAX_LIGHTS 16
 #define MAX_FOUND 16
@@ -24,6 +27,8 @@ static uint32_t until_ms;
 static uint8_t rr;
 
 static struct { bool used, dirty; uint8_t light; uint32_t rgb; } q[MAX_LIGHTS];
+static uint8_t raw_cmd[8], raw_hi;
+static bool raw_dirty;
 
 static uint8_t mode = PM_BLE_IDLE;
 static uint32_t mode_until;
@@ -181,6 +186,9 @@ bool pm_ble_start() {
 }
 
 bool pm_ble_running() { return started; }
+void pm_ble_raw(const uint8_t cmd[8], uint8_t hi) { memcpy(raw_cmd, cmd, 8); raw_hi = hi; raw_dirty = true; }
+void pm_ble_tx_window(uint16_t ms) { tx_window_ms = ms < 20 ? 20 : ms; }
+uint16_t pm_ble_tx_window() { return tx_window_ms; }
 void pm_ble_set_key(const uint8_t k[4]) {
   memcpy(key, k, 4);
   key_set = k[0] || k[1] || k[2] || k[3];
@@ -331,12 +339,13 @@ static void handle_heard(const Heard &h) {
     t.acked = true;
     t.rssi = h.rssi;
     memcpy(t.raw, h.mdata, 18);
+    const char *type = pm_brmesh_type_name(t.seen);
     memcpy(t.seen.key, s.key, 4);
     uint8_t n = pm_brmesh_number(h.mdata, key);
     if (n) t.number = n;
     stop_radio();
     mode = PM_BLE_IDLE;
-    if (paired_cb) paired_cb(t.number, pm_brmesh_type_name(t.seen));
+    if (paired_cb) paired_cb(t.number, type);
   }
 }
 
@@ -357,8 +366,9 @@ void pm_ble_loop() {
         // The burst went out; lights don't answer. Count it as paired.
         PmBleLight &t = found[pair_target];
         t.state = PM_BLE_PAIRED;
+        const char *type = pm_brmesh_type_name(t.seen);  // before the key it's decoded with changes
         memcpy(t.seen.key, key, 4);
-        if (paired_cb) paired_cb(t.number, pm_brmesh_type_name(t.seen));
+        if (paired_cb) paired_cb(t.number, type);
       }
       pair_target = -1;
     }
@@ -373,18 +383,29 @@ void pm_ble_loop() {
     return;
   }
   if ((int32_t)(now - until_ms) < 0) return;
+  if (raw_dirty) {  // bench: arbitrary command bytes (`ble_raw`)
+    uint8_t adv[PM_BRMESH_ADV_LEN];
+    pm_brmesh_frame(5, true, key, ++seq, raw_cmd, 8, adv, raw_hi);
+    if (adv_data(adv) && adv_enable(true)) {
+      raw_dirty = false;
+      bursts++;
+      advertising = true;
+      until_ms = now + tx_window_ms;
+    }
+    return;
+  }
   for (int n = 0; n < MAX_LIGHTS; n++) {
     int i = (rr + n) % MAX_LIGHTS;
     if (!q[i].used || !q[i].dirty) continue;
     rr = (i + 1) % MAX_LIGHTS;
     q[i].dirty = false;
-    uint8_t cmd[6], adv[PM_BRMESH_ADV_LEN];
+    uint8_t cmd[8], adv[PM_BRMESH_ADV_LEN];
     pm_brmesh_command(q[i].light, q[i].rgb, cmd);
     pm_brmesh_adv(key, ++seq, cmd, adv);
     if (adv_data(adv) && adv_enable(true)) {
       bursts++;
       advertising = true;
-      until_ms = now + TX_WINDOW_MS;
+      until_ms = now + tx_window_ms;
     } else {
       q[i].dirty = true;  // radio busy: try again next loop
     }

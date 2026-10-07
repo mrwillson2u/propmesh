@@ -257,6 +257,18 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "ble_scan")) cmd_ble_scan(req, resp);
   else if (!strcmp(cmd, "ble_found")) cmd_ble_found(resp);
   else if (!strcmp(cmd, "ble_pair")) cmd_ble_pair(req, resp);
+  else if (!strcmp(cmd, "ble_raw")) {
+    uint8_t d[8] = {};
+    JsonArrayConst a = req["data"].as<JsonArrayConst>();
+    uint8_t i = 0;
+    for (JsonVariantConst v : a) if (i < 8) d[i++] = v.as<int>();
+    if (!pm_ble_start()) return fail(resp, "Bluetooth didn't start");
+    pm_ble_raw(d, req["hi"] | 0);
+  }
+  else if (!strcmp(cmd, "ble_tx")) {
+    if (req["window_ms"].is<int>()) pm_ble_tx_window(req["window_ms"]);
+    resp["window_ms"] = pm_ble_tx_window();
+  }
   else if (!strcmp(cmd, "ble")) {
     PmBleStats b = pm_ble_stats();
     resp["adverts_heard"] = b.adverts_heard;

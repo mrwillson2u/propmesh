@@ -351,6 +351,70 @@ enough (the lights relay among themselves).
   with a non-default key, and a light still holding the app's key did
   exactly that. One real test light beats any amount of reasoning.
 
+## 6a-ii. Floods as mesh-wide lights (plan, 2026-10-07)
+
+Colin's ask: the floods should not belong to one node. Any node should be
+able to drive them, so losing a node loses no lights, and in the console
+they should look like one thing, not channels scattered across boards.
+BRMesh already works that way — one key, light numbers unique under it,
+lights relaying among themselves — so this is mostly moving where things
+are stored.
+
+**Design (no new mesh message):**
+
+1. **One key, one light list, copied to every sender.** The console holds
+   the "floods" set: key + lights (number, type, label). Each *sender*
+   node gets the same key and the same `BLE_LIGHT` channels in its config
+   (`set_config`, as today). Senders = nodes Colin ticks in the Floods
+   view (default: every prop board that has Bluetooth running; never the
+   bridge — its radio already shares USB and the mesh).
+2. **Floods pseudo-node in the console.** Nodes & Channels shows a
+   "Floods" entry: no heartbeat, pins, or triggers; one channel per light
+   plus Find lights (runs on whichever sender is chosen) and the sender
+   tick-boxes. Live `set` fans out to all senders; a cue's flood steps go
+   into every sender's part of the sequence, so each sender transmits them
+   at the same mesh time. Lights ignore repeats, so the redundancy is free.
+3. **Pairing from any sender** adds the light to the floods set; the
+   console then pushes key + channel to the other senders.
+4. **Rate cap** per light (~10 Hz) so a ramp from several senders doesn't
+   flood the air; group address (all lights were put in group 1 when
+   paired) for steps that move every flood together — one burst instead
+   of N.
+
+**White — DONE (bench 2026-10-07, Melpo RGBW):** white is a *mode*, not
+a channel. Bytes 6 and 7 both 127 switch the light to warm white and the
+brightness byte sets its level; partial values in 6/7 do nothing, and a
+frame carrying RGB *and* white is rejected outright (not even the colour
+shows). Values are `0xWWRRGGBB`: W 1–127 = white at that level (RGB
+ignored), W 0 = colour. The picker's white slider replaces the colour and
+vice versa. A fade between a colour and white snaps to white as soon as
+W > 0.
+
+**Frame layout, decoded:** the "command byte" is type 2 | length<<4 —
+`0x72` = light command of 7 bytes, `0x22` = 1-byte off. The header's low
+nibble is the high part of a 16-bit address in the app's code; the lights
+**ignore it** (0x101 and 0x801 both drove light 1).
+
+**Fade smoothness — measured:** bursts of 200 and 100 ms are caught every
+time, 60 ms drops steps → default **100 ms**. Colour ramps now run on the
+board (`pm_lerp_colour`, per component) and reach the radio (raw_out had
+no strip/flood case). Three floods fading together: 58 bursts / 6.5 s =
+**~3 updates/s per light**, visibly stepped and staggered (round-robin).
+The lights do not smooth internally.
+
+**Group addressing — PARKED (Colin, 2026-10-07):** every light was put in
+group 1 at pairing, but no address byte we tried (0x00, 0xFF, 0x80, 0x81,
+0x41, 0x100, 0x101, 0x1FF, 0xFFF, 0x801) reached more than one light, and
+neither gateway port implements groups ("Ooops! use_22_data"). Plan when
+resumed: pair one flood to the BRMesh app, read the app's key from the
+light's advert, capture the app's frames with the board's scanner
+(`ble_found.others` already keeps non-phone adverts — widen it to a
+capture ring) and decode them; or `adb logcat | grep jyq` for plaintext.
+Debug hooks kept for that: `ble_raw {data[8], hi}`, `ble_tx {window_ms}`.
+
+**Order now:** Floods pseudo-node + senders → re-pair the three floods
+under the mesh key → doc. Group addressing later.
+
 ## 6b. Sequences and triggers (Stage 3, 2026-10-05)
 
 **Model.** A *sequence* is show-wide (id 1–65535, a name) and is a list

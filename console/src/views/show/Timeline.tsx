@@ -312,8 +312,32 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
               {tr.steps.map((idx, k) => {
                 const s = seq.steps[idx];
                 if (isColour(tr.kind)) {
+                  // Colour bar: the previous colour held, then (for a ramp) a
+                  // gradient into this key's colour over the ramp.
                   const prev = k > 0 ? seq.steps[tr.steps[k - 1]] : null;
-                  return prev ? <rect key={"bar" + idx} x={tx(prev.t_ms)} y={top + 10} width={Math.max(0, tx(s.t_ms) - tx(prev.t_ms))} height={h - 20} fill={hex(prev.value)} opacity=".8" /> : null;
+                  if (!prev) return null;
+                  const dur = Math.min(s.dur_ms ?? 0, s.t_ms - prev.t_ms);
+                  const x0 = tx(prev.t_ms), x1 = tx(s.t_ms - dur), x2 = tx(s.t_ms);
+                  const gid = `fade-${tr.key}-${idx}`;
+                  return (
+                    <g key={"bar" + idx}>
+                      {x1 > x0 && <rect x={x0} y={top + 10} width={x1 - x0} height={h - 20} fill={hex(prev.value)} opacity=".8" />}
+                      {dur > 0 && (
+                        <>
+                          <defs>
+                            <linearGradient id={gid} x1="0" x2="1" y1="0" y2="0">
+                              <stop offset="0" stopColor={hex(prev.value)} />
+                              <stop offset="1" stopColor={hex(s.value)} />
+                            </linearGradient>
+                          </defs>
+                          <rect x={x1} y={top + 10} width={Math.max(0, x2 - x1)} height={h - 20} fill={`url(#${gid})`} opacity=".8"
+                            style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onSelect(s.uid ?? null); }}>
+                            <title>Fade into this colour — R makes it a jump</title>
+                          </rect>
+                        </>
+                      )}
+                    </g>
+                  );
                 }
                 const pts = segmentPoints(seq, tr, idx);
                 const d = pts.map((p, i) => `${i ? "L" : "M"}${tx(p.t).toFixed(1)},${vy(tr, top, p.v).toFixed(1)}`).join(" ");

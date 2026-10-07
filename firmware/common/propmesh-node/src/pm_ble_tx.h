@@ -29,8 +29,14 @@ bool pm_ble_start();
 bool pm_ble_running();
 void pm_ble_set_key(const uint8_t key[4]);
 
-// Queue light `light` (BRMesh number) to show `rgb` (0xRRGGBB, 0 = off).
-void pm_ble_light(uint8_t light, uint32_t rgb);
+// Queue light `light` (BRMesh number) to show `wrgb` (0xWWRRGGBB, W 0–127
+// white; 0 = off).
+void pm_ble_light(uint8_t light, uint32_t wrgb);
+// Bench only: send these 8 command bytes as one control frame.
+void pm_ble_raw(const uint8_t cmd[8], uint8_t hi = 0);
+// Length of one colour's advertising burst (default 200 ms).
+void pm_ble_tx_window(uint16_t ms);
+uint16_t pm_ble_tx_window();
 
 void pm_ble_loop();
 

@@ -73,11 +73,23 @@ inline void whiten(uint8_t *buf, int len) {
 // The 6-byte light command:
 //   off/brightness: {0x22, light, brightness 0..127, 0, 0, 0}
 //   colour:         {0x72, light, brightness 0..127, blue, red, green}
-inline void pm_brmesh_command(uint8_t light, uint32_t rgb, uint8_t out[6]) {
-  uint8_t r = rgb >> 16, g = rgb >> 8, b = rgb;
+// Colour value: 0xWWRRGGBB. W (1–127) selects WHITE MODE: the light shows
+// warm white at level W and the RGB bytes are ignored. Bench, Melpo RGBW
+// flood 2026-10-07: white needs bytes 6 AND 7 at 127 (the reference calls
+// them colour temperature; partial values do nothing) with the level in
+// the brightness byte, and a frame carrying both RGB and white is rejected
+// outright — the lights can't mix the two. W = 0: colour mode.
+inline void pm_brmesh_command(uint8_t light, uint32_t wrgb, uint8_t out[8]) {
+  uint8_t r = wrgb >> 16, g = wrgb >> 8, b = wrgb, w = (wrgb >> 24) & 0x7F;
   uint8_t peak = r > g ? (r > b ? r : b) : (g > b ? g : b);
-  memset(out, 0, 6);
+  memset(out, 0, 8);
   out[1] = light;
+  if (w) {
+    out[0] = 0x72;
+    out[2] = w;
+    out[6] = out[7] = 127;
+    return;
+  }
   if (!peak) { out[0] = 0x22; return; }  // black = off
   // Brightness from the colour's peak; the colour itself sent at full
   // scale, so a dim red is "red at low brightness", as the lights expect.
@@ -91,12 +103,16 @@ inline void pm_brmesh_command(uint8_t light, uint32_t rgb, uint8_t out[6]) {
 // One fastcon frame as a 31-byte BLE advertising payload.
 // `cls`: 0 wake, 2 add device, 5 control. `key` all zero = no key (wake):
 // the data bytes are then replaced by the default key, as the app does.
+// `hi`: the header's low nibble — the high bits of a 16-bit address in the
+// app's protocol (every known port leaves it 0; the app uses it for
+// addresses ≥ 256, presumably groups).
 inline void pm_brmesh_frame(uint8_t cls, bool forward, const uint8_t key[4], uint8_t seq,
-                            const uint8_t *data, uint8_t len, uint8_t adv[PM_BRMESH_ADV_LEN]) {
+                            const uint8_t *data, uint8_t len, uint8_t adv[PM_BRMESH_ADV_LEN],
+                            uint8_t hi = 0) {
   using namespace pm_brmesh;
   bool has_key = key[0] | key[1] | key[2] | key[3];
   uint8_t body[16] = {};
-  body[0] = (cls & 7) << 4 | (forward ? 0x80 : 0);
+  body[0] = (hi & 0x0F) | (cls & 7) << 4 | (forward ? 0x80 : 0);
   body[1] = seq;
   body[2] = has_key ? key[3] : 0xFF;
   if (len > 12) len = 12;
@@ -126,9 +142,9 @@ inline void pm_brmesh_frame(uint8_t cls, bool forward, const uint8_t key[4], uin
 }
 
 // Light control (class 5, forwarded through the lights' own mesh).
-inline void pm_brmesh_adv(const uint8_t key[4], uint8_t seq, const uint8_t cmd[6],
+inline void pm_brmesh_adv(const uint8_t key[4], uint8_t seq, const uint8_t cmd[8],
                           uint8_t adv[PM_BRMESH_ADV_LEN]) {
-  pm_brmesh_frame(5, true, key, seq, cmd, 6, adv);
+  pm_brmesh_frame(5, true, key, seq, cmd, 8, adv);
 }
 
 // Wake: makes unpaired lights advertise themselves (class 0, no key).

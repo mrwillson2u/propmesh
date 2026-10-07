@@ -64,7 +64,12 @@ export function Spinner({ size = 12, color = C.t4 }: { size?: number; color?: st
 // Colour for strips and BLE floods: hue + brightness sliders that work by
 // dragging. The browser's own picker can't leave black — its hue slider
 // keeps brightness at 0 — so it only gets the colour at full brightness.
+// Values are 0xWWRRGGBB: W (1–127) puts an RGBW flood in warm-white mode at
+// that level (the lights can't mix white with a colour), shown as a third
+// slider when `white` is set; moving it clears the colour, and vice versa.
 const hex6 = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
+export const WHITE_MAX = 127;
+export const colourWhite = (v: number) => (v >>> 24) & WHITE_MAX;
 function toHsv(v: number) {
   const [r, g, b] = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((x) => x / 255);
   const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
@@ -80,16 +85,19 @@ function fromHsv(h: number, s: number, v: number) {
   return (f(5) << 16) | (f(3) << 8) | f(1);
 }
 
-export function ColourPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const cur = toHsv(value);
+export function ColourPicker({ value, onChange, white }: { value: number; onChange: (v: number) => void; white?: boolean }) {
+  const rgb = value & 0xffffff, w = colourWhite(value);
+  const cur = toHsv(rgb);
+  // Either a colour or a white level, never both.
+  const emit = (newRgb: number, newW = 0) => onChange(newW ? newW << 24 : newRgb & 0xffffff);
   // Hue and saturation survive "off" (black), so brightness can bring the colour back.
-  const [hs, setHs] = useState({ h: cur.h, s: value ? cur.s : 1 });
+  const [hs, setHs] = useState({ h: cur.h, s: rgb ? cur.s : 1 });
   useEffect(() => {
-    if (!value || fromHsv(hs.h, hs.s, toHsv(value).v) === value) return;
-    const x = toHsv(value);
+    if (!rgb || fromHsv(hs.h, hs.s, toHsv(rgb).v) === rgb) return;
+    const x = toHsv(rgb);
     setHs((p) => ({ h: x.s ? x.h : p.h, s: x.s }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [rgb]);
   const full = fromHsv(hs.h, hs.s, 1);
   const bright = Math.round(cur.v * 100);
   const track = (bg: string): React.CSSProperties => ({ background: bg, flex: 1, minWidth: 60 });
@@ -99,19 +107,24 @@ export function ColourPicker({ value, onChange }: { value: number; onChange: (v:
         onChange={(e) => {
           const x = parseInt(e.target.value.slice(1), 16), t = toHsv(x);
           if (x) setHs({ h: t.s ? t.h : hs.h, s: t.s });
-          onChange(x);
+          emit(x);
         }}
-        style={{ width: 32, height: 26, padding: 0, flex: "none", background: "none", border: `1px solid ${C.b2}`, borderRadius: 5, opacity: value ? 1 : 0.5 }} />
+        style={{ width: 32, height: 26, padding: 0, flex: "none", background: "none", border: `1px solid ${C.b2}`, borderRadius: 5, opacity: rgb ? 1 : 0.5 }} />
       <input type="range" className="pm-slider" min={0} max={359} value={Math.round(hs.h)} title="Hue"
         onChange={(e) => {
           const h = Number(e.target.value), s = hs.s || 1;
           setHs({ h, s });
-          onChange(fromHsv(h, s, cur.v || 1));
+          emit(fromHsv(h, s, cur.v || 1));
         }}
         style={track("linear-gradient(to right,#f00,#ff0 17%,#0f0 33%,#0ff 50%,#00f 67%,#f0f 83%,#f00)")} />
       <input type="range" className="pm-slider" min={0} max={100} value={bright} title={`Brightness ${bright}%`}
-        onChange={(e) => onChange(fromHsv(hs.h, hs.s, Number(e.target.value) / 100))}
+        onChange={(e) => emit(fromHsv(hs.h, hs.s, Number(e.target.value) / 100))}
         style={track(`linear-gradient(to right,#000,${hex6(full)})`)} />
+      {white && (
+        <input type="range" className="pm-slider" min={0} max={WHITE_MAX} value={w} title={`Warm white ${Math.round(w * 100 / WHITE_MAX)}% — replaces the colour`}
+          onChange={(e) => emit(0, Number(e.target.value))}
+          style={track("linear-gradient(to right,#000,#fff6e0)")} />
+      )}
     </span>
   );
 }

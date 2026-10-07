@@ -596,7 +596,7 @@ function ValueInput({ kind, value, onChange }: { kind: ChannelKindName; value: n
   if (isColour(kind))
     return (
       <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 8 }}>
-        <ColourPicker value={value} onChange={onChange} />
+        <ColourPicker value={value} onChange={onChange} white={kind === "BLE_LIGHT"} />
         <span style={{ ...mono(500, 11, C.t4), flex: "none" }}>{hex(value)}{value === 0 ? " (off)" : ""}</span>
       </span>
     );
