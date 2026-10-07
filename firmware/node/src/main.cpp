@@ -7,6 +7,7 @@
 // and sensor events come back up as {"evt":...} lines. A node saved in
 // bridge mode drives no pins and keeps the mesh clock.
 // docs/generic-boards.md.
+#include "pm_ota.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "pm_mesh.h"
@@ -150,10 +151,21 @@ void setup() {
   evt["node"] = id;
   evt["board"] = BOARD.id;
   evt["fw"] = PM_FW_VERSION;
+  evt["build"] = PM_BUILD;
+  evt["pending"] = pm_ota_pending();  // a fresh OTA image, not yet proven
   evt["config"] = config_state;
   evt["bridge"] = cfg.bridge;
   evt["channels"] = cfg.channel_count;
   send(evt);
+}
+
+// A freshly updated image proves itself by running with the mesh up for
+// 20 s; until then a crash or reset lets the bootloader fall back.
+static void confirm_image() {
+  static bool done;
+  if (done || millis() < 20000) return;
+  done = true;
+  pm_ota_mark_valid();
 }
 
 void loop() {
@@ -161,6 +173,7 @@ void loop() {
   pm_channels_loop();
   pm_show_loop();
   if (!mesh_up) return;
+  confirm_image();
   pm_mesh_loop();
   pm_link_loop();
   election();

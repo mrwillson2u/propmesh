@@ -129,8 +129,13 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
     } else if (e.evt === "heartbeat") {
       const hb = e as unknown as Heartbeat;
       current = { ...current, lastEvent: Date.now() };
-      if (hb.node !== hello.node) patch(hb.node, { hb, seen: Date.now() });
-      else changed();
+      if (hb.node !== hello.node) {
+        // Uptime went backwards: it rebooted (a firmware update, a power
+        // blip) — ask again who it is, since its build or role may differ.
+        const prev = current.entries[hb.node]?.hb;
+        patch(hb.node, { hb, seen: Date.now() });
+        if (prev && hb.up < prev.up) refreshHello(hb.node);
+      } else changed();
     } else if (e.evt === "input") {
       const node = (e.node as string | undefined) ?? hello.node;
       inputSubs.get(node)?.forEach((cb) => cb(e.kind as string, e.index as number, e.value as number));

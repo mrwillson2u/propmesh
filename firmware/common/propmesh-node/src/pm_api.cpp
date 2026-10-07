@@ -1,3 +1,4 @@
+#include "pm_ota.h"
 #include <Arduino.h>
 #include "pm_api.h"
 #include "pm_mesh.h"
@@ -50,6 +51,7 @@ static void cmd_hello(JsonObject resp) {
   snprintf(id, sizeof(id), "%08lx", (unsigned long)pm_node_id());
   resp["node"] = id;
   resp["fw"] = PM_FW_VERSION;
+  resp["build"] = PM_BUILD;
   resp["board"] = board->id;
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;
@@ -264,6 +266,21 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     for (JsonVariantConst v : a) if (i < 8) d[i++] = v.as<int>();
     if (!pm_ble_start()) return fail(resp, "Bluetooth didn't start");
     pm_ble_raw(d, req["hi"] | 0);
+  }
+  else if (!strcmp(cmd, "ota")) {
+    // Pull new firmware over WiFi (pm_ota.h). The reply goes out first;
+    // the node leaves the mesh channel ~1.5 s later and returns on reboot.
+    const char *url = req["url"] | "", *ssid = req["ssid"] | "", *pass = req["pass"] | "";
+    if (!*url || !*ssid) return fail(resp, "ota needs url and ssid");
+    if (!pm_ota_start(url, ssid, pass, PM_CHANNEL)) return fail(resp, "an update is already running (or the URL/name is too long)");
+  }
+  else if (!strcmp(cmd, "ota_status")) {
+    static const char *const ST[] = {"idle", "connecting", "downloading", "rebooting", "failed"};
+    resp["state"] = ST[pm_ota_state() % 5];
+    resp["progress"] = pm_ota_progress();
+    if (*pm_ota_error()) resp["error"] = pm_ota_error();
+    resp["build"] = PM_BUILD;
+    resp["pending"] = pm_ota_pending();
   }
   else if (!strcmp(cmd, "ble_tx")) {
     if (req["window_ms"].is<int>()) pm_ble_tx_window(req["window_ms"]);

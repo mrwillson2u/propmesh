@@ -12,6 +12,8 @@ import { ease } from "./ease";
 export interface NodeHello {
   node: string; // 8 hex digits
   fw: number;
+  build?: string; // git commit the firmware was built from ("+" = dirty tree)
+  pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;
   bridge?: boolean;
@@ -242,6 +244,11 @@ class SimLink implements NodeLink {
   // Simulated BRMesh search/pair (firmware pm_ble_tx): two lights answer
   // ~2 s into a search; pairing confirms after ~1.5 s.
   private ble = new Map<string, { mode: "idle" | "scanning" | "pairing"; until: number; lights: SimBleLight[] }>();
+  // Simulated firmware builds: an `ota` "downloads" for a few seconds, then
+  // the node reports the build the URL named (its last path segment).
+  private builds = new Map<string, string>();
+  private ota = new Map<string, { until: number; build: string }>();
+  private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
 
   constructor(private boardId: string) {
     for (const id of [SIM_LOCAL, ...SIM_REMOTES.map((r) => r.node)]) {
@@ -274,9 +281,12 @@ class SimLink implements NodeLink {
     }, 4000));
     const beat = () => SIM_REMOTES.forEach((r, i) => {
       const n = this.nodes.get(r.node)!;
+      const o = this.ota.get(r.node);
+      if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
+      if (o) return; // off the mesh while it downloads and reboots
       const hb: Heartbeat = {
         node: r.node, board: 0, role: 1 | (n.cfg.bridge ? 6 : 0), fw: 3,
-        up: Math.round(performance.now() / 1000) + 600 * (i + 1), heap: 190 - 7 * i,
+        up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
         batt: 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
       };
@@ -292,8 +302,23 @@ class SimLink implements NodeLink {
     if (node !== SIM_LOCAL) await new Promise((r) => setTimeout(r, 120)); // mesh round trip
     if (!n) return { ok: false, error: `no reply from node ${node}` };
     switch (cmd) {
-      case "hello":
-        return { ok: true, node, fw: 4, board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed };
+      case "hello": {
+        const o = this.ota.get(node);
+        if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed };
+      }
+      case "ota": {
+        if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };
+        if (this.ota.has(node)) return { ok: false, error: "an update is already running" };
+        const build = String(body.url).replace(/\/firmware\.bin$/, "").split("/").pop() || "simnew";
+        this.ota.set(node, { until: Date.now() + 6000, build: build.slice(0, 12) });
+        return { ok: true };
+      }
+      case "ota_status": {
+        const o = this.ota.get(node);
+        const left = o ? o.until - Date.now() : 0;
+        return { ok: true, state: !o ? "idle" : left > 1500 ? "downloading" : "rebooting", progress: o ? Math.min(100, Math.round((6000 - left) / 45)) : 0, build: this.builds.get(node) ?? "sim0001", pending: false };
+      }
       case "get_config":
         return { ok: true, config: n.cfg };
       case "set_config": {

@@ -530,6 +530,38 @@ longer have steps); *▶ Play*; triggers ("When Porch · PIR becomes active
 play Head turn, then wait 30 s"); *Arm all / Disarm all*; live activity
 log. *Reload from boards* re-reads everything.
 
+## 6c. Firmware updates over the air (2026-10-07)
+
+Boards pull a new image over WiFi; the console only sends the order.
+
+- **Serve:** `python3 tools/ota_serve.py --build` builds, then serves
+  `firmware/node/.pio/build/esp32-devkit-v1/` on port 8266 with CORS open
+  and prints the URL. `build_id.py` (PlatformIO extra script) stamps every
+  build with its git commit (`PM_BUILD`, "+" = dirty tree) and writes
+  `version.json` {build, size, sha256} next to `firmware.bin`.
+- **Console:** Nodes & Channels → **↑ Firmware**: URL, WiFi name and
+  password (kept in the browser's localStorage, never on a board), the
+  served build, and one row per board with its build and an **Update**
+  button; *Update all mesh boards* does every board but the USB one, which
+  takes the console down when it reboots — do it last and reconnect.
+- **Node:** `ota {url, ssid, pass}` answers at once, then 1.5 s later
+  (reply gone) joins the WiFi, `HTTPUpdate`s the image into the spare app
+  slot and reboots (`pm_ota.cpp`, its own 12 kB-stack task). The mesh is
+  lost for the download (the channel follows the AP) and comes back on
+  reboot. Failure → back to the mesh channel, `ota_status` says why.
+  Credentials are used once (`WiFi.persistent(false)`).
+- **Rollback:** the SDK's `BOOTLOADER_APP_ROLLBACK_ENABLE` is on;
+  `verifyRollbackLater()` stops the Arduino core from blessing a new image
+  at boot, and `main.cpp` marks it valid only after 20 s with the mesh up.
+  A crash-looping image is rolled back by the bootloader. `hello.pending`
+  shows an image still on probation.
+- **Partitions:** `min_spiffs.csv` since 2026-10-07 — two 1.9 MB app
+  slots and a 192 kB LittleFS (the default table's 1.25 MB slots were
+  96 % full once HTTPUpdate came in). One USB flash to change; it wipes
+  the filesystem, so configs were backed up and restored over the API.
+- **Simulated mesh:** `ota` "downloads" for 6 s; the node then reports the
+  build named by the URL's last path segment.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

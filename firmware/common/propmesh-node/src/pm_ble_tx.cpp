@@ -15,8 +15,8 @@ extern "C" bool btInUse() { return true; }
 static uint16_t tx_window_ms = 100;
 #define TX_GAP_MS 15       // between bursts, so a light sees distinct frames
 #define MAX_LIGHTS 16
-#define MAX_FOUND 16
-#define MAX_RAW 8
+#define MAX_FOUND 8   // lights heard in one search (static RAM is tight)
+#define MAX_RAW 4
 
 static bool started, failed;
 static uint8_t key[4];

@@ -11,6 +11,7 @@ import type { NodeConfig } from "../../lib/nodeConfig";
 import { connectSim, connectUsb, target, webSerialSupported } from "../../lib/transport";
 import PinEditor from "./PinEditor";
 import FloodsPanel from "./FloodsPanel";
+import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
@@ -24,6 +25,9 @@ const btn = (primary = false, disabled = false): React.CSSProperties => ({
   border: `1px solid ${primary ? C.ember : C.b3}`,
   ...sys(600, 11.5, primary ? C.emberT : C.t2),
 });
+
+// The firmware panel's "selected" id (not a node).
+const OTA = "ota";
 
 const tag = (text: string, color: string, bg: string): JSX.Element => (
   <span style={{ padding: "1px 6px", borderRadius: 99, background: bg, ...mono(700, 9.5, color), letterSpacing: ".05em" }}>{text}</span>
@@ -141,10 +145,12 @@ export default function MeshPanel() {
           </span>
         )}
         <div style={{ flex: 1 }} />
+        <button onClick={() => setSelected(OTA)} title="Update the boards' firmware over WiFi" style={btn(selected === OTA)}>↑ Firmware</button>
         <button onClick={disconnect} style={btn()}>Disconnect</button>
       </div>
 
       {selected === FLOODS && <FloodsPanel link={link} entries={entries} />}
+      {selected === OTA && <OtaPanel link={link} entries={entries} />}
       {sel && !sel.hello && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "14px 16px", ...mono(500, 11.5, C.t4) }}>
           <Spinner />
