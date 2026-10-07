@@ -32,6 +32,7 @@ export interface Heartbeat {
   batt: number; // mV, 0 = mains
   hops: number; // 0 = heard directly by the USB node
   rssi: number; // last hop, dBm
+  ch?: number; // WiFi channel the sender is on (missing on old firmware)
   nbrs: { node: string; rssi: number }[];
 }
 

@@ -87,6 +87,7 @@ typedef struct {
     uint16_t free_heap_kb;
     uint8_t neighbor_count;
     pm_neighbor_t neighbors[8];  // first neighbor_count valid
+    uint8_t channel;  // WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's.
 } pm_heartbeat_t;
 
 typedef struct {

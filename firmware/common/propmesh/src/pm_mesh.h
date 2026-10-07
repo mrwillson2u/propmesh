@@ -42,6 +42,19 @@ bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
 
 void pm_on_receive(pm_rx_handler_t handler);
 
+// --- channel -------------------------------------------------------------
+// The mesh lives on whatever channel the bridge is on (a bridge on home
+// WiFi follows its router). Heartbeats carry it; a node that hasn't heard
+// a bridge for a while scans 1-13 for one and moves (docs §6d).
+uint8_t pm_mesh_channel();
+// Force a channel now (bridge without WiFi, or a bench test).
+void pm_mesh_set_channel(uint8_t ch);
+// Called when this node moves to a new channel (persist it for next boot).
+void pm_mesh_on_channel(void (*cb)(uint8_t));
+// Seconds since a bridge was last heard; 0xFFFF = never.
+uint16_t pm_mesh_bridge_age_s();
+bool pm_mesh_scanning();
+
 // Call every loop(): flushes the jittered relay queue, ages the neighbor
 // table, and emits the time beacon when this node is conductor.
 void pm_mesh_loop();

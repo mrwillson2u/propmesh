@@ -243,10 +243,28 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         </div>
       )}
       {loaded && draft.bridge && (
-        <div style={{ padding: "14px 16px", ...sys(500, 12, C.t3), lineHeight: 1.5 }}>
-          <b style={{ color: C.t1 }}>Bridge.</b> This board drives no pins. It passes the console's
-          requests to the other nodes over the mesh, reports what it hears back up the USB cable,
-          and keeps the mesh clock — every node syncs to it. Leave it plugged into the laptop.
+        <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ ...sys(500, 12, C.t3), lineHeight: 1.5 }}>
+            <b style={{ color: C.t1 }}>Bridge.</b> This board drives no pins. It passes the console's
+            requests to the other nodes over the mesh, reports what it hears back, and keeps the mesh
+            clock — every node syncs to it.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>HOME WIFI</span>
+            <input value={draft.wifi?.ssid ?? ""} placeholder="network name (2.4 GHz)" maxLength={32}
+              onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), ssid: e.target.value } }))}
+              style={{ ...field, width: 200 }} />
+            <input value={draft.wifi?.pass ?? ""} type="password" autoComplete="off" maxLength={64}
+              placeholder={draft.wifi?.pass_set && !draft.wifi?.pass ? "password set — type to change" : "password"}
+              onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), pass: e.target.value } }))}
+              style={{ ...field, width: 200 }} />
+            {draft.wifi?.ssid && (
+              <button onClick={() => setDraft((d) => ({ ...d, wifi: undefined }))} style={btn()}>Forget</button>
+            )}
+            <span style={sys(400, 11.5, C.t4)}>
+              With WiFi the console can reach this bridge without the cable, and the mesh follows the router's channel. The password stays on the board.
+            </span>
+          </div>
         </div>
       )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>

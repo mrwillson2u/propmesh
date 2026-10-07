@@ -58,6 +58,11 @@ struct PmNodeConfig {
   // BRMesh app. A secret of sorts — kept only here, never in the repo.
   bool has_brmesh_key = false;
   uint8_t brmesh_key[4] = {};
+  // Bridge only: the home WiFi it joins so the console can reach it over
+  // the network (docs §6d). The mesh follows whatever channel the router
+  // puts the bridge on. The password is written, never read back.
+  char wifi_ssid[33] = {};
+  char wifi_pass[65] = {};
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

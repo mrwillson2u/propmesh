@@ -13,3 +13,6 @@ bool pm_store_load(PmNodeConfig &out);
 // Written to a temp file and renamed, so losing power mid-save leaves
 // the previous config intact.
 bool pm_store_save(const PmNodeConfig &cfg);
+// The WiFi channel the mesh was last found on (docs §6d); 0 = none saved.
+uint8_t pm_store_channel_load();
+void pm_store_channel_save(uint8_t ch);

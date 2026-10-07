@@ -16,6 +16,11 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   if (!root.is<JsonObjectConst>()) return "config is not an object";
   pm_copy(out.name, root["name"] | "", sizeof(out.name));
   out.bridge = root["bridge"] | false;
+  // "wifi": {"ssid", "pass"} — bridge only. A missing "pass" means "keep
+  // the stored one" (the console never sees it); pm_api fills it back in.
+  JsonVariantConst wifi = root["wifi"];
+  pm_copy(out.wifi_ssid, wifi["ssid"] | "", sizeof(out.wifi_ssid));
+  pm_copy(out.wifi_pass, wifi["pass"] | "", sizeof(out.wifi_pass));
   // "brmesh_key": 8 hex digits, e.g. "5a13c79e"
   const char *key = root["brmesh_key"] | "";
   if (*key) {
@@ -72,6 +77,11 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root) {
   root["v"] = 1;
   root["name"] = cfg.name;
   root["bridge"] = cfg.bridge;
+  if (cfg.wifi_ssid[0]) {
+    JsonObject wifi = root["wifi"].to<JsonObject>();
+    wifi["ssid"] = cfg.wifi_ssid;
+    wifi["pass_set"] = cfg.wifi_pass[0] != 0;
+  }
   if (cfg.has_brmesh_key) {
     char hex[9];
     snprintf(hex, sizeof(hex), "%02x%02x%02x%02x", cfg.brmesh_key[0], cfg.brmesh_key[1],

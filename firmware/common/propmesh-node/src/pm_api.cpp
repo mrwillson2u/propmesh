@@ -1,3 +1,4 @@
+#include "pm_wifi.h"
 #include "pm_ota.h"
 #include <Arduino.h>
 #include "pm_api.h"
@@ -13,7 +14,16 @@ static const pm_board_t *board;
 
 void pm_api_begin(const pm_board_t &b) { board = &b; }
 
+// One heap-allocated config for handlers to parse into: PmNodeConfig is
+// ~800 bytes, the loop task's stack is small, and static RAM is full.
+static PmNodeConfig &scratch() {
+  static PmNodeConfig *c;
+  if (!c) c = new PmNodeConfig();
+  return *c;
+}
+
 bool pm_node_apply(const PmNodeConfig &cfg) {
+  pm_wifi_apply(cfg);  // a bridge joins (or leaves) its WiFi
   uint8_t role = pm_role();
   bool was_bridge = role & PM_NODE_ROLE_BRIDGE;
   if (cfg.bridge) {
@@ -61,9 +71,12 @@ static void cmd_hello(JsonObject resp) {
 
 static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
   // Static: PmNodeConfig is ~700 bytes and the loop task stack is small.
-  static PmNodeConfig cfg;
+  PmNodeConfig &cfg = scratch();
   const char *err = pm_config_from_json(req["config"], cfg);
   if (err) return fail(resp, err);
+  // The console never sees the WiFi password: no "pass" means keep ours.
+  if (cfg.wifi_ssid[0] && !cfg.wifi_pass[0] && !strcmp(cfg.wifi_ssid, pm_channels_config().wifi_ssid))
+    pm_copy(cfg.wifi_pass, pm_channels_config().wifi_pass, sizeof(cfg.wifi_pass));
   PmIssues issues = pm_validate(*board, cfg);
   put_issues(issues, resp);
   if (issues.errors) return fail(resp, "invalid config");
@@ -99,6 +112,14 @@ static void cmd_state(JsonObject resp) {
 static void cmd_mesh(JsonObject resp) {
   resp["synced"] = pm_time_synced();
   resp["role"] = pm_role();
+  resp["channel"] = pm_mesh_channel();
+  if (pm_mesh_scanning()) resp["scanning"] = true;
+  if (pm_mesh_bridge_age_s() != 0xFFFF) resp["bridge_age_s"] = pm_mesh_bridge_age_s();
+  if (pm_wifi_configured()) {
+    resp["wifi"] = pm_wifi_connected() ? "up" : "joining";
+    resp["wifi_ssid"] = pm_wifi_ssid();
+    if (pm_wifi_connected()) { resp["ip"] = pm_wifi_ip(); resp["wifi_rssi"] = pm_wifi_rssi(); }
+  } else resp["wifi"] = "off";
   if (pm_time_synced()) {
     char id[9];
     snprintf(id, sizeof(id), "%08lx", (unsigned long)pm_conductor_id());
@@ -132,7 +153,7 @@ static void hex_mac(char out[18], const uint8_t m[6]) {
 // A confirmed pairing becomes a BLE_LIGHT output on this board straight
 // away, so nothing is lost if the console goes away mid-pairing.
 static void on_paired(uint8_t number, const char *type) {
-  static PmNodeConfig cfg;
+  PmNodeConfig &cfg = scratch();
   cfg = pm_channels_config();
   for (uint8_t i = 0; i < cfg.channel_count; i++)
     if (cfg.channels[i].kind == PM_CHANNEL_KIND_BLE_LIGHT && cfg.channels[i].light_id == number) return;
@@ -215,7 +236,7 @@ static void cmd_ble_pair(JsonObjectConst req, JsonObject resp) {
   uint8_t addr[6];
   for (int i = 0; i < 6; i++) addr[i] = (uint8_t)a[i];
 
-  static PmNodeConfig cfg;
+  PmNodeConfig &cfg = scratch();
   cfg = pm_channels_config();
   // The board's network key: made once, saved BEFORE any light is given
   // it — a pairing whose key was then lost would orphan the light.
@@ -266,6 +287,14 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     for (JsonVariantConst v : a) if (i < 8) d[i++] = v.as<int>();
     if (!pm_ble_start()) return fail(resp, "Bluetooth didn't start");
     pm_ble_raw(d, req["hi"] | 0);
+  }
+  else if (!strcmp(cmd, "mesh_channel")) {
+    // Bench: force the channel (a bridge without WiFi) — nodes should follow.
+    int ch = req["ch"] | 0;
+    if (ch < 1 || ch > 13) return fail(resp, "ch must be 1-13");
+    pm_mesh_set_channel((uint8_t)ch);
+    pm_store_channel_save((uint8_t)ch);
+    resp["channel"] = pm_mesh_channel();
   }
   else if (!strcmp(cmd, "ota")) {
     // Pull new firmware over WiFi (pm_ota.h). The reply goes out first;

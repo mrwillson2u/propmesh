@@ -8,6 +8,22 @@ static const char *TMP = "/config.tmp";
 
 bool pm_store_begin() { return LittleFS.begin(true); }
 
+static const char *CH_PATH = "/channel";
+uint8_t pm_store_channel_load() {
+  File f = LittleFS.open(CH_PATH, "r");
+  if (!f) return 0;
+  int ch = f.parseInt();
+  f.close();
+  return ch >= 1 && ch <= 13 ? (uint8_t)ch : 0;
+}
+void pm_store_channel_save(uint8_t ch) {
+  if (pm_store_channel_load() == ch) return;
+  File f = LittleFS.open(CH_PATH, "w");
+  if (!f) return;
+  f.print(ch);
+  f.close();
+}
+
 bool pm_store_load(PmNodeConfig &out) {
   out = PmNodeConfig();
   File f = LittleFS.open(PATH, "r");

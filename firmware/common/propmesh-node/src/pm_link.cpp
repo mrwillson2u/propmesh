@@ -170,9 +170,10 @@ static void on_frame(const pm_frame_header_t *hdr, const uint8_t *payload,
 }
 
 static void on_heartbeat(const RxFrame &f) {
-  if (f.len < sizeof(pm_heartbeat_t)) return;
-  pm_heartbeat_t hb;
-  memcpy(&hb, f.payload, sizeof(hb));
+  // Pre-2026-10-07 boards send one byte less (no channel): still shown.
+  if (f.len < sizeof(pm_heartbeat_t) - 1) return;
+  pm_heartbeat_t hb = {};
+  memcpy(&hb, f.payload, f.len < sizeof(hb) ? f.len : sizeof(hb));
   JsonDocument doc;
   char hex[9];
   node_hex(hex, f.hdr.src_id);
@@ -186,6 +187,7 @@ static void on_heartbeat(const RxFrame &f) {
   doc["batt"] = hb.battery_mv;
   doc["hops"] = PM_DEFAULT_TTL - f.hdr.ttl;  // 0 = heard directly
   doc["rssi"] = f.rssi;                      // last hop only
+  if (hb.channel) doc["ch"] = hb.channel;
   JsonArray nb = doc["nbrs"].to<JsonArray>();
   for (uint8_t i = 0; i < hb.neighbor_count && i < PM_MAX_NEIGHBORS; i++) {
     JsonObject o = nb.add<JsonObject>();

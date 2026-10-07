@@ -31,6 +31,9 @@ export interface NodeConfig {
   // the mesh's clock. docs/generic-boards.md §1.
   bridge?: boolean;
   brmesh_key?: string; // 8 hex digits from the BRMesh app, for BLE_LIGHT channels
+  // Bridge only: the home WiFi it joins (docs §6d). The board reports
+  // ssid + pass_set; `pass` is only ever sent, and only when changed.
+  wifi?: { ssid: string; pass?: string; pass_set?: boolean };
   channels: ChannelCfg[];
 }
 

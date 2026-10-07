@@ -600,7 +600,36 @@ serial) — a dead end for the one-radio Pro board.
 Costs to design around: airtime shared with the router (negligible for
 console traffic; a modest slowdown during a firmware push), and the
 "lost the bridge" case must not make nodes wander mid-show — test that
-first. Order: after the 921600 rollout.
+first.
+
+**Design as built (2026-10-07, stage A — bridge on WiFi, mesh follows):**
+
+- **Bridge config** gains `wifi: {ssid, pass}` (bridge only; the password
+  is written but never read back — `get_config` reports `pass_set`, and
+  a `set_config` without `pass` keeps the stored one). `pm_wifi.cpp`:
+  the bridge joins as a station (`WiFi.persistent(false)`, auto-reconnect,
+  mDNS `propmesh.local`); ESP-NOW keeps running on whatever channel the
+  router put it on (the broadcast peer is registered with channel 0 =
+  "current"). No WiFi configured → the bridge stays on its saved channel.
+- **Heartbeats carry `channel`** (schema: appended u8; short old
+  heartbeats still parse, channel 0 = unknown). The console shows the
+  bridge's channel and IP (`mesh` reply: `ip`, `wifi`, `channel`).
+- **Nodes follow the bridge** (`pm_mesh.cpp`): a node notes when it last
+  heard a heartbeat from a BRIDGE-role node. 30 s without one → scan:
+  hop channels 1–13, 1 s each, ESP-NOW listening; a bridge heartbeat on a
+  channel = adopt it (saved to `/channel`, used at next boot). Nothing
+  found → back to the old channel, try again in 2 min. Boards boot on
+  their saved channel (else `PM_CHANNEL`). A bridge never scans.
+- **Cost of a scan**: ~13 s off-channel, so peer traffic (local triggers
+  firing cues on other nodes) is missed during it — only while the bridge
+  is absent, and at most every 2 min.
+- **Bench test without touching the router:** `mesh_channel {ch}` on a
+  bridge with no WiFi forces its channel; nodes should follow within ~45 s.
+
+**Stage B — console over the network:** WebSocket server on the bridge
+(same JSON lines as USB), console "Connect over WiFi" to
+`ws://propmesh.local:81`. Serving the console *from* the bridge comes
+later (software-plan §5): the 192 kB LittleFS is tight for the SPA.
 
 ## 7. Bench test — Stage 1
 

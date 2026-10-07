@@ -98,8 +98,11 @@ export default function MeshPanel() {
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
-        <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em", marginRight: 4 }}>
+        <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em", marginRight: 4 }}
+          title={conn?.local ? `mesh channel ${conn.local.channel ?? "?"}${conn.local.ip ? ` · bridge at ${conn.local.ip} (WiFi ${conn.local.wifi_rssi} dBm)` : conn.local.wifi === "joining" ? ` · joining WiFi ${conn.local.wifi_ssid}…` : ""}` : undefined}>
           {link.via === "usb" ? "MESH VIA USB" : "SIMULATED MESH"}
+          {conn?.local?.channel ? <span style={{ color: C.t4 }}> · ch {conn.local.channel}</span> : null}
+          {conn?.local?.ip ? <span style={{ color: C.green }}> · {conn.local.ip}</span> : conn?.local?.wifi === "joining" ? <span style={{ color: C.amber }}> · joining WiFi…</span> : null}
         </span>
         {list.map((en) => {
           const missing = isMissing(en, now);

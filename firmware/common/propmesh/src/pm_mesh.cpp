@@ -26,9 +26,22 @@ static PmNeighbors s_neighbors;
 static PmClock s_clock;
 static uint32_t s_last_beacon_ms, s_last_age_ms;
 
+// Channel following (docs §6d). A bridge's heartbeat says which channel
+// the mesh is on; 30 s without one and a plain node scans for it.
+static uint8_t s_channel;
+static uint32_t s_last_bridge_ms;      // 0 = never heard one
+static uint32_t s_last_scan_ms;
+static uint8_t s_scan_ch;              // 0 = not scanning
+static uint8_t s_scan_home;            // where to return if nothing is found
+static uint32_t s_scan_step_ms;
+static void (*s_channel_cb)(uint8_t);
+#define BRIDGE_LOST_MS 30000
+#define SCAN_RETRY_MS 120000
+#define SCAN_DWELL_MS 1000
+
 // Relay queue: frames waiting out their jitter before rebroadcast.
 // Small and fixed — under cue/heartbeat load this rarely holds >2 frames.
-#define RELAY_QUEUE 8
+#define RELAY_QUEUE 6  // was 8; static RAM is full (2026-10-07) and it rarely holds >2
 static struct {
   bool used;
   uint32_t due_ms;
@@ -65,6 +78,15 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   // at PM_DEFAULT_TTL, which is what makes the test valid.
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && hdr.ttl == PM_DEFAULT_TTL)
     s_neighbors.observe(hdr.src_id, rssi, now_ms);
+
+  // A bridge is on this channel: this is where the mesh lives.
+  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= 8 && (payload[7] & PM_NODE_ROLE_BRIDGE)) {
+    s_last_bridge_ms = now_ms ? now_ms : 1;
+    if (s_scan_ch) {  // found it mid-scan: stay here
+      s_scan_ch = 0;
+      if (s_channel_cb) s_channel_cb(s_channel);
+    }
+  }
 
   if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= sizeof(pm_time_t)) {
     pm_time_t t;
@@ -134,14 +156,15 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
     s_clock.become_conductor(s_node_id, priority(), millis());
 
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();  // no AP association — ESP-NOW only (bridge differs)
+  WiFi.disconnect();  // no AP association yet (a bridge joins WiFi later — pm_wifi)
   esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  s_channel = channel;
 
   if (esp_now_init() != ESP_OK) return false;
 
   esp_now_peer_info_t peer = {};
   memcpy(peer.peer_addr, BCAST, 6);
-  peer.channel = channel;
+  peer.channel = 0;  // "whatever channel the radio is on" — it follows the bridge / the router
   peer.ifidx = WIFI_IF_STA;
   if (esp_now_add_peer(&peer) != ESP_OK) return false;
 
@@ -149,6 +172,50 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
 }
 
 uint32_t pm_node_id() { return s_node_id; }
+
+uint8_t pm_mesh_channel() {
+  uint8_t primary = s_channel;
+  wifi_second_chan_t second;
+  if (esp_wifi_get_channel(&primary, &second) == ESP_OK && primary) s_channel = primary;
+  return s_channel;
+}
+void pm_mesh_set_channel(uint8_t ch) {
+  if (ch < 1 || ch > 13) return;
+  esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+  s_channel = ch;
+}
+void pm_mesh_on_channel(void (*cb)(uint8_t)) { s_channel_cb = cb; }
+uint16_t pm_mesh_bridge_age_s() {
+  return s_last_bridge_ms ? (uint16_t)((millis() - s_last_bridge_ms) / 1000) : 0xFFFF;
+}
+bool pm_mesh_scanning() { return s_scan_ch != 0; }
+
+// Plain nodes only: lose the bridge for 30 s → hop through the channels,
+// a second each, until a bridge heartbeat shows up. None anywhere → back
+// where we were (the bridge is simply off), try again in 2 min.
+static void follow_bridge(uint32_t now) {
+  if (s_role & PM_NODE_ROLE_BRIDGE) return;
+  if (s_scan_ch) {
+    if ((uint32_t)(now - s_scan_step_ms) < SCAN_DWELL_MS) return;
+    s_scan_step_ms = now;
+    if (s_scan_ch >= 13) {  // nothing on any channel
+      s_scan_ch = 0;
+      pm_mesh_set_channel(s_scan_home);
+      return;
+    }
+    s_scan_ch++;
+    pm_mesh_set_channel(s_scan_ch);
+    return;
+  }
+  uint32_t since = now - (s_last_bridge_ms ? s_last_bridge_ms : 0);
+  if (since < BRIDGE_LOST_MS) return;
+  if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < SCAN_RETRY_MS) return;
+  s_last_scan_ms = now ? now : 1;
+  s_scan_home = pm_mesh_channel();
+  s_scan_ch = 1;
+  s_scan_step_ms = now;
+  pm_mesh_set_channel(1);
+}
 
 uint8_t pm_role() { return s_role; }
 
@@ -206,6 +273,7 @@ void pm_mesh_loop() {
     s_last_age_ms = now;
     s_neighbors.age(now);
   }
+  follow_bridge(now);
 
   if (s_clock.is_conductor() &&
       (uint32_t)(now - s_last_beacon_ms) >= PM_HEARTBEAT_PERIOD_MS) {

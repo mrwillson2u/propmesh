@@ -31,6 +31,11 @@ export interface LocalMesh {
   conductor?: string;
   hop?: number;
   neighbors: { node: string; rssi: number }[];
+  channel?: number; // the mesh's WiFi channel (follows the bridge's router)
+  ip?: string; // the USB node's WiFi address, when it's a bridge on WiFi
+  wifi?: "off" | "joining" | "up";
+  wifi_ssid?: string;
+  wifi_rssi?: number;
 }
 
 // What the mesh did, newest first — sensor changes and cues as the USB

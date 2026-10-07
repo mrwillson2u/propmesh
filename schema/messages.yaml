@@ -100,6 +100,7 @@ messages:
       - {name: free_heap_kb, type: u16}
       - {name: neighbor_count, type: u8}
       - {name: neighbors, type: "Neighbor[8]", note: "first neighbor_count valid"}
+      - {name: channel, type: u8, note: "WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's."}
 
   Time:
     type: TIME
