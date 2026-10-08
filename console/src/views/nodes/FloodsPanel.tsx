@@ -50,10 +50,33 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link, knownKey]);
+  // The lights can't be asked (BRMesh is one-way: a paired light never
+  // transmits), so the sliders show what the sending boards last sent —
+  // they remember it until they reboot. Before 2026-10-08 the tab started
+  // every light at "off", and moving a slider jumped the light around.
+  const readLastSent = useCallback(async (cfgs: Record<string, NodeConfig>) => {
+    const sent: Record<number, number> = {};
+    const senders = deriveFloods(cfgs).senders.filter((n) => entries[n] && !isMissing(entries[n]));
+    await Promise.all(senders.map(async (n) => {
+      try {
+        const r = await target(link, entries[n].usb ? null : n).request("state");
+        if (!r.ok) return;
+        for (const c of r.channels as { kind: string; index: number; value: number }[])
+          if (c.kind === "BLE_LIGHT" && (sent[c.index] === undefined || (!sent[c.index] && c.value))) sent[c.index] = c.value;
+      } catch { /* that board is busy; another sender may answer */ }
+    }));
+    return sent;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [link, knownKey]);
   const load = useCallback(async () => {
     setLoading(true);
-    try { setConfigs(await readConfigs()); } finally { setLoading(false); }
-  }, [readConfigs]);
+    try {
+      const cfgs = await readConfigs();
+      setConfigs(cfgs);
+      const sent = await readLastSent(cfgs);
+      setValues((v) => ({ ...sent, ...Object.fromEntries(Object.entries(v).filter(([k]) => sent[+k] === undefined)) }));
+    } finally { setLoading(false); }
+  }, [readConfigs, readLastSent]);
   useEffect(() => { void load(); }, [load]);
 
   const st: FloodsState = useMemo(() => deriveFloods(configs ?? {}), [configs]);
@@ -173,7 +196,10 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
           <span style={{ ...mono(700, 11.5, C.emberT), width: 70, flex: "none" }}>light #{l.number}</span>
           <input value={l.label} maxLength={LABEL_MAX} placeholder="what is it?"
             onChange={(e) => setLabels((x) => ({ ...x, [l.number]: e.target.value }))} style={{ ...field, width: 160, flex: "none" }} />
-          <ColourPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
+          <span title="What the sending boards last sent. The lights can't be asked — BRMesh is one-way — so this is wrong if the light was power-cycled or set from the BRMesh app."
+            style={{ display: "contents" }}>
+            <ColourPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
+          </span>
           <button onClick={() => fire(l.number, 0)} style={btn()}>Off</button>
           <button onClick={() => setRemoved((r) => [...r, l.number])} title="Forget this light (reset it to pair it again)" style={{ ...btn(), width: 30, padding: 0 }}>✕</button>
         </div>

@@ -395,6 +395,13 @@ different keys the tab says so and offers to spread either one.
    paired) for steps that move every flood together — one burst instead
    of N.
 
+**Status can't be read (2026-10-08).** BRMesh is one-way: a paired light
+never transmits, so neither its colour nor whether it is powered can be
+asked. The Floods tab shows what the sending boards last *sent* (`state`,
+remembered until a board reboots) — wrong if the light was power-cycled or
+set from the BRMesh app. Before this the tab started every light at "off",
+and moving a slider jumped the light.
+
 **White — DONE (bench 2026-10-07, Melpo RGBW):** white is a *mode*, not
 a channel. Bytes 6 and 7 both 127 switch the light to warm white and the
 brightness byte sets its level; partial values in 6/7 do nothing, and a
