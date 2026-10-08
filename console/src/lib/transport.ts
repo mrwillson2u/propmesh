@@ -195,13 +195,23 @@ class SerialLink extends LineLink {
     this.lost();
   }
 
+  // Chrome only closes a port whose streams are both unlocked. The reader
+  // used to be cancelled but left locked, so port.close() failed quietly,
+  // the port stayed open, and Connect said "busy" until a page reload
+  // (2026-10-08). Cancel the read, then let go of both locks, then close.
   async close() {
     this.closed = true;
     try { await this.reader.cancel(); } catch { /* already gone */ }
+    try { this.reader.releaseLock(); } catch { /* already gone */ }
     try { this.writer.releaseLock(); } catch { /* already gone */ }
     try { await this.port.close(); } catch { /* already gone */ }
+    if (openPort === this.port) openPort = null;
   }
 }
+
+// The port this page has open, so a second Connect can close a leftover
+// one instead of failing with "already open".
+let openPort: SerialPortLike | null = null;
 
 // The bridge over WiFi: one JSON line per WebSocket text message. Same
 // protocol, no cable (docs §6d stage B).
@@ -260,8 +270,10 @@ export const SERIAL_BAUDS = [921600, 115200];
 export async function connectUsb(): Promise<{ link: NodeLink; hello: NodeHello }> {
   const serial = (navigator as unknown as { serial: { requestPort(): Promise<SerialPortLike> } }).serial;
   const port = await serial.requestPort();
+  if (port === openPort) { try { await port.close(); } catch { /* locked by a dead link — open() will say */ } openPort = null; }
   for (const baudRate of SERIAL_BAUDS) {
     await port.open({ baudRate, bufferSize: 8192 });
+    openPort = port;
     try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch { /* not all adapters */ }
     const link = new SerialLink(port);
     // The first open resets a classic devkit (DTR/RTS drive EN): allow for the boot.
