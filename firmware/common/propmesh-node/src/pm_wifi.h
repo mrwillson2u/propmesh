@@ -14,3 +14,4 @@ bool pm_wifi_connected();
 const char *pm_wifi_ip();     // "" when not connected
 int8_t pm_wifi_rssi();        // dBm, 0 when not connected
 const char *pm_wifi_ssid();
+const char *pm_wifi_reason();  // why the last attempt failed, "" if none

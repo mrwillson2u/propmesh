@@ -110,7 +110,8 @@ export default function MeshPanel() {
           title={conn?.local ? `mesh channel ${conn.local.channel ?? "?"}${conn.local.ip ? ` · bridge at ${conn.local.ip} (WiFi ${conn.local.wifi_rssi} dBm)` : conn.local.wifi === "joining" ? ` · joining WiFi ${conn.local.wifi_ssid}…` : ""}` : undefined}>
           {link.via === "usb" ? "MESH VIA USB" : link.via === "wifi" ? "MESH VIA WIFI" : "SIMULATED MESH"}
           {conn?.local?.channel ? <span style={{ color: C.t4 }}> · ch {conn.local.channel}</span> : null}
-          {conn?.local?.ip ? <span style={{ color: C.green }}> · {conn.local.ip}</span> : conn?.local?.wifi === "joining" ? <span style={{ color: C.amber }}> · joining WiFi…</span> : null}
+          {conn?.local?.ip ? <span style={{ color: C.green }}> · {conn.local.ip}</span>
+            : conn?.local?.wifi === "joining" ? <span style={{ color: C.amber }}> · {conn.local.wifi_reason ? `WiFi: ${conn.local.wifi_reason}` : "joining WiFi…"}</span> : null}
         </span>
         {list.map((en) => {
           const missing = isMissing(en, now);

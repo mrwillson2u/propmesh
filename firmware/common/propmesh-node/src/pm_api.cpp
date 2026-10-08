@@ -119,6 +119,7 @@ static void cmd_mesh(JsonObject resp) {
     resp["wifi"] = pm_wifi_connected() ? "up" : "joining";
     resp["wifi_ssid"] = pm_wifi_ssid();
     if (pm_wifi_connected()) { resp["ip"] = pm_wifi_ip(); resp["wifi_rssi"] = pm_wifi_rssi(); }
+    else if (*pm_wifi_reason()) resp["wifi_reason"] = pm_wifi_reason();
   } else resp["wifi"] = "off";
   if (pm_time_synced()) {
     char id[9];

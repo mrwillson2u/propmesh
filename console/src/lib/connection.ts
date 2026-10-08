@@ -36,6 +36,7 @@ export interface LocalMesh {
   wifi?: "off" | "joining" | "up";
   wifi_ssid?: string;
   wifi_rssi?: number;
+  wifi_reason?: string; // why the bridge isn't on WiFi, in plain words
 }
 
 // What the mesh did, newest first — sensor changes and cues as the USB

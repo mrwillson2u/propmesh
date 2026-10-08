@@ -63,7 +63,11 @@ async function send(node: NodeTarget, img: Image, chunk: number, onProgress: (wr
     const data = b64(img.bytes.subarray(off, off + chunk));
     let r;
     try { r = await node.request("ota_data", { off, data }); }
-    catch (e) { if (++misses > 8) throw e; continue; }  // lost on the mesh: same offset again
+    catch (e) {  // lost on the mesh: same offset again, after a breath
+      if (++misses > 20) throw e;
+      await new Promise((r) => setTimeout(r, 500));
+      continue;
+    }
     if (r.ok) { off = r.written as number; misses = 0; onProgress(off, img.bytes.length); continue; }
     if (typeof r.written === "number" && (r.error ?? "").startsWith("offset")) { off = r.written; continue; }  // resume from its count
     throw new Error(r.error ?? "the board refused a chunk");

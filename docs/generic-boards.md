@@ -632,6 +632,16 @@ first.
   devkit's USB-serial chip stays enumerated through an ESP32 reboot, so
   the console does *not* lose the port when the bridge updates.
 
+**A bridge that can't reach its router must not wreck the mesh
+(2026-10-08).** A station trying to join scans every channel, on the
+mesh's radio; with the core's auto-reconnect that ran back to back, and a
+mesh firmware update to Prop failed with "no reply" while the header said
+"joining WiFi". Now: auto-reconnect off; one attempt at a time, started on
+the mesh's channel (the router is normally still there, so nothing else is
+scanned); pauses of 15 s doubling to 2 min. The `mesh` reply carries
+`wifi_reason` in plain words (wrong password, network not found, weak
+signal) and the console header shows it.
+
 **Stage B — console over the network (built 2026-10-07):** the bridge
 runs a small hand-rolled WebSocket server on port 81 once WiFi is up
 (`pm_ws.cpp`: RFC 6455 text frames, ping/pong, close; two clients, 4 kB
