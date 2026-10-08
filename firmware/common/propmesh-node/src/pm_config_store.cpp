@@ -8,6 +8,41 @@ static const char *TMP = "/config.tmp";
 
 bool pm_store_begin() { return LittleFS.begin(true); }
 
+static const char *LIGHTS_PATH = "/lights.json";
+
+uint8_t pm_store_lights_load(uint8_t ids[], int32_t vals[], uint8_t max) {
+  File f = LittleFS.open(LIGHTS_PATH, "r");
+  if (!f) return 0;
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err) return 0;
+  uint8_t n = 0;
+  for (JsonPairConst kv : doc.as<JsonObjectConst>()) {
+    if (n >= max) break;
+    int id = atoi(kv.key().c_str());
+    if (id < 1 || id > 255) continue;
+    ids[n] = (uint8_t)id;
+    vals[n] = kv.value().as<int32_t>();
+    n++;
+  }
+  return n;
+}
+
+bool pm_store_lights_save(const uint8_t ids[], const int32_t vals[], uint8_t n) {
+  JsonDocument doc;
+  char key[4];
+  for (uint8_t i = 0; i < n; i++) {
+    snprintf(key, sizeof(key), "%u", ids[i]);
+    doc[key] = vals[i];
+  }
+  File f = LittleFS.open(LIGHTS_PATH, "w");  // tiny: a torn write just loses the memory, never the config
+  if (!f) return false;
+  bool ok = serializeJson(doc, f) > 0;
+  f.close();
+  return ok;
+}
+
 static const char *CH_PATH = "/channel";
 uint8_t pm_store_channel_load() {
   File f = LittleFS.open(CH_PATH, "r");

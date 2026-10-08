@@ -1,3 +1,4 @@
+#include "pm_config_store.h"
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include "pm_channels.h"
@@ -30,6 +31,36 @@ struct Runtime {
 
 static PmNodeConfig active;
 static Runtime rt[PM_MAX_CHANNELS];
+
+// Flood colours survive a reboot (docs §6a): any change marks them dirty,
+// and they're saved at most every 10 s — a fade doesn't hammer the flash.
+// On boot they're only remembered for the console, never re-sent: the
+// lights keep their own colour through a power cut.
+#define LIGHTS_SAVE_MS 10000
+static bool lights_dirty;
+static uint32_t lights_saved_ms;
+
+static void save_lights() {
+  uint8_t ids[PM_MAX_CHANNELS];
+  int32_t vals[PM_MAX_CHANNELS];
+  uint8_t n = 0;
+  for (uint8_t i = 0; i < active.channel_count; i++)
+    if (active.channels[i].kind == PM_CHANNEL_KIND_BLE_LIGHT) { ids[n] = active.channels[i].light_id; vals[n] = rt[i].value; n++; }
+  pm_store_lights_save(ids, vals, n);
+  lights_dirty = false;
+  lights_saved_ms = millis();
+}
+
+static void restore_lights() {
+  uint8_t ids[PM_MAX_CHANNELS];
+  int32_t vals[PM_MAX_CHANNELS];
+  uint8_t n = pm_store_lights_load(ids, vals, PM_MAX_CHANNELS);
+  for (uint8_t i = 0; i < active.channel_count; i++) {
+    if (active.channels[i].kind != PM_CHANNEL_KIND_BLE_LIGHT) continue;
+    for (uint8_t k = 0; k < n; k++)
+      if (ids[k] == active.channels[i].light_id) rt[i].value = vals[k];  // remembered, not sent
+  }
+}
 static pm_input_handler_t input_handler;
 
 static uint32_t pwm_hz(uint8_t kind) { return pm_function(kind)->pwm_hz; }
@@ -131,6 +162,7 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);
+      if (v != r.value) lights_dirty = true;
       break;
   }
   r.value = v;
@@ -171,6 +203,7 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);  // 0xWWRRGGBB, W 0–127
+      if (v != r.value) lights_dirty = true;
       break;
   }
   r.value = v;
@@ -184,12 +217,14 @@ static int find(uint8_t kind, uint8_t index) {
 }
 
 bool pm_channels_apply(const PmNodeConfig &cfg) {
+  if (lights_dirty) save_lights();  // attach() clears the values below; keep what's pending
   for (uint8_t i = 0; i < active.channel_count; i++)
     release(active.channels[i], rt[i]);
   active = cfg;
   bool ok = true;
   for (uint8_t i = 0; i < active.channel_count; i++)
     ok &= attach(active.channels[i], rt[i]);
+  restore_lights();
   return ok;
 }
 
@@ -253,6 +288,7 @@ void pm_on_input(pm_input_handler_t handler) { input_handler = handler; }
 void pm_channels_loop() {
   uint32_t now = millis();
   pm_ble_loop();
+  if (lights_dirty && (uint32_t)(now - lights_saved_ms) >= LIGHTS_SAVE_MS) save_lights();
   uint32_t dt = now - last_motion_ms;
   if (dt >= MOTION_TICK_MS) {
     last_motion_ms = now;

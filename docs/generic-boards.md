@@ -397,10 +397,14 @@ different keys the tab says so and offers to spread either one.
 
 **Status can't be read (2026-10-08).** BRMesh is one-way: a paired light
 never transmits, so neither its colour nor whether it is powered can be
-asked. The Floods tab shows what the sending boards last *sent* (`state`,
-remembered until a board reboots) — wrong if the light was power-cycled or
-set from the BRMesh app. Before this the tab started every light at "off",
-and moving a slider jumped the light.
+asked. The Floods tab shows what the sending boards last *sent*
+(`state`). The lights keep their colour through a power cut (Colin,
+bench), so the boards keep it too: `/lights.json` on each sender, saved at
+most every 10 s when something changed, restored after every config apply
+(boot included) but never re-sent. Drift remains possible if a light
+misses a command (out of range, unpowered at the time) or is set from the
+BRMesh app; the Floods page says so. Before this the tab started every
+light at "off", and moving a slider jumped the light.
 
 **White — DONE (bench 2026-10-07, Melpo RGBW):** white is a *mode*, not
 a channel. Bytes 6 and 7 both 127 switch the light to warm white and the

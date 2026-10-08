@@ -16,3 +16,10 @@ bool pm_store_save(const PmNodeConfig &cfg);
 // The WiFi channel the mesh was last found on (docs §6d); 0 = none saved.
 uint8_t pm_store_channel_load();
 void pm_store_channel_save(uint8_t ch);
+
+// The colour last sent to each flood light, by BRMesh light number
+// (docs §6a). The lights can't be asked and keep their colour through a
+// power cut, so this is the system's only memory of them across reboots.
+// /lights.json; a few bytes per light.
+uint8_t pm_store_lights_load(uint8_t ids[], int32_t vals[], uint8_t max);
+bool pm_store_lights_save(const uint8_t ids[], const int32_t vals[], uint8_t n);

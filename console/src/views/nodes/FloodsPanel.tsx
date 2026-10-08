@@ -52,8 +52,8 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   }, [link, knownKey]);
   // The lights can't be asked (BRMesh is one-way: a paired light never
   // transmits), so the sliders show what the sending boards last sent —
-  // they remember it until they reboot. Before 2026-10-08 the tab started
-  // every light at "off", and moving a slider jumped the light around.
+  // saved to their flash, so it survives a reboot. Before 2026-10-08 the
+  // tab started every light at "off", and moving a slider jumped it.
   const readLastSent = useCallback(async (cfgs: Record<string, NodeConfig>) => {
     const sent: Record<number, number> = {};
     const senders = deriveFloods(cfgs).senders.filter((n) => entries[n] && !isMissing(entries[n]));
@@ -143,6 +143,12 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
         {dirty && <button onClick={() => void save()} disabled={busy} style={btn(true, busy)}>{busy ? "Saving…" : "Save to boards"}</button>}
       </div>
       {msg && <div style={mono(600, 11.5, msg.bad ? C.red : C.green)}>{msg.bad ? "✕ " : "✓ "}{msg.text}</div>}
+      <div style={{ padding: "9px 12px", borderRadius: 7, background: C.card, border: `1px solid ${C.b2}`, ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
+        <b style={{ color: C.amber }}>The lights never answer.</b> BRMesh only goes one way, so there is no way to tell whether a light is
+        powered, in range, or actually showing what you set. The colours here are what your boards <b>last sent</b> (they remember it
+        through a restart), and the lights keep their colour through a power cut. They can drift out of step if a light misses a
+        command — out of range, unplugged at the time — or is changed from the BRMesh app. Setting the colour again puts it right.
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: 10, border: `1px solid ${C.b2}`, borderRadius: 8, background: C.card }}>
         <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SENDING BOARDS</span>
@@ -196,7 +202,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
           <span style={{ ...mono(700, 11.5, C.emberT), width: 70, flex: "none" }}>light #{l.number}</span>
           <input value={l.label} maxLength={LABEL_MAX} placeholder="what is it?"
             onChange={(e) => setLabels((x) => ({ ...x, [l.number]: e.target.value }))} style={{ ...field, width: 160, flex: "none" }} />
-          <span title="What the sending boards last sent. The lights can't be asked — BRMesh is one-way — so this is wrong if the light was power-cycled or set from the BRMesh app."
+          <span title="What the sending boards last sent. The lights can't be asked — BRMesh is one-way — so this is wrong if the light missed a command or was set from the BRMesh app."
             style={{ display: "contents" }}>
             <ColourPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
           </span>
