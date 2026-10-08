@@ -27,6 +27,9 @@ export interface Entry {
 }
 
 export interface LocalMesh {
+  // Set when the USB node just rebooted (its boot event) or stopped
+  // answering status: what's shown is no longer known to be true.
+  stale?: "rebooted" | "no answer";
   synced: boolean;
   conductor?: string;
   hop?: number;
@@ -150,6 +153,11 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       log({ at: Date.now(), kind: "cue", node: e.node as string, seq: e.seq as number, armed: e.armed as boolean });
     } else if (e.evt === "boot" && e.node === hello.node) {
       helloAt.delete(hello.node); // it rebooted: re-read its role
+      // Its WiFi, channel and clock start again from scratch: say so until
+      // a fresh status arrives, and ask for one now.
+      current = { ...current, local: current.local && { ...current.local, stale: "rebooted", ip: undefined, wifi: current.local.wifi === "off" ? "off" : "joining" } };
+      meshAt = 0;
+      changed();
     }
   });
 
@@ -173,7 +181,12 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         if (!r.ok || !current) return;
         current = { ...current, local: r as unknown as LocalMesh };
         changed();
-      }).catch(() => { /* next tick */ });
+      }).catch(() => {
+        // Didn't answer: don't keep showing the last good state as if current.
+        if (!current?.local || current.local.stale) return;
+        current = { ...current, local: { ...current.local, stale: "no answer" } };
+        changed();
+      });
     }
     changed(); // ages, "missing"
   }, 1000);
