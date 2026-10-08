@@ -40,10 +40,20 @@ const b64 = (b: Uint8Array) => {
 export async function streamImage(node: NodeTarget, img: Image, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
   const begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
   if (!begin.ok) throw new Error(begin.error ?? "the board refused to start");
-  const chunk = (begin.chunk as number) || 2700;
+  try {
+    await send(node, img, (begin.chunk as number) || 2700, onProgress, signal);
+  } catch (e) {
+    // Leave the board ready for the next try (it also drops a transfer
+    // that goes silent for a minute, in case this doesn't get through).
+    await node.request("ota_abort").catch(() => undefined);
+    throw e;
+  }
+}
+
+async function send(node: NodeTarget, img: Image, chunk: number, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
   let off = 0, misses = 0;
   while (off < img.bytes.length) {
-    if (signal?.stop) { await node.request("ota_abort").catch(() => undefined); throw new Error("stopped"); }
+    if (signal?.stop) throw new Error("stopped");
     const data = b64(img.bytes.subarray(off, off + chunk));
     let r;
     try { r = await node.request("ota_data", { off, data }); }

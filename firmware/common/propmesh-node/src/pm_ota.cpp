@@ -19,12 +19,17 @@ struct Args { char url[160], ssid[33], pass[65]; };
 static Args *args;
 static uint8_t channel;
 static volatile uint8_t state = PM_OTA_IDLE;
+// The WiFi task is running. Kept apart from `state`: a mesh transfer that
+// died midway used to leave state = DOWNLOADING, which both start checks
+// read as "a WiFi update is running" — refused until a reboot (2026-10-08).
+static volatile bool wifi_busy;
 static volatile uint8_t progress;
 static char err[72];
 
 static void fail(const char *why) {
   snprintf(err, sizeof(err), "%s", why);
   state = PM_OTA_FAILED;
+  wifi_busy = false;
   // Back onto the mesh: drop the AP and return to the mesh channel.
   WiFi.disconnect(true, false);
   delay(100);
@@ -71,7 +76,8 @@ static void task(void *) {
 }
 
 bool pm_ota_start(const char *u, const char *s, const char *p, uint8_t mesh_channel) {
-  if (state == PM_OTA_CONNECTING || state == PM_OTA_DOWNLOADING || state == PM_OTA_REBOOTING) return false;
+  if (wifi_busy || state == PM_OTA_REBOOTING) return false;
+  pm_ota_abort();  // a mesh transfer left hanging gives way
   if (!u || !s || strlen(u) >= sizeof(args->url) || strlen(s) >= sizeof(args->ssid) || (p && strlen(p) >= sizeof(args->pass))) return false;
   if (!args) args = new Args();
   if (!args) return false;
@@ -80,7 +86,8 @@ bool pm_ota_start(const char *u, const char *s, const char *p, uint8_t mesh_chan
   strcpy(args->pass, p ? p : "");
   channel = mesh_channel;
   // Big stack: TLS-free HTTP still wants ~6 KB, plus the Update library.
-  return xTaskCreate(task, "pm_ota", 12288, nullptr, 1, nullptr) == pdPASS;
+  wifi_busy = xTaskCreate(task, "pm_ota", 12288, nullptr, 1, nullptr) == pdPASS;
+  return wifi_busy;
 }
 
 uint8_t pm_ota_state() { return state; }
@@ -95,13 +102,16 @@ static struct {
   uint8_t want[32];
   mbedtls_sha256_context sha;
   uint8_t *buf;  // 3 kB decode buffer, heap, only while receiving (static RAM is full)
+  uint32_t last_ms;  // last chunk: a transfer silent for RX_STALE_MS is dropped
 } rx;
+#define RX_STALE_MS 60000
 #define RX_BUF 3072
 
 static void rx_close() {
   rx.open = false;
   free(rx.buf);
   rx.buf = nullptr;
+  if (!wifi_busy && state == PM_OTA_DOWNLOADING) state = PM_OTA_IDLE;
 }
 static uint32_t reboot_at;
 
@@ -116,7 +126,9 @@ static bool hex32(const char *s, uint8_t out[32]) {
 }
 
 const char *pm_ota_begin(uint32_t size, const char *sha256_hex) {
-  if (state == PM_OTA_CONNECTING || state == PM_OTA_DOWNLOADING || state == PM_OTA_REBOOTING) return "a WiFi update is running";
+  if (wifi_busy) return "a WiFi update is running";
+  if (state == PM_OTA_REBOOTING) return "already rebooting into a new image";
+  // A previous mesh transfer that never finished is simply replaced (below).
   if (!size || !hex32(sha256_hex, rx.want)) return "ota_begin needs size and a 64-digit sha256";
   if (rx.open) { Update.abort(); rx_close(); }
   if (!rx.buf) rx.buf = (uint8_t *)malloc(RX_BUF);
@@ -127,6 +139,7 @@ const char *pm_ota_begin(uint32_t size, const char *sha256_hex) {
   rx.open = true;
   rx.size = size;
   rx.written = 0;
+  rx.last_ms = millis();
   state = PM_OTA_DOWNLOADING;
   progress = 0;
   err[0] = 0;
@@ -145,6 +158,7 @@ const char *pm_ota_data(uint32_t off, const char *data, uint32_t *written) {
   if (rx.written + n > rx.size) { Update.abort(); rx_close(); return "more bytes than announced"; }
   if (Update.write(buf, n) != n) { const char *e = Update.errorString(); Update.abort(); rx_close(); return e; }
   mbedtls_sha256_update(&rx.sha, buf, n);
+  rx.last_ms = millis();
   rx.written += n;
   *written = rx.written;
   progress = (uint8_t)(rx.written * 100ULL / rx.size);
@@ -176,6 +190,10 @@ uint32_t pm_ota_written() { return rx.written; }
 
 void pm_ota_loop() {
   if (reboot_at && (int32_t)(millis() - reboot_at) >= 0) ESP.restart();
+  if (rx.open && (uint32_t)(millis() - rx.last_ms) > RX_STALE_MS) {
+    Serial.println("ota: transfer went silent — dropped");
+    pm_ota_abort();
+  }
 }
 
 bool pm_ota_pending() {

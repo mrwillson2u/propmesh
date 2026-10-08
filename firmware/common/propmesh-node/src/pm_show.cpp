@@ -16,7 +16,12 @@ static const char *TMP = "/show.tmp";
 // ...and one this late would dump every step at once: start now instead.
 #define MAX_LATE_US 1000000LL
 
-static PmShow show;  // ~19 KB; static so it isn't on a task stack
+// ~31 KB, so on the heap — not a task stack (the 2026-10-05 crash loop),
+// and not static either: the ESP32 caps statically allocated data near
+// 124 KB and this one object was a quarter of it, so every feature added
+// on 2026-10-07 tipped the link over (2026-10-08). Allocated at start-up,
+// before WiFi and Bluetooth take their share, and never freed.
+static PmShow &show = *new PmShow();
 static PmPlayer player;
 static PmTriggers triggers;
 static PmCueMemory cues;
