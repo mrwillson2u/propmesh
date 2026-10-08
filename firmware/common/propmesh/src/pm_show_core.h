@@ -39,14 +39,14 @@ struct PmStep {
   uint32_t start_ms() const { return dur_ms > t_ms ? 0 : t_ms - dur_ms; }
 };
 
-// Colour outputs: value 0xWWRRGGBB, ramped per component (pm_ramp.h).
-inline bool pm_kind_colour(uint8_t kind) {
+// Color outputs: value 0xWWRRGGBB, ramped per component (pm_ramp.h).
+inline bool pm_kind_color(uint8_t kind) {
   return kind == PM_CHANNEL_KIND_LED_STRIP || kind == PM_CHANNEL_KIND_BLE_LIGHT;
 }
-// Kinds a ramp makes sense for: a level, a position or a colour — not a switch.
+// Kinds a ramp makes sense for: a level, a position or a color — not a switch.
 inline bool pm_kind_ramps(uint8_t kind) {
   return kind == PM_CHANNEL_KIND_SERVO || kind == PM_CHANNEL_KIND_LED ||
-         kind == PM_CHANNEL_KIND_MOTOR || pm_kind_colour(kind);
+         kind == PM_CHANNEL_KIND_MOTOR || pm_kind_color(kind);
 }
 
 struct PmSequence {

@@ -40,7 +40,7 @@ function savePos(id: string, p: { x: number; y: number }) {
 
 // ---- topology layout ------------------------------------------------------
 
-// Rows by hop depth (unreachable nodes last), fixed spacing, centred
+// Rows by hop depth (unreachable nodes last), fixed spacing, centered
 // on x = 0. The canvas then fits its viewBox to these, so three nodes
 // and thirty both fill the view at a readable size.
 const COL = 210, ROW = 150;

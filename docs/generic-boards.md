@@ -127,7 +127,7 @@ Timeline's native `ramp` action will use. Limits: sweep ≤ 10 s, ease
 ≤ 5 s (`servo_motion`).
 
 **Cut from October:** steppers, audio, analog input, APA102 strips,
-effects beyond solid colour, sACN.
+effects beyond solid color, sACN.
 
 ## 4. DevKit V1 pin rules
 
@@ -269,9 +269,9 @@ enough (the lights relay among themselves).
 
 - **Channel:** `BLE_LIGHT_n`, **no pin**; config `light` = the light's
   number in the BRMesh app. Value `0xRRGGBB`, 0 = off; brightness comes
-  from the colour's peak (the colour goes out at full scale with a
+  from the color's peak (the color goes out at full scale with a
   0–127 brightness, as the lights expect). Shows up everywhere an
-  output does: test colour picker, sequences and the timeline (colour
+  output does: test color picker, sequences and the timeline (color
   steps, like strips), live preview, STOP ALL (turns them off).
 - **Key:** node config `brmesh_key` (8 hex digits). **The board makes
   its own** (`esp_random`) the first time it pairs a light, and saves it
@@ -303,7 +303,7 @@ enough (the lights relay among themselves).
 - **Scanning shares the radio with ESP-NOW.** Duty sweep (2026-10-06,
   Prop board): 100/100 ms heard 28 adverts/s but the node answered 2 of 4
   mesh requests; **50/100 (default)** heard 6/s and answered 10 of 11;
-  20/100 answered everything and heard nothing. Colours pause while
+  20/100 answered everything and heard nothing. Colors pause while
   searching/pairing. After an 8 s search the mesh answered 20/20.
 - **Encoder:** `pm_brmesh.h`, header-only; host tests compare it
   **byte-for-byte** with the reference code that drove the lights.
@@ -313,12 +313,12 @@ enough (the lights relay among themselves).
   controller is started in BLE-only mode (the framework default is dual
   mode; enable must match). `btInUse()` is overridden so the Arduino
   core keeps the controller's memory (≈3 KB of heap observed). Each
-  light's newest colour goes out as a 200 ms advertising burst; a colour
+  light's newest color goes out as a 200 ms advertising burst; a color
   that changes again before it went out replaces the queued one, so a
   dragged picker never builds a backlog. Flash 78 % → 91 % of the app
   partition.
 - **Measured** (Prop board, test light with a dummy key, before pairing existed): controller
-  confirmed 125 HCI commands, 0 failed; 41 colour bursts for 50 colour
+  confirmed 125 HCI commands, 0 failed; 41 color bursts for 50 color
   changes (merging); mesh requests during broadcasting 100/100, median
   42 ms — same as without Bluetooth. Not yet seen on the real floods.
 - **API:** `{"cmd":"ble"}` → `running`, `bursts`, `cmd_ok`,
@@ -340,7 +340,7 @@ enough (the lights relay among themselves).
   **only for ~15 s after power-up** — hence "switch them off, Search,
   switch them on"; our wake frame does not make a powered light announce.
   The add-device burst (1.5 s, 20 ms interval) took **3 of 3** times —
-  all three answered colours on the new key — but **no light ever came
+  all three answered colors on the new key — but **no light ever came
   back advertising the new key**, so a pairing counts as done once its
   burst has gone out (`acked` marks the rare light that does answer).
   Power-cycling a light several times resets it to the default key (that
@@ -364,7 +364,7 @@ are stored.
 has a **Floods** tab next to the boards (`views/nodes/FloodsPanel.tsx`,
 model in `lib/floods.ts`): tick the *sending boards*, Find lights from any
 of them (the pairing lands on that board and is copied to the others),
-name lights, test colours (sent to every sender), forget a light. Saving
+name lights, test colors (sent to every sender), forget a light. Saving
 writes the same key and the same `BLE_LIGHT` channels (index = light
 number) to every ticked board and strips them from unticked ones. A
 board's own page no longer shows its flood lights, only a pointer to the
@@ -396,9 +396,9 @@ different keys the tab says so and offers to spread either one.
    of N.
 
 **Status can't be read (2026-10-08).** BRMesh is one-way: a paired light
-never transmits, so neither its colour nor whether it is powered can be
+never transmits, so neither its color nor whether it is powered can be
 asked. The Floods tab shows what the sending boards last *sent*
-(`state`). The lights keep their colour through a power cut (Colin,
+(`state`). The lights keep their color through a power cut (Colin,
 bench), so the boards keep it too: `/lights.json` on each sender, saved at
 most every 10 s when something changed, restored after every config apply
 (boot included) but never re-sent. Drift remains possible if a light
@@ -409,10 +409,10 @@ light at "off", and moving a slider jumped the light.
 **White — DONE (bench 2026-10-07, Melpo RGBW):** white is a *mode*, not
 a channel. Bytes 6 and 7 both 127 switch the light to warm white and the
 brightness byte sets its level; partial values in 6/7 do nothing, and a
-frame carrying RGB *and* white is rejected outright (not even the colour
+frame carrying RGB *and* white is rejected outright (not even the color
 shows). Values are `0xWWRRGGBB`: W 1–127 = white at that level (RGB
-ignored), W 0 = colour. The picker's white slider replaces the colour and
-vice versa. A fade between a colour and white snaps to white as soon as
+ignored), W 0 = color. The picker's white slider replaces the color and
+vice versa. A fade between a color and white snaps to white as soon as
 W > 0.
 
 **Frame layout, decoded:** the "command byte" is type 2 | length<<4 —
@@ -421,8 +421,8 @@ nibble is the high part of a 16-bit address in the app's code; the lights
 **ignore it** (0x101 and 0x801 both drove light 1).
 
 **Fade smoothness — measured:** bursts of 200 and 100 ms are caught every
-time, 60 ms drops steps → default **100 ms**. Colour ramps now run on the
-board (`pm_lerp_colour`, per component) and reach the radio (raw_out had
+time, 60 ms drops steps → default **100 ms**. Color ramps now run on the
+board (`pm_lerp_color`, per component) and reach the radio (raw_out had
 no strip/flood case). Three floods fading together: 58 bursts / 6.5 s =
 **~3 updates/s per light**, visibly stepped and staggered (round-robin).
 The lights do not smooth internally.
@@ -512,7 +512,7 @@ log shows each one with the sensor change that caused it.
 **Timeline** (2026-10-05 — software-plan §6 item 5, pulled forward
 from 2027). Above the step list, the same steps drawn as keyframes:
 time across, value up, **one track per output** (servo/LED/motor as a
-0–100 % line, motor −100…+100, relay on/off, strip as colour bars).
+0–100 % line, motor −100…+100, relay on/off, strip as color bars).
 The line into a keyframe is its ramp (eased curve) or a hold-then-jump.
 Drag a key to move it in time and value (snaps 50 ms / 1 %; live
 preview moves the real servo); double-click a track to add a key (on a
@@ -531,7 +531,7 @@ another sequence opens at its start, same zoom. Not yet: bezier handles
 (easing presets only), audio tracks.
 
 **Console → Cues.** Sequences list; step editor (time, board, output,
-value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, colour for
+value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, color for
 strips — and a *Test* button per step; with *Live preview* on (default)
 dragging a servo, LED or strip value moves the real output, coalesced
 to one request in flight per output; relays and motors only change on
@@ -637,7 +637,7 @@ first.
 - **Bench test without touching the router:** `mesh_channel {ch}` on a
   bridge with no WiFi forces its channel; nodes should follow within ~45 s.
 - **Nodes also move on the heartbeat itself (2026-10-08).** Scanning alone
-  wasn't enough: neighbouring channels overlap, so at bench range Prop on
+  wasn't enough: neighboring channels overlap, so at bench range Prop on
   10 heard the bridge on 11, never scanned, and stayed off-channel. A
   bridge heartbeat now carries `ch` and a node on another channel moves to
   it; a bridge between WiFi attempts sends 0 (unknown), so nobody follows

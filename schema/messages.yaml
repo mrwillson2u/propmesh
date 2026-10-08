@@ -66,7 +66,7 @@ enums:
     MOTOR: 4                  # brushed DC, two inputs, signed speed
     LED_STRIP: 5              # addressable pixels
     DIGITAL_IN: 6             # PIR, button, beam — debounced
-    BLE_LIGHT: 7              # BRMesh BLE flood light — no pin; the node broadcasts its colour over Bluetooth
+    BLE_LIGHT: 7              # BRMesh BLE flood light — no pin; the node broadcasts its color over Bluetooth
 
 # Reusable structs (must be defined before the messages that use them)
 structs:

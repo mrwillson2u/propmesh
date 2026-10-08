@@ -17,8 +17,8 @@ bool pm_store_save(const PmNodeConfig &cfg);
 uint8_t pm_store_channel_load();
 void pm_store_channel_save(uint8_t ch);
 
-// The colour last sent to each flood light, by BRMesh light number
-// (docs §6a). The lights can't be asked and keep their colour through a
+// The color last sent to each flood light, by BRMesh light number
+// (docs §6a). The lights can't be asked and keep their color through a
 // power cut, so this is the system's only memory of them across reboots.
 // /lights.json; a few bytes per light.
 uint8_t pm_store_lights_load(uint8_t ids[], int32_t vals[], uint8_t max);

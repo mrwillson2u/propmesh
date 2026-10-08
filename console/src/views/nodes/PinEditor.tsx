@@ -4,10 +4,10 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColourPicker, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
-  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColour, newChannel, pinRole,
+  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, newChannel, pinRole,
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
@@ -429,8 +429,8 @@ export function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () =
           <span style={mono(500, 11, C.t4)}>{l.addr} · {l.rssi} dBm</span>
           <div style={{ flex: 1 }} />
           {l.state === "paired"
-            ? <span style={mono(700, 11, C.green)} title={l.acked ? "the light confirmed the new key" : "lights don't usually answer — check it with a test colour below"}>
-                ✓ paired as light #{l.number}{l.acked ? "" : " — try its colour below"}
+            ? <span style={mono(700, 11, C.green)} title={l.acked ? "the light confirmed the new key" : "lights don't usually answer — check it with a test color below"}>
+                ✓ paired as light #{l.number}{l.acked ? "" : " — try its color below"}
               </span>
             : l.state === "pairing"
               ? <span style={mono(600, 11, C.t4)}>pairing as #{l.number}…</span>
@@ -580,10 +580,10 @@ function Test({ c, value, disabled, onFire, cal }: {
         <span style={mono(700, 11, v ? C.green : C.t5)}>{v ? "● ON" : "○ OFF"}</span>
       </span>
     );
-  if (isColour(c.kind))
+  if (isColor(c.kind))
     return (
       <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 10, ...dim }}>
-        <ColourPicker value={v} onChange={onFire} white={c.kind === "BLE_LIGHT"} />
+        <ColorPicker value={v} onChange={onFire} white={c.kind === "BLE_LIGHT"} />
         <button onClick={() => onFire(0)} style={btn()}>Off</button>
         {readout(hex(v))}
       </span>

@@ -340,7 +340,7 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     resp["failed_opcode"] = b.failed_opcode;
     resp["failed_status"] = b.failed_status;
     resp["running"] = b.running;
-    resp["bursts"] = b.bursts;          // colour commands put on air
+    resp["bursts"] = b.bursts;          // color commands put on air
     resp["cmd_ok"] = b.cmd_ok;          // HCI commands the controller confirmed
     resp["cmd_failed"] = b.cmd_failed;
     resp["last_status"] = b.last_status;

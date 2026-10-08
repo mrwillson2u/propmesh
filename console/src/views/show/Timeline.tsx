@@ -8,7 +8,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys } from "../../ui";
 import type { ChannelKindName } from "../../lib/boards_gen";
-import { isColour } from "../../lib/nodeConfig";
+import { isColor } from "../../lib/nodeConfig";
 import { canRamp, lengthMs, type Sequence, type Step } from "../../lib/show";
 import {
   addKey, moveKey, range, segmentPoints, snapT, snapV, toggleRamp, tracks, valueAt, type Track,
@@ -38,7 +38,7 @@ const zbtn: React.CSSProperties = {
 };
 
 const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
-const trackH = (kind: ChannelKindName) => (kind === "RELAY" || isColour(kind) ? H_SWITCH : H_VALUE);
+const trackH = (kind: ChannelKindName) => (kind === "RELAY" || isColor(kind) ? H_SWITCH : H_VALUE);
 
 export interface Output { node: string; kind: ChannelKindName; index: number; label: string }
 
@@ -205,7 +205,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
     if (ti < 0) return;
     const tr = trs[ti];
     const t = Math.max(0, Math.min(D + 50, snapT(xt(x))));
-    const v = isColour(tr.kind) ? s.value : snapV(yv(tr, tops[ti], py), tr.kind);
+    const v = isColor(tr.kind) ? s.value : snapV(yv(tr, tops[ti], py), tr.kind);
     if (t === s.t_ms && v === s.value) return;
     onChange(moveKey(seq, idx, t, v));
     if (live && v !== s.value && LIVE_KINDS.includes(s.kind)) onLive({ ...s, value: v });
@@ -218,7 +218,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
     if (ti < 0 || x < LABEL_W) return;
     const tr = trs[ti];
     const t = Math.max(0, snapT(xt(x)));
-    const v = isColour(tr.kind) ? (valueAt(seq, tr, t) ?? 0xff5500) : snapV(yv(tr, tops[ti], py), tr.kind);
+    const v = isColor(tr.kind) ? (valueAt(seq, tr, t) ?? 0xff5500) : snapV(yv(tr, tops[ti], py), tr.kind);
     const r = addKey(seq, tr, t, Math.round(v));
     onChange(r.seq);
     onSelect(r.uid);
@@ -240,7 +240,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
   const addTrack = (key: string) => {
     const o = outputs.find((x) => `${x.node}/${x.kind}_${x.index}` === key);
     if (!o) return;
-    const v = o.kind === "RELAY" ? 1 : isColour(o.kind) ? 0xff5500 : 500;
+    const v = o.kind === "RELAY" ? 1 : isColor(o.kind) ? 0xff5500 : 500;
     const r = addKey(seq, o, 0, v);
     onChange(r.seq);
     onSelect(r.uid);
@@ -288,7 +288,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
               <circle cx={14} cy={top + 14} r={4} fill={color} />
               <text x={24} y={top + 18} fontFamily="system-ui" fontSize="12" fontWeight="600" fill={C.t1}>{nameOf(tr.node)}</text>
               <text x={24} y={top + 32} fontFamily={MONO} fontSize="10.5" fill={C.t4}>{tr.kind}_{tr.index}{chLabel ? ` · ${chLabel}` : ""}</text>
-              {tr.kind !== "RELAY" && !isColour(tr.kind) && (
+              {tr.kind !== "RELAY" && !isColor(tr.kind) && (
                 <>
                   <text x={LABEL_W - 6} y={top + 13} textAnchor="end" fontFamily={MONO} fontSize="9" fill={C.t6}>{tr.kind === "MOTOR" ? "+100" : "100%"}</text>
                   <text x={LABEL_W - 6} y={top + h - 5} textAnchor="end" fontFamily={MONO} fontSize="9" fill={C.t6}>{tr.kind === "MOTOR" ? "−100" : "0%"}</text>
@@ -311,9 +311,9 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
               {/* lines into each key */}
               {tr.steps.map((idx, k) => {
                 const s = seq.steps[idx];
-                if (isColour(tr.kind)) {
-                  // Colour bar: the previous colour held, then (for a ramp) a
-                  // gradient into this key's colour over the ramp.
+                if (isColor(tr.kind)) {
+                  // Color bar: the previous color held, then (for a ramp) a
+                  // gradient into this key's color over the ramp.
                   const prev = k > 0 ? seq.steps[tr.steps[k - 1]] : null;
                   if (!prev) return null;
                   const dur = Math.min(s.dur_ms ?? 0, s.t_ms - prev.t_ms);
@@ -332,7 +332,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                           </defs>
                           <rect x={x1} y={top + 10} width={Math.max(0, x2 - x1)} height={h - 20} fill={`url(#${gid})`} opacity=".8"
                             style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); onSelect(s.uid ?? null); }}>
-                            <title>Fade into this colour — R makes it a jump</title>
+                            <title>Fade into this color — R makes it a jump</title>
                           </rect>
                         </>
                       )}
@@ -358,27 +358,27 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
                 );
               })}
               {/* hold after the last key */}
-              {last && !isColour(tr.kind) && (
+              {last && !isColor(tr.kind) && (
                 <line x1={tx(last.t_ms)} y1={vy(tr, top, last.value)} x2={width - PAD_R} y2={vy(tr, top, last.value)} stroke={color} strokeWidth={1.5} strokeDasharray="2 5" opacity=".6" />
               )}
-              {last && isColour(tr.kind) && (
+              {last && isColor(tr.kind) && (
                 <rect x={tx(last.t_ms)} y={top + 10} width={Math.max(0, width - PAD_R - tx(last.t_ms))} height={h - 20} fill={hex(last.value)} opacity=".35" />
               )}
 
               {/* keys */}
               {tr.steps.map((idx) => {
                 const s = seq.steps[idx];
-                const cx = tx(s.t_ms), cy = isColour(tr.kind) ? top + h / 2 : vy(tr, top, s.value);
+                const cx = tx(s.t_ms), cy = isColor(tr.kind) ? top + h / 2 : vy(tr, top, s.value);
                 const on = selected !== null && s.uid === selected;
                 return (
                   <g key={"key" + idx} style={{ cursor: "grab" }}
                     onPointerDown={(e) => { e.stopPropagation(); capture(e); if (s.uid != null) { setDrag({ uid: s.uid, pps, scroll }); onSelect(s.uid); } }}
                     onDoubleClick={(e) => e.stopPropagation()}>
                     {on && <circle cx={cx} cy={cy} r={11} fill="none" stroke={C.ember} strokeWidth={1.5} strokeDasharray="3 3" />}
-                    {isColour(tr.kind)
+                    {isColor(tr.kind)
                       ? <rect x={cx - 7} y={cy - 7} width={14} height={14} rx={3} fill={hex(s.value)} stroke={on ? C.ember : C.t1} strokeWidth={1.5} />
                       : <circle cx={cx} cy={cy} r={on ? 6.5 : 5.5} fill={C.card} stroke={on ? C.ember : color} strokeWidth={2.5} />}
-                    <title>{`${(s.t_ms / 1000).toFixed(2)} s · ${tr.kind === "RELAY" ? (s.value ? "on" : "off") : isColour(tr.kind) ? hex(s.value) : `${Math.round(s.value / 10)}%`}${(s.dur_ms ?? 0) ? ` · ramp over ${(s.dur_ms! / 1000).toFixed(2)} s, ease in ${s.ease_in ?? 50} % / out ${s.ease_out ?? 50} %` : ""}\nDrag to move · Delete to remove`}</title>
+                    <title>{`${(s.t_ms / 1000).toFixed(2)} s · ${tr.kind === "RELAY" ? (s.value ? "on" : "off") : isColor(tr.kind) ? hex(s.value) : `${Math.round(s.value / 10)}%`}${(s.dur_ms ?? 0) ? ` · ramp over ${(s.dur_ms! / 1000).toFixed(2)} s, ease in ${s.ease_in ?? 50} % / out ${s.ease_out ?? 50} %` : ""}\nDrag to move · Delete to remove`}</title>
                   </g>
                 );
               })}

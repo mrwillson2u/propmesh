@@ -32,10 +32,10 @@ struct Runtime {
 static PmNodeConfig active;
 static Runtime rt[PM_MAX_CHANNELS];
 
-// Flood colours survive a reboot (docs §6a): any change marks them dirty,
+// Flood colors survive a reboot (docs §6a): any change marks them dirty,
 // and they're saved at most every 10 s — a fade doesn't hammer the flash.
 // On boot they're only remembered for the console, never re-sent: the
-// lights keep their own colour through a power cut.
+// lights keep their own color through a power cut.
 #define LIGHTS_SAVE_MS 10000
 static bool lights_dirty;
 static uint32_t lights_saved_ms;
@@ -154,7 +154,7 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
       ledcWrite(c.pins[0], v > 0 ? pm_duty(v, MOTOR_BITS) : 0);
       ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
       break;
-    // Colour fades (2026-10-07: a flood fade computed perfectly here and
+    // Color fades (2026-10-07: a flood fade computed perfectly here and
     // sent nothing — these two cases were missing).
     case PM_CHANNEL_KIND_LED_STRIP:
       r.strip->fill((uint32_t)v & 0xFFFFFF);
@@ -261,7 +261,7 @@ bool pm_channel_ramp(uint8_t kind, uint8_t index, int32_t to, int64_t start_us,
   int32_t from = (kind == PM_CHANNEL_KIND_SERVO && r.value < 0) ? to : r.value;
   if (kind == PM_CHANNEL_KIND_SERVO && r.moving) from = (int32_t)(r.motion.pos + 0.5f);
   r.moving = false;
-  r.ramp.begin(from, to, start_us, dur_ms, ease_in, ease_out, pm_kind_colour(kind));
+  r.ramp.begin(from, to, start_us, dur_ms, ease_in, ease_out, pm_kind_color(kind));
   raw_out(c, r, r.ramp.at(esp_timer_get_time()));
   return true;
 }

@@ -5,11 +5,11 @@
 // docs/generic-boards.md §"Sequences and triggers".
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColourPicker, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { target } from "../../lib/transport";
-import { isColour } from "../../lib/nodeConfig";
+import { isColor } from "../../lib/nodeConfig";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import Timeline, { type Output } from "./Timeline";
 import {
@@ -598,10 +598,10 @@ function ValueInput({ kind, value, onChange }: { kind: ChannelKindName; value: n
         <option value={0}>off</option>
       </select>
     );
-  if (isColour(kind))
+  if (isColor(kind))
     return (
       <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 8 }}>
-        <ColourPicker value={value} onChange={onChange} white={kind === "BLE_LIGHT"} />
+        <ColorPicker value={value} onChange={onChange} white={kind === "BLE_LIGHT"} />
         {value === 0 && <span style={{ ...mono(500, 11, C.t4), flex: "none" }}>off</span>}
       </span>
     );

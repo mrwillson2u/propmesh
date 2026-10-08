@@ -21,8 +21,8 @@ export interface ChannelCfg {
   light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
 
-// Outputs whose value is a colour (0xRRGGBB, 0 = off) rather than a level.
-export const isColour = (kind: string) => kind === "LED_STRIP" || kind === "BLE_LIGHT";
+// Outputs whose value is a color (0xRRGGBB, 0 = off) rather than a level.
+export const isColor = (kind: string) => kind === "LED_STRIP" || kind === "BLE_LIGHT";
 
 export interface NodeConfig {
   v: 1;

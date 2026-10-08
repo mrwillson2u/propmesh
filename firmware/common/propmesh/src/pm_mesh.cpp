@@ -83,7 +83,7 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
     s_neighbors.observe(hdr.src_id, rssi, now_ms);
 
   // A bridge heartbeat: this is where the mesh lives. It says which channel
-  // the bridge is on; go there. Hearing it is not enough — neighbouring
+  // the bridge is on; go there. Hearing it is not enough — neighboring
   // channels overlap, so at bench range a node on 10 heard a bridge on 11,
   // never scanned, and stayed put (2026-10-08). In the yard it would not.
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= 8 && (payload[7] & PM_NODE_ROLE_BRIDGE) &&

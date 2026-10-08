@@ -1,5 +1,5 @@
 // BRMesh ("fastcon") BLE flood lights: build the advertisement that sets
-// one light's colour. The lights listen for BLE advertisements with
+// one light's color. The lights listen for BLE advertisements with
 // manufacturer id 0xFFF0 carrying a whitened, key-XORed, CRC'd 24-byte
 // payload — no pairing, no connection, nothing comes back.
 //
@@ -72,13 +72,13 @@ inline void whiten(uint8_t *buf, int len) {
 
 // The 6-byte light command:
 //   off/brightness: {0x22, light, brightness 0..127, 0, 0, 0}
-//   colour:         {0x72, light, brightness 0..127, blue, red, green}
-// Colour value: 0xWWRRGGBB. W (1–127) selects WHITE MODE: the light shows
+//   color:         {0x72, light, brightness 0..127, blue, red, green}
+// Color value: 0xWWRRGGBB. W (1–127) selects WHITE MODE: the light shows
 // warm white at level W and the RGB bytes are ignored. Bench, Melpo RGBW
 // flood 2026-10-07: white needs bytes 6 AND 7 at 127 (the reference calls
-// them colour temperature; partial values do nothing) with the level in
+// them color temperature; partial values do nothing) with the level in
 // the brightness byte, and a frame carrying both RGB and white is rejected
-// outright — the lights can't mix the two. W = 0: colour mode.
+// outright — the lights can't mix the two. W = 0: color mode.
 inline void pm_brmesh_command(uint8_t light, uint32_t wrgb, uint8_t out[8]) {
   uint8_t r = wrgb >> 16, g = wrgb >> 8, b = wrgb, w = (wrgb >> 24) & 0x7F;
   uint8_t peak = r > g ? (r > b ? r : b) : (g > b ? g : b);
@@ -91,7 +91,7 @@ inline void pm_brmesh_command(uint8_t light, uint32_t wrgb, uint8_t out[8]) {
     return;
   }
   if (!peak) { out[0] = 0x22; return; }  // black = off
-  // Brightness from the colour's peak; the colour itself sent at full
+  // Brightness from the color's peak; the color itself sent at full
   // scale, so a dim red is "red at low brightness", as the lights expect.
   out[0] = 0x72;
   out[2] = (uint8_t)((peak * 127 + 127) / 255);

@@ -26,7 +26,7 @@ a:hover { color: #ffa470; }
 @keyframes pm-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .pm-spin { animation-duration: 3s !important; } }
 
-/* Colour picker sliders (ui.tsx ColourPicker): the track is the gradient. */
+/* Color picker sliders (ui.tsx ColorPicker): the track is the gradient. */
 .pm-slider { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; margin: 0; outline: none; cursor: pointer; }
 .pm-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid #0b0d10; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
 .pm-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid #0b0d10; }

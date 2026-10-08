@@ -135,7 +135,7 @@ static void check(const uint8_t key[4], uint8_t light, uint32_t rgb) {
   TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
 }
 
-static void test_matches_reference_colour() {
+static void test_matches_reference_color() {
   const uint8_t k[4] = {0x5A, 0x13, 0xC7, 0x9E};
   check(k, 1, 0xFF6600);
   check(k, 2, 0x00FF00);
@@ -174,13 +174,13 @@ static void test_command_bytes() {
   TEST_ASSERT_EQUAL(0, c[4]);
   TEST_ASSERT_EQUAL(127, c[6]);
   TEST_ASSERT_EQUAL(127, c[7]);
-  pm_brmesh_command(2, 0x40FF0000, c);     // white half + a colour: white wins, no RGB (lights reject a mix)
+  pm_brmesh_command(2, 0x40FF0000, c);     // white half + a color: white wins, no RGB (lights reject a mix)
   TEST_ASSERT_EQUAL(64, c[2]);
   TEST_ASSERT_EQUAL(0, c[4]);
   TEST_ASSERT_EQUAL(127, c[6]);
 }
 
-// The reference's colour-temperature command: 0x72, number, brightness,
+// The reference's color-temperature command: 0x72, number, brightness,
 // no RGB, bytes 6–7 = 127 127 (the only white values the floods accept).
 static void test_white_matches_reference() {
   const uint8_t k[4] = {0x5A, 0x13, 0xC7, 0x9E};
@@ -263,7 +263,7 @@ static void test_real_advert_identity_survives_key_change() {
 
 int main() {
   UNITY_BEGIN();
-  RUN_TEST(test_matches_reference_colour);
+  RUN_TEST(test_matches_reference_color);
   RUN_TEST(test_matches_reference_off_and_other_keys);
   RUN_TEST(test_command_bytes);
   RUN_TEST(test_white_matches_reference);

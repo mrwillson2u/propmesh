@@ -17,7 +17,7 @@
 #
 # Sources: ESP32 datasheet §2.2 pin table + §2.4 strapping pins,
 # ESP32-WROOM-32 datasheet (GPIO 6-11 = module flash). ⚠ The boot-time
-# behaviour notes on 5/14/15 are from the datasheet's power-up glitch
+# behavior notes on 5/14/15 are from the datasheet's power-up glitch
 # table and bench folklore — confirm on a scope before a relay goes on one.
 
 id: esp32-devkit-v1

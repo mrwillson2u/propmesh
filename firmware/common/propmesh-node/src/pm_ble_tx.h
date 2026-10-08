@@ -1,5 +1,5 @@
 // Bluetooth for BRMesh flood lights (BLE_LIGHT channels): sending
-// colours, and finding + pairing lights without the BRMesh app.
+// colors, and finding + pairing lights without the BRMesh app.
 //
 // No Bluetooth host stack: the lights only use raw advertisements, so
 // this drives the ESP32's BLE controller directly over VHCI with a
@@ -8,8 +8,8 @@
 // keeps it far smaller than the Arduino BLE library, and the controller
 // time-shares the radio with ESP-NOW (coexistence is built in).
 //
-// Sending is non-blocking: each light's newest colour is queued and goes
-// out as a ~200 ms advertising burst; a colour that changes again before
+// Sending is non-blocking: each light's newest color is queued and goes
+// out as a ~200 ms advertising burst; a color that changes again before
 // it went out replaces the queued one.
 //
 // Pairing (protocol from dsclee1/BRmesh-esp32-mqtt): broadcast "wake",
@@ -34,7 +34,7 @@ void pm_ble_set_key(const uint8_t key[4]);
 void pm_ble_light(uint8_t light, uint32_t wrgb);
 // Bench only: send these 8 command bytes as one control frame.
 void pm_ble_raw(const uint8_t cmd[8], uint8_t hi = 0);
-// Length of one colour's advertising burst (default 200 ms).
+// Length of one color's advertising burst (default 200 ms).
 void pm_ble_tx_window(uint16_t ms);
 uint16_t pm_ble_tx_window();
 
@@ -46,7 +46,7 @@ enum { PM_BLE_IDLE = 0, PM_BLE_SCANNING = 1, PM_BLE_PAIRING = 2 };
 // FOUND: unpaired (default key). OTHER: holds another controller's key —
 // pairing it is a take-over. PAIRED: we sent it our key. Lights don't
 // acknowledge: once paired they stop announcing themselves (observed
-// 2026-10-07 — 3 of 3 lights took the key and answered colours while the
+// 2026-10-07 — 3 of 3 lights took the key and answered colors while the
 // board saw nothing back), so a pairing counts once its burst has gone out;
 // `acked` records the rare light that does come back with our key.
 // PAIR_FAILED is only for a burst the radio couldn't send.

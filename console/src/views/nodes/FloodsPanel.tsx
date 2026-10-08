@@ -1,9 +1,9 @@
 // The Floods pseudo-node: BRMesh flood lights driven by every ticked
-// board. Pair lights here (from any sender), name them, test colours, and
+// board. Pair lights here (from any sender), name them, test colors, and
 // choose which boards send. lib/floods.ts holds the model.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColourPicker, Spinner, mono, sys } from "../../ui";
+import { ColorPicker, Spinner, mono, sys } from "../../ui";
 import { deriveFloods, mismatched, syncFloods, type FloodsState } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
@@ -109,7 +109,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
     await load();
   };
 
-  // Test colours go to every sender, one request in flight per light.
+  // Test colors go to every sender, one request in flight per light.
   const inFlight = useRef(new Map<number, boolean>());
   const queued = useRef(new Map<number, number>());
   const fire = (light: number, v: number) => {
@@ -145,9 +145,9 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
       {msg && <div style={mono(600, 11.5, msg.bad ? C.red : C.green)}>{msg.bad ? "✕ " : "✓ "}{msg.text}</div>}
       <div style={{ padding: "9px 12px", borderRadius: 7, background: C.card, border: `1px solid ${C.b2}`, ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
         <b style={{ color: C.amber }}>The lights never answer.</b> BRMesh only goes one way, so there is no way to tell whether a light is
-        powered, in range, or actually showing what you set. The colours here are what your boards <b>last sent</b> (they remember it
-        through a restart), and the lights keep their colour through a power cut. They can drift out of step if a light misses a
-        command — out of range, unplugged at the time — or is changed from the BRMesh app. Setting the colour again puts it right.
+        powered, in range, or actually showing what you set. The colors here are what your boards <b>last sent</b> (they remember it
+        through a restart), and the lights keep their color through a power cut. They can drift out of step if a light misses a
+        command — out of range, unplugged at the time — or is changed from the BRMesh app. Setting the color again puts it right.
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: 10, border: `1px solid ${C.b2}`, borderRadius: 8, background: C.card }}>
@@ -204,7 +204,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
             onChange={(e) => setLabels((x) => ({ ...x, [l.number]: e.target.value }))} style={{ ...field, width: 160, flex: "none" }} />
           <span title="What the sending boards last sent. The lights can't be asked — BRMesh is one-way — so this is wrong if the light missed a command or was set from the BRMesh app."
             style={{ display: "contents" }}>
-            <ColourPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
+            <ColorPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
           </span>
           <button onClick={() => fire(l.number, 0)} style={btn()}>Off</button>
           <button onClick={() => setRemoved((r) => [...r, l.number])} title="Forget this light (reset it to pair it again)" style={{ ...btn(), width: 30, padding: 0 }}>✕</button>

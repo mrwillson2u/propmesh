@@ -372,7 +372,7 @@ void pm_ble_loop() {
       }
       pair_target = -1;
     }
-    return;  // colours wait while finding/pairing
+    return;  // colors wait while finding/pairing
   }
 
   if (advertising) {

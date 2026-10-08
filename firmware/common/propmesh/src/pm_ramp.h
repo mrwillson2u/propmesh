@@ -36,10 +36,10 @@ inline float pm_ease(uint8_t in_pct, uint8_t out_pct, float p) {
   return 1 - v * q * q / (2 * b);
 }
 
-// A colour value 0xWWRRGGBB faded per component. A fade between a colour
+// A color value 0xWWRRGGBB faded per component. A fade between a color
 // and a white level passes through "both set" — the light shows white as
 // soon as W > 0 (the floods can't mix), so such a fade snaps to white early.
-inline int32_t pm_lerp_colour(int32_t a, int32_t b, float e) {
+inline int32_t pm_lerp_color(int32_t a, int32_t b, float e) {
   int32_t out = 0;
   for (int shift = 0; shift < 32; shift += 8) {
     int32_t ca = (a >> shift) & 0xFF, cb = (b >> shift) & 0xFF;
@@ -51,7 +51,7 @@ inline int32_t pm_lerp_colour(int32_t a, int32_t b, float e) {
 
 struct PmRamp {
   bool active = false;
-  bool colour = false;  // per-component (0xWWRRGGBB) instead of one level
+  bool color = false;  // per-component (0xWWRRGGBB) instead of one level
   int32_t from = 0, to = 0;
   int64_t start_us = 0;
   uint32_t dur_us = 0;
@@ -64,7 +64,7 @@ struct PmRamp {
     dur_us = dur_ms * 1000u;
     ease_in = ein;
     ease_out = eout;
-    colour = col;
+    color = col;
     active = true;
   }
 
@@ -76,7 +76,7 @@ struct PmRamp {
     }
     float p = now_us <= start_us ? 0.0f : (float)(now_us - start_us) / (float)dur_us;
     float e = pm_ease(ease_in, ease_out, p);
-    if (colour) return pm_lerp_colour(from, to, e);
+    if (color) return pm_lerp_color(from, to, e);
     return from + (int32_t)lroundf((float)(to - from) * e);
   }
 };

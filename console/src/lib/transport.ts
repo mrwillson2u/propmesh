@@ -4,8 +4,8 @@
 // (software-plan §5.1 "transport abstraction"). The documents are the
 // node's console API — docs/generic-boards.md §"Serial protocol".
 import { BOARDS } from "./boards_gen";
-import { EMPTY_CONFIG, isColour, type NodeConfig } from "./nodeConfig";
-import { lerpColour } from "./timeline";
+import { EMPTY_CONFIG, isColor, type NodeConfig } from "./nodeConfig";
+import { lerpColor } from "./timeline";
 import { validate } from "./pinRules";
 import { ease } from "./ease";
 
@@ -588,7 +588,7 @@ class SimLink implements NodeLink {
           const t0 = Date.now();
           const iv = setInterval(() => {
             const p = Math.min(1, (Date.now() - t0) / dur);
-            if (n.armed) n.values.set(key, isColour(kind) ? lerpColour(from, value, ease(ein, eout, p)) : Math.round(from + (value - from) * ease(ein, eout, p)));
+            if (n.armed) n.values.set(key, isColor(kind) ? lerpColor(from, value, ease(ein, eout, p)) : Math.round(from + (value - from) * ease(ein, eout, p)));
             if (p >= 1) clearInterval(iv);
           }, 50);
         }, 200 + t - dur);
