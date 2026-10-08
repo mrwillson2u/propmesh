@@ -283,7 +283,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           <span><span style={{ color: C.amber }}>╌</span> weak ≤−75</span>
           <span><span style={{ color: C.red }}>╌</span> lost</span>
           <span style={{ color: C.t5 }}>· dBm, the weaker direction</span>
-          {floods.length > 0 && <span><span style={{ color: C.t3 }}>┈</span> sends to a flood</span>}
+          {floods.length > 0 && <span><span style={{ color: C.bluetooth }}>┈</span> Bluetooth to a flood</span>}
         </div>
         {layout === "map" && (
           <div style={{ position: "absolute", right: 14, bottom: 14, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, ...mono(500, 10.5, C.t5) }}>
@@ -350,7 +350,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
       {showLinks && floods.flatMap((f) => f.senders.map((s) => {
         const A = at(s), B = at(f.id);
         if (!A || !B) return null;
-        return <line key={`${s}>${f.id}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke={C.t4} strokeWidth="1.2" strokeDasharray="2 5" opacity=".7" />;
+        return <line key={`${s}>${f.id}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke={C.bluetooth} strokeWidth="1.4" strokeDasharray="2 5" opacity=".8" />;
       }))}
       {floods.map((f) => {
         const p = at(f.id);

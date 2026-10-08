@@ -34,6 +34,7 @@ export const C = {
   redBg2: "#1e0d0b",
   redB: "#4a1f1a",
   linkGray: "#6b7684",
+  bluetooth: "#3d8bfd", // Bluetooth links to the floods (Yard)
   wire: "#3a4150",
 } as const;
 
