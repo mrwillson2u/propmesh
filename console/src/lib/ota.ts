@@ -38,7 +38,13 @@ const b64 = (b: Uint8Array) => {
 // Resolves when the board has accepted the whole image (it then reboots);
 // rejects with the board's reason. `onProgress` gets bytes written.
 export async function streamImage(node: NodeTarget, img: Image, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
-  const begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
+  let begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
+  // Boards before 1a779c7 stayed "busy" after a failed transfer until
+  // rebooted; ota_abort clears that, so clear it and ask once more.
+  if (!begin.ok && /already running|update is running/.test(begin.error ?? "")) {
+    await node.request("ota_abort").catch(() => undefined);
+    begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
+  }
   if (!begin.ok) throw new Error(begin.error ?? "the board refused to start");
   try {
     await send(node, img, (begin.chunk as number) || 2700, onProgress, signal);
