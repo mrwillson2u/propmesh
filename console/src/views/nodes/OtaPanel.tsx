@@ -228,7 +228,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
               {!j && (current ? "up to date" : missing ? "not heard recently" : "")}
             </span>,
             <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j)}
-              title={en.usb ? "The USB board reboots mid-update: the console disconnects — reconnect after" : undefined}
+              title={en.usb ? "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)" : undefined}
               style={btn(false, !ready || busy(j))}>
               {en.usb ? "Update (last)" : "Update"}
             </button>,
@@ -236,8 +236,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         })}
       </div>
       <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5 }}>
-        A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. The USB board takes the console
-        down with it when it reboots — do it last, then reconnect.{mode === "wifi" ? " Over WiFi a board leaves the mesh for the download (about a minute)." : ""}
+        A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. Do the USB board last: while it
+        reboots the others can't be reached.{mode === "wifi" ? " Over WiFi a board leaves the mesh for the download (about a minute)." : ""}
       </div>
     </div>
   );

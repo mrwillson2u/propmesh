@@ -625,6 +625,12 @@ first.
   is absent, and at most every 2 min.
 - **Bench test without touching the router:** `mesh_channel {ch}` on a
   bridge with no WiFi forces its channel; nodes should follow within ~45 s.
+- **Verified 2026-10-07:** build 72cc220 rolled out to all three boards
+  over the mesh ("Update all", then the bridge); WiFi entered on the
+  bridge's page → it joined, moved from channel 1 to the router's 11, and
+  Prop and Skellitor Head reappeared on 11 on their own. Note: the
+  devkit's USB-serial chip stays enumerated through an ESP32 reboot, so
+  the console does *not* lose the port when the bridge updates.
 
 **Stage B — console over the network:** WebSocket server on the bridge
 (same JSON lines as USB), console "Connect over WiFi" to
