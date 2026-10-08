@@ -14,6 +14,7 @@ import { issueText, validate, type Issue } from "../../lib/pinRules";
 import { SHORT, isBest, isGood, tips } from "../../lib/pinAdvice";
 import PinGuide from "./PinGuide";
 import type { NodeHello, NodeTarget } from "../../lib/transport";
+import { useConnection, type LocalMesh } from "../../lib/connection";
 
 // Fixed tracks for the short columns; options and test share what is
 // left, so a narrow window squeezes them instead of clipping the test
@@ -56,6 +57,7 @@ export interface EditorProps {
 // Editor for one generic-board node: name, bridge mode, pin
 // assignments, save, test fire.
 export default function PinEditor({ node, hello, board, where, onInput, onSaved }: EditorProps) {
+  const conn = useConnection();
   const [applied, setApplied] = useState<NodeConfig>(EMPTY_CONFIG); // what the node is running
   const [draft, setDraft] = useState<NodeConfig>(EMPTY_CONFIG);
   const [values, setValues] = useState<Record<string, number>>({});
@@ -249,22 +251,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
             requests to the other nodes over the mesh, reports what it hears back, and keeps the mesh
             clock — every node syncs to it.
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>HOME WIFI</span>
-            <input value={draft.wifi?.ssid ?? ""} placeholder="network name (2.4 GHz)" maxLength={32}
-              onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), ssid: e.target.value } }))}
-              style={{ ...field, width: 200 }} />
-            <input value={draft.wifi?.pass ?? ""} type="password" autoComplete="off" maxLength={64}
-              placeholder={draft.wifi?.pass_set && !draft.wifi?.pass ? "password set — type to change" : "password"}
-              onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), pass: e.target.value } }))}
-              style={{ ...field, width: 200 }} />
-            {draft.wifi?.ssid && (
-              <button onClick={() => setDraft((d) => ({ ...d, wifi: undefined }))} style={btn()}>Forget</button>
-            )}
-            <span style={sys(400, 11.5, C.t4)}>
-              With WiFi the console can reach this bridge without the cable, and the mesh follows the router's channel. The password stays on the board.
-            </span>
-          </div>
+          <BridgeWifi draft={draft} applied={applied} setDraft={setDraft} isLink={!!conn && conn.hello.node === hello.node} local={conn?.local} />
         </div>
       )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
@@ -349,6 +336,59 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   );
 }
 
+
+// The bridge's home WiFi. Once it's set up, the board keeps the password
+// and never tells the console, so a password box always looks empty — it
+// read as "fill me in again" every time (2026-10-08). So: a status line
+// and Change…; the fields only while changing.
+function BridgeWifi({ draft, applied, setDraft, isLink, local }: {
+  draft: NodeConfig; applied: NodeConfig;
+  setDraft: React.Dispatch<React.SetStateAction<NodeConfig>>;
+  isLink: boolean; // this bridge is the one the console is connected through (so its live status is known)
+  local?: LocalMesh;
+}) {
+  const [editing, setEditing] = useState(false);
+  const set = !!applied.wifi?.ssid;
+  const changed = JSON.stringify(draft.wifi ?? null) !== JSON.stringify(applied.wifi ?? null);
+  // After a save the board's config comes back: close the form.
+  useEffect(() => { if (!changed) setEditing(false); }, [changed, applied]);
+  const label = <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>HOME WIFI</span>;
+
+  if (!editing && !changed) {
+    const status = !set ? null
+      : !isLink ? <span style={mono(500, 11.5, C.t4)}>status shows on the bridge you're connected through</span>
+      : local?.ip ? <span style={mono(600, 11.5, C.green)}>● connected · {local.ip} · channel {local.channel}</span>
+      : local?.wifi_reason ? <span style={mono(600, 11.5, C.amber)}>○ not connected — {local.wifi_reason}</span>
+      : <span style={mono(600, 11.5, C.amber)}>○ connecting…</span>;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {label}
+        {set
+          ? <><span style={sys(600, 12.5, C.t1)}>{applied.wifi!.ssid}</span>{status}
+              <button onClick={() => setEditing(true)} style={btn()}>Change…</button></>
+          : <><span style={sys(400, 12, C.t4)}>not set up — the console reaches this bridge by cable only</span>
+              <button onClick={() => setEditing(true)} style={btn()}>Set up home WiFi…</button></>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {label}
+      <input value={draft.wifi?.ssid ?? ""} placeholder="network name (2.4 GHz)" maxLength={32} autoFocus
+        onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), ssid: e.target.value } }))}
+        style={{ ...field, width: 200 }} />
+      <input value={draft.wifi?.pass ?? ""} type="password" autoComplete="off" maxLength={64}
+        placeholder={applied.wifi?.pass_set && draft.wifi?.ssid === applied.wifi?.ssid ? "unchanged — type a new one to replace it" : "password"}
+        onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), pass: e.target.value } }))}
+        style={{ ...field, width: 260 }} />
+      {set && <button onClick={() => setDraft((d) => ({ ...d, wifi: undefined }))} style={btn()} title="Take the bridge off WiFi (Save to node to apply)">Forget network</button>}
+      <button onClick={() => { setDraft((d) => ({ ...d, wifi: applied.wifi })); setEditing(false); }} style={btn()}>Cancel</button>
+      <span style={sys(400, 11.5, C.t4)}>
+        Then <b>Save to node</b>. The password stays on the board; the console never sees it again.
+      </span>
+    </div>
+  );
+}
 
 // Find + pair BRMesh lights from this board (firmware pm_ble_tx). Every
 // light heard is listed: unpaired ("found"), holding another controller's

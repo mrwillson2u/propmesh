@@ -429,10 +429,16 @@ class SimLink implements NodeLink {
         const left = o ? o.until - Date.now() : 0;
         return { ok: true, state: !o ? "idle" : left > 1500 ? "downloading" : "rebooting", progress: o ? Math.min(100, Math.round((6000 - left) / 45)) : 0, build: this.builds.get(node) ?? "sim0001", pending: false };
       }
-      case "get_config":
-        return { ok: true, config: n.cfg };
+      case "get_config": {
+        // Like the board: the WiFi password is never sent back, only pass_set.
+        const { wifi, ...rest } = n.cfg;
+        return { ok: true, config: wifi ? { ...rest, wifi: { ssid: wifi.ssid, pass_set: !!wifi.pass } } : rest };
+      }
       case "set_config": {
-        const cfg = body.config as NodeConfig;
+        const cfg = structuredClone(body.config as NodeConfig);
+        // No password sent for the same network = keep the stored one (as the board does).
+        if (cfg.wifi && !cfg.wifi.pass && cfg.wifi.ssid === n.cfg.wifi?.ssid) cfg.wifi.pass = n.cfg.wifi?.pass;
+        if (cfg.wifi) delete cfg.wifi.pass_set;
         const issues = validate(BOARDS[this.boardId], cfg);
         if (issues.some((i) => i.error)) return { ok: false, error: "invalid config", issues };
         n.cfg = cfg;
