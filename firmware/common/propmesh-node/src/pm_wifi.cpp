@@ -20,10 +20,14 @@ static bool want, was_up, mdns_up;
 static char ip[16];
 static uint32_t last_try_ms, retry_ms = RETRY_FIRST_MS;
 static volatile uint8_t last_reason;  // why the last attempt or link ended (wifi_err_reason_t)
+static volatile bool attempt_ended;   // set by the event: the scan is over, one way or another
 static bool handler_set;
+static uint8_t home_ch;               // the mesh's channel when the attempt started
 
 static void begin_attempt() {
   last_try_ms = millis();
+  home_ch = pm_mesh_channel();
+  attempt_ended = false;
   // Start the scan on the mesh's channel: when the router is still there
   // (the usual case) it is found at once and nothing else is scanned.
   WiFi.begin(ssid, pass, pm_mesh_channel());
@@ -47,6 +51,7 @@ void pm_wifi_apply(const PmNodeConfig &cfg) {
     handler_set = true;
     WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) {
       last_reason = info.wifi_sta_disconnected.reason;
+      attempt_ended = true;
     }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   }
   WiFi.persistent(false);         // credentials live in our config, not NVS
@@ -76,6 +81,12 @@ void pm_wifi_loop() {
     last_try_ms = millis();
   }
   was_up = up;
+  // A failed attempt leaves the radio wherever its scan ended (the console
+  // saw channel 14): put it back on the mesh's channel until the next try.
+  if (!up && attempt_ended) {
+    attempt_ended = false;
+    if (home_ch && pm_mesh_channel() != home_ch) pm_mesh_set_channel(home_ch);
+  }
   if (!up && (uint32_t)(millis() - last_try_ms) > retry_ms) {
     if (last_reason) Serial.printf("wifi: couldn't join %s (%s) — trying again\n", ssid, pm_wifi_reason());
     WiFi.disconnect(false, false);  // end the previous attempt's scan before the next

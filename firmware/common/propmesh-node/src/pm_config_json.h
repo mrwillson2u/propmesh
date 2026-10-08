@@ -73,14 +73,19 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
 
 // Only the fields a kind uses are written, so the stored document reads
 // the way the user thinks about the channel.
-inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root) {
+// `secrets`: include the WiFi password. Only for the board's own flash —
+// what goes to a console says `pass_set` instead. (Until 2026-10-08 the
+// file got the console's version too: the bridge lost its password at its
+// first reboot and scanned for the router forever, wrecking the mesh.)
+inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool secrets = false) {
   root["v"] = 1;
   root["name"] = cfg.name;
   root["bridge"] = cfg.bridge;
   if (cfg.wifi_ssid[0]) {
     JsonObject wifi = root["wifi"].to<JsonObject>();
     wifi["ssid"] = cfg.wifi_ssid;
-    wifi["pass_set"] = cfg.wifi_pass[0] != 0;
+    if (secrets) wifi["pass"] = cfg.wifi_pass;
+    else wifi["pass_set"] = cfg.wifi_pass[0] != 0;
   }
   if (cfg.has_brmesh_key) {
     char hex[9];

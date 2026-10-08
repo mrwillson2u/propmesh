@@ -640,7 +640,16 @@ mesh firmware update to Prop failed with "no reply" while the header said
 the mesh's channel (the router is normally still there, so nothing else is
 scanned); pauses of 15 s doubling to 2 min. The `mesh` reply carries
 `wifi_reason` in plain words (wrong password, network not found, weak
-signal) and the console header shows it.
+signal) and the console header shows it. A failed attempt left the
+radio on whatever channel its scan ended on (seen: 14), so the bridge
+now returns to the mesh's channel after each one.
+
+**The password was never saved (fixed 2026-10-08).** `pm_config_to_json`
+served both the console (`pass_set` only) and the board's own
+`/config.json` — so the file had no password, and the bridge lost its
+WiFi at its first reboot (the update to b27f7f3). The store now writes
+the password (`secrets = true`); the console still never receives it.
+Host test: `test_wifi_password_kept_in_flash_not_shown`.
 
 **Stage B — console over the network (built 2026-10-07):** the bridge
 runs a small hand-rolled WebSocket server on port 81 once WiFi is up

@@ -40,7 +40,7 @@ bool pm_store_load(PmNodeConfig &out) {
 
 bool pm_store_save(const PmNodeConfig &cfg) {
   JsonDocument doc;
-  pm_config_to_json(cfg, doc.to<JsonObject>());
+  pm_config_to_json(cfg, doc.to<JsonObject>(), true);  // the file keeps the WiFi password
   File f = LittleFS.open(TMP, "w");
   if (!f) return false;
   bool ok = serializeJson(doc, f) > 0;

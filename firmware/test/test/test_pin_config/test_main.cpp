@@ -354,6 +354,26 @@ static void test_ble_light_json() {
   TEST_ASSERT_NOT_NULL(pm_config_from_json(d.as<JsonVariantConst>(), c));
 }
 
+// The board's flash must keep the bridge's WiFi password across a reboot;
+// what a console reads must not contain it (2026-10-08: the file got the
+// console's version, and the bridge lost its WiFi at its first reboot).
+static void test_wifi_password_kept_in_flash_not_shown() {
+  PmNodeConfig c;
+  pm_copy(c.name, "Bridge", sizeof(c.name));
+  c.bridge = true;
+  pm_copy(c.wifi_ssid, "home", sizeof(c.wifi_ssid));
+  pm_copy(c.wifi_pass, "s3cret", sizeof(c.wifi_pass));
+  JsonDocument file, console;
+  pm_config_to_json(c, file.to<JsonObject>(), true);
+  pm_config_to_json(c, console.to<JsonObject>());
+  PmNodeConfig back;
+  TEST_ASSERT_NULL(pm_config_from_json(file.as<JsonVariantConst>(), back));
+  TEST_ASSERT_EQUAL_STRING("home", back.wifi_ssid);
+  TEST_ASSERT_EQUAL_STRING("s3cret", back.wifi_pass);
+  TEST_ASSERT_TRUE(console["wifi"]["pass"].isNull());
+  TEST_ASSERT_TRUE(console["wifi"]["pass_set"].as<bool>());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_plain_config_is_clean);
@@ -389,5 +409,6 @@ int main() {
   RUN_TEST(test_bridge_flag_round_trips);
   RUN_TEST(test_ble_light_rules);
   RUN_TEST(test_ble_light_json);
+  RUN_TEST(test_wifi_password_kept_in_flash_not_shown);
   return UNITY_END();
 }
