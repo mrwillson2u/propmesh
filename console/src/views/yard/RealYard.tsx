@@ -3,7 +3,7 @@
 // the conductor and needs no setup. Map is wherever you drag the nodes —
 // positions are remembered per browser, since a board knows nothing
 // about where it sits in the yard.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
@@ -11,6 +11,9 @@ import { counts, useConnection, type Connection } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
+import { FLOODS, deriveFloods } from "../../lib/floods";
+import { target } from "../../lib/transport";
+import type { NodeConfig } from "../../lib/nodeConfig";
 
 type Layout = "topology" | "map";
 const W = 1000, H = 640;
@@ -72,6 +75,80 @@ function fitBox(pos: Map<string, { x: number; y: number }>) {
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2 + 20, w, h };
 }
 
+// ---- floods -----------------------------------------------------------------
+
+// BRMesh floods on the yard: not mesh nodes (they never transmit), so they
+// get their own glyph — filled with the color the boards last sent — and
+// dotted lines to every board that sends to them (two lines = either board
+// can drive it). docs/generic-boards.md §6a-ii.
+export interface YardFlood { id: string; number: number; label: string; value: number; senders: string[] }
+
+const floodId = (n: number) => `flood:${n}`;
+
+// What a light should look like, from its last-sent value (0xWWRRGGBB).
+function floodPaint(v: number): { fill: string; glow: string } | null {
+  const w = (v >>> 24) & 0x7f;
+  if (w) return { fill: `rgba(255,238,205,${(0.35 + 0.65 * w / 127).toFixed(2)})`, glow: "#ffeecd" };
+  const rgb = v & 0xffffff;
+  if (!rgb) return null;
+  const hex = "#" + rgb.toString(16).padStart(6, "0");
+  return { fill: hex, glow: hex };
+}
+
+// Which floods exist (the senders' configs, re-read when boards come and
+// go) and what was last sent to them (one sender's `state`, every 3 s).
+function useFloods(conn: Connection): YardFlood[] {
+  const [cfgs, setCfgs] = useState<Record<string, NodeConfig>>({});
+  const [values, setValues] = useState<Record<number, number>>({});
+  const known = Object.values(conn.entries).filter((e) => e.hello);
+  const knownKey = known.map((e) => e.node).sort().join(",");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const out: Record<string, NodeConfig> = {};
+      for (const en of known) {
+        if (en.hello?.bridge) continue;
+        try {
+          const r = await target(conn.link, en.usb ? null : en.node).request("get_config");
+          if (r.ok) out[en.node] = r.config as NodeConfig;
+        } catch { /* not answering: its lights still show through another sender */ }
+      }
+      if (live) setCfgs(out);
+    })();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conn.link, knownKey]);
+  const st = useMemo(() => deriveFloods(cfgs), [cfgs]);
+  const sendersKey = st.senders.join(",");
+  useEffect(() => {
+    if (!st.senders.length) return;
+    let live = true, turn = 0;
+    const poll = async () => {
+      // Ask the senders in turn: whichever answers is good enough (they all
+      // hold the same last-sent colors).
+      const n = st.senders[turn++ % st.senders.length];
+      const en = conn.entries[n];
+      if (!en || isMissingEntry(en)) return;
+      try {
+        const r = await target(conn.link, en.usb ? null : n).request("state");
+        if (!r.ok || !live) return;
+        const v: Record<number, number> = {};
+        for (const c of r.channels as { kind: string; index: number; value: number }[]) if (c.kind === "BLE_LIGHT") v[c.index] = c.value;
+        setValues(v);
+      } catch { /* next round */ }
+    };
+    void poll();
+    const t = setInterval(() => void poll(), 3000);
+    return () => { live = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conn.link, sendersKey]);
+  return st.lights.map((l) => ({
+    id: floodId(l.number), number: l.number, label: l.label || `flood ${l.number}`, value: values[l.number] ?? 0,
+    senders: st.senders.filter((n) => cfgs[n]?.channels.some((c) => c.kind === "BLE_LIGHT" && c.light === l.number)),
+  }));
+}
+const isMissingEntry = (en: { usb: boolean; seen: number }) => !en.usb && Date.now() - en.seen > 16000;
+
 // ---- view -----------------------------------------------------------------
 
 export default function RealYard({ onOpenNode, onConnect }: {
@@ -113,14 +190,23 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 }) {
   const now = Date.now();
   const topo = useMemo(() => buildTopology(conn, now), [conn, Math.floor(now / 1000)]);
+  const floods = useFloods(conn);
   const c = counts(conn, now);
   const weak = topo.links.filter((l) => !l.lost && l.rssi <= -75).length;
   const selNode = topo.nodes.find((n) => n.id === sel) ?? null;
 
   const pos = layout === "topology"
     ? topoPositions(topo.nodes, topo.maxDepth)
-    : new Map(topo.nodes.map((n) => [n.id, loadPos(n.id)]).filter((e): e is [string, { x: number; y: number }] => !!e[1]));
+    : new Map([...topo.nodes.map((n) => n.id), ...floods.map((f) => f.id)].map((id) => [id, loadPos(id)] as const)
+        .filter((e): e is [string, { x: number; y: number }] => !!e[1]));
+  if (layout === "topology" && floods.length) {
+    // A row of lights under the deepest boards.
+    const bottom = Math.max(0, ...[...pos.values()].map((p) => p.y)) + ROW * 0.85;
+    floods.forEach((f, i) => pos.set(f.id, { x: (i - (floods.length - 1) / 2) * COL * 0.62, y: bottom }));
+  }
   const unplaced = layout === "map" ? topo.nodes.filter((n) => !pos.has(n.id)) : [];
+  const unplacedFloods = layout === "map" ? floods.filter((f) => !pos.has(f.id)) : [];
+  const selFlood = floods.find((f) => f.id === sel) ?? null;
 
   const chip = (id: Layout, text: string) => {
     const on = layout === id;
@@ -164,12 +250,12 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           </div>
         )}
 
-        <Canvas topo={topo.nodes} links={topo.links} pos={pos} sel={sel} onSelect={setSel}
+        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
           box={layout === "topology" ? fitBox(pos) : { x: 0, y: 0, w: W, h: H }}
           draggable={layout === "map"} showLinks={layout === "topology" || showLinks}
           onDrop={(id, p) => { savePos(id, p); bump(); }} />
 
-        {unplaced.length > 0 && (
+        {(unplaced.length > 0 || unplacedFloods.length > 0) && (
           <div style={{ position: "absolute", top: 96, left: 14, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
             <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
             {unplaced.map((n) => (
@@ -178,6 +264,14 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
                 onClick={() => setSel(n.id)}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 6, cursor: "grab", background: C.card, border: `1px solid ${sel === n.id ? C.emberB : C.b2}`, ...sys(600, 11.5, n.missing ? C.red : C.t1) }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: stroke(n) }} />{n.name}
+              </span>
+            ))}
+            {unplacedFloods.map((f) => (
+              <span key={f.id} draggable
+                onDragStart={(e) => e.dataTransfer.setData("text/propmesh-node", f.id)}
+                onClick={() => setSel(f.id)}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 6, cursor: "grab", background: C.card, border: `1px solid ${sel === f.id ? C.emberB : C.b2}`, ...sys(600, 11.5, C.t1) }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: floodPaint(f.value)?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />{f.label}
               </span>
             ))}
           </div>
@@ -189,6 +283,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           <span><span style={{ color: C.amber }}>╌</span> weak ≤−75</span>
           <span><span style={{ color: C.red }}>╌</span> lost</span>
           <span style={{ color: C.t5 }}>· dBm, the weaker direction</span>
+          {floods.length > 0 && <span><span style={{ color: C.t3 }}>┈</span> sends to a flood</span>}
         </div>
         {layout === "map" && (
           <div style={{ position: "absolute", right: 14, bottom: 14, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, ...mono(500, 10.5, C.t5) }}>
@@ -199,14 +294,16 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
       {selNode && <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
         onClose={() => setSel(null)} onOpen={() => onOpenNode(selNode.id)} />}
+      {selFlood && <FloodDetail f={selFlood} nameOf={(id) => topo.nodes.find((n) => n.id === id)?.name ?? id}
+        onClose={() => setSel(null)} onOpen={() => onOpenNode(FLOODS)} />}
     </>
   );
 }
 
 // ---- canvas -----------------------------------------------------------------
 
-function Canvas({ topo, links, pos, box, sel, onSelect, draggable, showLinks, onDrop }: {
-  topo: TopoNode[]; links: TopoLink[]; pos: Map<string, { x: number; y: number }>;
+function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop }: {
+  topo: TopoNode[]; links: TopoLink[]; floods: YardFlood[]; pos: Map<string, { x: number; y: number }>;
   box: { x: number; y: number; w: number; h: number };
   sel: string | null; onSelect: (id: string) => void;
   draggable: boolean; showLinks: boolean;
@@ -247,6 +344,27 @@ function Canvas({ topo, links, pos, box, sel, onSelect, draggable, showLinks, on
             <text x={(A.x + B.x) / 2 + ox} y={(A.y + B.y) / 2 + oy + 4} fontFamily={MONO} fontSize="11" fontWeight="600" textAnchor="middle" fill={l.color} style={{ paintOrder: "stroke", stroke: C.bg, strokeWidth: "6px", pointerEvents: "none" }}>
               {l.lost ? "lost" : l.rssi}
             </text>
+          </g>
+        );
+      })}
+      {showLinks && floods.flatMap((f) => f.senders.map((s) => {
+        const A = at(s), B = at(f.id);
+        if (!A || !B) return null;
+        return <line key={`${s}>${f.id}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke={C.t4} strokeWidth="1.2" strokeDasharray="2 5" opacity=".7" />;
+      }))}
+      {floods.map((f) => {
+        const p = at(f.id);
+        if (!p) return null;
+        const paint = floodPaint(f.value);
+        return (
+          <g key={f.id} style={{ cursor: draggable ? "grab" : "pointer" }}
+            onClick={() => onSelect(f.id)}
+            onPointerDown={(e) => { if (draggable) { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag({ id: f.id, x: p.x, y: p.y }); onSelect(f.id); } }}>
+            {sel === f.id && <circle cx={p.x} cy={p.y} r={23} fill="none" stroke={C.ember} strokeWidth="2" strokeDasharray="4 4" />}
+            {paint && <circle cx={p.x} cy={p.y} r={22} fill={paint.glow} opacity=".22" style={{ filter: "blur(6px)" }} />}
+            <circle cx={p.x} cy={p.y} r={13} fill={paint?.fill ?? C.raised2} stroke={paint ? "rgba(255,255,255,.35)" : C.t5} strokeWidth="1.5" strokeDasharray={paint ? "" : "3 3"} />
+            <text x={p.x} y={p.y + 32} fontSize="12" fontWeight="600" textAnchor="middle" fontFamily="system-ui" fill={sel === f.id ? C.emberT : C.t2}>{f.label}</text>
+            <text x={p.x} y={p.y + 46} fontSize="10" textAnchor="middle" fontFamily={MONO} fill={C.t5}>light #{f.number}{paint ? "" : " · off"}</text>
           </g>
         );
       })}
@@ -350,3 +468,37 @@ function Detail({ n, links, nodes, now, onClose, onOpen }: {
   );
 }
 
+
+function FloodDetail({ f, nameOf, onClose, onOpen }: {
+  f: YardFlood; nameOf: (id: string) => string; onClose: () => void; onOpen: () => void;
+}) {
+  const paint = floodPaint(f.value);
+  const w = (f.value >>> 24) & 0x7f;
+  const shown = !paint ? "off" : w ? `warm white ${Math.round(w * 100 / 127)} %` : "#" + (f.value & 0xffffff).toString(16).padStart(6, "0");
+  return (
+    <div style={{ width: 330, flex: "none", borderLeft: `1px solid ${C.b2}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderBottom: `1px solid ${C.b1}` }}>
+        <span style={{ width: 14, height: 14, borderRadius: "50%", background: paint?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />
+        <span style={{ ...sys(700, 13, C.t1), flex: 1 }}>{f.label}</span>
+        <span onClick={onClose} style={{ color: C.t5, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>✕</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: C.b1, borderBottom: `1px solid ${C.b1}` }}>
+        <Stat k="LIGHT" v={`#${f.number}`} />
+        <Stat k="LAST SENT" v={shown} />
+      </div>
+      <div style={{ padding: "12px 14px", flex: 1 }}>
+        <div style={{ ...label, marginBottom: 8 }}>SENT BY</div>
+        {f.senders.length === 0 && <div style={mono(500, 11, C.amber)}>no board holds this light — tick a sender in the Floods tab</div>}
+        {f.senders.map((s) => <div key={s} style={{ ...sys(500, 12, C.t2), marginBottom: 4 }}>{nameOf(s)}</div>)}
+        <div style={{ ...sys(400, 11.5, C.t4), lineHeight: 1.5, marginTop: 12 }}>
+          The light never answers, so this is what the boards last sent — not proof it's on or showing it.
+        </div>
+      </div>
+      <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.b1}` }}>
+        <button onClick={onOpen} style={{ width: "100%", height: 36, background: C.emberBg, border: `1px solid ${C.ember}`, borderRadius: 6, ...sys(700, 12, C.emberT) }}>
+          Open the Floods tab →
+        </button>
+      </div>
+    </div>
+  );
+}

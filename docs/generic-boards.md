@@ -374,6 +374,15 @@ collapses each sender's copy of a flood step to one and hides the boards'
 sender's part; live sliders fan out to every sender. If two boards hold
 different keys the tab says so and offers to spread either one.
 
+**On the Yard (2026-10-08).** Floods appear in both layouts as their own
+glyph, filled with the last-sent color (warm white for white mode, a
+dashed ring when off), with dotted lines to every board that sends to
+them. Topology puts them in a row under the boards; on the Map they're
+dragged into place like boards (positions per browser, `flood:<n>`).
+The Yard reads the lights from the senders' configs and polls one
+sender's `state` every 3 s, so cues show up live. Clicking one opens a
+panel (light number, last sent, senders) with a link to the Floods tab.
+
 **Design (no new mesh message):**
 
 1. **One key, one light list, copied to every sender.** The console holds
