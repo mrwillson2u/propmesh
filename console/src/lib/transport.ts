@@ -55,7 +55,7 @@ export interface NodeTarget {
 }
 
 export interface NodeLink extends NodeTarget {
-  readonly via: "usb" | "sim";
+  readonly via: "usb" | "wifi" | "sim";
   // `body.node` (8 hex digits) sends the request to that node over the
   // mesh; without it the USB node answers itself.
   onEvent(cb: (e: NodeEvent) => void): () => void;
@@ -92,49 +92,32 @@ const REQUEST_TIMEOUT_MS = 3000;
 // an error itself, so this only fires if the USB node went away.
 const REMOTE_TIMEOUT_MS = 6000;
 
-class SerialLink implements NodeLink {
-  readonly via = "usb" as const;
+// The JSON-lines protocol the node speaks, over whatever carries it:
+// USB serial (SerialLink) or the bridge's WebSocket (WsLink). Requests
+// get an `id`; a reply with that id resolves them; `evt` objects are
+// events; anything else is log text.
+abstract class LineLink implements NodeLink {
+  abstract readonly via: "usb" | "wifi" | "sim";
+  protected abstract readonly lostMessage: string;
+  protected abstract writeLine(line: string): Promise<void>;
+  abstract close(): Promise<void>;
+
   private nextId = 1;
   private pending = new Map<number, { resolve: (r: Reply) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
-  private events = new Listeners<NodeEvent>();
+  protected events = new Listeners<NodeEvent>();
   private logs = new Listeners<string>();
-  private writer: WritableStreamDefaultWriter<Uint8Array>;
-  private reader: ReadableStreamDefaultReader<Uint8Array>;
-  private closed = false;
+  protected closed = false;
 
-  constructor(private port: SerialPortLike) {
-    this.writer = port.writable.getWriter();
-    this.reader = port.readable.getReader();
-    void this.readLoop();
-  }
-
-  private async readLoop() {
-    const dec = new TextDecoder();
-    let buf = "";
-    try {
-      for (;;) {
-        const { value, done } = await this.reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          this.onLine(buf.slice(0, nl).replace(/\r$/, ""));
-          buf = buf.slice(nl + 1);
-        }
-      }
-    } catch {
-      // unplugged — fall through
-    }
-    this.failAll(new Error("USB connection lost"));
+  // The carrier is gone: fail what's in flight, tell the panel, go dead.
+  protected lost() {
+    this.failAll(new Error(this.lostMessage));
     if (!this.closed) this.events.emit({ evt: "disconnected" });
-    // Dead from here on: a panel that wasn't listening (other view
-    // open when the cable came out) gets a clear error, not a stream one.
     this.closed = true;
   }
 
   // JSON lines are protocol; anything else (boot ROM chatter, mesh
   // prints) is log text.
-  private onLine(line: string) {
+  protected onLine(line: string) {
     if (!line) return;
     if (line[0] === "{") {
       try {
@@ -157,7 +140,7 @@ class SerialLink implements NodeLink {
   }
 
   request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
-    if (this.closed) return Promise.reject(new Error("USB disconnected — reconnect the node"));
+    if (this.closed) return Promise.reject(new Error(this.lostMessage));
     // "id" is the request number that pairs a reply with its request. A
     // body field of the same name silently replaced it (get_sequence
     // {id} did, 2026-10-05) and the reply never matched — refuse loudly.
@@ -169,13 +152,48 @@ class SerialLink implements NodeLink {
         reject(new Error(`no reply to "${cmd}"`));
       }, body.node ? REMOTE_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
       this.pending.set(id, { resolve, reject, timer });
-      const line = JSON.stringify({ id, cmd, ...body }) + "\n";
-      this.writer.write(new TextEncoder().encode(line)).catch(reject);
+      this.writeLine(JSON.stringify({ id, cmd, ...body })).catch(reject);
     });
   }
 
   onEvent(cb: (e: NodeEvent) => void) { return this.events.add(cb); }
   onLog(cb: (line: string) => void) { return this.logs.add(cb); }
+}
+
+class SerialLink extends LineLink {
+  readonly via = "usb" as const;
+  protected readonly lostMessage = "USB connection lost — reconnect the node";
+  private writer: WritableStreamDefaultWriter<Uint8Array>;
+  private reader: ReadableStreamDefaultReader<Uint8Array>;
+
+  constructor(private port: SerialPortLike) {
+    super();
+    this.writer = port.writable.getWriter();
+    this.reader = port.readable.getReader();
+    void this.readLoop();
+  }
+
+  protected writeLine(line: string) { return this.writer.write(new TextEncoder().encode(line + "\n")); }
+
+  private async readLoop() {
+    const dec = new TextDecoder();
+    let buf = "";
+    try {
+      for (;;) {
+        const { value, done } = await this.reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          this.onLine(buf.slice(0, nl).replace(/\r$/, ""));
+          buf = buf.slice(nl + 1);
+        }
+      }
+    } catch {
+      // unplugged — fall through
+    }
+    this.lost();
+  }
 
   async close() {
     this.closed = true;
@@ -183,6 +201,52 @@ class SerialLink implements NodeLink {
     try { this.writer.releaseLock(); } catch { /* already gone */ }
     try { await this.port.close(); } catch { /* already gone */ }
   }
+}
+
+// The bridge over WiFi: one JSON line per WebSocket text message. Same
+// protocol, no cable (docs §6d stage B).
+class WsLink extends LineLink {
+  readonly via = "wifi" as const;
+  protected readonly lostMessage = "lost the bridge over WiFi — reconnect";
+  constructor(private ws: WebSocket) {
+    super();
+    ws.onmessage = (e) => { if (typeof e.data === "string") this.onLine(e.data.replace(/\r?\n$/, "")); };
+    ws.onclose = () => this.lost();
+    ws.onerror = () => this.lost();
+  }
+  protected writeLine(line: string) {
+    if (this.ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error(this.lostMessage));
+    this.ws.send(line);
+    return Promise.resolve();
+  }
+  async close() {
+    this.closed = true;
+    try { this.ws.close(); } catch { /* already gone */ }
+  }
+}
+
+export const DEFAULT_WIFI_URL = "ws://propmesh.local:81";
+
+// Connect to a bridge on WiFi. `address` may be a host, host:port, or a ws:// URL.
+export async function connectWifi(address: string): Promise<{ link: NodeLink; hello: NodeHello }> {
+  let url = address.trim() || DEFAULT_WIFI_URL;
+  if (!/^wss?:\/\//.test(url)) url = "ws://" + url;
+  if (!/:\d+$/.test(url.replace(/\/$/, ""))) url = url.replace(/\/$/, "") + ":81";
+  const ws = await new Promise<WebSocket>((resolve, reject) => {
+    const s = new WebSocket(url);
+    const t = setTimeout(() => { s.close(); reject(new Error(`no bridge answered at ${url} — is it on WiFi, and are you on the same network?`)); }, 6000);
+    s.onopen = () => { clearTimeout(t); resolve(s); };
+    s.onerror = () => { clearTimeout(t); reject(new Error(`couldn't reach ${url} — is the bridge on WiFi, and are you on the same network?`)); };
+  });
+  const link = new WsLink(ws);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await link.request("hello");
+      if (r.ok) return { link, hello: r as unknown as NodeHello };
+    } catch { /* retry */ }
+  }
+  await link.close();
+  throw new Error("The bridge answered the connection but not the hello.");
 }
 
 // Ask the user for a port and wait for the node to answer. Opening the

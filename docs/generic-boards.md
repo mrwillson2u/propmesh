@@ -632,10 +632,17 @@ first.
   devkit's USB-serial chip stays enumerated through an ESP32 reboot, so
   the console does *not* lose the port when the bridge updates.
 
-**Stage B — console over the network:** WebSocket server on the bridge
-(same JSON lines as USB), console "Connect over WiFi" to
-`ws://propmesh.local:81`. Serving the console *from* the bridge comes
-later (software-plan §5): the 192 kB LittleFS is tight for the SPA.
+**Stage B — console over the network (built 2026-10-07):** the bridge
+runs a small hand-rolled WebSocket server on port 81 once WiFi is up
+(`pm_ws.cpp`: RFC 6455 text frames, ping/pong, close; two clients, 4 kB
+messages, buffers on the heap) speaking exactly the JSON lines of the USB
+link — every reply and event goes to the cable *and* every console.
+mDNS advertises `propmesh.local` / `_propmesh._tcp`. Console: **Connect
+over WiFi** (address box, default `ws://propmesh.local:81`, remembered);
+`WsLink` shares the line protocol with `SerialLink` (`LineLink`).
+Firmware updates over WiFi-to-bridge-to-mesh work unchanged, and faster
+than over the cable. Serving the console *from* the bridge comes later
+(software-plan §5): the 192 kB LittleFS is tight for the SPA.
 
 ## 7. Bench test — Stage 1
 

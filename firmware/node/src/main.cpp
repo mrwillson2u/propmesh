@@ -7,6 +7,7 @@
 // and sensor events come back up as {"evt":...} lines. A node saved in
 // bridge mode drives no pins and keeps the mesh clock.
 // docs/generic-boards.md.
+#include "pm_ws.h"
 #include "pm_wifi.h"
 #include "pm_ota.h"
 #include <Arduino.h>
@@ -48,9 +49,21 @@ static void on_input(uint8_t index, bool active) {
   pm_show_on_input(index, active);
 }
 
+// Every reply and event goes up the cable and to any console on WiFi.
 static void out_line(const char *json, size_t len) {
   Serial.write((const uint8_t *)json, len);
   Serial.println();
+  pm_ws_send(json, len);
+}
+
+// A bridge on WiFi serves consoles over WebSocket too (docs §6d stage B).
+static void ws_loop() {
+  static bool started;
+  if (!started && pm_wifi_connected()) {
+    started = true;
+    pm_ws_begin(81, [](char *l, size_t n) { pm_link_request(l, n); });
+  }
+  pm_ws_loop();
 }
 
 static void send(JsonDocument &doc) {
@@ -185,6 +198,7 @@ void loop() {
   confirm_image();
   pm_ota_loop();
   pm_wifi_loop();
+  ws_loop();
   pm_mesh_loop();
   pm_link_loop();
   election();

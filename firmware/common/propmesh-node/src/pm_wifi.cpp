@@ -37,7 +37,10 @@ void pm_wifi_loop() {
   if (up && !was_up) {
     strlcpy(ip, WiFi.localIP().toString().c_str(), sizeof(ip));
     Serial.printf("wifi: joined %s as %s on channel %u\n", ssid, ip, pm_mesh_channel());
-    if (!mdns_up) mdns_up = MDNS.begin("propmesh");  // propmesh.local
+    if (!mdns_up) {
+      mdns_up = MDNS.begin("propmesh");  // propmesh.local
+      if (mdns_up) MDNS.addService("propmesh", "tcp", 81);  // the console's WebSocket
+    }
   } else if (!up && was_up) {
     Serial.println("wifi: lost — reconnecting");
     ip[0] = 0;

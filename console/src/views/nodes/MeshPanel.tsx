@@ -8,7 +8,7 @@ import { Spinner, mono, sys } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
-import { connectSim, connectUsb, target, webSerialSupported } from "../../lib/transport";
+import { DEFAULT_WIFI_URL, connectSim, connectUsb, connectWifi, target, webSerialSupported } from "../../lib/transport";
 import PinEditor from "./PinEditor";
 import FloodsPanel from "./FloodsPanel";
 import OtaPanel from "./OtaPanel";
@@ -39,16 +39,18 @@ export default function MeshPanel() {
   const conn = useConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
   const link = conn?.link ?? null;
   const entries = conn?.entries ?? {};
   const selected = conn?.selected ?? null;
   const now = Date.now();
 
-  const connect = async (how: "usb" | "sim") => {
+  const connect = async (how: "usb" | "wifi" | "sim") => {
     setBusy(true);
     setError(null);
     try {
-      const { link, hello } = how === "usb" ? await connectUsb() : await connectSim();
+      const { link, hello } = how === "usb" ? await connectUsb() : how === "wifi" ? await connectWifi(wifiAddr) : await connectSim();
+      if (how === "wifi") { try { localStorage.setItem("propmesh.bridge", wifiAddr); } catch { /* private mode */ } }
       openConnection(link, hello);
     } catch (e) {
       // Closing the port chooser is not an error worth showing.
@@ -79,6 +81,12 @@ export default function MeshPanel() {
           </div>
         </div>
         <button disabled={busy} onClick={() => connect("sim")} style={btn(false, busy)}>Simulated mesh</button>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }} title="A bridge on your WiFi (set it up on its board page over USB first)">
+          <input value={wifiAddr} onChange={(e) => setWifiAddr(e.target.value)} placeholder={DEFAULT_WIFI_URL}
+            onKeyDown={(e) => { if (e.key === "Enter") void connect("wifi"); }}
+            style={{ height: 30, width: 190, padding: "0 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(500, 12, C.t1) }} />
+          <button disabled={busy} onClick={() => connect("wifi")} style={btn(true, busy)}>{busy ? "Connecting…" : "⌔ Connect over WiFi"}</button>
+        </span>
         <button disabled={busy || !webSerialSupported()} onClick={() => connect("usb")} style={btn(true, busy || !webSerialSupported())}>
           {busy ? "Connecting…" : "⌁ Connect USB node"}
         </button>
@@ -100,7 +108,7 @@ export default function MeshPanel() {
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
         <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em", marginRight: 4 }}
           title={conn?.local ? `mesh channel ${conn.local.channel ?? "?"}${conn.local.ip ? ` · bridge at ${conn.local.ip} (WiFi ${conn.local.wifi_rssi} dBm)` : conn.local.wifi === "joining" ? ` · joining WiFi ${conn.local.wifi_ssid}…` : ""}` : undefined}>
-          {link.via === "usb" ? "MESH VIA USB" : "SIMULATED MESH"}
+          {link.via === "usb" ? "MESH VIA USB" : link.via === "wifi" ? "MESH VIA WIFI" : "SIMULATED MESH"}
           {conn?.local?.channel ? <span style={{ color: C.t4 }}> · ch {conn.local.channel}</span> : null}
           {conn?.local?.ip ? <span style={{ color: C.green }}> · {conn.local.ip}</span> : conn?.local?.wifi === "joining" ? <span style={{ color: C.amber }}> · joining WiFi…</span> : null}
         </span>
