@@ -124,7 +124,10 @@ static void heartbeat() {
   hb.fw_version = PM_FW_VERSION;
   hb.free_heap_kb = ESP.getFreeHeap() / 1024;
   hb.neighbor_count = pm_neighbor_snapshot(hb.neighbors, PM_MAX_NEIGHBORS);
-  hb.channel = pm_mesh_channel();  // nodes follow the bridge's (docs §6d)
+  // Nodes move to the bridge's channel (docs §6d). While the bridge is
+  // between WiFi attempts its radio may be mid-scan: say "unknown" then,
+  // rather than send the mesh chasing a scan.
+  hb.channel = (pm_wifi_configured() && !pm_wifi_connected()) ? 0 : pm_mesh_channel();
   pm_send(PM_MSG_TYPE_HEARTBEAT, &hb, sizeof(hb));
 }
 

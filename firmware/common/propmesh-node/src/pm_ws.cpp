@@ -50,11 +50,16 @@ static bool handshake(WsClient &c) {
   while (*k == ' ') k++;
   char *e = strstr(k, "\r\n");
   if (!e) return false;
-  char key[64];
+  // Key (24 chars: 16 random bytes in base64) + the RFC 6455 GUID (36) +
+  // NUL. The first version allowed only 23 key chars, so every browser
+  // was turned away at the handshake (2026-10-08).
+  static const char GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  char key[96];
   size_t kl = e - k;
-  if (kl >= sizeof(key) - 40) return false;
+  while (kl && k[kl - 1] == ' ') kl--;
+  if (!kl || kl + sizeof(GUID) > sizeof(key)) { c.sock.print("HTTP/1.1 400 Bad Request\r\n\r\n"); return false; }
   memcpy(key, k, kl);
-  strcpy(key + kl, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+  memcpy(key + kl, GUID, sizeof(GUID));
   uint8_t sha[20];
   mbedtls_sha1((const uint8_t *)key, strlen(key), sha);
   unsigned char acc[40];

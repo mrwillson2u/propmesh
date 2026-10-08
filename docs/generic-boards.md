@@ -625,6 +625,17 @@ first.
   is absent, and at most every 2 min.
 - **Bench test without touching the router:** `mesh_channel {ch}` on a
   bridge with no WiFi forces its channel; nodes should follow within ~45 s.
+- **Nodes also move on the heartbeat itself (2026-10-08).** Scanning alone
+  wasn't enough: neighbouring channels overlap, so at bench range Prop on
+  10 heard the bridge on 11, never scanned, and stayed off-channel. A
+  bridge heartbeat now carries `ch` and a node on another channel moves to
+  it; a bridge between WiFi attempts sends 0 (unknown), so nobody follows
+  a scan.
+- **Console over WiFi verified 2026-10-08** (stdlib WebSocket client
+  against the real bridge): handshake, hello 19 ms, Prop via WiFi→mesh
+  31 ms, 10/10 status requests at 67 ms average, heartbeats streaming.
+  The first build turned every browser away: the handshake's bounds check
+  allowed 23 key characters and every key is 24.
 - **Verified 2026-10-07:** build 72cc220 rolled out to all three boards
   over the mesh ("Update all", then the bridge); WiFi entered on the
   bridge's page → it joined, moved from channel 1 to the router's 11, and

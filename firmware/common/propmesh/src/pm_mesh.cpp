@@ -52,6 +52,9 @@ static struct {
 // Election priority this node would beacon with: bridges outrank all.
 static uint8_t priority() { return (s_role & PM_NODE_ROLE_BRIDGE) ? 1 : 0; }
 
+uint8_t pm_mesh_channel();
+void pm_mesh_set_channel(uint8_t ch);
+
 static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
                     int len) {
   if (len < (int)sizeof(pm_frame_header_t)) { s_stats.dropped_bad++; return; }
@@ -79,10 +82,20 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && hdr.ttl == PM_DEFAULT_TTL)
     s_neighbors.observe(hdr.src_id, rssi, now_ms);
 
-  // A bridge is on this channel: this is where the mesh lives.
-  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= 8 && (payload[7] & PM_NODE_ROLE_BRIDGE)) {
+  // A bridge heartbeat: this is where the mesh lives. It says which channel
+  // the bridge is on; go there. Hearing it is not enough — neighbouring
+  // channels overlap, so at bench range a node on 10 heard a bridge on 11,
+  // never scanned, and stayed put (2026-10-08). In the yard it would not.
+  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= 8 && (payload[7] & PM_NODE_ROLE_BRIDGE) &&
+      !(s_role & PM_NODE_ROLE_BRIDGE)) {
     s_last_bridge_ms = now_ms ? now_ms : 1;
-    if (s_scan_ch) {  // found it mid-scan: stay here
+    uint8_t ch = plen >= sizeof(pm_heartbeat_t) ? payload[sizeof(pm_heartbeat_t) - 1] : 0;
+    bool moved = false;
+    if (ch >= 1 && ch <= 13 && ch != pm_mesh_channel()) {
+      pm_mesh_set_channel(ch);
+      moved = true;
+    }
+    if (s_scan_ch || moved) {  // found it mid-scan, or moved to it: stay, remember
       s_scan_ch = 0;
       if (s_channel_cb) s_channel_cb(s_channel);
     }
