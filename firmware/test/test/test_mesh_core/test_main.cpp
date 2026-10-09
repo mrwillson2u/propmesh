@@ -177,6 +177,26 @@ static void test_stale_sync_adopts_lesser_conductor() {
   TEST_ASSERT_TRUE(c.should_adopt(0x050, 0, 1, PM_SYNC_STALE_MS + 1));
 }
 
+// The conductor is the clock: its own sync never goes stale (2026-10-08:
+// it did after 20 s, so cues fired through the bridge carried no mesh
+// time and boards started them on arrival instead of together).
+static void test_conductor_never_stale() {
+  PmClock c;
+  c.become_conductor(0x300, 1, 0);
+  TEST_ASSERT_TRUE(c.synced(PM_SYNC_STALE_MS * 10));
+  TEST_ASSERT_TRUE(c.is_conductor());
+}
+
+// A follower that hears the conductor directly is at hop 0 but is NOT
+// the conductor: it must not beacon, and its sync does age.
+static void test_direct_follower_is_not_conductor() {
+  PmClock c;
+  c.adopt(0x300, 1, 0, 0, 0);
+  TEST_ASSERT_FALSE(c.is_conductor());
+  TEST_ASSERT_TRUE(c.synced(100));
+  TEST_ASSERT_FALSE(c.synced(PM_SYNC_STALE_MS + 1));
+}
+
 static void test_first_sync_jumps_then_smooths() {
   PmClock c;
   c.adopt(0x100, 0, 1, 10000, 0);
@@ -248,6 +268,8 @@ int main() {
   RUN_TEST(test_higher_conductor_id_wins);
   RUN_TEST(test_closer_path_to_same_conductor_wins);
   RUN_TEST(test_stale_sync_adopts_lesser_conductor);
+  RUN_TEST(test_conductor_never_stale);
+  RUN_TEST(test_direct_follower_is_not_conductor);
   RUN_TEST(test_first_sync_jumps_then_smooths);
   RUN_TEST(test_large_delta_jumps);
   RUN_TEST(test_mesh_and_local_time_round_trip);

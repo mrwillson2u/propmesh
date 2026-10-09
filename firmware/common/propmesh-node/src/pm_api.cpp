@@ -1,3 +1,4 @@
+const char *pm_reset_reason();  // main.cpp
 #include "pm_wifi.h"
 #include "pm_ota.h"
 #include <Arduino.h>
@@ -62,6 +63,7 @@ static void cmd_hello(JsonObject resp) {
   resp["node"] = id;
   resp["fw"] = PM_FW_VERSION;
   resp["build"] = PM_BUILD;
+  resp["reset"] = pm_reset_reason();
   resp["board"] = board->id;
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;

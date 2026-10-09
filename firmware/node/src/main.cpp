@@ -7,6 +7,8 @@
 // and sensor events come back up as {"evt":...} lines. A node saved in
 // bridge mode drives no pins and keeps the mesh clock.
 // docs/generic-boards.md.
+#include <esp_task_wdt.h>
+#include <esp_system.h>
 #include "pm_ws.h"
 #include "pm_wifi.h"
 #include "pm_ota.h"
@@ -131,6 +133,26 @@ static void heartbeat() {
   pm_send(PM_MSG_TYPE_HEARTBEAT, &hb, sizeof(hb));
 }
 
+// Why the board last reset, for the boot event and the console: a
+// watchdog or a panic says "the firmware hung/crashed", a brownout says
+// "the supply sagged" — the difference between a software bug and a
+// wiring problem (2026-10-08: a bridge went silent during servo moves on
+// another board and nothing recorded why).
+const char *pm_reset_reason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power on";
+    case ESP_RST_SW: return "software (update or restart)";
+    case ESP_RST_PANIC: return "crash";
+    case ESP_RST_INT_WDT: return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog (the firmware hung)";
+    case ESP_RST_WDT: return "watchdog";
+    case ESP_RST_BROWNOUT: return "brownout (supply sagged)";
+    case ESP_RST_DEEPSLEEP: return "deep sleep";
+    case ESP_RST_EXT: return "reset pin";
+    default: return "unknown";
+  }
+}
+
 void setup() {
   Serial.setRxBufferSize(LINE_MAX_LEN);
   // 921600: the console's link, and the firmware-update pipe — at 115200
@@ -178,10 +200,20 @@ void setup() {
   evt["fw"] = PM_FW_VERSION;
   evt["build"] = PM_BUILD;
   evt["pending"] = pm_ota_pending();  // a fresh OTA image, not yet proven
+  evt["reset"] = pm_reset_reason();
   evt["config"] = config_state;
   evt["bridge"] = cfg.bridge;
   evt["channels"] = cfg.channel_count;
   send(evt);
+
+  // A hung loop() used to leave a board silent until someone walked over
+  // to it. The task watchdog turns that into a reboot after 30 s, with the
+  // hung task named on the serial log and the reason in the next boot
+  // event; the board then rejoins the mesh on its own. Nothing in loop()
+  // legitimately takes 30 s (a mesh request is retried for 2.7 s at most).
+  esp_task_wdt_config_t wdt = { .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = true };
+  if (esp_task_wdt_init(&wdt) != ESP_OK) esp_task_wdt_reconfigure(&wdt);
+  esp_task_wdt_add(nullptr);
 }
 
 // A freshly updated image proves itself by running with the mesh up for
@@ -194,6 +226,7 @@ static void confirm_image() {
 }
 
 void loop() {
+  esp_task_wdt_reset();
   serial_loop();
   pm_channels_loop();
   pm_show_loop();

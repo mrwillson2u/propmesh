@@ -25,13 +25,17 @@ class PmClock {
     m_hop = 0;
     m_offset_us = 0;
     m_synced = true;
+    m_self = true;
     m_last_ms = now_ms;
   }
 
-  bool is_conductor() const { return m_synced && m_hop == 0; }
+  // Only the node that took the role — not a follower that hears the
+  // conductor directly, which is also at hop 0. Until 2026-10-08 that
+  // follower counted as a conductor too and sent its own time beacons.
+  bool is_conductor() const { return m_synced && m_self; }
 
   // Stop being the authority; the next beacon heard is adopted.
-  void resign() { m_synced = false; m_hop = 0xFF; }
+  void resign() { m_synced = false; m_self = false; m_hop = 0xFF; }
 
   // Election order: priority first (a bridge is 1), then node id.
   static uint64_t rank(uint8_t priority, uint32_t id) {
@@ -63,6 +67,7 @@ class PmClock {
     m_priority = priority;
     m_hop = hop;
     m_synced = true;
+    m_self = false;
     m_last_ms = now_ms;
   }
 
@@ -75,7 +80,13 @@ class PmClock {
   }
 
   bool synced(uint32_t now_ms) const { return m_synced && !stale(now_ms); }
+  // A follower's sync ages from the last beacon heard. The conductor IS
+  // the clock: it never goes stale. (Until 2026-10-08 it did, 20 s after
+  // taking the role — so a cue fired from the console through the bridge
+  // carried no mesh time, and each board started it on arrival instead
+  // of together.)
   bool stale(uint32_t now_ms) const {
+    if (m_self) return false;
     return (uint32_t)(now_ms - m_last_ms) > PM_SYNC_STALE_MS;
   }
 
@@ -90,4 +101,5 @@ class PmClock {
   int64_t m_offset_us = 0;
   uint8_t m_hop = 0xFF;
   bool m_synced = false;
+  bool m_self = false;  // this node took the conductor role (become_conductor)
 };
