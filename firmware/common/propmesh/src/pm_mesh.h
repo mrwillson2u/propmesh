@@ -50,6 +50,11 @@ void pm_on_receive(pm_rx_handler_t handler);
 uint8_t pm_mesh_channel();
 // Force a channel now (bridge without WiFi, or a bench test).
 void pm_mesh_set_channel(uint8_t ch);
+// Bring ESP-NOW back after anything that stopped the WiFi driver
+// (WiFi.mode(WIFI_OFF), disconnect(true)): the driver drops the ESP-NOW
+// registration and every send fails with "esp now not init" until this
+// runs. Also sets the channel back to `ch`.
+bool pm_mesh_recover(uint8_t ch);
 // Called when this node moves to a new channel (persist it for next boot).
 void pm_mesh_on_channel(void (*cb)(uint8_t));
 // Seconds since a bridge was last heard; 0xFFFF = never.

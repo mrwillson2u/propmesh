@@ -209,6 +209,20 @@ void pm_mesh_set_channel(uint8_t ch) {
   s_channel = ch;
 }
 void pm_mesh_on_channel(void (*cb)(uint8_t)) { s_channel_cb = cb; }
+
+bool pm_mesh_recover(uint8_t ch) {
+  WiFi.mode(WIFI_STA);
+  esp_now_deinit();  // harmless if it was already gone
+  if (esp_now_init() != ESP_OK) return false;
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, BCAST, 6);
+  peer.channel = 0;
+  peer.ifidx = WIFI_IF_STA;
+  if (esp_now_add_peer(&peer) != ESP_OK) return false;
+  if (esp_now_register_recv_cb(on_recv) != ESP_OK) return false;
+  pm_mesh_set_channel(ch);
+  return true;
+}
 uint16_t pm_mesh_bridge_age_s() {
   return s_last_bridge_ms ? (uint16_t)((millis() - s_last_bridge_ms) / 1000) : 0xFFFF;
 }

@@ -9,6 +9,7 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/sha256.h>
 #include "pm_ota.h"
+#include "pm_mesh.h"
 
 // The Arduino core marks a freshly booted OTA image valid during init
 // unless the sketch asks to do it itself — we want the mesh up first.
@@ -31,11 +32,15 @@ static void fail(const char *why) {
   snprintf(err, sizeof(err), "%s", why);
   state = PM_OTA_FAILED;
   wifi_busy = false;
-  // Back onto the mesh: drop the AP and return to the mesh channel.
-  WiFi.disconnect(true, false);
+  Serial.printf("ota: failed — %s\n", why);
+  // Back onto the mesh. Until 2026-10-11 this turned the WiFi driver off
+  // and on, which silently deleted the ESP-NOW registration: Prop then
+  // failed every mesh send ("esp now not init") until a power cycle —
+  // the "never came back" after a failed update. Drop the AP only, and
+  // re-register ESP-NOW regardless.
+  WiFi.disconnect(false, false);
   delay(100);
-  WiFi.mode(WIFI_STA);
-  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  if (!pm_mesh_recover(channel)) Serial.println("ota: ESP-NOW did not come back — reboot this board");
 }
 
 static void task(void *) {
@@ -47,9 +52,12 @@ static void task(void *) {
   WiFi.setAutoReconnect(false);
   WiFi.begin(args->ssid, args->pass);
   uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 25000) delay(100);
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 30000) delay(100);
   if (WiFi.status() != WL_CONNECTED) {
-    fail("couldn't join that WiFi (name/password, or out of range)");
+    wl_status_t st = WiFi.status();
+    fail(st == WL_NO_SSID_AVAIL ? "WiFi network not found — out of range, wrong name, or 5 GHz only"
+         : st == WL_CONNECT_FAILED ? "WiFi refused the join — wrong password?"
+         : "couldn't join that WiFi in 30 s (name/password, or out of range)");
     delete args;
     args = nullptr;
     vTaskDelete(nullptr);
