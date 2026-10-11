@@ -102,6 +102,7 @@ messages:
       - {name: neighbor_count, type: u8}
       - {name: neighbors, type: "Neighbor[8]", note: "first neighbor_count valid"}
       - {name: channel, type: u8, note: "WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's."}
+      - {name: listen_ms, type: u16, note: "a battery board in its show tier listens a window every listen_ms; senders repeat into it. 0 = always listening"}
 
   Time:
     type: TIME

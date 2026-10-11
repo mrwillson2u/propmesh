@@ -11,6 +11,7 @@ void pm_sleep_loop() {}
 void pm_sleep_hold(uint32_t) {}
 bool pm_sleep_holding() { return true; }
 bool pm_sleep_supported() { return false; }
+uint16_t pm_sleep_listen_ms() { return 0; }
 const char *pm_sleep_wake_cause() { return "power"; }
 int pm_sleep_wake_gpio() { return -1; }
 bool pm_sleep_rtc_pin(uint8_t g) { return g == 0 || g == 2 || g == 4 || (g >= 12 && g <= 15) || (g >= 25 && g <= 27) || (g >= 32 && g <= 39); }
@@ -105,6 +106,7 @@ void pm_sleep_hold(uint32_t ms) {
   if ((int32_t)(until - hold_until_ms) > 0) hold_until_ms = until;
 }
 bool pm_sleep_supported() { return true; }
+uint16_t pm_sleep_listen_ms() { return show_tier ? interval_ms : 0; }
 bool pm_sleep_holding() { return (int32_t)(millis() - hold_until_ms) < 0; }
 const char *pm_sleep_wake_cause() { return cause; }
 int pm_sleep_wake_gpio() { return wake_gpio; }
@@ -117,9 +119,11 @@ static void set_show_tier(bool on) {
     esp_wifi_connectionless_module_set_wake_interval(interval_ms);
     esp_now_set_wake_window(window_ms);
     esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    pm_mesh_set_stale_ms(60000);  // hears one beacon in (interval / window)
     Serial.printf("sleep: show tier — listening %u ms of every %u ms\n", window_ms, interval_ms);
   } else {
     esp_wifi_set_ps(WIFI_PS_NONE);
+    pm_mesh_set_stale_ms(PM_SYNC_STALE_MS);
     Serial.println("sleep: awake — radio always on");
   }
 }

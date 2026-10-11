@@ -203,6 +203,13 @@ static bool play(uint16_t seq_id, int64_t start_us, uint32_t offset_ms) {
   return player.start(s, start_us, offset_ms);
 }
 
+// A cue for a mesh with a board listening in windows (docs §6f): the lead
+// covers one listen interval, and copies go out every 100 ms across it
+// (each with a fresh frame seq so relays pass every one; the cue_id
+// dedups at the receiver). Sent from pm_show_loop, never blocking.
+#define LEAF_COPY_GAP_MS 100
+static struct { bool used; pm_cue_t cue; uint8_t left; uint32_t next_ms; } cue_repeat;
+
 void pm_show_fire(uint16_t seq, uint32_t offset_ms) {
   if (mode == PM_MODE_OFF) return;
   pm_cue_t c = {};
@@ -210,14 +217,17 @@ void pm_show_fire(uint16_t seq, uint32_t offset_ms) {
   c.sequence_id = seq;
   c.target_group = PM_BROADCAST_GROUP;
   c.start_offset_ms = offset_ms;
-  int64_t start_local = esp_timer_get_time() + (int64_t)PM_CUE_LEAD_MS * 1000;
+  uint16_t leaf = pm_mesh_leaf_listen_ms();
+  uint32_t lead_ms = leaf ? leaf + 150 : PM_CUE_LEAD_MS;
+  int64_t start_local = esp_timer_get_time() + (int64_t)lead_ms * 1000;
   // Unsynced: fire_at 0 tells receivers "as soon as you hear it".
-  c.fire_at_us = pm_time_synced() ? (uint64_t)(pm_mesh_time_us() + (int64_t)PM_CUE_LEAD_MS * 1000) : 0;
+  c.fire_at_us = pm_time_synced() ? (uint64_t)(pm_mesh_time_us() + (int64_t)lead_ms * 1000) : 0;
   // A CUE is one unacknowledged frame; send copies (same cue_id).
   for (int i = 0; i < PM_CUE_COPIES; i++) {
     for (int tries = 0; tries < 5 && !pm_send(PM_MSG_TYPE_CUE, &c, sizeof(c)); tries++) delay(2);
     if (i + 1 < PM_CUE_COPIES) delay(CUE_COPY_GAP_MS);
   }
+  if (leaf) cue_repeat = { true, c, (uint8_t)(leaf / LEAF_COPY_GAP_MS + 1), millis() + LEAF_COPY_GAP_MS };
   emit_cue(pm_node_id(), seq, c.cue_id, play(seq, start_local, offset_ms));
 }
 
@@ -337,6 +347,11 @@ static void ambient_tick() {
 }
 
 void pm_show_loop() {
+  if (cue_repeat.used && (int32_t)(millis() - cue_repeat.next_ms) >= 0) {
+    pm_send(PM_MSG_TYPE_CUE, &cue_repeat.cue, sizeof(cue_repeat.cue));
+    cue_repeat.next_ms += LEAF_COPY_GAP_MS;
+    if (!--cue_repeat.left) cue_repeat.used = false;
+  }
   if (sched_dirty || (uint32_t)(millis() - last_eval_ms) >= SCHED_EVAL_MS) {
     sched_dirty = false;
     last_eval_ms = millis();

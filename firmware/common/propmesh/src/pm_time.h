@@ -80,14 +80,15 @@ class PmClock {
   }
 
   bool synced(uint32_t now_ms) const { return m_synced && !stale(now_ms); }
+  bool synced(uint32_t now_ms, uint32_t stale_ms) const { return m_synced && !stale(now_ms, stale_ms); }
   // A follower's sync ages from the last beacon heard. The conductor IS
   // the clock: it never goes stale. (Until 2026-10-08 it did, 20 s after
   // taking the role — so a cue fired from the console through the bridge
   // carried no mesh time, and each board started it on arrival instead
   // of together.)
-  bool stale(uint32_t now_ms) const {
+  bool stale(uint32_t now_ms, uint32_t stale_ms = PM_SYNC_STALE_MS) const {
     if (m_self) return false;
-    return (uint32_t)(now_ms - m_last_ms) > PM_SYNC_STALE_MS;
+    return (uint32_t)(now_ms - m_last_ms) > stale_ms;
   }
 
   uint32_t conductor() const { return m_conductor; }

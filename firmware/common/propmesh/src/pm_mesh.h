@@ -59,6 +59,16 @@ bool pm_mesh_recover(uint8_t ch);
 void pm_mesh_on_channel(void (*cb)(uint8_t));
 // Seconds since a bridge was last heard; 0xFFFF = never.
 uint16_t pm_mesh_bridge_age_s();
+
+// --- sleepy leaves (docs §6f) --------------------------------------------
+// The longest listen interval any battery board on the mesh advertised in
+// the last minute (0 = everyone listens all the time). Senders repeat a
+// cue or a wake-up across it so one copy lands in the board's window.
+uint16_t pm_mesh_leaf_listen_ms();
+bool pm_mesh_is_leaf(uint32_t id);  // advertised a listen interval recently
+// This node's own sync may age this long before counting as stale (a
+// leaf that hears one beacon in ten raises it).
+void pm_mesh_set_stale_ms(uint32_t ms);
 bool pm_mesh_scanning();
 
 // Call every loop(): flushes the jittered relay queue, ages the neighbor

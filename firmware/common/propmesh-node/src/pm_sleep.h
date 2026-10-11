@@ -22,6 +22,7 @@ void pm_sleep_loop();
 void pm_sleep_hold(uint32_t ms);    // keep awake at least this long
 bool pm_sleep_holding();
 bool pm_sleep_supported();  // false on a mains-board build (PM_NO_SLEEP)
+uint16_t pm_sleep_listen_ms();  // listen interval while in the show tier, else 0 (heartbeat listen_ms)
 // "power" | "timer" | "sensor" | "reset" — what started this boot.
 const char *pm_sleep_wake_cause();
 int pm_sleep_wake_gpio();           // -1 unless a sensor pin woke us

@@ -31,6 +31,7 @@ struct RxFrame {
 struct Pending {
   bool used;
   uint32_t dst;
+  bool waiting_wake;  // queued until the leaf answers its wake burst
   uint16_t req_id;
   uint8_t tries;
   uint32_t sent_ms;
@@ -101,6 +102,52 @@ static void reply_error(bool has_id, long long id, const char *why) {
 
 // --- console side ----------------------------------------------------------
 
+// A board listening in windows (docs §6f) is woken before a request:
+// one tiny hold_awake request every 100 ms across its interval (fresh
+// seqs), sent from pm_link_loop; the moment it answers, it is listening
+// continuously for 10 min and the queued request goes out. If it never
+// answers, the request goes anyway after the burst (and fails normally).
+// The first version sent the request straight after the burst and the
+// board hadn't left its window mode yet (2026-10-11).
+#define LEAF_AWAKE_MS 540000
+#define WAKE_REQ_ID 0xFFFF
+#define WAKE_GAP_MS 100
+static struct { uint32_t id; uint32_t until_ms; } s_leaf_awake[4];
+static struct { uint32_t dst; uint8_t left; uint32_t next_ms; } s_wake;  // one burst at a time
+
+static bool leaf_awake(uint32_t id) {
+  for (int i = 0; i < 4; i++)
+    if (s_leaf_awake[i].id == id && (int32_t)(s_leaf_awake[i].until_ms - millis()) > 0) return true;
+  return false;
+}
+static void mark_awake(uint32_t id) {
+  int slot = 0;
+  for (int i = 0; i < 4; i++) { if (s_leaf_awake[i].id == id || !s_leaf_awake[i].id) { slot = i; break; } }
+  s_leaf_awake[slot] = { id, millis() + LEAF_AWAKE_MS };
+}
+static void start_wake(uint32_t dst) {
+  if (s_wake.left) return;  // one at a time; the request waits its turn
+  uint16_t listen = pm_mesh_leaf_listen_ms();
+  s_wake = { dst, (uint8_t)(listen / WAKE_GAP_MS + 2), millis() };
+  Serial.printf("link: waking %08lx (%u copies over %u ms)\n", (unsigned long)dst, s_wake.left, listen);
+}
+static void wake_loop() {
+  if (!s_wake.left || (int32_t)(millis() - s_wake.next_ms) < 0) return;
+  static const char WAKE[] = "{\"cmd\":\"hold_awake\"}";
+  send_chunked(PM_MSG_TYPE_API_REQ, s_wake.dst, WAKE_REQ_ID, WAKE, sizeof(WAKE) - 1);
+  s_wake.next_ms += WAKE_GAP_MS;
+  if (!--s_wake.left) {
+    // Burst over without an answer: send what's waiting anyway.
+    for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == s_wake.dst) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
+  }
+}
+// The leaf answered the wake: it's awake for 10 min — release its queue.
+static void on_wake_reply(uint32_t src) {
+  mark_awake(src);
+  if (s_wake.left && s_wake.dst == src) s_wake.left = 0;
+  for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
+}
+
 void pm_link_request(const char *json, size_t len) {
   JsonDocument req;
   if (deserializeJson(req, json, len)) return reply_error(false, 0, "not JSON");
@@ -130,6 +177,11 @@ void pm_link_request(const char *json, size_t len) {
   p->sent_ms = millis();
   p->console_id = id;
   p->has_console_id = has_id;
+  if (pm_mesh_is_leaf(dst) && !leaf_awake(dst)) {
+    p->waiting_wake = true;
+    start_wake(dst);
+    return;
+  }
   send_chunked(PM_MSG_TYPE_API_REQ, dst, p->req_id, p->text, p->len);
 }
 
@@ -142,7 +194,7 @@ static void drop(Pending &p) {
 static void retry_pending() {
   uint32_t now = millis();
   for (Pending &p : s_pending) {
-    if (!p.used || (uint32_t)(now - p.sent_ms) < REMOTE_TIMEOUT_MS) continue;
+    if (!p.used || p.waiting_wake || (uint32_t)(now - p.sent_ms) < REMOTE_TIMEOUT_MS) continue;
     if (p.tries >= REMOTE_TRIES) {
       char hex[9], why[48];
       node_hex(hex, p.dst);
@@ -226,6 +278,7 @@ static void on_api(const RxFrame &f) {
   if (!msg) return;
 
   if (f.hdr.msg_type == PM_MSG_TYPE_API_RESP) {
+    if (a.req_id == WAKE_REQ_ID) { on_wake_reply(f.hdr.src_id); return; }
     for (Pending &p : s_pending) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
       if (s_out) s_out(msg, n);  // the target's reply, verbatim
@@ -256,6 +309,7 @@ void pm_link_begin(pm_line_out_t out) {
 }
 
 void pm_link_loop() {
+  wake_loop();
   RxFrame f;
   while (xQueueReceive(s_rx, &f, 0) == pdTRUE) {
     if (f.hdr.src_id > s_highest) s_highest = f.hdr.src_id;

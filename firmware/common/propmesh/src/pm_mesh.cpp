@@ -40,6 +40,37 @@ static uint8_t s_scan_ch;              // 0 = not scanning
 static uint8_t s_scan_home;            // where to return if nothing is found
 static uint32_t s_scan_step_ms;
 static void (*s_channel_cb)(uint8_t);
+// Battery boards that listen in windows (heartbeat listen_ms > 0).
+#define MAX_LEAVES 4
+#define LEAF_FORGET_MS 60000
+static struct { uint32_t id; uint16_t listen_ms; uint32_t heard_ms; } s_leaves[MAX_LEAVES];
+static uint32_t s_stale_ms = PM_SYNC_STALE_MS;
+
+static void note_leaf(uint32_t id, uint16_t listen_ms, uint32_t now_ms) {
+  int at = -1, oldest = 0;
+  for (int i = 0; i < MAX_LEAVES; i++) {
+    if (s_leaves[i].id == id) { at = i; break; }
+    if (!s_leaves[i].id) { if (at < 0) at = i; }
+    else if ((int32_t)(s_leaves[i].heard_ms - s_leaves[oldest].heard_ms) < 0) oldest = i;
+  }
+  if (at < 0) at = oldest;
+  s_leaves[at] = { id, listen_ms, now_ms ? now_ms : 1 };
+}
+uint16_t pm_mesh_leaf_listen_ms() {
+  uint32_t now = millis();
+  uint16_t m = 0;
+  for (int i = 0; i < MAX_LEAVES; i++)
+    if (s_leaves[i].id && (uint32_t)(now - s_leaves[i].heard_ms) < LEAF_FORGET_MS && s_leaves[i].listen_ms > m) m = s_leaves[i].listen_ms;
+  return m;
+}
+bool pm_mesh_is_leaf(uint32_t id) {
+  uint32_t now = millis();
+  for (int i = 0; i < MAX_LEAVES; i++)
+    if (s_leaves[i].id == id && (uint32_t)(now - s_leaves[i].heard_ms) < LEAF_FORGET_MS) return true;
+  return false;
+}
+void pm_mesh_set_stale_ms(uint32_t ms) { s_stale_ms = ms; }
+
 #define BRIDGE_LOST_MS 30000
 #define SCAN_RETRY_MS 120000
 #define SCAN_DWELL_MS 1000
@@ -86,6 +117,13 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   // at PM_DEFAULT_TTL, which is what makes the test valid.
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && hdr.ttl == PM_DEFAULT_TTL)
     s_neighbors.observe(hdr.src_id, rssi, now_ms);
+
+  // A battery board tells how often it listens: senders repeat into that.
+  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= sizeof(pm_heartbeat_t)) {
+    pm_heartbeat_t hb;
+    memcpy(&hb, payload, sizeof(hb));
+    if (hb.listen_ms) note_leaf(hdr.src_id, hb.listen_ms, now_ms);
+  }
 
   // A bridge heartbeat: this is where the mesh lives. It says which channel
   // the bridge is on; go there. Hearing it is not enough — neighboring
@@ -316,8 +354,12 @@ void pm_mesh_loop() {
   }
   follow_bridge(now);
 
+  // Beacon oftener while a board listens in windows: it hears one beacon
+  // in (interval / window), so a 1 s cadence keeps a 100/1000 leaf synced.
+  uint16_t leaf = pm_mesh_leaf_listen_ms();
+  uint32_t beacon_ms = leaf && leaf < PM_HEARTBEAT_PERIOD_MS ? leaf : PM_HEARTBEAT_PERIOD_MS;
   if (s_clock.is_conductor() &&
-      (uint32_t)(now - s_last_beacon_ms) >= PM_HEARTBEAT_PERIOD_MS) {
+      (uint32_t)(now - s_last_beacon_ms) >= beacon_ms) {
     s_last_beacon_ms = now;
     pm_time_t t = {};
     t.mesh_time_us = (uint64_t)esp_timer_get_time();
@@ -339,7 +381,7 @@ int64_t pm_mesh_time_us() { return s_clock.mesh_us(esp_timer_get_time()); }
 int64_t pm_local_time_us(int64_t mesh_time_us) {
   return s_clock.local_us(mesh_time_us);
 }
-bool pm_time_synced() { return s_clock.synced(millis()); }
+bool pm_time_synced() { return s_clock.synced(millis(), s_stale_ms); }
 uint32_t pm_conductor_id() { return s_clock.conductor(); }
 uint8_t pm_sync_hop() { return s_clock.hop(); }
 PmWallClock &pm_wall() { return s_wall; }

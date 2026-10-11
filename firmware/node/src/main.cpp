@@ -141,6 +141,7 @@ static void heartbeat() {
   // between WiFi attempts its radio may be mid-scan: say "unknown" then,
   // rather than send the mesh chasing a scan.
   hb.channel = (pm_wifi_configured() && !pm_wifi_connected()) ? 0 : pm_mesh_channel();
+  hb.listen_ms = pm_sleep_listen_ms();  // a sleepy leaf: senders repeat into its window (docs §6f)
   pm_send(PM_MSG_TYPE_HEARTBEAT, &hb, sizeof(hb));
 }
 

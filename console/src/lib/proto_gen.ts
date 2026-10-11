@@ -132,8 +132,9 @@ export interface Heartbeat {
   neighbor_count: number;
   neighbors: Neighbor[];  // first neighbor_count valid
   channel: number;  // WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's.
+  listen_ms: number;  // a battery board in its show tier listens a window every listen_ms; senders repeat into it. 0 = always listening
 }
-export const Heartbeat_SIZE = 54;
+export const Heartbeat_SIZE = 56;
 export function decodeHeartbeat(dv: DataView, off = 0): Heartbeat {
   let o = off;
   const uptime_s = dv.getUint32(o, true); o += 4;
@@ -146,7 +147,8 @@ export function decodeHeartbeat(dv: DataView, off = 0): Heartbeat {
   const neighbors = [];
   for (let i = 0; i < 8; i++) { neighbors.push(decodeNeighbor(dv, o)); o += Neighbor_SIZE; }
   const channel = dv.getUint8(o); o += 1;
-  return { uptime_s, battery_mv, board, role, fw_version, free_heap_kb, neighbor_count, neighbors, channel };
+  const listen_ms = dv.getUint16(o, true); o += 2;
+  return { uptime_s, battery_mv, board, role, fw_version, free_heap_kb, neighbor_count, neighbors, channel, listen_ms };
 }
 export function encodeHeartbeat(v: Heartbeat, dv: DataView, off = 0): number {
   let o = off;
@@ -159,6 +161,7 @@ export function encodeHeartbeat(v: Heartbeat, dv: DataView, off = 0): number {
   dv.setUint8(o, v.neighbor_count); o += 1;
   for (let i = 0; i < 8; i++) { encodeNeighbor(v.neighbors[i], dv, o); o += Neighbor_SIZE; }
   dv.setUint8(o, v.channel); o += 1;
+  dv.setUint16(o, v.listen_ms, true); o += 2;
   return o - off;
 }
 
