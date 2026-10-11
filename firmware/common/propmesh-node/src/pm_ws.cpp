@@ -7,6 +7,7 @@
 #define WS_CLIENTS 2
 #define WS_MAX_MSG 4096
 #define WS_IDLE_MS 90000  // drop a client that sends nothing (not even a pong) this long
+#define WS_PING_MS 20000  // server pings: a console that vanished without a close fails fast
 
 static WiFiServer *server;
 static void (*handler)(char *, size_t);
@@ -17,6 +18,7 @@ struct WsClient {
   uint8_t *buf;       // WS_MAX_MSG + 1, heap, while connected
   size_t len;         // bytes of the current frame/HTTP request so far
   uint32_t last_rx_ms;
+  uint32_t last_ping_ms;
 };
 static WsClient clients[WS_CLIENTS];
 
@@ -118,14 +120,24 @@ void pm_ws_loop() {
   if (incoming) {
     int slot = -1;
     for (int i = 0; i < WS_CLIENTS; i++) if (!clients[i].sock) { slot = i; break; }
-    if (slot < 0) { incoming.stop(); }
-    else {
+    if (slot < 0) {
+      // Every slot taken: evict the client silent the longest. A console
+      // that reloaded, or a closed laptop, leaves a half-open socket that
+      // looks connected; refusing the newcomer locked the bridge out of
+      // its own console (2026-10-11).
+      slot = 0;
+      for (int i = 1; i < WS_CLIENTS; i++) if ((int32_t)(clients[i].last_rx_ms - clients[slot].last_rx_ms) < 0) slot = i;
+      Serial.println("ws: full — dropping the quietest console for a new one");
+      drop(clients[slot]);
+    }
+    {
       WsClient &c = clients[slot];
       c.sock = incoming;
       c.buf = (uint8_t *)malloc(WS_MAX_MSG + 1);
       c.len = 0;
       c.open = false;
       c.last_rx_ms = now;
+      c.last_ping_ms = now;
       if (!c.buf) drop(c);
     }
   }
@@ -149,12 +161,29 @@ void pm_ws_loop() {
     }
     if (c.sock && c.len >= WS_MAX_MSG) drop(c);  // garbage, or a message too big
     if (c.sock && (uint32_t)(now - c.last_rx_ms) > WS_IDLE_MS) drop(c);
+    // Ping an open client now and then: a dead one errors on the write
+    // (or never pongs, and the idle timeout gets it).
+    if (c.sock && c.open && (uint32_t)(now - c.last_ping_ms) > WS_PING_MS) {
+      c.last_ping_ms = now;
+      send_frame(c, 0x9, nullptr, 0);
+      if (!c.sock.connected()) drop(c);
+    }
   }
 }
 
+// Never block the main loop on a slow console: if the socket can't take
+// the whole frame right now, this client misses it (the console re-asks
+// anything it needs), and a client that stays jammed is dropped.
 void pm_ws_send(const char *json, size_t len) {
-  for (int i = 0; i < WS_CLIENTS; i++)
-    if (clients[i].sock && clients[i].open) send_frame(clients[i], 0x1, (const uint8_t *)json, len);
+  for (int i = 0; i < WS_CLIENTS; i++) {
+    WsClient &c = clients[i];
+    if (!c.sock || !c.open) continue;
+    if ((size_t)c.sock.availableForWrite() < len + 4) {
+      if ((uint32_t)(millis() - c.last_rx_ms) > WS_IDLE_MS / 3) drop(c);  // jammed and silent: gone
+      continue;
+    }
+    send_frame(c, 0x1, (const uint8_t *)json, len);
+  }
 }
 
 uint8_t pm_ws_clients() {
