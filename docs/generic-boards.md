@@ -828,6 +828,26 @@ verify against the board's silkscreen (the V2 Feather differs).
   wake-pin rules in `pm_pinrules`, console affordances ("asleep · wakes
   on PIR"), and the mode schedule honored on wake. Measure the HUZZAH32's
   sleep current first (the devkit's regulator/USB chip may dominate).
+- **Sleep design (decided 2026-10-11, Colin + Claude; an earlier chat on
+  this was never written down):** *asleep by default, awake for what it
+  can predict.* (1) Its own sensor wakes it (ext0/ext1) — reactive, no
+  prediction needed. (2) Anything on the **schedule** is predictable:
+  the board knows the show schedule and the mesh clock, so it sets a
+  timer wake for `T − lead` (~2 s), syncs, and is listening when a
+  scheduled cue or a mode change lands. (3) **Check-ins** every N minutes
+  (~1.5 s awake: hear heartbeats, resync, pick up config/firmware
+  changes); N is the battery dial — 5 min ≈ <1 % duty. Sensor-fired cues
+  from *other* boards are unpredictable and are missed while asleep —
+  accepted; put that board's outputs on a scheduled cue or let its own
+  sensor fire it. Through "off" schedule windows it sleeps entirely.
+- **Relaying while awake: yes.** The rule is that the mesh never
+  *depends* on a battery board, not that it never relays. A rebroadcast
+  costs ~1 ms of radio per frame, negligible against ~100 mA of simply
+  being awake; the flood's dedup handles the extra copies. What it must
+  never do is stay awake *because* it is a path. So: relay
+  opportunistically while awake, sleep on its own schedule regardless,
+  lay the mesh out to work without it. (The LEAF role today = no relay
+  at all; this becomes "relay while awake" when sleep lands.)
 - **Updates:** the console's Firmware panel serves one image; a
   HUZZAH32 needs its own env's `firmware.bin` — `tools/ota_serve.py`
   should serve `.pio/build/<env>/` and the panel pick the URL by each
