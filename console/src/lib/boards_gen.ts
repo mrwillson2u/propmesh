@@ -29,6 +29,7 @@ export interface Board {
   mcu: string;
   ledcChannels: number;
   rmtTxChannels: number;
+  battery?: { gpio: number; divider: number }; // VBAT sense pin, VBAT = reading * divider
   pins: BoardPin[];
   guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function
 }
@@ -63,6 +64,7 @@ export const BOARDS: Record<string, Board> = {
     mcu: "ESP32-WROOM-32",
     ledcChannels: 16,
     rmtTxChannels: 8,
+    battery: undefined,
     pins: [
       { gpio: 36, label: "VP", caps: 0x11, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
       { gpio: 39, label: "VN", caps: 0x11, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
@@ -97,6 +99,48 @@ export const BOARDS: Record<string, Board> = {
       LED_STRIP: "Any output can drive a strip; these keep strips together. Use a 74AHCT-type level shifter for 5 V strips.",
       LED: "The boot-quirk pins — a flicker at power-up doesn't matter for a light, and it keeps the quiet pins free. D2 is the onboard blue LED.",
       DIGITAL_IN: "Input-only pins don't use up outputs. VP / VN / D34 / D35 have no pull resistor — fine for PIR and beam sensors, which drive their own output. Buttons go on D32 / D33, which have internal pull-ups.",
+    },
+  },
+  "esp32-huzzah32": {
+    id: "esp32-huzzah32",
+    name: "Adafruit HUZZAH32 Feather",
+    mcu: "ESP32-WROOM-32",
+    ledcChannels: 16,
+    rmtTxChannels: 8,
+    battery: {"gpio": 35, "divider": 2.0},
+    pins: [
+      { gpio: 26, label: "A0", caps: 0x0f, tier: "good", note: "also DAC2", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },
+      { gpio: 25, label: "A1", caps: 0x0f, tier: "good", note: "also DAC1", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },
+      { gpio: 34, label: "A2", caps: 0x11, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
+      { gpio: 39, label: "A3", caps: 0x11, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
+      { gpio: 36, label: "A4", caps: 0x11, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
+      { gpio: 4, label: "A5", caps: 0x1f, tier: "good", best: "SERVO", also: ["RELAY", "MOTOR"] },
+      { gpio: 5, label: "SCK", caps: 0x02, tier: "caution", note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 18, label: "MO", caps: 0x0f, tier: "good", best: "MOTOR", also: ["SERVO", "RELAY"] },
+      { gpio: 19, label: "MI", caps: 0x0f, tier: "good", best: "MOTOR", also: ["SERVO", "RELAY"] },
+      { gpio: 16, label: "RX", caps: 0x0f, tier: "good", best: "LED_STRIP", also: ["RELAY", "SERVO", "LED"] },
+      { gpio: 17, label: "TX", caps: 0x0f, tier: "good", best: "LED_STRIP", also: ["RELAY", "SERVO", "LED"] },
+      { gpio: 21, label: "21", caps: 0x0f, tier: "good", best: "RELAY", also: ["SERVO", "MOTOR"] },
+      { gpio: 23, label: "SDA", caps: 0x0f, tier: "good", best: "RELAY", also: ["SERVO", "MOTOR"] },
+      { gpio: 22, label: "SCL", caps: 0x0f, tier: "good", best: "RELAY", also: ["SERVO", "MOTOR"] },
+      { gpio: 14, label: "14", caps: 0x0f, tier: "caution", note: "pulses briefly at power-up — a relay or motor here may twitch on boot", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 32, label: "32", caps: 0x1f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
+      { gpio: 15, label: "15", caps: 0x02, tier: "caution", note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 33, label: "33", caps: 0x1f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
+      { gpio: 27, label: "27", caps: 0x0f, tier: "good", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },
+      { gpio: 12, label: "12", caps: 0x02, tier: "caution", note: "STRAPPING: must be LOW at power-up or the board will not boot. Outputs only, and nothing that pulls it high (many relay modules do)", best: "LED" },
+      { gpio: 13, label: "13", caps: 0x0f, tier: "caution", note: "the onboard red LED shares this pin, and it pulses at power-up — a light, not a relay or motor", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 35, label: "A13", caps: 0x00, tier: "reserved", note: "battery voltage (VBAT/2) — read by the firmware for the battery gauge" },
+      { gpio: 1, label: "TX0", caps: 0x00, tier: "reserved", note: "USB serial — the console and the flasher live here" },
+      { gpio: 3, label: "RX0", caps: 0x00, tier: "reserved", note: "USB serial — the console and the flasher live here" },
+    ],
+    guide: {
+      SERVO: "Quiet at power-up, so nothing twitches while the board boots.",
+      MOTOR: "A quiet pair side by side for IN1 / IN2 — a motor never lurches at boot.",
+      RELAY: "Quiet at power-up, so a relay never clicks on during boot.",
+      LED_STRIP: "Any output can drive a strip. The Feather is 3.3 V with no 5 V pin when on battery — a 5 V strip needs its own supply and a level shifter.",
+      LED: "GPIO 13 is the onboard red LED. The boot-quirk pins (5, 12, 15) suit a light, where a flicker at power-up doesn't matter.",
+      DIGITAL_IN: "A2 / A3 / A4 (GPIO 34 / 39 / 36) are input-only with no pull — fine for PIR and beam sensors. Buttons go on 32 / 33 / 27, which have internal pull-ups. On battery the wake-up sensor goes on one of these.",
     },
   },
 };

@@ -29,6 +29,9 @@ bool pm_node_apply(const PmNodeConfig &cfg) {
   bool was_bridge = role & PM_NODE_ROLE_BRIDGE;
   if (cfg.bridge) {
     role |= PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR;
+  } else if (cfg.battery) {
+    // A battery board is a leaf: it never relays (and never keeps the clock).
+    role = role & ~(PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR);
   } else {
     role = (role | PM_NODE_ROLE_RELAY) & ~PM_NODE_ROLE_BRIDGE;
     // An elected (non-bridge) conductor keeps the clock; a former

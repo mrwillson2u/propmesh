@@ -802,6 +802,37 @@ marked Ambient loop (an LED on, 5 s loop), one PIR trigger:
    `off`/`waiting for the clock`, then takes the schedule's mode from
    the other board's beacon within ~5 s.
 
+## 6f. Boards on battery (started 2026-10-11)
+
+The Mini's battery story (software-plan §3, module-selection-2026-09-19:
+sensor/timer deep sleep, leaf role) rehearsed on a board you can buy: the
+**Adafruit HUZZAH32 Feather** (`boards/esp32-huzzah32.yaml`, env
+`esp32-huzzah32`) — LiPo JST input with a 500 mA charger, battery sense
+on GPIO 35 through 2:1. ⚠ Pin map written from Adafruit's pinout page;
+verify against the board's silkscreen (the V2 Feather differs).
+
+- **Profiles may declare a battery sense pin** (`battery: {gpio,
+  divider}` → `pm_board_t.battery_gpio/divider`); the heartbeat's
+  `battery_mv` is read from it (8-sample average of
+  `analogReadMilliVolts`), 0 on boards without one. The Yard's detail
+  panel shows it (amber under 3.5 V).
+- **Power setting, every board** (config `power: "mains" | "battery"`,
+  the "On battery" toggle beside Bridge): on battery the board is a
+  **leaf** — never RELAY, never conductor — so the mesh never depends on
+  it. Default mains.
+- **Next (not built): sleeping.** On battery, deep sleep between
+  triggers: wake on the DIGITAL_IN pin (ext0/ext1) or a timer check-in,
+  rejoin on the saved channel, resync the clock, run the trigger's cue,
+  sleep again. A sleeping leaf misses cues fired by others — by design;
+  its own triggers still work. Needs: RTC-memory state across sleeps,
+  wake-pin rules in `pm_pinrules`, console affordances ("asleep · wakes
+  on PIR"), and the mode schedule honored on wake. Measure the HUZZAH32's
+  sleep current first (the devkit's regulator/USB chip may dominate).
+- **Updates:** the console's Firmware panel serves one image; a
+  HUZZAH32 needs its own env's `firmware.bin` — `tools/ota_serve.py`
+  should serve `.pio/build/<env>/` and the panel pick the URL by each
+  board's profile. Until then, flash a HUZZAH32 by USB.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

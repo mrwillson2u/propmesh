@@ -63,6 +63,11 @@ struct PmNodeConfig {
   // puts the bridge on. The password is written, never read back.
   char wifi_ssid[33] = {};
   char wifi_pass[65] = {};
+  // Power: a board on a battery is a LEAF — it never relays, so the mesh
+  // never depends on it (software-plan: "powered nodes relay; battery
+  // nodes never relay"). Deep sleep between triggers comes next (docs
+  // §6f). false = mains/USB, the default.
+  bool battery = false;
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

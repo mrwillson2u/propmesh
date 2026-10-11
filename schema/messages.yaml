@@ -40,6 +40,7 @@ enums:
     DEVKIT: 0
     PRO: 1
     MINI: 2
+    HUZZAH32: 3               # Adafruit ESP32 Feather — LiPo input, stands in for the Mini's battery story
 
   # Bit flags — a node may hold several roles.
   NodeRole:

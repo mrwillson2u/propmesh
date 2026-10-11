@@ -64,6 +64,12 @@ def validate(funcs, boards, enums, consts):
         ids.add(bid)
         if b["board_type"] not in enums["BoardType"]:
             errs.append(f"{bid}: board_type {b['board_type']} not in BoardType")
+        bat = b.get("battery")
+        if bat is not None:
+            if not isinstance(bat, dict) or "gpio" not in bat or "divider" not in bat:
+                errs.append(f"{bid}: battery needs gpio and divider")
+            elif bat["gpio"] not in {p["gpio"] for p in b["pins"]}:
+                errs.append(f"{bid}: battery gpio {bat['gpio']} is not one of the board's pins")
         seen = {}
         for p in b["pins"]:
             g = p["gpio"]
@@ -151,6 +157,8 @@ def render_c(funcs, boards, enums):
           "    uint8_t board_type;  // pm_board_type_t",
           "    uint8_t ledc_channels;",
           "    uint8_t rmt_tx_channels;",
+          "    uint8_t battery_gpio;    // 0 = no battery sense",
+          "    float battery_divider;   // VBAT = reading * divider",
           "    uint8_t pin_count;",
           "    const pm_board_pin_t *pins;",
           "} pm_board_t;",
@@ -191,7 +199,8 @@ def render_c(funcs, boards, enums):
               f"static const pm_board_t PM_BOARD_{cid} = {{",
               f"    {cstr(b['id'])}, {cstr(b['name'])}, {cstr(b['mcu'])},",
               f"    PM_BOARD_TYPE_{b['board_type']}, {b['ledc_channels']}, "
-              f"{b['rmt_tx_channels']}, {len(b['pins'])}, PM_BOARD_{cid}_PINS,",
+              f"{b['rmt_tx_channels']}, {(b.get('battery') or {}).get('gpio', 0)}, {float((b.get('battery') or {}).get('divider', 0))}f, "
+              f"{len(b['pins'])}, PM_BOARD_{cid}_PINS,",
               "};", ""]
     return "\n".join(L)
 
@@ -224,6 +233,7 @@ def render_ts(funcs, boards, enums):
           "  mcu: string;",
           "  ledcChannels: number;",
           "  rmtTxChannels: number;",
+          "  battery?: { gpio: number; divider: number }; // VBAT sense pin, VBAT = reading * divider",
           "  pins: BoardPin[];",
           "  guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function",
           "}",
@@ -259,6 +269,7 @@ def render_ts(funcs, boards, enums):
               f"    mcu: {json.dumps(b['mcu'])},",
               f"    ledcChannels: {b['ledc_channels']},",
               f"    rmtTxChannels: {b['rmt_tx_channels']},",
+              f"    battery: {json.dumps(b['battery']) if b.get('battery') else 'undefined'},",
               "    pins: ["]
         for p in b["pins"]:
             note = f", note: {json.dumps(p['note'], ensure_ascii=False)}" if p.get("note") else ""

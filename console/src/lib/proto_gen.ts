@@ -30,6 +30,7 @@ export const BoardType = {
   DEVKIT: 0,
   PRO: 1,
   MINI: 2,
+  HUZZAH32: 3,
 } as const;
 export type BoardType = (typeof BoardType)[keyof typeof BoardType];
 

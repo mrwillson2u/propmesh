@@ -114,6 +114,15 @@ static void election() {
 // every time; each period is jittered by up to ±10 %.
 static uint32_t next_period = PM_HEARTBEAT_PERIOD_MS;
 
+// Battery voltage on a board whose profile has a sense pin (the HUZZAH32:
+// VBAT through 2:1 on GPIO 35). 0 = this board has none.
+static uint16_t battery_mv() {
+  if (!BOARD.battery_gpio) return 0;
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(BOARD.battery_gpio);
+  return (uint16_t)(sum / 8 * BOARD.battery_divider);
+}
+
 static void heartbeat() {
   uint32_t now = millis();
   if (now - last_heartbeat < next_period) return;
@@ -125,6 +134,7 @@ static void heartbeat() {
   hb.role = pm_role();
   hb.fw_version = PM_FW_VERSION;
   hb.free_heap_kb = ESP.getFreeHeap() / 1024;
+  hb.battery_mv = battery_mv();  // 0 on a board with no battery sense
   hb.neighbor_count = pm_neighbor_snapshot(hb.neighbors, PM_MAX_NEIGHBORS);
   // Nodes move to the bridge's channel (docs §6d). While the bridge is
   // between WiFi attempts its radio may be mid-scan: say "unknown" then,

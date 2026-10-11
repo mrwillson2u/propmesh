@@ -34,6 +34,8 @@ export interface NodeConfig {
   // Bridge only: the home WiFi it joins (docs §6d). The board reports
   // ssid + pass_set; `pass` is only ever sent, and only when changed.
   wifi?: { ssid: string; pass?: string; pass_set?: boolean };
+  // "battery": a leaf that never relays (and later sleeps between triggers); "mains" (default) relays.
+  power?: "mains" | "battery";
   channels: ChannelCfg[];
 }
 

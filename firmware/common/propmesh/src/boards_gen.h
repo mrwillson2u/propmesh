@@ -32,6 +32,8 @@ typedef struct {
     uint8_t board_type;  // pm_board_type_t
     uint8_t ledc_channels;
     uint8_t rmt_tx_channels;
+    uint8_t battery_gpio;    // 0 = no battery sense
+    float battery_divider;   // VBAT = reading * divider
     uint8_t pin_count;
     const pm_board_pin_t *pins;
 } pm_board_t;
@@ -90,5 +92,37 @@ static const pm_board_pin_t PM_BOARD_ESP32_DEVKIT_V1_PINS[] = {
 };
 static const pm_board_t PM_BOARD_ESP32_DEVKIT_V1 = {
     "esp32-devkit-v1", "ESP32 DevKit V1 (30-pin)", "ESP32-WROOM-32",
-    PM_BOARD_TYPE_DEVKIT, 16, 8, 25, PM_BOARD_ESP32_DEVKIT_V1_PINS,
+    PM_BOARD_TYPE_DEVKIT, 16, 8, 0, 0.0f, 25, PM_BOARD_ESP32_DEVKIT_V1_PINS,
+};
+
+// Adafruit HUZZAH32 Feather — ESP32-WROOM-32
+static const pm_board_pin_t PM_BOARD_ESP32_HUZZAH32_PINS[] = {
+    {26, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "A0", "also DAC2"},
+    {25, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "A1", "also DAC1"},
+    {34, PM_CAP_IN | PM_CAP_ADC, PM_TIER_GOOD, "A2", "input only, no internal pull — a button here needs an external resistor"},
+    {39, PM_CAP_IN | PM_CAP_ADC, PM_TIER_GOOD, "A3", "input only, no internal pull — a button here needs an external resistor"},
+    {36, PM_CAP_IN | PM_CAP_ADC, PM_TIER_GOOD, "A4", "input only, no internal pull — a button here needs an external resistor"},
+    {4, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC, PM_TIER_GOOD, "A5", nullptr},
+    {5, PM_CAP_OUT, PM_TIER_CAUTION, "SCK", "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"},
+    {18, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "MO", nullptr},
+    {19, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "MI", nullptr},
+    {16, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "RX", nullptr},
+    {17, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "TX", nullptr},
+    {21, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "21", nullptr},
+    {23, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "SDA", nullptr},
+    {22, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "SCL", nullptr},
+    {14, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_CAUTION, "14", "pulses briefly at power-up — a relay or motor here may twitch on boot"},
+    {32, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC, PM_TIER_GOOD, "32", nullptr},
+    {15, PM_CAP_OUT, PM_TIER_CAUTION, "15", "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"},
+    {33, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC, PM_TIER_GOOD, "33", nullptr},
+    {27, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "27", nullptr},
+    {12, PM_CAP_OUT, PM_TIER_CAUTION, "12", "STRAPPING: must be LOW at power-up or the board will not boot. Outputs only, and nothing that pulls it high (many relay modules do)"},
+    {13, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_CAUTION, "13", "the onboard red LED shares this pin, and it pulses at power-up — a light, not a relay or motor"},
+    {35, 0, PM_TIER_RESERVED, "A13", "battery voltage (VBAT/2) — read by the firmware for the battery gauge"},
+    {1, 0, PM_TIER_RESERVED, "TX0", "USB serial — the console and the flasher live here"},
+    {3, 0, PM_TIER_RESERVED, "RX0", "USB serial — the console and the flasher live here"},
+};
+static const pm_board_t PM_BOARD_ESP32_HUZZAH32 = {
+    "esp32-huzzah32", "Adafruit HUZZAH32 Feather", "ESP32-WROOM-32",
+    PM_BOARD_TYPE_HUZZAH32, 16, 8, 35, 2.0f, 24, PM_BOARD_ESP32_HUZZAH32_PINS,
 };

@@ -18,6 +18,7 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   out.bridge = root["bridge"] | false;
   // "wifi": {"ssid", "pass"} — bridge only. A missing "pass" means "keep
   // the stored one" (the console never sees it); pm_api fills it back in.
+  out.battery = !strcmp(root["power"] | "mains", "battery");
   JsonVariantConst wifi = root["wifi"];
   pm_copy(out.wifi_ssid, wifi["ssid"] | "", sizeof(out.wifi_ssid));
   pm_copy(out.wifi_pass, wifi["pass"] | "", sizeof(out.wifi_pass));
@@ -81,6 +82,7 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
   root["v"] = 1;
   root["name"] = cfg.name;
   root["bridge"] = cfg.bridge;
+  root["power"] = cfg.battery ? "battery" : "mains";
   if (cfg.wifi_ssid[0]) {
     JsonObject wifi = root["wifi"].to<JsonObject>();
     wifi["ssid"] = cfg.wifi_ssid;

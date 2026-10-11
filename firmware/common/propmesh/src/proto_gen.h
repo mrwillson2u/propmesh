@@ -31,6 +31,7 @@ typedef enum {
     PM_BOARD_TYPE_DEVKIT = 0,
     PM_BOARD_TYPE_PRO = 1,
     PM_BOARD_TYPE_MINI = 2,
+    PM_BOARD_TYPE_HUZZAH32 = 3,
 } pm_board_type_t;
 
 typedef enum {

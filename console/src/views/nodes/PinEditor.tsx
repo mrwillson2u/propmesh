@@ -210,6 +210,12 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.bridge ? C.emberT : C.t3) }}>
           <Toggle small on={!!draft.bridge} onClick={() => setBridge(!draft.bridge)} /> Bridge
         </label>
+        {!draft.bridge && (
+          <label title="On a battery this board is a leaf: it never relays for others, so losing it costs the mesh nothing. (Sleeping between triggers comes next.)"
+            style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.power === "battery" ? C.amber : C.t3) }}>
+            <Toggle small on={draft.power === "battery"} onClick={() => setDraft((d) => ({ ...d, power: d.power === "battery" ? "mains" : "battery" }))} /> On battery
+          </label>
+        )}
         <div style={{ flex: 1 }} />
         {dirty && <span style={mono(600, 11, C.amber)}>unsaved changes</span>}
         {busy && <Spinner color={C.emberT} />}

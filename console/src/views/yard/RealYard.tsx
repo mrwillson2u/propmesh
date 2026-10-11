@@ -437,11 +437,12 @@ function Detail({ n, links, nodes, now, onClose, onOpen }: {
         <span onClick={onClose} style={{ color: C.t5, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>✕</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: C.b1, borderBottom: `1px solid ${C.b1}` }}>
-        <Stat k="ROLE" v={n.bridge ? "Bridge" : "Relay"} color={n.bridge ? C.emberT : undefined} />
+        <Stat k="ROLE" v={n.bridge ? "Bridge" : (e.hb && !(e.hb.role & 1)) ? "Leaf (battery)" : "Relay"} color={n.bridge ? C.emberT : undefined} />
         <Stat k="MESH CLOCK" v={n.conductor ? "⏱ keeps it" : "follows"} />
         <Stat k="CONNECTION" v={n.usb ? directTag() : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
         <Stat k="LAST HEARD" v={n.usb ? "on the cable" : `${age(now - e.seen)} ago`} color={n.missing ? C.red : undefined} />
         <Stat k="UPTIME" v={uptime(hb?.up)} />
+        {hb && hb.batt > 0 && <Stat k="BATTERY" v={`${(hb.batt / 1000).toFixed(2)} V`} color={hb.batt < 3500 ? C.amber : undefined} />}
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />
         <Stat k="FIRMWARE" v={e.hello ? `fw ${e.hello.fw}` : hb ? `fw ${hb.fw}` : "—"} />
         <Stat k="NODE ID" v={n.id} />
