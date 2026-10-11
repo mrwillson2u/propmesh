@@ -840,6 +840,20 @@ verify against the board's silkscreen (the V2 Feather differs).
   from *other* boards are unpredictable and are missed while asleep —
   accepted; put that board's outputs on a scheduled cue or let its own
   sensor fire it. Through "off" schedule windows it sleeps entirely.
+- **Two tiers (Colin, 2026-10-11).** The radio can't half-listen, so
+  "less deep" sleep means *listening on a rhythm* with senders repeating
+  into it. **Show tier** (any schedule window that isn't off): light
+  sleep with a listen window, e.g. 100 ms every 1 s (~10 mA of radio
+  averaged vs ~100 mA awake); a cue aimed at a battery board is sent
+  with a 1 s lead and repeated through the period, so it lands on time
+  with everyone else; the period is a per-board setting (100 ms / 300 ms
+  ≈ 0.3 s latency at ~35 mA when a scare needs it); its own sensor wakes
+  it at once regardless. **Off tier** (schedule off, STOP ALL): deep
+  sleep, sensor wake, check-ins every 15–60 min. The schedule drives the
+  switch; the board timer-wakes for the next window. Rough budget, 2000
+  mAh: ~8–10 days of continuous show tier; months in off tier *if the
+  board's floor is low* — measure the HUZZAH32's deep-sleep draw first
+  (regulator + USB chip), the Mini's PCB designs that floor away.
 - **Relaying while awake: yes.** The rule is that the mesh never
   *depends* on a battery board, not that it never relays. A rebroadcast
   costs ~1 ms of radio per frame, negligible against ~100 mA of simply
