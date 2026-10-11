@@ -8,6 +8,7 @@
 #define WS_MAX_MSG 4096
 #define WS_IDLE_MS 90000  // drop a client that sends nothing (not even a pong) this long
 #define WS_PING_MS 20000  // server pings: a console that vanished without a close fails fast
+#define WS_WRITE_MS 250   // longest one socket write may hold the main loop
 
 static WiFiServer *server;
 static void (*handler)(char *, size_t);
@@ -31,14 +32,15 @@ static void drop(WsClient &c) {
 }
 
 // Server -> client frame: FIN + opcode, unmasked, 7/16-bit length.
-static void send_frame(WsClient &c, uint8_t opcode, const uint8_t *data, size_t len) {
+// False if the socket didn't take all of it within WS_WRITE_MS.
+static bool send_frame(WsClient &c, uint8_t opcode, const uint8_t *data, size_t len) {
   uint8_t head[4];
   size_t n = 0;
   head[n++] = 0x80 | opcode;
   if (len < 126) head[n++] = (uint8_t)len;
   else { head[n++] = 126; head[n++] = len >> 8; head[n++] = len & 0xFF; }
-  c.sock.write(head, n);
-  if (len) c.sock.write(data, len);
+  if (c.sock.write(head, n) != n) return false;
+  return !len || c.sock.write(data, len) == len;
 }
 
 // HTTP upgrade: find Sec-WebSocket-Key, answer with the accept hash.
@@ -133,6 +135,7 @@ void pm_ws_loop() {
     {
       WsClient &c = clients[slot];
       c.sock = incoming;
+      c.sock.setTimeout(WS_WRITE_MS);
       c.buf = (uint8_t *)malloc(WS_MAX_MSG + 1);
       c.len = 0;
       c.open = false;
@@ -165,24 +168,24 @@ void pm_ws_loop() {
     // (or never pongs, and the idle timeout gets it).
     if (c.sock && c.open && (uint32_t)(now - c.last_ping_ms) > WS_PING_MS) {
       c.last_ping_ms = now;
-      send_frame(c, 0x9, nullptr, 0);
-      if (!c.sock.connected()) drop(c);
+      if (!send_frame(c, 0x9, nullptr, 0) || !c.sock.connected()) drop(c);
     }
   }
 }
 
-// Never block the main loop on a slow console: if the socket can't take
-// the whole frame right now, this client misses it (the console re-asks
-// anything it needs), and a client that stays jammed is dropped.
+// Never stall the main loop on a slow console: each socket write waits at
+// most WS_WRITE_MS (set at accept); a client that can't take a whole
+// frame in that time is dropped (the console reconnects by itself).
+// (availableForWrite() is not implemented for these sockets — it returns
+// 0 — so gating on it silenced every client, 2026-10-11.)
 void pm_ws_send(const char *json, size_t len) {
   for (int i = 0; i < WS_CLIENTS; i++) {
     WsClient &c = clients[i];
     if (!c.sock || !c.open) continue;
-    if ((size_t)c.sock.availableForWrite() < len + 4) {
-      if ((uint32_t)(millis() - c.last_rx_ms) > WS_IDLE_MS / 3) drop(c);  // jammed and silent: gone
-      continue;
+    if (!send_frame(c, 0x1, (const uint8_t *)json, len)) {
+      Serial.println("ws: console not keeping up — dropped");
+      drop(c);
     }
-    send_frame(c, 0x1, (const uint8_t *)json, len);
   }
 }
 
