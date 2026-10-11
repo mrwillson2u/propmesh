@@ -12,11 +12,15 @@ docs/generic-boards.md §6c.
 import argparse, http.server, json, os, socket, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUILD_DIR = os.path.join(ROOT, "firmware", "node", ".pio", "build", "esp32-devkit-v1")
+# Every board's image: <build root>/<env>/firmware.bin — the console picks
+# the env from each board's profile (boards/<id>.yaml ↔ [env:<id>]).
+BUILD_ROOT = os.path.join(ROOT, "firmware", "node", ".pio", "build")
+ENVS = ["esp32-devkit-v1", "esp32-huzzah32"]
+BUILD_DIR = os.path.join(BUILD_ROOT, ENVS[0])
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
-        super().__init__(*a, directory=BUILD_DIR, **kw)
+        super().__init__(*a, directory=BUILD_ROOT, **kw)
     def end_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-store")
@@ -41,13 +45,17 @@ def main():
     ap.add_argument("--port", type=int, default=8266)
     a = ap.parse_args()
     if a.build:
-        subprocess.check_call([os.path.expanduser("~/.platformio/penv/bin/pio"), "run", "-e", "esp32-devkit-v1"], cwd=os.path.join(ROOT, "firmware", "node"))
-    ver = os.path.join(BUILD_DIR, "version.json")
-    if not os.path.exists(os.path.join(BUILD_DIR, "firmware.bin")) or not os.path.exists(ver):
+        for env in ENVS:
+            subprocess.check_call([os.path.expanduser("~/.platformio/penv/bin/pio"), "run", "-e", env], cwd=os.path.join(ROOT, "firmware", "node"))
+    found = []
+    for env in ENVS:
+        ver = os.path.join(BUILD_ROOT, env, "version.json")
+        if os.path.exists(os.path.join(BUILD_ROOT, env, "firmware.bin")) and os.path.exists(ver):
+            info = json.load(open(ver)); found.append(f"  {env}: build {info['build']} ({info['size']} bytes)")
+    if not found:
         sys.exit("no build found — run with --build (or pio run -d firmware/node)")
-    info = json.load(open(ver))
-    url = f"http://{lan_ip()}:{a.port}/firmware.bin"
-    print(f"serving build {info['build']} ({info['size']} bytes)\n  {url}\npaste that URL into the console's Update firmware panel; Ctrl-C to stop", flush=True)
+    url = f"http://{lan_ip()}:{a.port}/{ENVS[0]}/firmware.bin"
+    print("serving:\n" + "\n".join(found) + f"\n  {url}\npaste that URL into the console's Update firmware panel — it picks each board's own image from the same place; Ctrl-C to stop", flush=True)
     http.server.ThreadingHTTPServer(("", a.port), Handler).serve_forever()
 
 if __name__ == "__main__":

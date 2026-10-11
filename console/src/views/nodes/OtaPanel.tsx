@@ -9,7 +9,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
-import { fetchImage, fileImage, streamImage, type Image } from "../../lib/ota";
+import { fetchImage, fileImage, imageUrlFor, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -31,6 +31,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string; mode: string }>;
   const [mode, setMode] = useState<"mesh" | "wifi">(stored.mode === "wifi" ? "wifi" : "mesh");
   const [image, setImage] = useState<Image | "loading" | null>(null);
+  // Other boards' images (a HUZZAH32 needs its own build), fetched on demand.
+  const images = useRef(new Map<string, Image>());
   const [imageErr, setImageErr] = useState<string | null>(null);
   const stops = useRef(new Map<string, { stop: boolean }>());
   const [url, setUrl] = useState(stored.url ?? "");
@@ -100,6 +102,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         setImage({ bytes: new Uint8Array(27000), sha256: "0".repeat(64), build: build.slice(0, 12) });
         return;
       }
+      images.current.clear();
       setImage(file ? await fileImage(file) : await fetchImage(url));
     } catch (e) {
       setImage(null);
@@ -145,11 +148,23 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
       : note;
     if (mode === "mesh") {
       if (typeof image !== "object" || !image) return;
+      // A board of another profile than the loaded image: fetch its own.
+      let img: Image = image;
+      const board = en.hello?.board;
+      if (board && !image.board?.startsWith(board) && !image.board && link.via !== "sim" && url) {
+        const own = imageUrlFor(url, board);
+        if (own !== url) {
+          try {
+            img = images.current.get(board) ?? await fetchImage(own);
+            images.current.set(board, img);
+          } catch (e) { failed(`no image for ${board}: ${(e as Error).message}`); return; }
+        }
+      }
       const sig = { stop: false };
       stops.current.set(node, sig);
       setJobs((j) => ({ ...j, [node]: { state: "sending", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up, progress: 0 } }));
       try {
-        await streamImage(t, image, (w, total) => setJobs((j) => ({ ...j, [node]: { ...j[node], progress: w / total, since: Date.now() } })), sig);
+        await streamImage(t, img, (w, total) => setJobs((j) => ({ ...j, [node]: { ...j[node], progress: w / total, since: Date.now() } })), sig);
         // Accepted and verified: it reboots now; the checker waits for it to come back.
         setJobs((j) => ({ ...j, [node]: { ...j[node], state: "waiting", since: Date.now(), progress: 1 } }));
       } catch (e) { failed((e as Error).message); }
@@ -157,7 +172,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     }
     setJobs((j) => ({ ...j, [node]: { state: "sent", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up } }));
     try {
-      const r = await t.request("ota", { url, ssid, pass });
+      const r = await t.request("ota", { url: en.hello?.board ? imageUrlFor(url, en.hello.board) : url, ssid, pass });
       if (!r.ok) failed(r.error ?? "refused");
     } catch (e) { failed((e as Error).message); }
   };

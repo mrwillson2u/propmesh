@@ -903,10 +903,11 @@ verify against the board's silkscreen (the V2 Feather differs).
   opportunistically while awake, sleep on its own schedule regardless,
   lay the mesh out to work without it. (The LEAF role today = no relay
   at all; this becomes "relay while awake" when sleep lands.)
-- **Updates:** the console's Firmware panel serves one image; a
-  HUZZAH32 needs its own env's `firmware.bin` — `tools/ota_serve.py`
-  should serve `.pio/build/<env>/` and the panel pick the URL by each
-  board's profile. Until then, flash a HUZZAH32 by USB.
+- **Updates (done 2026-10-11):** `tools/ota_serve.py` serves the whole
+  build root — `<root>/<board id>/firmware.bin` for every env (`--build`
+  builds them all) — and the Firmware panel picks each board's own image
+  from its profile id (`imageUrlFor`), over the mesh or over WiFi. A
+  sleeping board is woken by the bridge's hold_awake burst first.
 
 ## 7. Bench test — Stage 1
 

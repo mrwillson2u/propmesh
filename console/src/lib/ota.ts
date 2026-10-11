@@ -5,7 +5,15 @@
 // or a local file.
 import type { NodeTarget } from "./transport";
 
-export interface Image { bytes: Uint8Array; sha256: string; build: string }
+export interface Image { bytes: Uint8Array; sha256: string; build: string; board?: string }
+
+// The URL of a board's own image: the server lays builds out as
+// <root>/<board id>/firmware.bin (tools/ota_serve.py). A URL without a
+// board segment (the old single-image layout) is used as given.
+export function imageUrlFor(url: string, board: string): string {
+  const m = url.match(/^(.*\/)(esp32-[a-z0-9-]+)\/(firmware\.bin)$/);
+  return m ? `${m[1]}${board}/${m[3]}` : url;
+}
 
 export async function fetchImage(url: string): Promise<Image> {
   const [bin, ver] = await Promise.all([
