@@ -132,7 +132,12 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= 8 && (payload[7] & PM_NODE_ROLE_BRIDGE) &&
       !(s_role & PM_NODE_ROLE_BRIDGE)) {
     s_last_bridge_ms = now_ms ? now_ms : 1;
-    uint8_t ch = plen >= sizeof(pm_heartbeat_t) ? payload[sizeof(pm_heartbeat_t) - 1] : 0;
+    // Read the field by name: "the last byte" broke the moment another
+    // field (listen_ms) was appended after channel (2026-10-11), and
+    // nodes stopped following the bridge.
+    pm_heartbeat_t hb = {};
+    memcpy(&hb, payload, plen < sizeof(hb) ? plen : sizeof(hb));
+    uint8_t ch = plen > offsetof(pm_heartbeat_t, channel) ? hb.channel : 0;
     bool moved = false;
     if (ch >= 1 && ch <= 13 && ch != pm_mesh_channel()) {
       pm_mesh_set_channel(ch);

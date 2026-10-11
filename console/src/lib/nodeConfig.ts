@@ -38,7 +38,7 @@ export interface NodeConfig {
   power?: "mains" | "battery";
   // Sleep on battery (docs §6f): show tier listens window_ms of every interval_ms;
   // off tier deep-sleeps, checking in every checkin_min minutes.
-  sleep?: { interval_ms: number; window_ms: number; checkin_min: number };
+  sleep?: { interval_ms: number; window_ms: number; checkin_ms: number };
   channels: ChannelCfg[];
 }
 

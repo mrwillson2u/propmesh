@@ -865,7 +865,7 @@ verify against the board's silkscreen (the V2 Feather differs).
   Settings per board, in the console: show listen window/interval and
   the off-tier check-in (minutes; Colin expects 1–5, not 15–60).
   *Stage 1 — off tier + plumbing:* config `sleep: {interval_ms,
-  window_ms, checkin_min}`; on a battery board with mode `off`, after a
+  window_ms, checkin_ms}`; on a battery board with mode `off`, after a
   10 s dwell with nothing in flight: deep sleep until the sensor pin
   (ext1 on the DIGITAL_IN pins, which must be RTC-capable: 0,2,4,12–15,
   25–27,32–39), the check-in timer, or 5 s before the next schedule

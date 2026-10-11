@@ -73,7 +73,7 @@ struct PmNodeConfig {
   // waking every `sleep_checkin_min` minutes (and on the sensor pins).
   uint16_t sleep_interval_ms = 1000;
   uint16_t sleep_window_ms = 100;
-  uint16_t sleep_checkin_min = 5;
+  uint32_t sleep_checkin_ms = 300000;  // 5 min
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

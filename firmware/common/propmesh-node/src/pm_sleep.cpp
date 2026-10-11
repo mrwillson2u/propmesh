@@ -29,7 +29,11 @@ bool pm_sleep_rtc_pin(uint8_t g) { return g == 0 || g == 2 || g == 4 || (g >= 12
 #include "pm_schedule.h"
 #include "pm_channels.h"
 
-#define BOOT_DWELL_MS 15000      // awake at least this long after any boot: sync, hear config
+// Awake at least this long after a timer wake: send a heartbeat, hear the
+// bridge's beacon (every ≤5 s) and any waiting request. At ~100 mA awake,
+// the dwell is most of the off tier's budget: 15 s every minute averaged
+// ~25 mA (2026-10-11); 6 s every 5 min is ~2 mA.
+#define BOOT_DWELL_MS 6000
 #define SENSOR_HOLD_MS 60000     // after a sensor wake: let the cue run, heartbeat, be seen
 #define CONSOLE_HOLD_MS 600000   // after a console request: pages, updates
 #define WINDOW_LEAD_S 5          // wake this long before the next schedule window
@@ -43,7 +47,8 @@ RTC_DATA_ATTR static int16_t rtc_tz_next_min;
 RTC_DATA_ATTR static bool rtc_clock_ok;
 
 static bool battery;
-static uint16_t checkin_min = 5, interval_ms = 1000, window_ms = 100;
+static uint32_t checkin_ms = 300000;
+static uint16_t interval_ms = 1000, window_ms = 100;
 static uint32_t hold_until_ms;
 static const char *cause = "power";
 static int wake_gpio = -1;
@@ -94,7 +99,7 @@ void pm_sleep_after_boot(const PmNodeConfig &cfg) {
 
 void pm_sleep_apply(const PmNodeConfig &cfg) {
   battery = cfg.battery;
-  checkin_min = cfg.sleep_checkin_min;
+  checkin_ms = cfg.sleep_checkin_ms;
   interval_ms = cfg.sleep_interval_ms;
   window_ms = cfg.sleep_window_ms;
   if (!battery && show_tier) { esp_wifi_set_ps(WIFI_PS_NONE); show_tier = false; }
@@ -165,14 +170,14 @@ void pm_sleep_loop() {
   if (!off || pm_sleep_holding()) return;
   if (pm_ota_state() == PM_OTA_DOWNLOADING || pm_ota_state() == PM_OTA_CONNECTING || pm_ota_state() == PM_OTA_REBOOTING) return;
   // How long: the check-in, or sooner if a schedule window starts first.
-  uint32_t secs = (uint32_t)checkin_min * 60;
+  uint32_t secs = checkin_ms / 1000;
   uint32_t next = pm_show_next_change_s();
   if (next && pm_wall().utc_ok) {
     int64_t until = (int64_t)next - pm_wall_utc_ms() / 1000 - WINDOW_LEAD_S;
     if (until > 0 && until < secs) secs = (uint32_t)until;
   }
   if (secs < MIN_SLEEP_S) { pm_sleep_hold(MIN_SLEEP_S * 1000); return; }
-  deep_sleep(secs, next && secs < (uint32_t)checkin_min * 60 ? "until the next schedule window" : "check-in");
+  deep_sleep(secs, next && secs < checkin_ms / 1000 ? "until the next schedule window" : "check-in");
 }
 
 #endif  // PM_NO_SLEEP

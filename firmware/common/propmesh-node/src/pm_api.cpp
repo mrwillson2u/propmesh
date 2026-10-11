@@ -72,7 +72,7 @@ static void cmd_hello(JsonObject resp) {
   resp["board"] = board->id;
   if (pm_channels_config().battery) {
     resp["power"] = "battery";
-    resp["checkin_min"] = pm_channels_config().sleep_checkin_min;
+    resp["checkin_ms"] = pm_channels_config().sleep_checkin_ms;
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }

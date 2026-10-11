@@ -16,7 +16,7 @@ export interface NodeHello {
   power?: "battery"; // on battery (a leaf; sleeps if its build can)
   sleeps?: boolean; // false: a mains-board build — "On battery" only stops it relaying
   awake?: boolean; // held awake (console or sensor) rather than free to sleep
-  checkin_min?: number;
+  checkin_ms?: number;
   pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;

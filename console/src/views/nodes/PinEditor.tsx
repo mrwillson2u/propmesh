@@ -406,7 +406,7 @@ function BridgeWifi({ draft, applied, setDraft, isLink, local }: {
 // schedule says off the board deep-sleeps and checks in every few minutes
 // (its sensor pins wake it at once either way).
 function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React.Dispatch<React.SetStateAction<NodeConfig>> }) {
-  const sl = draft.sleep ?? { interval_ms: 1000, window_ms: 100, checkin_min: 5 };
+  const sl = draft.sleep ?? { interval_ms: 1000, window_ms: 100, checkin_ms: 300000 };
   const set = (p: Partial<typeof sl>) => setDraft((d) => ({ ...d, sleep: { ...sl, ...p } }));
   const num = (v: number, on: (n: number) => void, w = 64) => (
     <input type="number" value={v} onChange={(e) => on(Number(e.target.value))} style={{ ...field, width: w, textAlign: "right" }} />
@@ -422,8 +422,8 @@ function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
         <span style={{ width: 44 }} />
-        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_min, (n) => set({ checkin_min: Math.max(1, n) }), 56)}<span>min</span>
-        <span style={mono(500, 11, C.t4)}>— its sensor pins wake it at once; it also wakes for the next schedule window</span>
+        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_ms, (n) => set({ checkin_ms: Math.max(30000, n) }), 88)}<span>ms</span>
+        <span style={mono(500, 11, C.t4)}>({(sl.checkin_ms / 60000).toFixed(1)} min) — its sensor pins wake it at once; it also wakes for the next schedule window</span>
       </div>
     </div>
   );
