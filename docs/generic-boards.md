@@ -881,6 +881,20 @@ verify against the board's silkscreen (the V2 Feather differs).
   TIME beacons likewise; clocks tolerate the sparser sync.
   *Stage 3 — measure* on the Feather with a battery (deep-sleep floor
   of the board, show-tier average) and tune defaults.
+- **Built and bench-tested 2026-10-11 (stages 1 and 2).** Off tier: the
+  Feather, on battery with a 1-minute check-in and the show off, deep-slept
+  3 s after its hold was released, woke on the timer 60 s later (reset
+  reason "deep sleep"), mode and settings intact. Show tier: at 100 ms of
+  every 1000 ms it received **4 of 4 cues** fired from the bridge (also
+  4/4 at 50 % and 100 %); the bridge learned its interval from the
+  heartbeat (`listen_ms`), repeated the cue every 100 ms across it, and a
+  console request reached it in **0.8 s** via the hold_awake burst, after
+  which requests ran at normal speed. Builds: the Feather image has no
+  Bluetooth (floods) — IRAM holds WiFi + Bluetooth or WiFi + deep sleep;
+  the DevKit image keeps Bluetooth and never sleeps (`hello.sleeps`).
+  Any DIGITAL_IN on an RTC pin wakes the board; a button with no trigger
+  is a plain wake button. Not yet: current measurements (no battery on
+  the bench yet).
 - **Relaying while awake: yes.** The rule is that the mesh never
   *depends* on a battery board, not that it never relays. A rebroadcast
   costs ~1 ms of radio per frame, negligible against ~100 mA of simply
