@@ -872,6 +872,24 @@ features after Oct 22.
 
 ## 9. Known gaps
 
+- **Fixed 2026-10-11 — a board "never came back" from a WiFi update.**
+  Prop's serial log showed it: the join failed (stale password in the
+  panel), and the failure path turned the WiFi driver off and on to get
+  back to the mesh channel, which silently deleted the ESP-NOW
+  registration — every mesh send then failed ("esp now not init") until a
+  power cycle, with the loop running fine (so no watchdog). Now the
+  failure drops the AP only, re-registers ESP-NOW (`pm_mesh_recover`),
+  and logs the WiFi status. Also fixed: a *successful* same-build update
+  read "didn't come back" — the panel now counts an uptime restart.
+- **OPEN — the bridge went dead during servo slider moves (2026-10-08).**
+  Console over WiFi, sliding one servo on Skellitor Head; within 5–10 s
+  the bridge dropped off WiFi and the mesh and stayed dead (no reboot)
+  until power-cycled. Prop and Heads kept running (uptimes intact). Not
+  reproduced on 2026-10-08 with a serial log attached (3 min of sliding).
+  Every board now runs under the task watchdog (verified attaching:
+  "wdt: watching the main loop") and reports its reset reason, so a
+  repeat reboots itself and says why.
+
 - **OPEN 2026-10-11 — the bridge froze updating ITSELF over the mesh
   path.** Console on WiFi, Bridge → *Update (last)* in "Over the mesh"
   mode: stopped at 43 %, the bridge dropped off WiFi (no ping) for 2+
