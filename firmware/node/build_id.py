@@ -11,8 +11,29 @@ def git(*args):
         return ""
 
 commit = git("rev-parse", "--short", "HEAD") or "nogit"
-dirty = subprocess.call(["git", "diff", "--quiet"], stderr=subprocess.DEVNULL) != 0 if commit != "nogit" else False
-build = commit + ("+" if dirty else "")
+
+# Uncommitted work gets "+" and a hash of exactly what differs from the
+# commit (changed AND new files under the source the image is built
+# from). Until 2026-10-09 it was just "+", so two different uncommitted
+# builds both read "b99d9a4+" and the console's update panel called a
+# board running old code "up to date".
+SOURCES = ["firmware", "schema", "boards"]
+def dirty_hash():
+    h = hashlib.sha1()
+    root = git("rev-parse", "--show-toplevel")
+    diff = subprocess.run(["git", "diff", "HEAD", "--", *SOURCES], cwd=root, capture_output=True).stdout
+    h.update(diff)
+    new = git("-C", root, "ls-files", "--others", "--exclude-standard", "--", *SOURCES).splitlines()
+    for f in sorted(new):
+        h.update(f.encode())
+        try:
+            h.update(open(os.path.join(root, f), "rb").read())
+        except OSError:
+            pass
+    return h.hexdigest()[:6] if (diff or new) else ""
+
+d = dirty_hash() if commit != "nogit" else ""
+build = commit + ("+" + d if d else "")
 env.Append(CPPDEFINES=[("PM_BUILD", env.StringifyMacro(build))])
 
 def write_version(source, target, env):

@@ -35,10 +35,21 @@ const b64 = (b: Uint8Array) => {
   return btoa(s);
 };
 
+// A lost chunk is normal on a weak link: the bridge tries each one 3
+// times, then answers "no reply from node …". Until 2026-10-09 that one
+// answer cancelled the whole transfer and the next try started from
+// zero, so a ~490-chunk image at −69 dBm never finished. Now a lost
+// chunk is sent again, and only this long with NO progress gives up.
+const STALL_MS = 180000;
+const transient = (msg: string) => /no reply from node|bridge busy|timed out|timeout|not answer|out of memory/i.test(msg);
+
 // Resolves when the board has accepted the whole image (it then reboots);
-// rejects with the board's reason. `onProgress` gets bytes written.
+// rejects with the board's reason. `onProgress` gets bytes written. A
+// failed transfer is NOT cancelled on the board: pressing Update again
+// with the same image resumes where it stopped (firmware from 2026-10-09;
+// older firmware restarts it).
 export async function streamImage(node: NodeTarget, img: Image, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
-  let begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
+  let begin = await retrying(() => node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 }), signal);
   // Boards before 1a779c7 stayed "busy" after a failed transfer until
   // rebooted; ota_abort clears that, so clear it and ask once more.
   if (!begin.ok && /already running|update is running/.test(begin.error ?? "")) {
@@ -46,32 +57,54 @@ export async function streamImage(node: NodeTarget, img: Image, onProgress: (wri
     begin = await node.request("ota_begin", { size: img.bytes.length, sha256: img.sha256 });
   }
   if (!begin.ok) throw new Error(begin.error ?? "the board refused to start");
+  const from = typeof begin.written === "number" ? begin.written : 0;
+  if (from) onProgress(from, img.bytes.length);
   try {
-    await send(node, img, (begin.chunk as number) || 2700, onProgress, signal);
+    await send(node, img, (begin.chunk as number) || 2700, from, onProgress, signal);
   } catch (e) {
-    // Leave the board ready for the next try (it also drops a transfer
-    // that goes silent for a minute, in case this doesn't get through).
-    await node.request("ota_abort").catch(() => undefined);
+    // Stopped by hand: cancel on the board. Anything else: leave it to resume.
+    if (signal?.stop) await node.request("ota_abort").catch(() => undefined);
     throw e;
   }
 }
 
-async function send(node: NodeTarget, img: Image, chunk: number, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
-  let off = 0, misses = 0;
+// One request, re-sent while the failure looks like the radio, until it
+// answers or STALL_MS passes.
+async function retrying(ask: () => Promise<{ ok: boolean; error?: string; [k: string]: unknown }>, signal?: { stop: boolean }) {
+  const t0 = Date.now();
+  for (;;) {
+    if (signal?.stop) throw new Error("stopped");
+    try {
+      const r = await ask();
+      if (r.ok || !transient(r.error ?? "") || Date.now() - t0 > STALL_MS) return r;
+    } catch (e) {
+      if (Date.now() - t0 > STALL_MS) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+async function send(node: NodeTarget, img: Image, chunk: number, start: number, onProgress: (written: number, total: number) => void, signal?: { stop: boolean }) {
+  let off = start, lastProgress = Date.now(), lastErr = "";
   while (off < img.bytes.length) {
     if (signal?.stop) throw new Error("stopped");
+    if (Date.now() - lastProgress > STALL_MS)
+      throw new Error(`no progress for ${STALL_MS / 60000} min at ${Math.round((off / img.bytes.length) * 100)} % (${lastErr || "no answer"}) — press Update again to resume`);
     const data = b64(img.bytes.subarray(off, off + chunk));
     let r;
     try { r = await node.request("ota_data", { off, data }); }
-    catch (e) {  // lost on the mesh: same offset again, after a breath
-      if (++misses > 20) throw e;
-      await new Promise((r) => setTimeout(r, 500));
-      continue;
-    }
-    if (r.ok) { off = r.written as number; misses = 0; onProgress(off, img.bytes.length); continue; }
-    if (typeof r.written === "number" && (r.error ?? "").startsWith("offset")) { off = r.written; continue; }  // resume from its count
-    throw new Error(r.error ?? "the board refused a chunk");
+    catch (e) { lastErr = (e as Error).message; await new Promise((r) => setTimeout(r, 500)); continue; }
+    if (r.ok) { off = r.written as number; lastProgress = Date.now(); onProgress(off, img.bytes.length); continue; }
+    const err = r.error ?? "";
+    // The chunk arrived but its reply was lost, so we're behind: carry on from its count.
+    if (typeof r.written === "number" && err.startsWith("offset")) { off = r.written; continue; }
+    if (transient(err)) { lastErr = err; await new Promise((r) => setTimeout(r, 500)); continue; }
+    throw new Error(err || "the board refused a chunk");
   }
-  const end = await node.request("ota_end", { build: img.build });
-  if (!end.ok) throw new Error(end.error ?? "the board refused the image");
+  // If ota_end's reply is lost, the retry finds the transfer already
+  // closed — the board took the image and is rebooting. The panel then
+  // waits for it to come back with the new build, which settles it.
+  let tries = 0;
+  const end = await retrying(() => { tries++; return node.request("ota_end", { build: img.build }); }, signal);
+  if (!end.ok && !(tries > 1 && /no update in progress/.test(end.error ?? ""))) throw new Error(end.error ?? "the board refused the image");
 }

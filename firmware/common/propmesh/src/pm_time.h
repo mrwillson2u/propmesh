@@ -103,3 +103,30 @@ class PmClock {
   bool m_synced = false;
   bool m_self = false;  // this node took the conductor role (become_conductor)
 };
+
+// Wall clock — what time it is in the yard, for the show schedule
+// (docs/software-plan.md §4.1). Held as an offset from this node's own
+// microsecond timer, NOT from mesh time: mesh time jumps when the
+// conductor changes, the time of day must not. Sources: the console
+// (set_clock, on every connect), the conductor's TIME beacon, and SNTP
+// on a bridge with WiFi.
+//
+// The UTC offset carries its next change (a DST switch) so a node keeps
+// local time right across one change without hearing from the console.
+struct PmWallClock {
+  bool utc_ok = false, tz_ok = false;
+  int64_t offset_ms = 0;  // UTC ms − local timer ms
+  int16_t tz_min = 0;     // local − UTC, minutes (−240 = EDT)
+  uint32_t tz_next_s = 0; // UTC s at which tz_next_min takes over; 0 = none known
+  int16_t tz_next_min = 0;
+
+  void set_utc(int64_t utc_ms, int64_t local_ms) { offset_ms = utc_ms - local_ms; utc_ok = true; }
+  void set_tz(int16_t now_min, uint32_t next_s, int16_t next_min) {
+    tz_min = now_min; tz_next_s = next_s; tz_next_min = next_min; tz_ok = true;
+  }
+  int64_t utc_ms(int64_t local_ms) const { return local_ms + offset_ms; }
+  int16_t tz_at(int64_t utc_s) const {
+    return (tz_next_s && utc_s >= (int64_t)tz_next_s) ? tz_next_min : tz_min;
+  }
+  bool ok() const { return utc_ok && tz_ok; }  // enough to run a schedule
+};

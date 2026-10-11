@@ -15,6 +15,10 @@ inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
   if (id < 1 || id > 65535) return "sequence id must be 1-65535";
   out.id = (uint16_t)id;
   pm_copy(out.name, j["name"] | "", sizeof(out.name));
+  out.ambient = j["ambient"] | false;
+  long loop = j["loop_ms"] | 0L;
+  if (loop < 0) return "bad loop_ms";
+  out.loop_ms = (uint32_t)loop;
   JsonArrayConst steps = j["steps"];
   if (steps.size() > PM_MAX_STEPS) return "too many steps";
   for (JsonArrayConst st : steps) {
@@ -59,6 +63,8 @@ inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
 inline void pm_sequence_to_json(const PmSequence &s, JsonObject j) {
   j["id"] = s.id;
   j["name"] = s.name;
+  if (s.ambient) j["ambient"] = true;
+  if (s.loop_ms) j["loop_ms"] = s.loop_ms;
   JsonArray steps = j["steps"].to<JsonArray>();
   for (uint8_t i = 0; i < s.step_count; i++) {
     JsonArray st = steps.add<JsonArray>();
@@ -80,6 +86,8 @@ inline void pm_sequence_summary(const PmSequence &s, JsonObject j) {
   j["name"] = s.name;
   j["steps"] = s.step_count;
   j["length_ms"] = s.length_ms();
+  if (s.ambient) j["ambient"] = true;
+  if (s.loop_ms) j["loop_ms"] = s.loop_ms;
 }
 
 inline const char *pm_rules_from_json(JsonArrayConst a, PmRule *out, uint8_t &n) {

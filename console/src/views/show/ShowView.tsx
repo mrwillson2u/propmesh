@@ -7,7 +7,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
-import { armAll, useConnection, type Activity, type Connection } from "../../lib/connection";
+import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
+import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
+import SchedulePanel, { MODE_COLOR } from "./SchedulePanel";
 import { target } from "../../lib/transport";
 import { isColor } from "../../lib/nodeConfig";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
@@ -75,6 +77,7 @@ function Editor({ conn }: { conn: Connection }) {
   // is being typed in (the row would jump mid-keystroke); it sorts on blur.
   const setSorted = (s: Sequence) => setDraft(sortSteps(s));
   const [playingFrom, setPlayingFrom] = useState<number | null>(null);
+  const [schedOpen, setSchedOpen] = useState(false);
 
   // Send a value to a real output, coalesced per output: one request in
   // flight, and only the newest value queued behind it — so dragging a
@@ -92,7 +95,9 @@ function Editor({ conn }: { conn: Connection }) {
     const en = conn.entries[node];
     if (!en) return;
     inFlight.current.set(key, true);
-    target(conn.link, en.usb ? null : en.node).request("set", { kind: st.kind, index: st.index, value: st.value })
+    // preview: posing a sequence step, not setting how the yard should be —
+    // the board won't bring it back when the show returns from off.
+    target(conn.link, en.usb ? null : en.node).request("set", { kind: st.kind, index: st.index, value: st.value, preview: true })
       .catch(() => { /* the next move retries */ })
       .finally(() => {
         inFlight.current.set(key, false);
@@ -165,10 +170,26 @@ function Editor({ conn }: { conn: Connection }) {
   const outNodes = Object.keys(outputs).filter((n) => outputs[n].length);
   const allOutputs: Output[] = outNodes.flatMap((n) => outputs[n].map((o) => ({ node: n, ...o })));
 
-  const armedVals = Object.values(show?.armed ?? {});
-  const allArmed = armedVals.length > 0 && armedVals.every(Boolean);
-  const noneArmed = armedVals.length > 0 && armedVals.every((a) => !a);
-  const armKnown = armedVals.length > 0; // nothing reported yet: don't claim either way
+  // Every board decides its own mode from the shared schedule; they
+  // normally agree. The USB board's status speaks for the reason and the
+  // next change (it heard the same clock).
+  // Live first: hellos are re-asked every 15 s (lib/connection), so a
+  // scheduled switch at 21:30 shows without a reload; the load's copy
+  // covers boards whose hello hasn't come round yet.
+  const liveModes: Record<string, ModeStatus> = { ...(show?.modes ?? {}) };
+  for (const en of Object.values(entries)) {
+    const h = en.hello;
+    if (h?.mode) liveModes[en.node] = h as unknown as ModeStatus;
+    else if (typeof h?.armed === "boolean")  // firmware before 2026-10-09: armed / disarmed by hand
+      liveModes[en.node] = { mode: h.armed ? "armed" : "off", reason: h.armed ? "old firmware" : "manual", clock: false, scheduled: false };
+  }
+  const modeVals = Object.values(liveModes);
+  const modeKnown = modeVals.length > 0; // nothing reported yet: don't claim either way
+  const oneMode: Mode | null = modeKnown && modeVals.every((m) => m.mode === modeVals[0].mode) ? modeVals[0].mode : null;
+  const anyOff = modeVals.some((m) => m.mode === "off");
+  const usbNode = Object.values(entries).find((e) => e.usb)?.node;
+  const lead: ModeStatus | undefined = (usbNode && liveModes[usbNode]) || modeVals[0];
+  const noClock = modeVals.filter((m) => m.scheduled && !m.clock).length;
 
   // ---- actions --------------------------------------------------------------
 
@@ -263,9 +284,9 @@ function Editor({ conn }: { conn: Connection }) {
     await load();
   };
 
-  const arm = async (on: boolean) => {
-    setBusy("arm");
-    const failed = await armAll(on);
+  const setMode = async (m: Mode) => {
+    setBusy("mode");
+    const failed = await setModeAll(m);
     setBusy(null);
     if (failed.length) setMsg({ text: `No confirmation from ${failed.map(nameOf).join(", ")}`, bad: true });
     await load();
@@ -283,22 +304,38 @@ function Editor({ conn }: { conn: Connection }) {
         <span style={sys(700, 13, C.t1)}>Cues</span>
         <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
-          ...(!armKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
-            : allArmed ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
-            : noneArmed ? { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }
-            : { background: C.amberBg, border: `1px solid ${C.amberB}`, ...mono(700, 10.5, C.amber) }),
-        }}>{!armKnown ? "…" : allArmed ? "ARMED" : noneArmed ? "DISARMED" : "PARTLY ARMED"}</span>
+          ...(!modeKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
+            : oneMode === "armed" ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
+            : oneMode === "ambient" ? { background: C.amberBg, border: `1px solid ${C.amberB}`, ...mono(700, 10.5, C.amber) }
+            : oneMode === "off" ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t3) }
+            : { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }),
+        }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>
         <span style={sys(400, 11.5, C.t4)}>
-          {!armKnown ? "" : allArmed ? "Sensors fire their sequences." : "Triggers and cues are ignored on disarmed boards."}
+          {!modeKnown ? "" : !oneMode ? `Boards disagree: ${modeVals.map((m) => m.mode).join(" / ")} — check their clocks.`
+            : statusLine(oneMode, lead)}
+          {noClock > 0 && <span style={{ color: C.amber }}> · {noClock} board(s) have no clock</span>}
         </span>
         <div style={{ flex: 1 }} />
         {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
         {(loading || busy) && <Spinner />}
         <button onClick={() => void load()} disabled={loading} style={btn(false, loading)}>Reload from boards</button>
-        {allArmed
-          ? <button onClick={() => void arm(false)} style={btn()}>Disarm all</button>
-          : <button onClick={() => void arm(true)} style={btn(true)}>Arm all</button>}
+        <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
+          {MODES.map((m, i) => {
+            const on = oneMode === m;
+            return (
+              <button key={m} onClick={() => void setMode(m)} disabled={!!busy} title={MODE_HELP[m]} style={{
+                height: 30, padding: "0 12px", cursor: busy ? "default" : "pointer",
+                borderRadius: i === 0 ? "6px 0 0 6px" : i === MODES.length - 1 ? "0 6px 6px 0" : 0,
+                marginLeft: i ? -1 : 0,
+                background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`,
+                ...sys(600, 11.5, on ? MODE_COLOR[m] : C.t3),
+              }}>{MODE_LABEL[m]}</button>
+            );
+          })}
+        </span>
+        <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>
       </div>
+      {schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
 
       {!show && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 16, ...mono(500, 11.5, C.t4) }}>
@@ -342,6 +379,20 @@ function Editor({ conn }: { conn: Connection }) {
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
                     onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: 230, ...sys(700, 13, C.t1) }} />
                   <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>
+                  <label title="Ambient: loops by itself while the show is Ambient or Armed — porch lights, a fog burst every few minutes. Every board repeats its part on the same beat."
+                    style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.ambient ? C.amber : C.t4) }}>
+                    <Toggle small on={!!draft.ambient} onClick={() => setDraft({ ...draft, ambient: !draft.ambient })} /> Ambient loop
+                  </label>
+                  {draft.ambient && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }} title="Repeat every … seconds. Blank or shorter than the sequence = its own length.">
+                      <span style={sys(500, 11.5, C.t4)}>every</span>
+                      <input type="number" min={1} step={1} placeholder={secs(Math.max(lengthMs(draft), 1000))}
+                        value={draft.loop_ms ? draft.loop_ms / 1000 : ""}
+                        onChange={(e) => setDraft({ ...draft, loop_ms: e.target.value === "" ? undefined : Math.max(1000, Math.round(+e.target.value * 1000)) })}
+                        style={{ ...field, width: 64, ...mono(500, 12, C.t1) }} />
+                      <span style={sys(500, 11.5, C.t4)}>s</span>
+                    </span>
+                  )}
                   <label title="Dragging a servo, LED or strip value moves the real output, so you can see what you're setting. Relays and motors only change with Test."
                     style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, live ? C.emberT : C.t4) }}>
                     <Toggle small on={live} onClick={() => setLive(!live)} /> Live preview
@@ -350,9 +401,9 @@ function Editor({ conn }: { conn: Connection }) {
                   {dirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
                   <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={btn(false, !dirty || !!busy)}>Revert</button>
                   <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={btn(true, !dirty || !!busy)}>Save to boards</button>
-                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || !allArmed}
-                    title={dirty ? "Save first" : !allArmed ? "Arm the show first" : "Play on every board now"}
-                    style={btn(false, dirty || !saved || !!busy || !allArmed)}>▶ Play</button>
+                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || anyOff}
+                    title={dirty ? "Save first" : anyOff ? "The show is off on some boards — switch to Ambient or Armed" : "Play on every board now"}
+                    style={btn(false, dirty || !saved || !!busy || anyOff)}>▶ Play</button>
                   <button onClick={() => void del()} disabled={!!busy}
                     style={{ ...btn(false, !!busy), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
                     {confirmDelete ? "Really delete?" : "Delete"}
@@ -500,6 +551,14 @@ function Editor({ conn }: { conn: Connection }) {
 function ActivityRow({ a, nameOf, seqName, show }: {
   a: Activity; nameOf: (n: string) => string; seqName: (id: number) => string; show: Show;
 }) {
+  if (a.kind === "mode") {
+    return (
+      <div style={mono(600, 11, a.mode ? MODE_COLOR[a.mode] : C.t3)}>
+        <span style={{ color: C.t5, fontWeight: 500 }}>{clock(a.at)}</span> ◷ {nameOf(a.node)} → {a.mode ? MODE_LABEL[a.mode] : "?"}
+        <span style={{ color: C.t5, fontWeight: 500 }}> ({a.reason})</span>
+      </div>
+    );
+  }
   if (a.kind === "input") {
     const lbl = show.configs[a.node]?.channels?.find((c) => c.kind === "DIGITAL_IN" && c.index === a.index)?.label;
     return (
@@ -514,6 +573,20 @@ function ActivityRow({ a, nameOf, seqName, show }: {
       {a.armed === false && <span> (bridge disarmed)</span>}
     </div>
   );
+}
+
+// "Armed until 21:30 (schedule) · sunset 17:59" — in the boards' time zone.
+function statusLine(mode: Mode, st: ModeStatus | undefined): string {
+  const base = MODE_HELP[mode];
+  if (!st) return base;
+  const tz = st.tz_min;
+  const parts: string[] = [];
+  if (st.reason === "manual" && st.hold_until_s) parts.push(`set by hand until ${hhmm(st.hold_until_s * 1000, tz)}`);
+  else if (st.reason === "manual") parts.push("set by hand");
+  else if (st.reason === "schedule" && st.next_s && st.next_mode) parts.push(`next: ${MODE_LABEL[st.next_mode]} at ${hhmm(st.next_s * 1000, tz)}`);
+  else if (st.reason !== "schedule") parts.push(st.reason);
+  if (st.sunset_s) parts.push(`sunset ${hhmm(st.sunset_s * 1000, tz)}`);
+  return `${base} ${parts.length ? "· " + parts.join(" · ") : ""}`;
 }
 
 // Ease amounts for a ramp: a preset, or drag the two handles of the

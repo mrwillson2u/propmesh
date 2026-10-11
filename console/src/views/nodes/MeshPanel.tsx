@@ -8,7 +8,7 @@ import { Spinner, mono, sys } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
-import { DEFAULT_WIFI_URL, connectSim, connectUsb, connectWifi, target, webSerialSupported } from "../../lib/transport";
+import { DEFAULT_WIFI_URL, connectSim, connectUsb, connectWifi, directLabel, rememberWay, target, webSerialSupported } from "../../lib/transport";
 import PinEditor from "./PinEditor";
 import FloodsPanel from "./FloodsPanel";
 import OtaPanel from "./OtaPanel";
@@ -51,6 +51,7 @@ export default function MeshPanel() {
     try {
       const { link, hello } = how === "usb" ? await connectUsb() : how === "wifi" ? await connectWifi(wifiAddr) : await connectSim();
       if (how === "wifi") { try { localStorage.setItem("propmesh.bridge", wifiAddr); } catch { /* private mode */ } }
+      if (how !== "sim") rememberWay(how);
       openConnection(link, hello);
     } catch (e) {
       // Closing the port chooser is not an error worth showing.
@@ -60,7 +61,7 @@ export default function MeshPanel() {
     }
   };
 
-  const disconnect = () => { void closeConnection(); };
+  const disconnect = () => { rememberWay(null); void closeConnection(); };
   const setSelected = select;
 
   const onSelInput = useCallback(
@@ -73,10 +74,10 @@ export default function MeshPanel() {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         <div style={{ flex: 1 }}>
-          <div style={sys(700, 12.5, C.t1)}>Generic boards over USB</div>
+          <div style={sys(700, 12.5, C.t1)}>Connect to your bridge</div>
           <div style={{ ...mono(500, 11, error || connectionError() ? C.red : C.t4), marginTop: 3 }}>
             {error ?? connectionError() ?? (webSerialSupported()
-              ? "Plug in a devkit flashed with firmware/node — your bridge — and connect. Every node it hears on the mesh shows up here."
+              ? "Over WiFi (the bridge's address), or plug the bridge in and connect over USB. Every node it hears on the mesh shows up here."
               : "USB needs Web Serial — open the console in Chrome or Edge. The simulated mesh works anywhere.")}
           </div>
         </div>
@@ -99,7 +100,7 @@ export default function MeshPanel() {
   const sel = selected ? entries[selected] : undefined;
   const selBoard = sel?.hello ? BOARDS[sel.hello.board] : undefined;
 
-  const where = (en: Entry) => en.usb ? "USB"
+  const where = (en: Entry) => en.usb ? directLabel(link)
     : en.hb ? `mesh · ${en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · ${en.hb.rssi} dBm`
     : "mesh";
 
@@ -132,7 +133,7 @@ export default function MeshPanel() {
                 : <Spinner size={10} />}
               <span style={sys(600, 12, missing ? C.red : en.hello ? C.t1 : C.t3)}>{en.hello?.name || en.node}</span>
               {!en.hello && <span style={mono(500, 10.5, C.t4)}>connecting…</span>}
-              {en.usb && tag("USB", C.t2, C.raised)}
+              {en.usb && tag(directLabel(link), C.t2, C.raised)}
               {bridge && tag("BRIDGE", C.emberT, C.emberBg)}
               {clock && <span title="Keeps the mesh clock (conductor)" style={mono(600, 11, C.t4)}>⏱</span>}
               {!en.usb && en.hb && <span style={mono(500, 10.5, C.t4)}>{en.hb.rssi}</span>}

@@ -9,6 +9,7 @@ import { target, type NodeLink, type Reply } from "./transport";
 import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
 import type { Entry } from "./connection";
+import type { ModeStatus } from "./schedule";
 
 // Easing = how much of a ramp is spent speeding up (ease_in %) and
 // slowing down (ease_out %), cruising in between (firmware pm_ramp.h).
@@ -56,7 +57,7 @@ export function sameSequence(a: Sequence | null | undefined, b: Sequence | null 
   if (!a || !b) return a === b;
   // Explicit fields in a fixed order: JSON.stringify follows property
   // insertion order, which differs between a new and a loaded sequence.
-  const norm = (s: Sequence) => JSON.stringify([s.id, s.name, sortSteps(s).steps.map((x) => [
+  const norm = (s: Sequence) => JSON.stringify([s.id, s.name, !!s.ambient, s.ambient ? s.loop_ms ?? 0 : 0, sortSteps(s).steps.map((x) => [
     x.t_ms, x.node, x.kind, x.index, x.value,
     (x.dur_ms ?? 0) > 0 ? x.dur_ms : 0,
     (x.dur_ms ?? 0) > 0 ? x.ease_in ?? 50 : 0,
@@ -84,6 +85,11 @@ export const canRamp = (kind: ChannelKindName) => RAMP_KINDS.includes(kind);
 export interface Sequence {
   id: number;
   name: string;
+  // Loops by itself while the show is ambient or armed (porch lights, a
+  // fog burst every ten minutes), every loop_ms on the mesh clock — the
+  // same period on every board, so their parts stay in step.
+  ambient?: boolean;
+  loop_ms?: number; // 0/absent = the sequence's own length
   steps: Step[];
   // Nodes that held a part when loaded — a save must delete the part
   // from any that no longer have steps.
@@ -108,6 +114,7 @@ export interface Show {
   configs: Record<string, NodeConfig>; // each node's channels, for the pickers (floods under FLOODS)
   floods: FloodsState; // the mesh-wide flood lights and which boards send to them
   armed: Record<string, boolean>;
+  modes: Record<string, ModeStatus>; // per board: mode, why, what the schedule does next
   unreachable: string[]; // nodes that didn't answer during load
 }
 
@@ -120,7 +127,7 @@ type Wire =
   | [number, ChannelKindName, number, number, number, string]; // named preset, before 2026-10-06
 
 export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> {
-  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, unreachable: [] };
+  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [] };
   const byId = new Map<number, Sequence>();
   await Promise.all(entries.map(async (en) => {
     try {
@@ -129,14 +136,18 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
       if (!cfg.ok || !sh.ok) throw new Error(cfg.error ?? sh.error);
       show.configs[en.node] = cfg.config as NodeConfig;
       show.armed[en.node] = !!sh.armed;
+      // Firmware before the schedule (2026-10-09) reports only armed.
+      show.modes[en.node] = sh.mode ? (sh as unknown as ModeStatus)
+        : { mode: sh.armed ? "armed" : "off", reason: "old firmware", clock: false, scheduled: false };
       for (const r of (sh.rules as Omit<Rule, "node">[]) ?? []) show.rules.push({ ...r, node: en.node });
       // Parts one at a time: each can be up to ~4 kB over the mesh.
       for (const sum of (sh.sequences as { id: number; name: string; problem?: string }[]) ?? []) {
         const part = await ask(link, en, "get_sequence", { seq: sum.id });
         if (!part.ok) continue;
-        const p = part.sequence as { id: number; name: string; steps: Wire[] };
+        const p = part.sequence as { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] };
         const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], problems: [] };
         if (!seq.name && p.name) seq.name = p.name;
+        if (p.ambient) { seq.ambient = true; seq.loop_ms = Math.max(seq.loop_ms ?? 0, p.loop_ms ?? 0) || undefined; }
         seq.loadedOn.push(en.node);
         if (sum.problem) seq.problems.push(`${en.hello?.name || en.node}: ${sum.problem}`);
         for (const w of p.steps) {
@@ -204,7 +215,11 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
     const steps = parts.get(node);
     try {
       const r = steps
-        ? await ask(link, en, "set_sequence", { sequence: { id: seq.id, name: seq.name, steps } })
+        ? await ask(link, en, "set_sequence", { sequence: {
+            id: seq.id, name: seq.name, steps,
+            // One period for every board: each part's own length differs.
+            ...(seq.ambient ? { ambient: true, loop_ms: Math.max(seq.loop_ms ?? 0, lengthMs(seq), 1000) } : {}),
+          } })
         : await ask(link, en, "delete_sequence", { seq: seq.id });
       if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
     } catch (e) {

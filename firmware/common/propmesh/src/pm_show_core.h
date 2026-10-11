@@ -22,6 +22,8 @@
 #define PM_SEQ_NAME_LEN 24
 #define PM_MAX_STEP_MS 600000u   // 10 minutes
 #define PM_MAX_COOLDOWN_MS 3600000u
+#define PM_MAX_LOOP_MS 3600000u      // an ambient loop repeats at most hourly
+#define PM_MIN_LOOP_MS 1000u
 #define PM_CUE_LEAD_MS 200       // fire_at = now + this: absorbs hops and relay jitter
 #define PM_CUE_COPIES 3          // a CUE is one unacknowledged frame — send it thrice
 #define PM_CUE_MEMORY_MS 3000    // ...and recognise the copies for this long
@@ -52,11 +54,22 @@ inline bool pm_kind_ramps(uint8_t kind) {
 struct PmSequence {
   uint16_t id = 0;
   char name[PM_SEQ_NAME_LEN] = {};
+  // Ambient (2026-10-09, software-plan §4.1): loops by itself whenever the
+  // show is in `ambient` or `armed` mode — porch lights, a fog burst every
+  // ten minutes. `loop_ms` is show-wide (the whole sequence's period, the
+  // same on every node), and each repeat starts on a multiple of it in
+  // mesh time, so every node's part stays in step with no messages.
+  bool ambient = false;
+  uint32_t loop_ms = 0;  // 0 = this node's part's own length (min 1 s)
   uint8_t step_count = 0;
   PmStep steps[PM_MAX_STEPS];
   // Clear in place. Never `s = PmSequence()`: that builds a ~1.2 KB
   // temporary on the stack first.
-  void clear() { id = 0; name[0] = 0; step_count = 0; }
+  void clear() { id = 0; name[0] = 0; ambient = false; loop_ms = 0; step_count = 0; }
+  uint32_t period_ms() const {
+    uint32_t p = loop_ms ? loop_ms : length_ms();
+    return p < PM_MIN_LOOP_MS ? PM_MIN_LOOP_MS : p;
+  }
   uint32_t length_ms() const {
     uint32_t m = 0;
     for (uint8_t i = 0; i < step_count; i++) if (steps[i].t_ms > m) m = steps[i].t_ms;
@@ -126,6 +139,8 @@ struct PmShow {
 inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cfg) {
   if (!s.id) return "sequence id must be 1-65535";
   if (s.step_count > PM_MAX_STEPS) return "too many steps";
+  if (s.loop_ms > PM_MAX_LOOP_MS) return "loop over an hour";
+  if (s.loop_ms && s.loop_ms < s.length_ms()) return "loop is shorter than the sequence";
   for (uint8_t i = 0; i < s.step_count; i++) {
     const PmStep &st = s.steps[i];
     if (st.t_ms > PM_MAX_STEP_MS) return "step time over 10 minutes";
@@ -150,6 +165,14 @@ inline const char *pm_check_rules(const PmRule *rules, uint8_t n, const PmNodeCo
     if (rules[i].cooldown_ms > PM_MAX_COOLDOWN_MS) return "cooldown over an hour";
   }
   return nullptr;
+}
+
+// --- ambient loops ------------------------------------------------------------
+// Which repeat of an ambient sequence is due at mesh time `mesh_ms`, and
+// when (mesh ms) it began. Repeats sit on multiples of the period, so two
+// nodes asking at the same mesh time get the same answer.
+inline int64_t pm_loop_index(int64_t mesh_ms, uint32_t period_ms) {
+  return mesh_ms >= 0 ? mesh_ms / period_ms : -((-mesh_ms + period_ms - 1) / period_ms);
 }
 
 // --- triggers ----------------------------------------------------------------

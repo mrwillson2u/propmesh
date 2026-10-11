@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
-import { target, type NodeLink } from "../../lib/transport";
+import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
 import { fetchImage, fileImage, streamImage, type Image } from "../../lib/ota";
 
@@ -49,6 +49,30 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const known = Object.values(entries).filter((e) => e.hello)
     .sort((a, b) => Number(a.usb) - Number(b.usb) || (a.hello!.name || a.node).localeCompare(b.hello!.name || b.node));
   const nameOf = (n: string) => entries[n]?.hello?.name || n;
+
+  // What each board is doing about updates RIGHT NOW, from the board —
+  // not from this page's memory, which a refresh wipes: a half-received
+  // mesh image (resumable), or a WiFi download under way.
+  const [onBoard, setOnBoard] = useState<Record<string, { state: string; progress: number; written: number }>>({});
+  const knownKey = known.map((e) => e.node).join(",");
+  // Asked again every 5 s — a once-only read went stale and showed a
+  // finished/dropped transfer as still running (2026-10-10).
+  useEffect(() => {
+    let live = true;
+    const ask = () => {
+      for (const en of Object.values(entriesRef.current).filter((e) => e.hello)) {
+        if (jobsRef.current[en.node]?.state === "sending") continue;  // our own transfer: don't add traffic
+        target(link, en.usb ? null : en.node).request("ota_status").then((r) => {
+          if (!live || !r.ok) return;
+          setOnBoard((m) => ({ ...m, [en.node]: { state: r.state as string, progress: (r.progress as number) ?? 0, written: (r.written as number) ?? -1 } }));
+        }).catch(() => { /* busy: next round */ });
+      }
+    };
+    ask();
+    const t = setInterval(ask, 5000);
+    return () => { live = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [knownKey, link]);
 
   // What the server offers: version.json next to firmware.bin.
   const check = async () => {
@@ -208,7 +232,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
             <span key={en.node + "n"} style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: missing ? C.red : C.green }} />
               <span style={sys(600, 12.5, C.t1)}>{nameOf(en.node)}</span>
-              {en.usb && <span style={mono(700, 9.5, C.t3)}>USB</span>}
+              {en.usb && <span style={mono(700, 9.5, C.t3)}>{directLabel(link)}</span>}
             </span>,
             <span key={en.node + "b"} style={mono(600, 11.5, current ? C.green : C.t2)}>{build}{en.hello?.pending ? " · unconfirmed" : ""}</span>,
             <span key={en.node + "s"} style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, j?.state === "failed" ? C.red : j?.state === "done" ? C.green : C.t4) }}>
@@ -225,10 +249,21 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
               {j?.state === "waiting" && <><Spinner size={10} /> {mode === "mesh" ? "image accepted — rebooting into it…" : "gone quiet — downloading, then rebooting…"}</>}
               {j?.state === "done" && `✓ updated — ${j.note}`}
               {j?.state === "failed" && `✕ ${j.note}`}
-              {!j && (current ? "up to date" : missing ? "not heard recently" : "")}
+              {!j && (current ? "up to date" : missing ? "not heard recently"
+                : onBoard[en.node]?.state === "downloading" && onBoard[en.node].written > 0
+                  ? `paused at ${onBoard[en.node].progress} % received — Update resumes it (same image)`
+                // Firmware before 2026-10-09 reports a mesh transfer and a WiFi
+                // download alike (no `written`): don't guess which.
+                : onBoard[en.node]?.state === "downloading" && onBoard[en.node].written < 0
+                  ? `holding a part-received update (${onBoard[en.node].progress} %) — Update starts it again`
+                : onBoard[en.node]?.state === "downloading" || onBoard[en.node]?.state === "connecting"
+                  ? `downloading over WiFi… ${onBoard[en.node].progress} %`
+                : !ready ? "load an image above to update" : "")}
             </span>,
             <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j)}
-              title={en.usb ? "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)" : undefined}
+              title={en.usb ? (link.via === "wifi"
+                ? "The console's own bridge: it reboots at the end and the console reconnects by itself. Over WiFi is the sturdier way to update this one."
+                : "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)") : undefined}
               style={btn(false, !ready || busy(j))}>
               {en.usb ? "Update (last)" : "Update"}
             </button>,
@@ -236,7 +271,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         })}
       </div>
       <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5 }}>
-        A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. Do the USB board last: while it
+        A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. Do the bridge (the board the console is connected to) last: while it
         reboots the others can't be reached.{mode === "wifi" ? " Over WiFi a board leaves the mesh for the download (about a minute)." : ""}
       </div>
     </div>

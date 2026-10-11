@@ -7,12 +7,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
-import { counts, useConnection, type Connection } from "../../lib/connection";
+import { counts, getConnection, useConnection, type Connection } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
 import { FLOODS, deriveFloods } from "../../lib/floods";
-import { target } from "../../lib/transport";
+import { directLabel, target } from "../../lib/transport";
 import type { NodeConfig } from "../../lib/nodeConfig";
 
 type Layout = "topology" | "map";
@@ -147,6 +147,8 @@ function useFloods(conn: Connection): YardFlood[] {
     senders: st.senders.filter((n) => cfgs[n]?.channels.some((c) => c.kind === "BLE_LIGHT" && c.light === l.number)),
   }));
 }
+// The tag for the board the console talks to directly (WIFI / USB / SIM).
+const directTag = () => { const c = getConnection(); return c ? directLabel(c.link) : "USB"; };
 const isMissingEntry = (en: { usb: boolean; seen: number }) => !en.usb && Date.now() - en.seen > 16000;
 
 // ---- view -----------------------------------------------------------------
@@ -167,7 +169,7 @@ export default function RealYard({ onOpenNode, onConnect }: {
         <div style={{ maxWidth: 440, textAlign: "center" }}>
           <div style={sys(700, 15, C.t1)}>No mesh connected</div>
           <div style={{ ...sys(400, 12.5, C.t3), marginTop: 8, lineHeight: 1.55 }}>
-            Connect your bridge over USB in Nodes &amp; Channels. The yard then draws every node it hears
+            Connect your bridge (WiFi or USB) in Nodes &amp; Channels. The yard then draws every node it hears
             and the radio links between them, live.
           </div>
           <button onClick={onConnect} style={{ marginTop: 16, height: 32, padding: "0 14px", background: C.emberBg, border: `1px solid ${C.ember}`, borderRadius: 6, ...sys(600, 12, C.emberT) }}>
@@ -389,7 +391,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
             <text x={p.x} y={p.y + r + 20} fontSize="12.5" fontWeight="600" textAnchor="middle" fontFamily="system-ui"
               fill={n.missing ? C.red : sel === n.id ? C.emberT : C.t1}>{n.name}</text>
             <text x={p.x} y={p.y + r + 35} fontSize="10.5" textAnchor="middle" fontFamily={MONO} fill={C.t4}>
-              {n.bridge ? "BRIDGE · ⏱ clock" : n.missing ? "missing" : `${n.usb ? "USB" : n.depth >= 0 ? `H${n.depth}` : "—"}${n.conductor ? " · ⏱" : ""}`}
+              {n.bridge ? "BRIDGE · ⏱ clock" : n.missing ? "missing" : `${n.usb ? directTag() : n.depth >= 0 ? `H${n.depth}` : "—"}${n.conductor ? " · ⏱" : ""}`}
             </text>
           </g>
         );
@@ -437,7 +439,7 @@ function Detail({ n, links, nodes, now, onClose, onOpen }: {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: C.b1, borderBottom: `1px solid ${C.b1}` }}>
         <Stat k="ROLE" v={n.bridge ? "Bridge" : "Relay"} color={n.bridge ? C.emberT : undefined} />
         <Stat k="MESH CLOCK" v={n.conductor ? "⏱ keeps it" : "follows"} />
-        <Stat k="CONNECTION" v={n.usb ? "USB" : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
+        <Stat k="CONNECTION" v={n.usb ? directTag() : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
         <Stat k="LAST HEARD" v={n.usb ? "on the cable" : `${age(now - e.seen)} ago`} color={n.missing ? C.red : undefined} />
         <Stat k="UPTIME" v={uptime(hb?.up)} />
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />

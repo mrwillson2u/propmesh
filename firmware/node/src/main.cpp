@@ -212,8 +212,15 @@ void setup() {
   // event; the board then rejoins the mesh on its own. Nothing in loop()
   // legitimately takes 30 s (a mesh request is retried for 2.7 s at most).
   esp_task_wdt_config_t wdt = { .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = true };
+  // The Arduino core has usually started the watchdog already ("TWDT
+  // already initialized" on the log is expected): reconfigure it, then
+  // subscribe this task. Say whether that worked — a bridge hung at 43 %
+  // of a self-update on 2026-10-11 and never rebooted itself, and the log
+  // also showed "esp_task_wdt_reset: task not found".
   if (esp_task_wdt_init(&wdt) != ESP_OK) esp_task_wdt_reconfigure(&wdt);
-  esp_task_wdt_add(nullptr);
+  esp_err_t wdt_err = esp_task_wdt_add(nullptr);
+  if (wdt_err == ESP_OK || esp_task_wdt_status(nullptr) == ESP_OK) Serial.println("wdt: watching the main loop (30 s)");
+  else Serial.printf("wdt: NOT watching the main loop (%s) — a hang won't reboot\n", esp_err_to_name(wdt_err));
 }
 
 // A freshly updated image proves itself by running with the mesh up for

@@ -579,7 +579,10 @@ bonus for when the laptop's network happens to reach.
 - **Serve:** `python3 tools/ota_serve.py --build` builds, then serves
   `firmware/node/.pio/build/esp32-devkit-v1/` on port 8266 with CORS open
   and prints the URL. `build_id.py` (PlatformIO extra script) stamps every
-  build with its git commit (`PM_BUILD`, "+" = dirty tree) and writes
+  build with its git commit (`PM_BUILD`; uncommitted changes add "+" and
+  a 6-character hash of them, e.g. `fca01a5+126655` — until 2026-10-09
+  it was a bare "+", so two different uncommitted builds matched and the
+  console called old boards "up to date") and writes
   `version.json` {build, size, sha256} next to `firmware.bin`.
 - **Console:** Nodes & Channels → **↑ Firmware**: URL, WiFi name and
   password (kept in the browser's localStorage, never on a board), the
@@ -694,6 +697,111 @@ Firmware updates over WiFi-to-bridge-to-mesh work unchanged, and faster
 than over the cable. Serving the console *from* the bridge comes later
 (software-plan §5): the 192 kB LittleFS is tight for the SPA.
 
+## 6e. Show schedule (built 2026-10-09, Stage 3b — host-tested, not yet on hardware)
+
+Design: software-plan §4.1. **Status:** firmware builds; 14 host tests
+(`test_schedule`) pass, sunrise/sunset/dawn/dusk within 2 min of the
+`astral` reference at five places; console checked in Chrome against the
+simulated mesh. **Not yet run on real boards** — bench test below.
+
+**Modes.** `off` (nothing plays, every output off) · `ambient`
+(sequences marked *Ambient loop* repeat; sensors ignored) · `armed`
+(ambient + sensor triggers). Cues from the console play in `ambient`
+or `armed`, never `off`.
+
+**Schedule** (`/schedule.json`, same copy on every board):
+
+```json
+{"enabled": true, "lat": 40.71, "lon": -74.01, "manual_max_min": 60,
+ "windows": [{"start": "sunset-60", "end": "21:30", "mode": "armed"},
+             {"start": "21:30", "end": "22:30", "mode": "ambient"},
+             {"days": ["fri","sat"], "start": "sunset-60", "end": "22:30", "mode": "armed"},
+             {"dates": ["10-31","10-31"], "start": "sunset-60", "end": "23:00", "mode": "armed"}]}
+```
+
+A time is `"HH:MM"` or `dawn` / `sunrise` / `sunset` / `dusk` with an
+optional minute offset (`"sunset-60"`, `"dusk+15"`). `days` / `dates`
+are optional. **Later windows win**; outside every window → `off`. An
+end at or before its start runs past midnight. At most 12 windows.
+
+**Manual buttons** (Off / Ambient / Armed, STOP ALL, RE-ARM) hold until
+the schedule's next change — except a mode *more* active than the
+schedule's (Armed at 23:00) lasts at most `manual_max_min` (60), so
+the yard still goes quiet. **A manual mode survives a restart**
+(2026-10-10): it is saved to `/mode.json` with its end, so a power
+blip or a firmware update after STOP ALL doesn't re-arm the yard.
+With no schedule it holds until a button changes it. Boards boot
+armed only when nothing was set by hand.
+
+**What you set by hand comes back with the show** (2026-10-10).
+Every board remembers the outputs set by hand from the console — flood
+colors, a porch-light relay, an LED level, a servo pose. Going `off`
+turns everything off; coming back to `ambient`/`armed` (button or
+schedule) turns those by-hand outputs back on, unless one was changed
+meanwhile. **Not restored:** whatever a running sequence had set (a
+fogger relay caught mid-burst by STOP ALL would stay on with no
+sequence to turn it off) — a sequence step on an output takes it off
+the by-hand list, and the show's own ambient sequences restart anyway;
+the sequence editor's live preview and Test (`"preview": true`); and
+anything after a plain **All off** pressed while the show is on (that
+means "off, stay off"). Kept in `/parked.json` while off, so a restart
+keeps it.
+
+**Clock.** Each board keeps UTC as an offset from its own timer (not
+from mesh time, which jumps when the conductor changes) plus the UTC
+offset and its next DST change. Sources: the console on every connect
+(`set_clock` from the laptop/phone), the conductor's `TIME` beacon
+(new fields; 14-byte beacons from older firmware still read), and SNTP
+on a bridge with WiFi. With a schedule but no clock a board stays
+`off` for 60 s after boot waiting for a beacon, then falls back to
+`armed` (as before schedules). No schedule = armed at boot, as before.
+
+**Ambient loops** start on multiples of `loop_ms` in mesh time, so every
+board's part of a loop repeats on the same beat with no messages.
+Entering `ambient` mid-period runs the overdue steps at once (the
+lights come on; a fog relay ends in its right state).
+
+| `cmd` | Request | Reply (all add the mode block below) |
+|---|---|---|
+| `set_clock` | `utc_ms`, `tz_offset_min`, `tz_next_change_s`, `tz_next_offset_min` | — |
+| `set_schedule` | `schedule` (above) | — saved to `/schedule.json` |
+| `get_schedule` | — | `schedule` |
+| `set_mode` | `mode` | — manual, held as above |
+| `arm` | `on` | `armed` — the old API: armed / off, held like `set_mode` |
+| `get_show` | — | as before + the mode block |
+
+Mode block: `mode`, `reason` (`schedule` / `manual` / `no clock` / `no
+schedule` / `waiting for the clock`), `clock`, `scheduled`, `utc_s`,
+`tz_min`, `next_s` + `next_mode`, `hold_until_s`, `sunset_s`,
+`sunrise_s`. Event `{"evt":"mode","node","mode","reason"}` on every
+change. Sequences gain `ambient` and `loop_ms` (the console sends one
+show-wide period to every part).
+
+**Console → Cues:** header shows the mode (ARMED / AMBIENT / OFF /
+MIXED) with why and the next change ("next: Ambient at 21:30 · sunset
+18:28"); Off / Ambient / Armed buttons; **Schedule…** opens the editor
+(location typed or *Use this device's location*, today's sunrise/
+sunset, one row per window with day chips, optional dates, from/to with
+presets, mode, and what it resolves to today; Save to boards also sets
+their clocks). Sequence editor: *Ambient loop* toggle + "every N s".
+
+**Files:** firmware `pm_sun.h`, `pm_schedule.h` (pure), `pm_time.h`
+`PmWallClock`, `pm_schedule_json.h`, `pm_show.cpp` (runtime),
+`pm_mesh.cpp` (beacon), `pm_wifi.cpp` (SNTP); console
+`lib/schedule.ts`, `views/show/SchedulePanel.tsx`.
+
+**Bench test (Stage 3b)** — two boards on the shelf, one sequence
+marked Ambient loop (an LED on, 5 s loop), one PIR trigger:
+1. Flash both (frame format changed — every node must match).
+2. Console → Cues → Schedule…: your location; set row 1 to start
+   2 minutes from now; Save. Header: OFF, "next: Armed at …".
+3. At that minute both go ARMED, the LED loop starts on both boards
+   together, the PIR fires its sequence.
+4. Press **Off**: outputs off, "set by hand until …" the next edge.
+5. Power-cycle one board with the console unplugged: it comes back
+   `off`/`waiting for the clock`, then takes the schedule's mode from
+   the other board's beacon within ~5 s.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
@@ -755,6 +863,7 @@ next one (6 LEDC channels — the budget check exists for it).
 |---|---|---|---|
 | **1 — one devkit on USB** | ~Oct 8 | everything above | §7 |
 | **2 — config over the mesh** ✍ written 10-05 | ~Oct 15 | the USB node forwards requests to other node ids over ESP-NOW (`SET` + chunked `CONFIG` messages in `schema/`); real heartbeats replace the console's mock node list | one devkit on USB, two on wall power; configure and test-fire the remote two |
+| **3b — schedule** ✅ built 10-09, bench test §6e pending | ~Oct 20 | §6e: wall clock in `TIME`, `set_clock` on connect, `set_schedule` windows (sunset ± offset from lat/lon), modes `off`/`ambient`/`armed`, ambient sequences loop, Schedule panel | two boards on the shelf with the clock set to 16:50 local: ambient sequence starts at sunset − 60, triggers go live, lights-only at 21:30, all off at 22:30; STOP ALL at 20:00 stays stopped until 21:30 |
 | **3 — triggers** ✍ written 10-05 | ~Oct 22, **then freeze** | per-node rules: `DIGITAL_IN_n` → timed step list (`t_ms`, channel, value, `ramp`) with cooldown; steps on other nodes go out as a `CUE` at mesh time T | shelf rehearsal (PIR on A → servo on B + relay on C), then a yard dress rehearsal ≥ 1 week before Halloween |
 
 **Cut line:** if Stage 2 isn't solid by Oct 15, the show runs Stage 1
@@ -762,6 +871,51 @@ nodes with per-node configs and same-node triggers only. No new
 features after Oct 22.
 
 ## 9. Known gaps
+
+- **OPEN 2026-10-11 — the bridge froze updating ITSELF over the mesh
+  path.** Console on WiFi, Bridge → *Update (last)* in "Over the mesh"
+  mode: stopped at 43 %, the bridge dropped off WiFi (no ping) for 2+
+  min and needed a power cycle — so its reset reason read "power on" and
+  the cause was lost. Prop updated over the mesh the same session
+  without trouble. Suspects: the WebSocket server (3.7 kB frames) while
+  the flash writes, or WiFi not rejoining after a watchdog reset.
+  **Workaround: update the bridge with "Over WiFi"** (it downloads the
+  image itself, no per-chunk round trips). To diagnose a repeat: USB
+  cable + serial monitor during the update. **Retried the same day with the
+  bridge on laptop USB power and a serial log: the identical transfer
+  over WiFi took 58 s (~100 ms a chunk, no stalls), installed and
+  confirmed.** So the freeze didn't reproduce; suspects now are the
+  bridge's own power supply (flash writes + WiFi transmit are its peak
+  draw) and the task watchdog not watching the loop (boot log:
+  "esp_task_wdt_reset: task not found") — firmware now prints at boot
+  whether the watchdog is watching.
+
+- **Fixed 2026-10-09 — mesh updates to a weak-link board never
+  finished** (Prop at −69 dBm, failing partway, every time). The bridge
+  tries each 2.7 kB chunk 3 times and then answers "no reply from node
+  …"; the console treated that one answer as fatal, cancelled the
+  transfer on the board, and the next try started from zero — over ~490
+  chunks one bad patch is near-certain. Now (console `lib/ota.ts`) a
+  lost chunk is re-sent, only 3 minutes with no progress gives up, and
+  a failed transfer is left on the board; pressing Update again with the
+  same image **resumes** where it stopped (firmware `pm_ota_begin`, kept
+  10 min). A lost reply to the final install step no longer reads as a
+  failure. The Update panel asks each board `ota_status` when it opens,
+  so a transfer interrupted by a page refresh shows "paused at N %".
+  The retry fix is console-side and helps boards on older firmware too;
+  resume needs the new firmware.
+- **Fixed 2026-10-09 — the console showed what it last clicked, not
+  what the boards are doing.** Audit of every piece of board state the
+  console holds: STOP ALL was a page-local flag (a refresh after STOP ALL
+  showed the show running); the Cues mode badge was read once per visit
+  (a scheduled change at 21:30 didn't show); the update panel forgot a
+  half-sent image on refresh; the sidebar called a WiFi connection
+  "SIM". Now every board's `hello` carries its mode block and is re-asked
+  every 15 s (`lib/connection.ts`); STOPPED = every board reports off
+  *by hand*; the badge uses the live status. Checked and already right:
+  flood colors, Yard values, pin-editor values, the light search,
+  sequences, triggers, schedule, pin config (all read from the boards).
+  The activity log is events since connecting — boards keep no history.
 
 - **Fixed 2026-10-06 — timeline/step-list editing bugs** (found by
   Colin; reproduced in Chrome with real mouse and keyboard input):

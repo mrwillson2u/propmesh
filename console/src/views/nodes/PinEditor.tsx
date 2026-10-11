@@ -47,7 +47,7 @@ export interface EditorProps {
   node: NodeTarget; // requests go to this node, over the mesh if remote
   hello: NodeHello;
   board: Board;
-  where: string; // "USB" / "mesh · 1 hop · −54 dBm" — shown in the header
+  where: string; // "USB" / "WIFI" (the bridge itself) / "mesh · 1 hop · −54 dBm" — shown in the header
   // Subscribe to this node's input events; returns the unsubscribe.
   onInput: (cb: (kind: string, index: number, value: number) => void) => () => void;
   // The node's name or bridge flag changed on save — the roster shows them.
@@ -236,7 +236,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
       {!loaded && !error && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "14px 16px", ...mono(500, 11.5, C.t4) }}>
-          <Spinner /> Reading pin assignments from {hello.name || hello.node}{where === "USB" ? "" : " over the mesh"}…
+          <Spinner /> Reading pin assignments from {hello.name || hello.node}{where.startsWith("mesh") ? " over the mesh" : ""}…
         </div>
       )}
       {!loaded && error && (

@@ -213,6 +213,85 @@ Modules in `firmware/common/`, composed per board profile:
   out of router range — mesh OTA is the only path that works). Role
   targeting ported conceptually from painlessMesh's `initOTAReceive`.
 
+### 4.1 Show schedule (decided and built 2026-10-09 — API, status and bench test: generic-boards §6e)
+
+**Gap Colin named 2026-10-09:** nothing turns the show on at dusk or
+off at a neighbor-friendly hour. Today a show is armed until someone
+presses STOP ALL. The schedule fixes that **on the nodes**, so it works
+with no laptop and no WiFi (mesh-first), and a power cut never leaves
+a node screaming at 2 a.m.
+
+**Modes.** Every node is always in exactly one:
+
+| Mode | Sensor triggers | Ambient sequences (lights, fog idle) | Outputs |
+|---|---|---|---|
+| `off` | ignored | stopped | all off (Mini: 5 V rail off, deep sleep) |
+| `ambient` | ignored | looping | as the sequences set them |
+| `armed` | live | looping | as the sequences and cues set them |
+
+A sequence gets one flag, `ambient: true` → it loops whenever the mode
+is `ambient` or `armed` and stops on `off`. That is "lights and fog
+come on at dusk". Today's **armed/disarmed** is `armed`/`off`.
+
+**Schedule = a list of windows; the last matching window wins.**
+`{days: [Mon…Sun] | dates: [from, to], start, end, mode}`, where
+`start`/`end` are **`"HH:MM"`** or **`"sunset-60"`-style strings**
+(`sunset` / `sunrise` / `dusk` / `dawn`, optional ± minutes) (civil dusk/dawn = sun 6° below the horizon).
+Shipped default:
+
+1. every day · `sunset − 60` → `21:30` · `armed`
+2. every day · `21:30` → `22:30` · `ambient` (lights stay, scares stop)
+3. Fri, Sat · `sunset − 60` → `22:30` · `armed`
+4. Oct 31 · `sunset − 60` → `23:00` · `armed`
+5. otherwise `off`
+
+A manual STOP ALL / RE-ARM / mode change **holds until the schedule's
+next change**, then the schedule takes over again — STOP ALL at 20:00
+stays stopped until 21:30. A manual mode **more active** than the
+schedule's (re-arming at 23:00 for a late group) is capped at
+`manual_max_min` (default 60), otherwise "until the next change" would
+mean all night. The console shows the reason: "ARMED until 21:30
+(schedule)" · "off — next: armed at 17:48 (sunset − 1 h)".
+
+**Sunset** is computed on the node (`pm_sun.h`, NOAA solar equations,
+±2 min) from the date, **latitude/longitude and UTC offset** that the
+console sends once (one tap "Use this device's location", or typed).
+The console displays today's computed sunset beside the fields so a
+wrong longitude is obvious.
+
+**Wall-clock time** — the schedule's one dependency. The conductor's
+`TIME` beacon gains `wall_ms`, `wall_flags` and the UTC offset with its
+next DST change; each node keeps wall time as an offset from its **own
+timer** (mesh time jumps when the conductor changes; the time of day
+must not).
+Sources, in order: (1) bridge SNTP when the bridge has WiFi; (2) **the
+console sets the mesh clock from the phone/laptop whenever it
+connects** (`set_clock`) — the October path; (3) optional DS3231 RTC
+on the Qwiic connector ($1) for yards with no WiFi and frequent power
+cuts; (4) the ESP32's RTC carries time through deep sleep and resets,
+not through a power cut. With a schedule but no wall time a node
+waits 60 s after boot in `off` (a 2 a.m. power blip must not arm the
+yard), then falls back to armed; the console warns "no clock".
+*Frame-format change → every node must run the same firmware.*
+
+**Evaluation.** Each node re-evaluates once a minute and at every
+`TIME` beacon; the sensor's node checks its mode before firing a cue;
+`off` → stop sequences, outputs off. A sleeping Mini checks the mode
+on PIR wake and goes straight back to sleep in `off`. The Show Graph
+"Time / schedule" trigger (fire a sequence *at* a time, e.g. a fog
+burst every 10 min while armed) is a separate, later item; windows
+cover the ask.
+
+**API:** generic-boards §6e (`set_clock`, `set_schedule`,
+`get_schedule`, `set_mode`; `get_show` reports the mode and why).
+Console: a **Schedule** panel on the Show view with the defaults
+prefilled.
+
+**October 2026:** built as Stage 3b (generic-boards §8). If it misses
+the Oct 22 freeze, the fallback is the console running the same
+windows browser-side and sending arm/disarm — laptop-dependent, so a
+stopgap only.
+
 ## 5. Bridge role (Pro only)
 
 - WiFi STA + mDNS (`propmesh.local`), ESP-NOW on the router's channel.

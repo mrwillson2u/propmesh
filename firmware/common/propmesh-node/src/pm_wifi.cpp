@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <sys/time.h>
 #include "pm_wifi.h"
 #include "pm_mesh.h"
 
@@ -75,12 +76,26 @@ void pm_wifi_loop() {
       mdns_up = MDNS.begin("propmesh");  // propmesh.local
       if (mdns_up) MDNS.addService("propmesh", "tcp", 81);  // the console's WebSocket
     }
+    // Wall time for the show schedule (software-plan §4.1): a bridge on
+    // WiFi keeps the mesh's clock right with no console attached, and
+    // gets it back by itself after a power cut. UTC only — the time zone
+    // comes from the console and is kept in /schedule.json.
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   } else if (!up && was_up) {
     Serial.printf("wifi: lost (%s) — retrying in %lu s\n", pm_wifi_reason(), (unsigned long)(retry_ms / 1000));
     ip[0] = 0;
     last_try_ms = millis();
   }
   was_up = up;
+  static uint32_t last_ntp_ms;
+  if (up && (uint32_t)(millis() - last_ntp_ms) > 60000) {
+    timeval tv;
+    gettimeofday(&tv, nullptr);
+    if (tv.tv_sec > 1700000000) {  // 1970 until SNTP has answered once
+      last_ntp_ms = millis();
+      pm_wall().set_utc((int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000, esp_timer_get_time() / 1000);
+    }
+  }
   // A failed attempt leaves the radio wherever its scan ended (the console
   // saw channel 14): put it back on the mesh's channel until the next try.
   if (!up && attempt_ended) {

@@ -95,6 +95,11 @@ typedef struct {
     uint8_t hop;  // incremented per relay for latency comp
     uint32_t conductor_id;
     uint8_t priority;  // 1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)
+    uint64_t wall_ms;  // UTC ms since 1970 at send (relays re-stamp); valid if wall_flags bit 0. Show schedule, software-plan §4.1 (2026-10-09). Beacons before this are 14 bytes and still read
+    uint8_t wall_flags;  // bit 0 = wall_ms valid, bit 1 = the tz_* fields valid
+    int16_t tz_offset_min;  // local − UTC now, minutes (−240 = EDT)
+    uint32_t tz_next_change_s;  // UTC s of the next UTC-offset change (DST); 0 = none known
+    int16_t tz_next_offset_min;  // the offset from then on
 } pm_time_t;
 
 typedef struct {

@@ -166,15 +166,25 @@ export interface Time {
   hop: number;  // incremented per relay for latency comp
   conductor_id: number;
   priority: number;  // 1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)
+  wall_ms: bigint;  // UTC ms since 1970 at send (relays re-stamp); valid if wall_flags bit 0. Show schedule, software-plan §4.1 (2026-10-09). Beacons before this are 14 bytes and still read
+  wall_flags: number;  // bit 0 = wall_ms valid, bit 1 = the tz_* fields valid
+  tz_offset_min: number;  // local − UTC now, minutes (−240 = EDT)
+  tz_next_change_s: number;  // UTC s of the next UTC-offset change (DST); 0 = none known
+  tz_next_offset_min: number;  // the offset from then on
 }
-export const Time_SIZE = 14;
+export const Time_SIZE = 31;
 export function decodeTime(dv: DataView, off = 0): Time {
   let o = off;
   const mesh_time_us = dv.getBigUint64(o, true); o += 8;
   const hop = dv.getUint8(o); o += 1;
   const conductor_id = dv.getUint32(o, true); o += 4;
   const priority = dv.getUint8(o); o += 1;
-  return { mesh_time_us, hop, conductor_id, priority };
+  const wall_ms = dv.getBigUint64(o, true); o += 8;
+  const wall_flags = dv.getUint8(o); o += 1;
+  const tz_offset_min = dv.getInt16(o, true); o += 2;
+  const tz_next_change_s = dv.getUint32(o, true); o += 4;
+  const tz_next_offset_min = dv.getInt16(o, true); o += 2;
+  return { mesh_time_us, hop, conductor_id, priority, wall_ms, wall_flags, tz_offset_min, tz_next_change_s, tz_next_offset_min };
 }
 export function encodeTime(v: Time, dv: DataView, off = 0): number {
   let o = off;
@@ -182,6 +192,11 @@ export function encodeTime(v: Time, dv: DataView, off = 0): number {
   dv.setUint8(o, v.hop); o += 1;
   dv.setUint32(o, v.conductor_id, true); o += 4;
   dv.setUint8(o, v.priority); o += 1;
+  dv.setBigUint64(o, v.wall_ms, true); o += 8;
+  dv.setUint8(o, v.wall_flags); o += 1;
+  dv.setInt16(o, v.tz_offset_min, true); o += 2;
+  dv.setUint32(o, v.tz_next_change_s, true); o += 4;
+  dv.setInt16(o, v.tz_next_offset_min, true); o += 2;
   return o - off;
 }
 

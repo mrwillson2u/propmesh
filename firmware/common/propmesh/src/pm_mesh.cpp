@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include "pm_mesh.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -24,6 +25,10 @@ static pm_stats_t s_stats;
 static PmDedup s_dedup;
 static PmNeighbors s_neighbors;
 static PmClock s_clock;
+static PmWallClock s_wall;
+// Beacons from firmware before 2026-10-09 end at `priority`: still read.
+#define TIME_V1_LEN offsetof(pm_time_t, wall_ms)
+static int64_t local_ms() { return esp_timer_get_time() / 1000; }
 static uint32_t s_last_beacon_ms, s_last_age_ms;
 
 // Channel following (docs §6d). A bridge's heartbeat says which channel
@@ -101,9 +106,9 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
     }
   }
 
-  if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= sizeof(pm_time_t)) {
-    pm_time_t t;
-    memcpy(&t, payload, sizeof(t));
+  if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= TIME_V1_LEN) {
+    pm_time_t t = {};
+    memcpy(&t, payload, plen < sizeof(t) ? plen : sizeof(t));
     // Two conductors can only coexist until they hear each other; the
     // higher (priority, id) wins, so the loser steps down and follows.
     // A bridge never steps down to a plain node.
@@ -119,6 +124,12 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
         s_clock.should_adopt(t.conductor_id, t.priority, t.hop, now_ms)) {
       int64_t offset = (int64_t)t.mesh_time_us - (int64_t)esp_timer_get_time();
       s_clock.adopt(t.conductor_id, t.priority, t.hop, offset, now_ms);
+    }
+    // Wall time comes from the conductor we follow; a beacon without it
+    // leaves ours alone (a node the console set directly keeps that).
+    if (!(s_role & PM_NODE_ROLE_CONDUCTOR) && t.conductor_id == s_clock.conductor()) {
+      if (t.wall_flags & 1) s_wall.set_utc((int64_t)t.wall_ms, local_ms());
+      if (t.wall_flags & 2) s_wall.set_tz(t.tz_offset_min, t.tz_next_change_s, t.tz_next_offset_min);
     }
   }
 
@@ -147,7 +158,7 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
       ((pm_frame_header_t *)s_relay[i].frame)->ttl = hdr.ttl - 1;
       // A relayed beacon is one hop further from the conductor. The
       // timestamp itself is rewritten at send time in pm_mesh_loop().
-      if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= sizeof(pm_time_t))
+      if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= TIME_V1_LEN)
         ((pm_time_t *)(s_relay[i].frame + sizeof(pm_frame_header_t)))->hop++;
       return;
     }
@@ -272,10 +283,13 @@ void pm_mesh_loop() {
     // jitter it just sat through does not become downstream clock error.
     pm_frame_header_t *h = (pm_frame_header_t *)s_relay[i].frame;
     if (h->msg_type == PM_MSG_TYPE_TIME && s_clock.synced(now) &&
-        s_relay[i].len >= sizeof(pm_frame_header_t) + sizeof(pm_time_t)) {
+        s_relay[i].len >= sizeof(pm_frame_header_t) + TIME_V1_LEN) {
       pm_time_t *t =
           (pm_time_t *)(s_relay[i].frame + sizeof(pm_frame_header_t));
       t->mesh_time_us = (uint64_t)s_clock.mesh_us(esp_timer_get_time());
+      if (s_relay[i].len >= sizeof(pm_frame_header_t) + sizeof(pm_time_t) &&
+          (t->wall_flags & 1) && s_wall.utc_ok)
+        t->wall_ms = (uint64_t)s_wall.utc_ms(local_ms());
     }
     esp_now_send(BCAST, s_relay[i].frame, s_relay[i].len);
     s_relay[i].used = false;
@@ -296,6 +310,13 @@ void pm_mesh_loop() {
     t.hop = 0;
     t.conductor_id = s_node_id;
     t.priority = priority();
+    if (s_wall.utc_ok) { t.wall_ms = (uint64_t)s_wall.utc_ms(local_ms()); t.wall_flags |= 1; }
+    if (s_wall.tz_ok) {
+      t.wall_flags |= 2;
+      t.tz_offset_min = s_wall.tz_min;
+      t.tz_next_change_s = s_wall.tz_next_s;
+      t.tz_next_offset_min = s_wall.tz_next_min;
+    }
     pm_send(PM_MSG_TYPE_TIME, &t, sizeof(t));
   }
 }
@@ -307,6 +328,8 @@ int64_t pm_local_time_us(int64_t mesh_time_us) {
 bool pm_time_synced() { return s_clock.synced(millis()); }
 uint32_t pm_conductor_id() { return s_clock.conductor(); }
 uint8_t pm_sync_hop() { return s_clock.hop(); }
+PmWallClock &pm_wall() { return s_wall; }
+int64_t pm_wall_utc_ms() { return s_wall.utc_ms(local_ms()); }
 
 uint8_t pm_neighbor_snapshot(pm_neighbor_t *out, uint8_t max) {
   return s_neighbors.snapshot(out, max, millis());

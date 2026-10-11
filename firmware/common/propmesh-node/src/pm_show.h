@@ -19,8 +19,18 @@ void pm_show_on_cue(uint32_t src, const pm_cue_t &cue);
 // this node's own part at the same mesh time.
 void pm_show_fire(uint16_t sequence, uint32_t offset_ms = 0);
 
-// Disarmed: cues and triggers are ignored and nothing plays. Boots
-// armed, so a power cut never leaves the show dead.
+// Mode (software-plan §4.1): off / ambient / armed, from the show
+// schedule when there is one and a wall clock, else as last set. A
+// manual mode holds until the schedule's next change (capped when it is
+// more active than the schedule's). arm(on) = armed / off.
+void pm_show_set_mode(uint8_t mode);  // PmMode
+uint8_t pm_show_mode();
+// An output set by hand from the console (not a sequence preview): it
+// comes back on when the show returns from off. All off by hand clears.
+void pm_show_hand_set(uint8_t kind, uint8_t index, int32_t value);
+void pm_show_hand_clear();
+// Adds the mode block (mode, reason, clock, next_s, …) to a reply.
+void pm_show_put_mode(JsonObject resp);
 void pm_show_arm(bool armed);
 bool pm_show_armed();
 

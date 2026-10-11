@@ -19,6 +19,17 @@ export interface NodeHello {
   bridge?: boolean;
   role?: number; // NodeRole flags
   armed?: boolean; // show triggers and cues active
+  // The mode block (firmware 2026-10-09+): mode, why, what's next.
+  mode?: "off" | "ambient" | "armed";
+  reason?: string;
+  clock?: boolean;
+  scheduled?: boolean;
+  next_s?: number;
+  next_mode?: "off" | "ambient" | "armed";
+  hold_until_s?: number;
+  tz_min?: number;
+  sunset_s?: number;
+  outputs_on?: number; // outputs on right now (firmware 2026-10-11+)
 }
 
 // A heartbeat heard on the mesh, as the USB node reports it.
@@ -134,7 +145,9 @@ abstract class LineLink implements NodeLink {
     this.logs.emit(line);
   }
 
-  private failAll(e: Error) {
+  // In-flight requests fail, but the link stays usable (a carrier that
+  // reconnects by itself).
+  protected failAll(e: Error) {
     this.pending.forEach((p) => { clearTimeout(p.timer); p.reject(e); });
     this.pending.clear();
   }
@@ -215,14 +228,51 @@ let openPort: SerialPortLike | null = null;
 
 // The bridge over WiFi: one JSON line per WebSocket text message. Same
 // protocol, no cable (docs §6d stage B).
+// A bridge restart (an update, a power blip, a WiFi drop) closes the
+// socket: the link keeps the same connection and reconnects by itself,
+// so the console doesn't have to be reconnected by hand (2026-10-11).
+// Only after RECONNECT_FOR_MS without the bridge does it give up.
+const RECONNECT_FOR_MS = 180000;
+const RECONNECT_EVERY_MS = 2000;
+
 class WsLink extends LineLink {
   readonly via = "wifi" as const;
-  protected readonly lostMessage = "lost the bridge over WiFi — reconnect";
-  constructor(private ws: WebSocket) {
+  protected readonly lostMessage = "lost the bridge over WiFi — reconnecting…";
+  private down = 0;  // ms timestamp the socket closed; 0 = up
+  constructor(private ws: WebSocket, private url: string) {
     super();
+    this.attach(ws);
+  }
+  private attach(ws: WebSocket) {
+    this.ws = ws;
     ws.onmessage = (e) => { if (typeof e.data === "string") this.onLine(e.data.replace(/\r?\n$/, "")); };
-    ws.onclose = () => this.lost();
-    ws.onerror = () => this.lost();
+    ws.onclose = () => this.dropped();
+    ws.onerror = () => { try { ws.close(); } catch { /* closing */ } };
+  }
+  private dropped() {
+    if (this.closed || this.down) return;
+    this.down = Date.now();
+    this.failAll(new Error(this.lostMessage));
+    this.events.emit({ evt: "reconnecting" });
+    void this.retry();
+  }
+  private async retry() {
+    while (!this.closed && Date.now() - this.down < RECONNECT_FOR_MS) {
+      await new Promise((r) => setTimeout(r, RECONNECT_EVERY_MS));
+      if (this.closed) return;
+      const ws = await new Promise<WebSocket | null>((resolve) => {
+        const s = new WebSocket(this.url);
+        const t = setTimeout(() => { s.close(); resolve(null); }, 4000);
+        s.onopen = () => { clearTimeout(t); resolve(s); };
+        s.onerror = () => { clearTimeout(t); resolve(null); };
+      });
+      if (!ws) continue;
+      this.attach(ws);
+      this.down = 0;
+      this.events.emit({ evt: "reconnected" });
+      return;
+    }
+    if (!this.closed) this.lost();  // gave up: the panel offers Connect again
   }
   protected writeLine(line: string) {
     if (this.ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error(this.lostMessage));
@@ -248,7 +298,7 @@ export async function connectWifi(address: string): Promise<{ link: NodeLink; he
     s.onopen = () => { clearTimeout(t); resolve(s); };
     s.onerror = () => { clearTimeout(t); reject(new Error(`couldn't reach ${url} — is the bridge on WiFi, and are you on the same network?`)); };
   });
-  const link = new WsLink(ws);
+  const link = new WsLink(ws, url);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await link.request("hello");
@@ -267,9 +317,11 @@ export async function connectWifi(address: string): Promise<{ link: NodeLink; he
 // older boards still answer at 115200.
 export const SERIAL_BAUDS = [921600, 115200];
 
-export async function connectUsb(): Promise<{ link: NodeLink; hello: NodeHello }> {
+// `known`: a port this browser was already given (navigator.serial
+// .getPorts()) — no chooser, which is how a reloaded page reconnects.
+export async function connectUsb(known?: SerialPortLike): Promise<{ link: NodeLink; hello: NodeHello }> {
   const serial = (navigator as unknown as { serial: { requestPort(): Promise<SerialPortLike> } }).serial;
-  const port = await serial.requestPort();
+  const port = known ?? await serial.requestPort();
   if (port === openPort) { try { await port.close(); } catch { /* locked by a dead link — open() will say */ } openPort = null; }
   for (const baudRate of SERIAL_BAUDS) {
     await port.open({ baudRate, bufferSize: 8192 });
@@ -315,7 +367,14 @@ interface SimNode {
   values: Map<string, number>;
   seqs: Map<number, SimSeq>;
   rules: SimRule[];
-  armed: boolean;
+  armed: boolean; // mode === "armed"
+  // The simulator keeps a mode and a schedule but doesn't run the
+  // schedule — the firmware's evaluation is host-tested (test_schedule).
+  mode: "off" | "ambient" | "armed";
+  reason?: string;
+  schedule?: unknown;
+  parked?: Map<string, number>; // by-hand outputs that were on when the show went off
+  hand?: Map<string, number>; // last value set by hand (not a sequence preview), per output
   lastFired: Map<number, number>; // rule index -> ms
 }
 
@@ -343,7 +402,7 @@ class SimLink implements NodeLink {
       let show: { seqs: SimSeq[]; rules: SimRule[] } | null = null;
       try { show = JSON.parse(localStorage.getItem(SIM_KEY + "show." + id) ?? "null"); } catch { /* ignore */ }
       this.nodes.set(id, {
-        cfg: cfg ?? EMPTY_CONFIG, values: new Map(), armed: true, lastFired: new Map(),
+        cfg: cfg ?? EMPTY_CONFIG, values: new Map(), armed: true, mode: "armed", lastFired: new Map(),
         seqs: new Map((show?.seqs ?? []).map((q) => [q.id, q])), rules: show?.rules ?? [],
       });
     }
@@ -391,7 +450,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };
@@ -456,6 +515,7 @@ class SimLink implements NodeLink {
           return { ok: true };
         }
         n.values.set(`${c.kind}_${c.index}`, body.value as number);
+        if (!body.preview) (n.hand ??= new Map()).set(`${c.kind}_${c.index}`, body.value as number);
         return { ok: true };
       }
       case "ble_scan": {
@@ -525,7 +585,7 @@ class SimLink implements NodeLink {
       }
       case "get_show":
         return {
-          ok: true, armed: n.armed, rules: n.rules,
+          ok: true, armed: n.armed, rules: n.rules, ...this.modeStatus(n),
           sequences: [...n.seqs.values()].map((q) => ({ id: q.id, name: q.name, steps: q.steps.length, length_ms: Math.max(0, ...q.steps.map((x) => x[0])) })),
         };
       case "get_sequence": {
@@ -560,13 +620,35 @@ class SimLink implements NodeLink {
         return { ok: true };
       }
       case "cue":
-        if (!n.armed) return { ok: false, error: "disarmed — arm the show first" };
+        if (n.mode === "off") return { ok: false, error: "the show is off — arm it, or switch to ambient" };
         this.fire(node, body.seq as number);
         return { ok: true };
       case "arm":
-        n.armed = body.on !== false;
-        return { ok: true, armed: n.armed };
+      case "set_mode": {
+        n.reason = "manual";
+        const m = cmd === "arm" ? (body.on !== false ? "armed" : "off") : body.mode;
+        if (m !== "off" && m !== "ambient" && m !== "armed") return { ok: false, error: "mode must be off, ambient or armed" };
+        const was = n.mode;
+        n.mode = m;
+        n.armed = m === "armed";
+        // As the firmware: outputs set by hand that were on come back when the show does.
+        if (m === "off" && was !== "off") {
+          n.parked = new Map([...(n.hand ?? new Map())].filter(([k, v]) => (k.startsWith("SERVO") ? v >= 0 : v !== 0)));
+          n.cfg.channels.forEach((c) => { if (c.kind !== "DIGITAL_IN") n.values.set(`${c.kind}_${c.index}`, c.kind === "SERVO" ? -1 : 0); });
+        }
+        if (m !== "off" && was === "off") { n.parked?.forEach((v, k) => { if (!n.values.get(k)) n.values.set(k, v); }); n.parked = undefined; }
+        this.events.emit({ evt: "mode", node, mode: m, reason: "manual" });
+        return { ok: true, armed: n.armed, ...this.modeStatus(n) };
+      }
+      case "set_clock":
+        return { ok: true, ...this.modeStatus(n) };
+      case "set_schedule":
+        n.schedule = body.schedule;
+        return { ok: true, ...this.modeStatus(n) };
+      case "get_schedule":
+        return { ok: true, schedule: n.schedule ?? { enabled: false, lat: 0, lon: 0, manual_max_min: 60, windows: [] }, ...this.modeStatus(n) };
       case "all_off":
+        if (n.mode !== "off") n.hand = undefined;  // All off by hand: stay off
         n.cfg.channels.forEach((c) => {
           if (c.kind !== "DIGITAL_IN") n.values.set(`${c.kind}_${c.index}`, c.kind === "SERVO" ? -1 : 0);
         });
@@ -576,17 +658,26 @@ class SimLink implements NodeLink {
     }
   }
 
+  private modeStatus(n: SimNode) {
+    const outputs_on = n.cfg.channels.filter((c) => {
+      if (c.kind === "DIGITAL_IN") return false;
+      const v = n.values.get(`${c.kind}_${c.index}`) ?? (c.kind === "SERVO" ? -1 : 0);
+      return c.kind === "SERVO" ? v >= 0 : v !== 0;
+    }).length;
+    return { mode: n.mode, reason: n.reason ?? (n.schedule ? "schedule (simulator: stored, not run)" : "no schedule"), clock: true, scheduled: !!n.schedule, outputs_on };
+  }
+
   // CUE: every armed node with a part plays it 200 ms from now.
   private fire(from: string, seq: number) {
     this.events.emit({ evt: "cue", node: from, seq, armed: this.nodes.get(SIM_LOCAL)!.armed, here: this.nodes.get(SIM_LOCAL)!.seqs.has(seq) });
     this.nodes.forEach((n) => {
       const part = n.seqs.get(seq);
-      if (!part || !n.armed) return;
+      if (!part || n.mode === "off") return;
       for (const w of part.steps) {
         const [t, kind, index, value] = w;
         const dur = w.length === 7 ? w[4] : 0;
         const [ein, eout] = w.length === 7 ? [w[5], w[6]] : [0, 0];
-        if (!dur) { setTimeout(() => { if (n.armed) n.values.set(`${kind}_${index}`, value); }, 200 + t); continue; }
+        if (!dur) { setTimeout(() => { if (n.mode !== "off") n.values.set(`${kind}_${index}`, value); }, 200 + t); continue; }
         // A ramp: walk the line in 50 ms ticks from t - dur to t.
         const key = `${kind}_${index}`;
         setTimeout(() => {
@@ -594,7 +685,7 @@ class SimLink implements NodeLink {
           const t0 = Date.now();
           const iv = setInterval(() => {
             const p = Math.min(1, (Date.now() - t0) / dur);
-            if (n.armed) n.values.set(key, isColor(kind) ? lerpColor(from, value, ease(ein, eout, p)) : Math.round(from + (value - from) * ease(ein, eout, p)));
+            if (n.mode !== "off") n.values.set(key, isColor(kind) ? lerpColor(from, value, ease(ein, eout, p)) : Math.round(from + (value - from) * ease(ein, eout, p)));
             if (p >= 1) clearInterval(iv);
           }, 50);
         }, 200 + t - dur);
@@ -616,3 +707,38 @@ export async function connectSim(boardId = "esp32-devkit-v1"): Promise<{ link: N
   const hello = (await link.request("hello")) as unknown as NodeHello;
   return { link, hello };
 }
+
+// ---- reconnect after a page reload -------------------------------------------
+// The last way in is remembered; a reload reconnects the same way with no
+// clicks (2026-10-11). Disconnect forgets it, so a deliberate disconnect
+// stays disconnected. USB: only a port this browser was already allowed
+// (no chooser) and only if there is exactly one. Note opening the port
+// restarts a classic devkit, as a manual Connect does.
+const LAST_KEY = "propmesh.last";
+export function rememberWay(how: "usb" | "wifi" | null) {
+  try { if (how) localStorage.setItem(LAST_KEY, how); else localStorage.removeItem(LAST_KEY); } catch { /* private mode */ }
+}
+export async function reconnectLast(): Promise<{ link: NodeLink; hello: NodeHello; how: "usb" | "wifi" } | null> {
+  let how: string | null = null;
+  try { how = localStorage.getItem(LAST_KEY); } catch { /* private mode */ }
+  if (how === "wifi") {
+    let addr = DEFAULT_WIFI_URL;
+    try { addr = localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { /* default */ }
+    // The bridge takes two consoles; the page just reloaded may still hold
+    // one until the bridge notices it's gone — keep trying for 30 s.
+    for (let i = 0; ; i++) {
+      try { return { ...(await connectWifi(addr)), how: "wifi" }; }
+      catch (e) { if (i >= 5) throw e; await new Promise((r) => setTimeout(r, 5000)); }
+    }
+  }
+  if (how === "usb" && webSerialSupported()) {
+    const ports = await (navigator as unknown as { serial: { getPorts(): Promise<SerialPortLike[]> } }).serial.getPorts();
+    if (ports.length !== 1) return null;
+    return { ...(await connectUsb(ports[0])), how: "usb" };
+  }
+  return null;
+}
+
+// How the console reaches the board it talks to directly ("the bridge" in
+// practice): its tag everywhere. It used to say USB even over WiFi.
+export const directLabel = (link: { via: "usb" | "wifi" | "sim" }) => link.via === "wifi" ? "WIFI" : link.via === "sim" ? "SIM" : "USB";

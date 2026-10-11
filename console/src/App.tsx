@@ -1,11 +1,13 @@
 // Shell 2b (chosen): 176px left rail — logo, nav, pinned telemetry +
 // STOP ALL. Per the handoff, STOP ALL must always be visible.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
-import { armAll, counts, stopAll, useConnection } from "./lib/connection";
+import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection } from "./lib/connection";
+import { reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
+import { MODE_LABEL, hhmm } from "./lib/schedule";
 import Yard, { type YardLayout } from "./views/Yard";
 import Nodes from "./views/Nodes";
 import Cues from "./views/Cues";
@@ -41,20 +43,62 @@ function initialLayout(): YardLayout {
   return p.get("layout")?.toLowerCase() === "map" ? "map" : "topology";
 }
 
+let autoTried = false;
+
 export default function App() {
   const [view, setView] = useState<ViewName>(initialView);
   const mesh = useMesh();
   const { demo } = useSettings();
   const conn = useConnection();
-  const [stopped, setStopped] = useState(false);
+  // A reloaded page reconnects the way it was last connected (no clicks).
+  const [autoState, setAutoState] = useState<"idle" | "trying" | "failed">("idle");
+  useEffect(() => {
+    // Once per page load (dev StrictMode runs effects twice: two opens would
+    // fight over a USB port).
+    if (autoTried || demo || getConnection()) return;
+    autoTried = true;
+    setAutoState("trying");
+    reconnectLast().then((r) => {
+      if (r && !getConnection()) openConnection(r.link, r.hello);
+      else void r?.link.close();
+      setAutoState("idle");
+    }).catch(() => setAutoState("failed"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Stopped = what the boards say (every one off by hand), not what this
+  // page remembers: a refresh after STOP ALL used to show it running
+  // (2026-10-09). `pressedAt` bridges the second or two between pressing
+  // and the boards' answers; the demo has no boards, so it stays local.
+  const [pressedAt, setPressedAt] = useState(0);
+  const [demoStopped, setDemoStopped] = useState(false);
+  const boards = showState(conn);
+  const justPressed = pressedAt > 0 && Date.now() - pressedAt < 5000;
+  const stopped = demo ? demoStopped : !!conn && (boards.stopped || justPressed);
+  // Off because the schedule says so (daytime), not by hand: the show is
+  // NOT running, and the button must not look like it is (2026-10-11).
+  // STOP ALL is the emergency stop: lit whenever ANYTHING is on — any
+  // board armed or ambient, or any output on (floods switched on by hand
+  // with the show off count) — and greyed out only when everything is off
+  // (2026-10-11). Boards before the outputs_on field count by mode alone.
+  // Until the boards have reported, it stays lit: never block a stop.
+  const anythingOn = !boards.known || boards.boards.some((h) => h.mode !== "off" || (h.outputs_on ?? 0) > 0);
+  const allOff = !demo && !!conn && !anythingOn;
+  const offWhy = !allOff ? ""
+    : boards.boards.every((h) => h.reason === "manual") ? "stopped by hand"
+    : boards.boards.every((h) => h.reason === "schedule") ? "by schedule"
+    : "off";
+  const nextOn = allOff ? boards.boards.filter((h) => h.next_s && h.next_mode !== "off").sort((a, b) => a.next_s! - b.next_s!)[0] : undefined;
+  const setStopped = (on: boolean) => { if (demo) setDemoStopped(on); else setPressedAt(on ? Date.now() : 0); };
   const [stopFailed, setStopFailed] = useState<string[]>([]);
   const [holding, setHolding] = useState(false);
   const [pct, setPct] = useState(0);
   const holdIv = useRef<ReturnType<typeof setInterval>>();
 
   // Press-and-hold ~1.5 s to fire; release cancels.
+  // Nothing to stop without boards: the button is shown but inert.
+  const canStop = demo ? !demoStopped : !!conn && anythingOn && !justPressed;
   const stopDown = () => {
-    if (stopped) return;
+    if (!canStop) return;
     clearInterval(holdIv.current);
     holdIv.current = setInterval(() => {
       setPct((p) => {
@@ -121,7 +165,11 @@ export default function App() {
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: C.t5 }}>BRIDGE</span>
               {conn
-                ? <span style={{ color: C.green }}>● {conn.link.via === "usb" ? "USB" : "SIM"}</span>
+                ? conn.reconnecting
+                  ? <span style={{ color: C.amber }}>◌ reconnecting…</span>
+                  : <span style={{ color: C.green }}>● {conn.link.via === "usb" ? "USB" : conn.link.via === "sim" ? "SIM" : "WIFI"}</span>
+                : autoState === "trying" ? <span style={{ color: C.amber }}>◌ reconnecting…</span>
+                : autoState === "failed" ? <span style={{ color: C.t4 }} title="Couldn't reach the last bridge — connect in Nodes & Channels">○ not connected</span>
                 : <span style={{ color: C.t4 }}>○ not connected</span>}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -153,22 +201,31 @@ export default function App() {
             </span>
           </div>
         </div>}
-        <button
+        <button disabled={!canStop} title={canStop ? "Hold to stop every board" : !conn && !demo ? "Connect to a bridge first" : "Everything is off — nothing to stop"}
           onMouseDown={stopDown} onMouseUp={stopUp} onMouseLeave={stopUp}
           onTouchStart={stopDown} onTouchEnd={stopUp}
           style={{
             position: "relative", overflow: "hidden", margin: 10, height: 52,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-            background: stopped ? C.ember : C.emberBg,
-            border: `1.5px solid ${C.ember}`, borderRadius: 8,
-            color: stopped ? C.onEmber : C.emberT,
+            background: canStop ? C.emberBg : C.raised,
+            border: `1.5px solid ${canStop ? C.ember : C.b3}`, borderRadius: 8,
+            color: canStop ? C.emberT : C.t5,
+            cursor: canStop ? "pointer" : "not-allowed",
             font: `700 13px ${MONO}`, letterSpacing: ".1em",
           }}
         >
           <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, background: "rgba(255,107,44,.35)", width: `${Math.round(pct * 100)}%` }} />
           <StopOctagon />
-          <span style={{ position: "relative" }}>{stopped ? "STOPPED" : holding ? "HOLD…" : "STOP ALL"}</span>
+          <span style={{ position: "relative" }}>{justPressed ? "STOPPING…" : holding ? "HOLD…" : allOff || (demo && demoStopped) ? "ALL OFF" : "STOP ALL"}</span>
         </button>
+        {allOff && (
+          <div style={{ margin: "-4px 10px 10px", textAlign: "center", ...mono(600, 10.5, C.t3), lineHeight: 1.5 }}>
+            {offWhy.toUpperCase()}
+            {nextOn?.next_s && nextOn.next_mode && (
+              <div style={{ color: C.t4, fontWeight: 500 }}>{MODE_LABEL[nextOn.next_mode].toLowerCase()} at {hhmm(nextOn.next_s * 1000, nextOn.tz_min)}</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>

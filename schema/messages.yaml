@@ -109,6 +109,11 @@ messages:
       - {name: hop, type: u8, note: "incremented per relay for latency comp"}
       - {name: conductor_id, type: u32}
       - {name: priority, type: u8, note: "1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)"}
+      - {name: wall_ms, type: u64, note: "UTC ms since 1970 at send (relays re-stamp); valid if wall_flags bit 0. Show schedule, software-plan §4.1 (2026-10-09). Beacons before this are 14 bytes and still read"}
+      - {name: wall_flags, type: u8, note: "bit 0 = wall_ms valid, bit 1 = the tz_* fields valid"}
+      - {name: tz_offset_min, type: i16, note: "local − UTC now, minutes (−240 = EDT)"}
+      - {name: tz_next_change_s, type: u32, note: "UTC s of the next UTC-offset change (DST); 0 = none known"}
+      - {name: tz_next_offset_min, type: i16, note: "the offset from then on"}
 
   Cue:
     type: CUE

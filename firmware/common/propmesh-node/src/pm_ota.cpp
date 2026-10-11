@@ -104,7 +104,9 @@ static struct {
   uint8_t *buf;  // 3 kB decode buffer, heap, only while receiving (static RAM is full)
   uint32_t last_ms;  // last chunk: a transfer silent for RX_STALE_MS is dropped
 } rx;
-#define RX_STALE_MS 60000
+// Long enough for a console that was refreshed, or lost its link, to come
+// back and resume (2026-10-09; was 60 s).
+#define RX_STALE_MS 600000
 #define RX_BUF 3072
 
 static void rx_close() {
@@ -129,7 +131,17 @@ const char *pm_ota_begin(uint32_t size, const char *sha256_hex) {
   if (wifi_busy) return "a WiFi update is running";
   if (state == PM_OTA_REBOOTING) return "already rebooting into a new image";
   // A previous mesh transfer that never finished is simply replaced (below).
-  if (!size || !hex32(sha256_hex, rx.want)) return "ota_begin needs size and a 64-digit sha256";
+  uint8_t want[32];
+  if (!size || !hex32(sha256_hex, want)) return "ota_begin needs size and a 64-digit sha256";
+  // The same image again: resume where it stopped (pm_ota_written()).
+  // Until 2026-10-09 every retry started from zero, so on a weak link a
+  // 6-minute transfer that lost one chunk never finished.
+  if (rx.open && size == rx.size && !memcmp(want, rx.want, 32)) {
+    rx.last_ms = millis();
+    Serial.printf("ota: resuming at %lu of %lu bytes\n", (unsigned long)rx.written, (unsigned long)size);
+    return nullptr;
+  }
+  memcpy(rx.want, want, 32);
   if (rx.open) { Update.abort(); rx_close(); }
   if (!rx.buf) rx.buf = (uint8_t *)malloc(RX_BUF);
   if (!rx.buf) return "out of memory";

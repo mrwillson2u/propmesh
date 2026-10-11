@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "proto_gen.h"
 #include "pm_neighbors.h"
+#include "pm_time.h"
 
 // Handler receives every valid, non-duplicate frame addressed to the mesh.
 // `rssi` is the received signal strength of the last hop (dBm).
@@ -68,6 +69,11 @@ int64_t pm_local_time_us(int64_t mesh_time_us);
 bool pm_time_synced();
 uint32_t pm_conductor_id();
 uint8_t pm_sync_hop();  // hops from the conductor; 0 = we are it
+
+// Wall clock (show schedule). Set by the console or SNTP; followers take
+// the conductor's from its TIME beacon. pm_wall().ok() before trusting it.
+PmWallClock &pm_wall();
+int64_t pm_wall_utc_ms();
 
 // --- Topology --------------------------------------------------------
 // Nodes heard directly, strongest first. Fills the heartbeat's neighbor

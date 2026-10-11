@@ -69,6 +69,7 @@ static void cmd_hello(JsonObject resp) {
   resp["bridge"] = pm_channels_config().bridge;
   resp["role"] = pm_role();
   resp["armed"] = pm_show_armed();
+  pm_show_put_mode(resp);  // mode, why, next change: the console polls hello for it
 }
 
 static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
@@ -98,6 +99,9 @@ static void cmd_set(JsonObjectConst req, JsonObject resp) {
   if (!req["value"].is<int32_t>()) return fail(resp, "value missing");
   if (!pm_channel_set(f->kind, req["index"] | 0, req["value"].as<int32_t>()))
     return fail(resp, "no such output channel");
+  // Remembered so it comes back with the show — unless it's the sequence
+  // editor posing a step ("preview"), which isn't how the yard should be.
+  if (!(req["preview"] | false)) pm_show_hand_set(f->kind, req["index"] | 0, req["value"].as<int32_t>());
 }
 
 static void cmd_state(JsonObject resp) {
@@ -278,7 +282,13 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
   else if (!strcmp(cmd, "state")) cmd_state(resp);
-  else if (!strcmp(cmd, "all_off")) { pm_show_stop(); pm_channels_all_off(); }
+  else if (!strcmp(cmd, "all_off")) {
+    pm_show_stop();
+    // STOP ALL sends this right after going off (its outputs are parked
+    // already and come back); a plain All off by hand means "off, stay off".
+    if (pm_show_mode() != 0) pm_show_hand_clear();
+    pm_channels_all_off();
+  }
   else if (!strcmp(cmd, "mesh")) cmd_mesh(resp);
   else if (!strcmp(cmd, "ble_scan")) cmd_ble_scan(req, resp);
   else if (!strcmp(cmd, "ble_found")) cmd_ble_found(resp);
@@ -310,6 +320,7 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     const char *e = pm_ota_begin(req["size"] | 0UL, req["sha256"] | "");
     if (e) return fail(resp, e);
     resp["chunk"] = 2700;  // bytes of image per ota_data (fits a 4320-byte mesh request as base64)
+    resp["written"] = pm_ota_written();  // > 0: the same image was part-received — carry on from here
   }
   else if (!strcmp(cmd, "ota_data")) {
     uint32_t written = 0;
@@ -326,6 +337,7 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     static const char *const ST[] = {"idle", "connecting", "downloading", "rebooting", "failed"};
     resp["state"] = ST[pm_ota_state() % 5];
     resp["progress"] = pm_ota_progress();
+    resp["written"] = pm_ota_written();  // mesh transfer: bytes received so far (resumable)
     if (*pm_ota_error()) resp["error"] = pm_ota_error();
     resp["build"] = PM_BUILD;
     resp["pending"] = pm_ota_pending();
