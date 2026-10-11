@@ -31,8 +31,42 @@ exempt, still 12.70 mm); library footprints edited to match.
   and `D14`/`J45`.
 - Silkscreen items (≈350) are tidied at step 9.
 
-Next: step 5's remaining placement (that corner), then **Claude re-places
-the test points**, then pours and routing.
+**Sat 3 Oct, 00:06:** resistor-to-resistor overlaps fixed; 5 left, each
+a part touching the bottom of an XH connector (connector courtyards end
+at Y 7.20). Exact fixes, typed into *Footprint Properties*:
+
+| Part | Field | Now | Type |
+|---|---|---|---|
+| `R40` | Position Y | 9.00 | **9.75** |
+| `R47` | Position Y | 9.25 | **9.75** |
+| `R52` | Position Y | 9.25 | **9.75** |
+| `D14` | Position Y | 9.00 | **9.25** |
+| `J45` | Position X | 112.75 | **113.00** |
+
+**Sat 3 Oct, 00:15 — PLACEMENT DONE.** The five moves made; test points
+re-placed beside their nets (41/41 on B.Cu, farthest 4.5 mm from its pad;
+`placetps.py` now finds mounting holes by footprint since they became
+`H1`–`H4`). DRC: only the 3 accepted terminal-gang overlaps + silkscreen;
+parity 0; setup green.
+
+**Sat 3 Oct, 00:35 — POURS DONE.** Ten zones installed by
+`tools/makezones.py` (inner GND plane; inner PWR split into 24 V / 5 V /
+3.3 V regions; top GND + 10 A input-path pours; bottom GND under the
+motor drivers; U.FL keep-out). DRC: no new errors; unrouted 499 → 383;
+parity 0. Backup of the pre-zone board kept.
+
+**Sat 3 Oct, 21:20 — pours re-cut with 0/45/90° outlines** at Colin's
+request (the first draft's smoothed curves had 200–380 corners per
+region). `tools/makezones.py` now traces the inner split on a 2 mm
+grid with straight/diagonal edges only, flips back any pad the coarser
+grid lost (`J49` pin 1), and writes `zones-In2-split.png` from the
+installed zones. DRC unchanged: 3 accepted courtyard overlaps, parity
+0, 383 unrouted. Rule and command in layout.md A22.
+
+Next: **step 6, critical routing** (layout.md A23, and A22's "what the
+planes do not reach" track list). Note `layout.md` A22's zone
+corner lists were computed for the 7 Sep placement and are stale — the
+*what each zone must reach* column still holds.
 
 ### As measured Tue 29 Sep
 

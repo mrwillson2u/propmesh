@@ -27,3 +27,8 @@ It is a proposal for review, not an implemented design.
 The [2026-09-19 GPIO and module comparison](gpio-module-options-2026-09-19.md)
 records the current C3 allocation and evaluates compact module alternatives,
 including the C6-MINI-1U with more GPIO in the same body dimensions.
+
+The [2026-10-09 solar-charging options](solar-options-2026-10-09.md) size the
+panel for October sun per node behavior and compare off-the-shelf charger
+modules: the Mini's on-board TP4056 needs no module (a 6 V panel wires to its
+solar terminal); devkit nodes take a DFRobot DFR0559; CN3791 adds MPPT.

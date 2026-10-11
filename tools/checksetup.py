@@ -42,6 +42,8 @@ PATTERNS = {  # table "Netclass Assignments": pattern -> net class
     "/Outputs/LED?_K": "Power", "/Outputs/REL?_*": "Power",
     "/Audio/SPK_?": "Power", "Net-(U9-OUT?)": "Power",
 }
+TRACK_WIDTHS = [0.5, 1.0, 1.5, 3.0]          # Design Rules → Pre-defined Sizes → table "Track Widths" (layout.md A21)
+VIA_SIZES    = [(0.8, 0.4)]                    # table "Via Sizes": (Via Size, Via Hole)
 SILK_DEFAULTS = {  # Text & Graphics → Defaults, row "Silk Layers": json key -> (column, value)
     "silk_line_width":     ("Line Thickness", 0.15),
     "silk_text_size_h":    ("Text Width",     1.0),
@@ -101,6 +103,15 @@ def main():
             X(f"Design Rules → Net Classes → table \"Netclass Assignments\" → row \"{pat}\" → column \"Net Class\"", cls, have[pat])
     for pat in set(have) - set(PATTERNS):
         X(f"Design Rules → Net Classes → table \"Netclass Assignments\" → row \"{pat}\"", "not in the guide", f"present ({have[pat]}) — delete it or add it to layout.md")
+
+    tw = sorted(num(w) for w in ds.get("track_widths", []))
+    for w in TRACK_WIDTHS:
+        if w not in tw:
+            X("Design Rules → Pre-defined Sizes → table \"Track Widths\"", f"a row reading {w}", f"rows {tw or '(none — the Track: dropdown then has only \'use netclass width\')'}")
+    vs = sorted((num(v.get("diameter")), num(v.get("drill"))) for v in ds.get("via_dimensions", []))
+    for d, h in VIA_SIZES:
+        if (d, h) not in vs:
+            X("Design Rules → Pre-defined Sizes → table \"Via Sizes\"", f"a row with Via Size {d}, Via Hole {h}", f"rows {vs or '(none)'}")
 
     pcb = PCB.read_text()
     m = re.search(r"\(stackup(.*?)\n\t\t\)\n", pcb, re.S)

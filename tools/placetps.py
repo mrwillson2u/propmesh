@@ -21,8 +21,10 @@ board = pcbnew.LoadBoard(SRC)
 MM = pcbnew.ToMM
 def V(x, y): return pcbnew.VECTOR2I_MM(x, y)
 
-fps = {f.GetReference(): f for f in board.GetFootprints() if not f.GetReference().startswith("REF")}
-holes = [f for f in board.GetFootprints() if f.GetReference().startswith("REF")]
+# mounting holes found by footprint, not reference (they were REF** until 2026-10-02, now H1-H4)
+is_hole = lambda f: "MountingHole" in f.GetFPIDAsString()
+fps = {f.GetReference(): f for f in board.GetFootprints() if not is_hole(f)}
+holes = [f for f in board.GetFootprints() if is_hole(f)]
 bb = board.GetBoardEdgesBoundingBox()
 X0, Y0, X1, Y1 = MM(bb.GetLeft()), MM(bb.GetTop()), MM(bb.GetRight()), MM(bb.GetBottom())
 
@@ -54,7 +56,7 @@ def ok(x, y):
 # ---------------------------------------------------------------- who owns each net
 OVERRIDE = {  # by Value: the part whose pad the test point should sit beside
     "TP_VIN_RAW": "J17", "TP_VIN_PROT": "C11", "TP_5V": "J49", "TP_3V3": "J50",
-    "TP_GND_A": "J17", "TP_GND_B": "U2", "TP37": "U2", "TP_CD": "Card1",
+    "TP_GND_A": "J17", "TP_GND_B": "U2", "TP_CD": "Card1",
 }
 def pad_on_net(f, net):
     for p in f.Pads():

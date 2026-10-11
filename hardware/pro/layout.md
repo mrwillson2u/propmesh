@@ -12,8 +12,8 @@ and **Position Y** fields of the *Footprint Properties* dialog
 corner instead; `tools/checksetup.py` prints where the board corner
 currently is on the page.)
 
-> ### ▶ Where you are: **board cleaned up, parity 0** (Fri 2 Oct). Left before routing: 8 courtyard overlaps in the sensor corner (list in `finish-v0.1.md`), then Claude re-places the test points. 3 terminal-gang overlaps are accepted by design.
-> (updated 2026-10-02 23:40)
+> ### ▶ Where you are: **pours DONE, re-cut with 0/45/90° outlines** (Sat 3 Oct, 21:20). Next: routing, A23 — buck loops, 10 A input, USB pair, then the A22 track list (strips' 5 V from J49, 3.3 V source J50, the 3.3 V bus), then everything else. Press **B** to refill after routing.
+> (updated 2026-10-03 00:35)
 
 **The two checkers**, run from the repo root, after **Cmd+S** in KiCad
 (KiCad writes the files only on save):
@@ -719,6 +719,34 @@ In *Track Widths* add rows **0.5**, **1.0**, **1.5**, **3.0** (mm). In
 appear in the top toolbar's **Track:** and **Via:** dropdowns while
 routing; the first entry, *use netclass width*, is what you leave
 selected for everything not listed as a special width in A23.
+**Status 5 Oct: NOT DONE** — both lists are empty in the project file
+(`checksetup.py` now reports this). Without them the **Track:**
+dropdown has one entry and there is no way to neck a track down at a
+pad — that is the "clunky" part.
+
+### Wide track into a small pad (neck-down)
+
+A track always joins a pad solid; the four-spoke **thermal relief**
+you are thinking of exists only for zones (pours), and the ring that
+seems to vanish under a wide track is just the pad drawing — the
+**solder mask opening** (the real solderable area) is unchanged. The
+rule is: **the last 1 mm into a pad is never wider than the pad.**
+
+1. Do A21 first (the lists above).
+2. Routing from the pad: **Track:** dropdown → **0.5** for an SMD pad
+   (`U5`, `U6`, `U7`, `U8` pins, 0.6 mm wide); start at the pad with
+   **X**, click once ~1 mm out along the pad's axis, **Track:** →
+   **1.0** (or the width the A23 step names), continue.
+3. Routing into the pad: the reverse — one click ~1 mm short of the
+   pad, **Track:** → **0.5**, finish on the pad.
+4. Already routed too wide: double-click the last segment →
+   *Track Segment Properties* → **Track width:** `0.5` → OK; if it is
+   one long segment, first split it — right-click the track at the
+   1 mm point → **Split Track**, then set the short piece.
+5. THT pads (`J*` pins, caps, `F1`) take a 1.5 mm track directly when
+   the pad is ≥ 1.7 mm; the 3.0 mm input track lands on `Q7`'s tab and
+   `F1`'s pads only. The hand-soldering price of solid copper on the
+   10 A pins is the one noted at A22 "Exposed pads" — a hot iron.
 
 ## A22. Zones (the pours)
 
@@ -742,32 +770,152 @@ relief gap:** 0.3; **Thermal spoke width:** 0.5. The two that change
 per zone are **Pad connections:** and **Zone Priority** (higher wins
 where two zones overlap).
 
-**The corner lists below were computed for the placement as it stood
-on 2026-09-07 night.** What each zone must *reach* is the fixed part;
-the corners get re-derived after your edit pass (say so and they are).
+**DRAWN BY TOOL, Sat 3 Oct.** `tools/makezones.py` builds every zone
+from the board as placed and writes the picture of the inner split,
+`zones-In2-split.png`, from the zones it just wrote (legend in the
+picture's filename order: `VIN_PROT` red, `+5V` yellow, `+3V3` blue;
+grey = top silk). In this document zones are always called by net
+name, never by colour.
+Re-run it after big placement changes (KiCad closed):
 
-| # | **Layer:** | **Net:** | **Zone name:** | **Pad connections:** | **Zone Priority** | Corners, in order (board mm) |
-|---|---|---|---|---|---|---|
-| Z1 | GND (In1.Cu) | `GND` | GND_plane | Thermal reliefs | 0 | (0.5,0.5) (129.5,0.5) (129.5,99.5) (0.5,99.5) — **the whole board, never split** |
-| Z2 | PWR (In2.Cu) | `VIN_PROT` | VINPROT_region | Solid | 1 | (0.5,34) (19,34) (19,42) (44,42) (44,49) (60,49) (60,20) (100,20) (100,99.5) (74,99.5) (74,71) (48,71) (48,74) (38,74) (38,86) (0.5,86) |
-| Z3 | PWR (In2.Cu) | `+5V` | 5V_region | Solid | 1 | (27.5,0.5) (129.5,0.5) (129.5,99.5) (100.5,99.5) (100.5,19.5) (60.5,19.5) (60.5,48.5) (44.5,48.5) (44.5,41.5) (19.5,41.5) (19.5,34.5) (27.5,34.5) |
-| Z4 | PWR (In2.Cu) | `+3V3` | 3V3_region | Solid | 1 | (0.5,0.5) (27,0.5) (27,33.5) (0.5,33.5) |
-| Z5 | PWR (In2.Cu) | `+5V` | 5V_south | Solid | 1 | (38.5,74.5) (73.5,74.5) (73.5,99.5) (38.5,99.5) — an island; stitched to Z9 with vias (A23 step 4) |
-| Z6 | F.Cu | `GND` | GND_top | Thermal reliefs | 0 | (0.5,0.5) (129.5,0.5) (129.5,99.5) (0.5,99.5) |
-| Z7 | F.Cu | `VIN_PROT` | VINPROT_top | Solid | 2 | (0.5,34) (19,34) (19,48) (38,48) (38,78) (19,78) (19,84) (0.5,84) — the 10 A path: `Q7` source, `D9`, `C11`, `J48` pin 1, all six `J8–J13` pin 1 |
-| Z8 | F.Cu | `VIN_RAW` | VINRAW_top | Solid | 3 | (12,84.5) (36,84.5) (36,99.5) (12,99.5) — `J17` pin 1, `J18` pin 1, `F1` pin 1 |
-| Z9 | F.Cu | `+5V` | 5V_top | Solid | 2 | (44,47.5) (58,47.5) (58,74) (73.5,74) (73.5,99.5) (38.5,99.5) (38.5,66) (48,66) (48,52) (44,52) — `J49` pin 1 down under `U11` to `C43`, `C45`, `J38`/`J39` pin 1, and west to `C15`/`U6` |
+```
+/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3 \
+    tools/makezones.py hardware/pro/propmesh/propmesh.kicad_pcb hardware/pro/zones-labels.json
+```
 
-Why the In2 map looks like that: VIN_PROT must reach the six output
-switches (left column), the input parts (bottom-left), both stepper
-VMOT pins and both DRV8871 VM pins (centre/right) as one piece; +5V
-gets the top band, the whole east (relay coils, sensor 5 V pins, U3)
-and the LED block; +3V3 gets the module corner. Parts sitting over the
-"wrong" region (U4, Card1, the sockets' VDD pins, the sensor pull-ups,
-J47) are fed by 1.0 mm tracks — In2 is distribution, not the last
-hop. Solid vs thermal reliefs: the through-hole pins that land in Z7/Z8
-(`J8–J13` pin 1, `J17`, `J18`, `F1`) will need a hot iron — that is the
-price of the 10 A path.
+It replaces only zones whose name ends `_draft`, so a zone you draw or
+rename yourself is left alone. **Outline rule (Colin, 3 Oct): every
+edge of the three In2 regions is 0°, 45° or 90° — no curves, no
+1 mm staircases.** The tool gets that by snapping the split to a 2 mm
+grid, majority-smoothing it, and tracing the boundary across cell
+corners (straight or diagonal only), then pulling the outline in
+0.25 mm with mitred corners; 38–63 corners per region instead of the
+200–380 the first (curved) draft had. Any pad the 1 mm split had
+given to its own rail but the 2 mm grid lost is flipped back (the
+run prints which — currently `J49` pin 1). If you redraw a region by
+hand, keep the same rule: corners on the 0.5 mm grid, diagonals only
+at 45°.
+
+**Simplifying a region by hand (you asked, 3 Oct) — do this in order:**
+
+1. *Appearance* panel (right side), **Layers** tab: click **PWR
+   (In2.Cu)** so it is the active layer. Left toolbar: the group of
+   zone-display buttons — pick the one whose tooltip says it shows
+   zone *outlines/boundaries* only, so the fill stops hiding the
+   edge you want to grab.
+2. Click a region's edge: the zone is selected and every corner gets
+   a square handle.
+3. **Move a corner:** drag its handle. **Hold `Ctrl` while dragging**
+   — KiCad then only lets the corner move so the edges stay
+   horizontal, vertical or 45°. **Add a corner:** right-click the
+   edge → **Create Corner**. **Remove a corner:** right-click the
+   handle → **Remove Corner**. Removing corners is how you simplify:
+   take out the small jogs; the two neighbours join with one edge.
+4. Overlaps between regions are fine and are the easy way to work:
+   where two In2 zones overlap, the higher **Zone Priority** wins
+   (`VIN_PROT` 3 > `+5V` 2 > `+3V3` 1) and the other one retreats
+   0.3 mm from it, so you do not need to make the seams meet exactly.
+5. Each region must stay **one connected piece** and keep every pad
+   of its rail that it has now (the picture shows them). Press **B**
+   to refill after each change and look: a pad left outside shows
+   as a ratsnest line when you run DRC (*Inspect → Design Rules
+   Checker → Run DRC*): **Unconnected Items must still read 383**.
+   More = a pad fell outside; fewer is impossible without tracks.
+6. **Before saving, rename each zone you touched:** double-click its
+   edge → *Copper Zone Properties* → **Zone name:** delete the
+   `_draft` ending (e.g. `5V_In2_0`). The tool rebuilds only `_draft`
+   zones and skips any rail that already has a hand-named In2 zone,
+   so your version survives the next run. Save; say so; I rerun DRC,
+   the connectivity diff and the picture.
+
+| Zone | Layer | Net | Priority | Pads |
+|---|---|---|---|---|
+| `GND_In1_draft` | In1 (GND) | GND | 0 | thermal on THT, solid on SMD |
+| `VIN_PROT_In2_0_draft` | In2 (PWR) | VIN_PROT | 3 | solid |
+| `5V_In2_0_draft` | In2 (PWR) | +5V | 2 | solid |
+| `3V3_In2_0_draft` | In2 (PWR) | +3V3 | 1 | solid |
+| `GND_top_draft` | F.Cu | GND | 0 | thermal on THT, solid on SMD |
+| `VINRAW_top_draft` | F.Cu | VIN_RAW (J17/J18/F1) | 6 | solid |
+| `VINFUSED_top_draft` | F.Cu | VIN_FUSED (F1 → Q7 tab) | 5 | solid |
+| `VINPROT_top_draft` | F.Cu | VIN_PROT (Q7 source, C11) | 4 | solid |
+| `GND_bot_DRV_draft` | B.Cu | GND under U7/U8 (heat) | 0 | solid |
+| `UFL_keepout_draft` | all copper | rule area: no tracks, vias or pours under the module's U.FL | — | — |
+
+**How the split was chosen:** every board position goes to the rail
+whose nearest *heavy* load it is (all `VIN_PROT` pads; servos, relays,
+ULN2003, amp, shifter for `+5V`; module, DAC, card, PCAs for `+3V3`),
+smoothed, with disconnected islands absorbed so each rail is **one
+connected region**. `J49` (the +5 V source) is pulled into the +5 V
+region so its pin feeds the plane directly.
+
+**What the planes do NOT reach — route these as tracks** (the split
+can't give every load its own copper; these are light or local):
+
+| Net | Pads outside its region | Route |
+|---|---|---|
+| +5V | strips `J38`/`J39` pin 1 + bulk `C43`/`C45` | **1.5 mm top track** from `J49` (3 A) |
+| +5V | 3V3 buck input `U6` pins 1/4 + `C15` | 1.0 mm top track from the same trunk |
+| +5V | amp `U9` pins 7/8 + `C28`/`C29` | 1.0 mm track to the +5 V region, or a via into it |
+| +5V | sensor 5 V pins (`J40`…), USB link `J51` | 0.5 mm |
+| +3V3 | source `J50` pin 1 | **1.0 mm track to the `+3V3` zone** (~20 mm) |
+| +3V3 | socket VIO `J20`/`J22` pin 7, MS straps `J29`–`J34` pin 1 | 0.5 mm, one bus |
+| +3V3 | top-right sensor pull-ups, BAT54S cathodes, `J42` pin 1, Qwiic `J47` pin 2 | 0.5 mm bus along the top |
+
+Everything inside its region connects with **one via per SMD pad**
+(two for anything carrying amps) dropped straight into the plane.
+Until those vias exist, DRC reports the 3V3 plane and the bottom GND
+patch as *isolated copper* — expected.
+
+**Fixes after the 3 Oct 22:47 edit — edit the `VIN_PROT` zone only.**
+`+5V` and `+3V3` zones: no change (`VIN_PROT` is priority 3 and wins
+where it overlaps them).
+
+1. `VIN_PROT` zone, edge along **y = 68** (x 51.4 → 130): right-click
+   the edge → **Create Corner**, four times. Drag the new corners
+   (hold `Ctrl`) to **(66, 68) (66, 53.5) (98, 53.5) (98, 68)**.
+   Why: `J20` pin 1 and `J22` pin 1 (stepper VMOT, `VIN_PROT`) are at
+   y 55.75 and are outside the zone.
+2. `VIN_PROT` zone, edge along **x = 10.2** (y 29.6 → 52): **Create
+   Corner** twice; drag to **(10.2, 40) (14.5, 40)**. Drag the
+   existing corner **(10.2, 52) → (14.5, 52)**.
+   Why: `D2` pin 1 and `D3` pin 1 (`VIN_PROT`) are at x 12.5, outside
+   the zone.
+3. Result — `VIN_PROT` zone, 16 corners in order: (0,27.6) (8.2,27.6)
+   (10.2,29.6) (10.2,40) (14.5,40) (14.5,52) (41.8,52) (51.4,61.6)
+   (51.4,68) (66,68) (66,53.5) (98,53.5) (98,68) (130,68) (130,100)
+   (0,100).
+4. **B**, save, say so.
+
+Everything else in that edit passed: all edges 0/45/90°, one piece per
+zone, DRC unchanged. `J51` pin 1 / `J40` pin 1 moved between zones —
+both are tracks (table above), nothing to do. Corners on a 0.2 mm
+grid: harmless.
+
+**What is load-bearing in the shapes and what is not (3 Oct, for
+hand-simplifying).** The tool had one rule: every point of the board
+belongs to the rail whose nearest *heavy load* it is. So the **seam
+positions are accidents of spacing, not design** — move them freely.
+Only three things matter, in this order:
+
+1. **Each region must still enclose these pads** (read from the board
+   3 Oct; the rail's other pads are the tracks in the table above):
+
+   | Region | Must enclose | Why |
+   |---|---|---|
+   | `VIN_PROT` | input `Q7`, `C11`, `D9`, `J48`; the six output switches `J8`–`J13` with their flyback diodes `D2`–`D7`; stepper sockets `J20`/`J22` (VMOT); `U7`/`U8` with `C18`–`C23`; `TP37` | every 24 V load is on this plane — nothing else feeds them |
+   | `+5V` | servos `J2`–`J7`; relays `K1`–`K3` + `U3` (ULN2003); sensor headers `J41`–`J46`; shifter `U11` + `C42`; `LED1`, `C44`; **and the source, `J49` pin 1** | `J49` is where 5 V enters the plane — lose it and the whole plane is dead |
+   | `+3V3` | module `U2` + its caps; USB-serial `U1`-side `R3`–`R6`; DAC `U4`; `Card1`; both PCAs `U10`/`U12` with pull-ups `R27`–`R33`, `R54`, `R59`, `R65`/`R66`; `C34`–`C41`, `C48`/`C49` | the module corner; its source `J50` is a track (table above) |
+
+2. **One connected piece per rail**, nowhere narrower than **5 mm**
+   (`+5V`, `+3V3`) or **8 mm** (`VIN_PROT` — it carries the motor and
+   switch currents on 0.5 oz inner copper). A region that pinches to
+   a 2 mm neck is worse than a region with an extra corner.
+3. **0 / 45 / 90° edges** (hold `Ctrl` while dragging).
+
+Everything else — where the `+3V3`/`+5V` seam runs, how far the
+`+5V` zone comes down — is free. A good simplification: three or four big
+blocks that satisfy the table, overlapping at the seams (priority
+sorts it out).
 
 **Exposed pads.** `U5` (pin 9), `U7`, `U8`: a **3 × 3 grid of vias,
 0.6 / 0.3**, inside each pad, 1.0 mm pitch — A23 step 3 says how to

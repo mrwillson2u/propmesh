@@ -60,16 +60,22 @@
           "hatch_smoothing_level": 0,
           "hatch_smoothing_value": 0.1,
           "hatch_thickness": 1.0,
-          "min_clearance": 0.5,
+          "min_clearance": 0.3,
           "min_island_area": 10.0,
           "min_thickness": 0.25,
-          "pad_connection": 1,
+          "pad_connection": 2,
           "remove_islands": 0,
-          "thermal_relief_gap": 0.5,
+          "thermal_relief_gap": 0.3,
           "thermal_relief_spoke_width": 0.5
         }
       },
-      "diff_pair_dimensions": [],
+      "diff_pair_dimensions": [
+        {
+          "gap": 0.0,
+          "via_gap": 0.0,
+          "width": 0.0
+        }
+      ],
       "drc_exclusions": [],
       "meta": {
         "version": 2
@@ -203,7 +209,13 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [],
+      "track_widths": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        3.0
+      ],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
           "corner_radius_percentage": 80,
@@ -230,7 +242,20 @@
           "spacing": 0.6
         }
       },
-      "via_dimensions": [],
+      "via_dimensions": [
+        {
+          "diameter": 0.0,
+          "drill": 0.0
+        },
+        {
+          "diameter": 0.4,
+          "drill": 0.3
+        },
+        {
+          "diameter": 0.8,
+          "drill": 0.4
+        }
+      ],
       "zones_allow_external_fillets": false
     },
     "ipc2581": {
@@ -769,7 +794,7 @@
         "uuid": "6aa579d1-bfe0-499b-882d-72f52ff6d36c"
       }
     ],
-    "used_designators": "R_A2B1,R_E2P1,R_S1-5,R_ST1,C_AN1-2,C_MA1-3,C_MB1-2,J_QW1,J_ST1A1,J_ST2A1,JP_M2,C_IR1,R_S2C1,J_ST1B1,R_P1-3,R_E2S1,#FLG1-5,R_E1S1,U_IR1,U_MB1,K1-3,R_D1-3,C_CPV1-2,R_IR1-2,J_DI1-6,U1-14,C_AV1-2,R_UTX1,J_S2R1,FB1-2,C_B1-2,C_SD1-8,R_S2D1,L1-2,C_LS1,U_MA1,Card1,J_ST2,CN1,JXH2,J_S1R1,D_C1-3,J_MB1,J_ST2B1-2,J_LED1-6,J1-26,J48-51,C_ST1,C_BS1-3,J_EXP1,XH1-2,J_S1L1,JP1-3,LED1,R_ENP1,C_A1-2,D1-17,R_G1,J_PIR1,F1,D_ST1,R_E1P1,J_MA1,C_DV1-2,J_S2L1,J_AN3,#PWR1-190,#PWR195-211,C1-31,C48-52,R_A1B1,R_A1T1,SW1-2,R_A2T1,TP1-35,Q1-9,FB_P1,R1-44,R53-68",
+    "used_designators": "R_A2B1,R_E2P1,R_S1-5,R_ST1,C_AN1-2,C_MA1-3,C_MB1-2,J_QW1,J_ST1A1,J_ST2A1,JP_M2,C_IR1,R_S2C1,U_IR1,J_ST1B1,R_E1S1,#FLG1-5,R_P1-3,R_E2S1,R_D1-3,U_MB1,K1-3,C_CPV1-2,R_IR1-2,J_DI1-6,U1-14,C_AV1-2,R_UTX1,J_S2R1,FB1-2,C_B1-2,C_SD1-8,R_S2D1,L1-2,C_LS1,U_MA1,Card1,J_ST2,CN1,JXH2,J_S1R1,D_C1-3,J_MB1,J_ST2B1-2,J_LED1-6,J1-26,J48-51,C_ST1,C_BS1-3,J_EXP1,XH1-2,J_S1L1,JP1-3,LED1,R_ENP1,C_A1-2,D1-17,R_G1,J_PIR1,F1,D_ST1,R_E1P1,#PWR1-190,#PWR195-211,C1-31,C48-52,R_A1B1,C_DV1-2,J_AN3,J_S2L1,J_MA1,R_A1T1,SW1-2,R_A2T1,TP1-35,Q1-9,FB_P1,R1-44,R53-68",
     "variants": []
   },
   "sheets": [
