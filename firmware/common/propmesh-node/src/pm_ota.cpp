@@ -1,3 +1,4 @@
+#include <esp_task_wdt.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -54,12 +55,26 @@ static void task(void *) {
     vTaskDelete(nullptr);
     return;
   }
-  Serial.printf("ota: joined %s as %s, fetching %s\n", args->ssid, WiFi.localIP().toString().c_str(), args->url);
+  Serial.printf("ota: joined %s as %s, fetching %s (heap %u free)\n", args->ssid, WiFi.localIP().toString().c_str(), args->url, (unsigned)ESP.getFreeHeap());
   state = PM_OTA_DOWNLOADING;
   httpUpdate.rebootOnUpdate(false);
-  httpUpdate.onProgress([](int cur, int total) { if (total > 0) progress = (uint8_t)(cur * 100L / total); });
+  // Under the watchdog from here: a download that stalls (no progress for
+  // 30 s) reboots the board instead of leaving it dead on the router's
+  // channel — Prop sat like that on 2026-10-11 and nothing recorded why.
+  // Progress every 10 %, with free memory, so a serial log shows where it
+  // stopped and whether memory was running out.
+  esp_task_wdt_add(nullptr);
+  esp_task_wdt_reset();
+  httpUpdate.onProgress([](int cur, int total) {
+    if (total <= 0) return;
+    uint8_t pct = (uint8_t)(cur * 100L / total);
+    esp_task_wdt_reset();
+    if (pct / 10 != progress / 10) Serial.printf("ota: %u %% (heap %u free)\n", pct, (unsigned)ESP.getFreeHeap());
+    progress = pct;
+  });
   WiFiClient client;
   t_httpUpdate_return r = httpUpdate.update(client, args->url);
+  esp_task_wdt_delete(nullptr);
   if (r == HTTP_UPDATE_OK) {
     Serial.println("ota: written — rebooting into the new image");
     state = PM_OTA_REBOOTING;
