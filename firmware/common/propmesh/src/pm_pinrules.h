@@ -74,6 +74,11 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
         out.add("pin_cannot", true, i, gpio);
       else if (bp->tier == PM_TIER_CAUTION)
         out.add("pin_caution", false, i, gpio);
+      // On battery, a sensor wakes the board from deep sleep — only from an
+      // RTC pin (docs §6f). Elsewhere it still works while awake.
+      if (cfg.battery && c.kind == PM_CHANNEL_KIND_DIGITAL_IN &&
+          !(gpio == 0 || gpio == 2 || gpio == 4 || (gpio >= 12 && gpio <= 15) || (gpio >= 25 && gpio <= 27) || (gpio >= 32 && gpio <= 39)))
+        out.add("no_wake_pin", false, i, gpio);
 
       // One pin, one job — across channels and within a 2-pin function.
       bool taken = false;

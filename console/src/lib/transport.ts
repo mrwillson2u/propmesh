@@ -48,6 +48,7 @@ export interface Heartbeat {
   hops: number; // 0 = heard directly by the USB node
   rssi: number; // last hop, dBm
   ch?: number; // WiFi channel the sender is on (missing on old firmware)
+  listen?: number; // a battery board listening in windows: its interval (ms)
   nbrs: { node: string; rssi: number }[];
 }
 

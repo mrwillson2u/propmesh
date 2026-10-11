@@ -240,6 +240,7 @@ static void on_heartbeat(const RxFrame &f) {
   doc["hops"] = PM_DEFAULT_TTL - f.hdr.ttl;  // 0 = heard directly
   doc["rssi"] = f.rssi;                      // last hop only
   if (hb.channel) doc["ch"] = hb.channel;
+  if (hb.listen_ms) doc["listen"] = hb.listen_ms;  // a battery board listening in windows
   JsonArray nb = doc["nbrs"].to<JsonArray>();
   for (uint8_t i = 0; i < hb.neighbor_count && i < PM_MAX_NEIGHBORS; i++) {
     JsonObject o = nb.add<JsonObject>();

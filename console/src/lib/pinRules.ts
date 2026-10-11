@@ -16,6 +16,9 @@ export interface Issue {
   gpio?: number;
 }
 
+// RTC-capable GPIOs: the only ones that can wake an ESP32 from deep sleep.
+export const isWakePin = (g: number) => g === 0 || g === 2 || g === 4 || (g >= 12 && g <= 15) || (g >= 25 && g <= 27) || (g >= 32 && g <= 39);
+
 export function validate(board: Board, cfg: NodeConfig): Issue[] {
   const out: Issue[] = [];
   const add = (code: string, error: boolean, channel: number, gpio?: number) =>
@@ -40,6 +43,8 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
       const need = f.pins[p].need;
       if ((bp.caps & need) !== need) add("pin_cannot", true, i, gpio);
       else if (bp.tier === "caution") add("pin_caution", false, i, gpio);
+      // On battery a sensor wakes the board from deep sleep — only from an RTC pin (docs §6f).
+      if (cfg.power === "battery" && c.kind === "DIGITAL_IN" && !isWakePin(gpio)) add("no_wake_pin", false, i, gpio);
 
       const taken = c.pins.slice(0, p).includes(gpio) ||
         cfg.channels.slice(0, i).some((o) => o.pins.includes(gpio));
@@ -90,6 +95,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "pin_reserved": return `${who}: ${pin} is reserved — ${bp?.note ?? ""}`;
     case "pin_cannot": return `${who}: ${pin} can't do this${bp?.note ? ` — ${bp.note}` : ""}`;
     case "pin_caution": return `${pin}: ${bp?.note ?? "use with care"}`;
+    case "no_wake_pin": return `${who}: ${pin} can't wake the board from deep sleep — on battery, put wake sensors and buttons on 32, 33, 34, 35, 36, 39, 25–27, 12–15, 4, 2 or 0`;
     case "pin_taken": return `${who}: ${pin} is already in use`;
     case "no_pull": return `${who}: ${pin} has no internal pull resistor — set pull to "none" and add one externally`;
     case "servo_range": return `${who}: min and max must each be ${SERVO_MIN_US}–${SERVO_MAX_US} µs and at least ${SERVO_MIN_TRAVEL_US} µs apart`;

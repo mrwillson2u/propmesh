@@ -117,21 +117,28 @@ export default function MeshPanel() {
         </span>
         {list.map((en) => {
           const missing = isMissing(en, now);
+          // A battery board that's gone quiet is asleep, not lost (docs §6f).
+          const battery = en.hello?.power === "battery";
+          const asleep = battery && missing;
+          const listening = battery && !missing && !!en.hb?.listen;
           const role = en.usb ? en.hello?.role ?? 0 : en.hb?.role ?? 0;
           const bridge = !!(role & NodeRole.BRIDGE);
           const clock = !!(role & NodeRole.CONDUCTOR);
           const on = en.node === selected;
           return (
             <button key={en.node} onClick={() => setSelected(en.node)}
-              title={`${en.node} · ${where(en)}${missing ? " · not heard recently" : ""}${en.hello ? "" : " · asking it for its name and board"}`}
+              title={`${en.node} · ${where(en)}${asleep ? ` · asleep — checks in every ${en.hello?.checkin_min ?? "?"} min, or on its sensor` : missing ? " · not heard recently" : ""}${listening ? ` · listening ${en.hb!.listen} ms windows` : ""}${en.hello ? "" : " · asking it for its name and board"}`}
               style={{
                 display: "flex", alignItems: "center", gap: 7, height: 32, padding: "0 10px", borderRadius: 6, cursor: "pointer",
                 background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}`,
               }}>
               {en.hello
-                ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: missing ? C.red : C.green }} />
+                ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: asleep ? C.t4 : missing ? C.red : C.green }} />
                 : <Spinner size={10} />}
-              <span style={sys(600, 12, missing ? C.red : en.hello ? C.t1 : C.t3)}>{en.hello?.name || en.node}</span>
+              <span style={sys(600, 12, asleep ? C.t3 : missing ? C.red : en.hello ? C.t1 : C.t3)}>{en.hello?.name || en.node}</span>
+              {asleep && <span style={mono(500, 10.5, C.t4)}>☾ asleep</span>}
+              {listening && <span title="listening in windows between cues" style={mono(500, 10.5, C.t4)}>☾ {en.hb!.listen} ms</span>}
+              {battery && en.hb && en.hb.batt > 0 && <span style={mono(500, 10.5, en.hb.batt < 3500 ? C.amber : C.t4)}>{(en.hb.batt / 1000).toFixed(2)} V</span>}
               {!en.hello && <span style={mono(500, 10.5, C.t4)}>connecting…</span>}
               {en.usb && tag(directLabel(link), C.t2, C.raised)}
               {bridge && tag("BRIDGE", C.emberT, C.emberBg)}
