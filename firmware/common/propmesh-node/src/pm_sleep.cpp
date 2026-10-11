@@ -122,6 +122,7 @@ static void set_show_tier(bool on) {
     pm_mesh_set_stale_ms(60000);  // hears one beacon in (interval / window)
     Serial.printf("sleep: show tier — listening %u ms of every %u ms\n", window_ms, interval_ms);
   } else {
+    esp_now_set_wake_window(65535);  // the whole interval: back to listening always
     esp_wifi_set_ps(WIFI_PS_NONE);
     pm_mesh_set_stale_ms(PM_SYNC_STALE_MS);
     Serial.println("sleep: awake — radio always on");

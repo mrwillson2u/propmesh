@@ -147,6 +147,12 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   if (hdr.msg_type == PM_MSG_TYPE_TIME && plen >= TIME_V1_LEN) {
     pm_time_t t = {};
     memcpy(&t, payload, plen < sizeof(t) ? plen : sizeof(t));
+    // A bridge's time beacon is proof of the bridge as good as its
+    // heartbeat — and a board listening in windows hears beacons (sent
+    // every second for it) far more often than heartbeats (every 5 s).
+    // Counting only heartbeats sent the Feather scanning for a bridge
+    // that was right there (2026-10-11).
+    if (t.priority >= 1 && !(s_role & PM_NODE_ROLE_BRIDGE)) s_last_bridge_ms = now_ms ? now_ms : 1;
     // Two conductors can only coexist until they hear each other; the
     // higher (priority, id) wins, so the loser steps down and follows.
     // A bridge never steps down to a plain node.
@@ -284,7 +290,8 @@ static void follow_bridge(uint32_t now) {
     return;
   }
   uint32_t since = now - (s_last_bridge_ms ? s_last_bridge_ms : 0);
-  if (since < BRIDGE_LOST_MS) return;
+  // Listening in windows: allow the sync tolerance before calling the bridge gone.
+  if (since < (s_stale_ms > BRIDGE_LOST_MS ? s_stale_ms : BRIDGE_LOST_MS)) return;
   if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < SCAN_RETRY_MS) return;
   s_last_scan_ms = now ? now : 1;
   s_scan_home = pm_mesh_channel();

@@ -287,8 +287,12 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   if (!req["id"].isNull()) resp["id"] = req["id"];
   resp["ok"] = true;
   const char *cmd = req["cmd"] | "";
-  // Someone is working on this board: stay awake for them (docs §6f).
-  pm_sleep_hold(600000);
+  // Someone is working on this board: stay awake for them (docs §6f) —
+  // but not for the console's background polling (hello, mesh, state,
+  // ota_status), which would keep a battery board up for as long as a
+  // console is open (2026-10-11).
+  if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
+    pm_sleep_hold(600000);
   if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
   if (!strcmp(cmd, "hello")) cmd_hello(resp);
   else if (!strcmp(cmd, "get_config"))
