@@ -19,6 +19,13 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   // "wifi": {"ssid", "pass"} — bridge only. A missing "pass" means "keep
   // the stored one" (the console never sees it); pm_api fills it back in.
   out.battery = !strcmp(root["power"] | "mains", "battery");
+  JsonVariantConst sl = root["sleep"];
+  out.sleep_interval_ms = sl["interval_ms"] | 1000;
+  out.sleep_window_ms = sl["window_ms"] | 100;
+  out.sleep_checkin_min = sl["checkin_min"] | 5;
+  if (out.sleep_interval_ms < 200 || out.sleep_interval_ms > 10000) return "sleep.interval_ms must be 200-10000";
+  if (out.sleep_window_ms < 30 || out.sleep_window_ms > out.sleep_interval_ms) return "sleep.window_ms must be 30 to interval_ms";
+  if (out.sleep_checkin_min < 1 || out.sleep_checkin_min > 240) return "sleep.checkin_min must be 1-240";
   JsonVariantConst wifi = root["wifi"];
   pm_copy(out.wifi_ssid, wifi["ssid"] | "", sizeof(out.wifi_ssid));
   pm_copy(out.wifi_pass, wifi["pass"] | "", sizeof(out.wifi_pass));
@@ -83,6 +90,12 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
   root["name"] = cfg.name;
   root["bridge"] = cfg.bridge;
   root["power"] = cfg.battery ? "battery" : "mains";
+  if (cfg.battery) {
+    JsonObject sl = root["sleep"].to<JsonObject>();
+    sl["interval_ms"] = cfg.sleep_interval_ms;
+    sl["window_ms"] = cfg.sleep_window_ms;
+    sl["checkin_min"] = cfg.sleep_checkin_min;
+  }
   if (cfg.wifi_ssid[0]) {
     JsonObject wifi = root["wifi"].to<JsonObject>();
     wifi["ssid"] = cfg.wifi_ssid;

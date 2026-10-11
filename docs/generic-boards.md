@@ -854,6 +854,33 @@ verify against the board's silkscreen (the V2 Feather differs).
   mAh: ~8–10 days of continuous show tier; months in off tier *if the
   board's floor is low* — measure the HUZZAH32's deep-sleep draw first
   (regulator + USB chip), the Mini's PCB designs that floor away.
+- **Build plan (2026-10-11, Feather on battery this Halloween):**
+  *Toolchain facts:* the Arduino core's prebuilt SDK has `CONFIG_PM_ENABLE`
+  off, so the CPU cannot auto-light-sleep; the ESP-NOW wake-window API
+  (`esp_now_set_wake_window` + `esp_wifi_connectionless_module_set_wake_interval`)
+  is present. So the **show tier is modem sleep**: the RF wakes for
+  `window` ms every `interval` ms, the CPU stays up — ~25 mA average
+  instead of ~100, a 4× saving, not 10×. The **off tier is deep sleep**
+  (microamps for the chip) and is where battery life really comes from.
+  Settings per board, in the console: show listen window/interval and
+  the off-tier check-in (minutes; Colin expects 1–5, not 15–60).
+  *Stage 1 — off tier + plumbing:* config `sleep: {interval_ms,
+  window_ms, checkin_min}`; on a battery board with mode `off`, after a
+  10 s dwell with nothing in flight: deep sleep until the sensor pin
+  (ext1 on the DIGITAL_IN pins, which must be RTC-capable: 0,2,4,12–15,
+  25–27,32–39), the check-in timer, or 5 s before the next schedule
+  window — whichever first. State across sleeps in RTC memory (channel,
+  mode, wake reason); `hello.reset` says "deep sleep" and the boot event
+  the wake cause. A console request to the board holds it awake for 10
+  min (`hold_awake`), so pages and updates work. Bridge: requests to a
+  LEAF retry longer. Console: "asleep · wakes by HH:MM / on PIR" on the
+  roster and Yard; the sleep settings on the board page.
+  *Stage 2 — show tier:* in any mode but off, `esp_wifi_set_ps(MIN_MODEM)`
+  + wake window; the bridge/conductor sends cues and requests to leaves
+  repeated across one interval (window ≥ spacing) so one copy lands;
+  TIME beacons likewise; clocks tolerate the sparser sync.
+  *Stage 3 — measure* on the Feather with a battery (deep-sleep floor
+  of the board, show-tier average) and tune defaults.
 - **Relaying while awake: yes.** The rule is that the mesh never
   *depends* on a battery board, not that it never relays. A rebroadcast
   costs ~1 ms of radio per frame, negligible against ~100 mA of simply

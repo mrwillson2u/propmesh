@@ -1,4 +1,5 @@
 const char *pm_reset_reason();  // main.cpp
+#include "pm_sleep.h"
 #include "pm_wifi.h"
 #include "pm_ota.h"
 #include <Arduino.h>
@@ -25,6 +26,7 @@ static PmNodeConfig &scratch() {
 
 bool pm_node_apply(const PmNodeConfig &cfg) {
   pm_wifi_apply(cfg);  // a bridge joins (or leaves) its WiFi
+  pm_sleep_apply(cfg); // battery: sleep tiers (docs §6f)
   uint8_t role = pm_role();
   bool was_bridge = role & PM_NODE_ROLE_BRIDGE;
   if (cfg.bridge) {
@@ -68,6 +70,12 @@ static void cmd_hello(JsonObject resp) {
   resp["build"] = PM_BUILD;
   resp["reset"] = pm_reset_reason();
   resp["board"] = board->id;
+  if (pm_channels_config().battery) {
+    resp["power"] = "battery";
+    resp["checkin_min"] = pm_channels_config().sleep_checkin_min;
+    resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
+    resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
+  }
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;
   resp["role"] = pm_role();
@@ -279,6 +287,9 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   if (!req["id"].isNull()) resp["id"] = req["id"];
   resp["ok"] = true;
   const char *cmd = req["cmd"] | "";
+  // Someone is working on this board: stay awake for them (docs §6f).
+  pm_sleep_hold(600000);
+  if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
   if (!strcmp(cmd, "hello")) cmd_hello(resp);
   else if (!strcmp(cmd, "get_config"))
     pm_config_to_json(pm_channels_config(), resp["config"].to<JsonObject>());

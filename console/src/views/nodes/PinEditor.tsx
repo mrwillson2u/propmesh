@@ -260,6 +260,11 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           <BridgeWifi draft={draft} applied={applied} setDraft={setDraft} isLink={!!conn && conn.hello.node === hello.node} local={conn?.local} />
         </div>
       )}
+      {loaded && !draft.bridge && draft.power === "battery" && (
+        hello.sleeps === false
+          ? <div style={{ padding: "0 16px 12px", ...sys(500, 12, C.amber) }}>This board's firmware is a mains build (Bluetooth floods, no deep sleep): on battery it stops relaying for others, but it won't sleep. The Feather build sleeps.</div>
+          : <SleepSettings draft={draft} setDraft={setDraft} />
+      )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
         <PinGuide board={board} cfg={draft} />
         <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
@@ -392,6 +397,34 @@ function BridgeWifi({ draft, applied, setDraft, isLink, local }: {
       <span style={sys(400, 11.5, C.t4)}>
         Then <b>Save to node</b>. The password stays on the board; the console never sees it again.
       </span>
+    </div>
+  );
+}
+
+// Sleep on battery (docs §6f). Two tiers: while the show runs the radio
+// listens a window of every interval (modem sleep between); when the
+// schedule says off the board deep-sleeps and checks in every few minutes
+// (its sensor pins wake it at once either way).
+function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React.Dispatch<React.SetStateAction<NodeConfig>> }) {
+  const sl = draft.sleep ?? { interval_ms: 1000, window_ms: 100, checkin_min: 5 };
+  const set = (p: Partial<typeof sl>) => setDraft((d) => ({ ...d, sleep: { ...sl, ...p } }));
+  const num = (v: number, on: (n: number) => void, w = 64) => (
+    <input type="number" value={v} onChange={(e) => on(Number(e.target.value))} style={{ ...field, width: w, textAlign: "right" }} />
+  );
+  const dutyMa = Math.round(100 * sl.window_ms / sl.interval_ms + 25);
+  return (
+    <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+        <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SLEEP</span>
+        <span>While the show runs, listen for</span>{num(sl.window_ms, (n) => set({ window_ms: Math.max(30, n) }))}<span>ms of every</span>
+        {num(sl.interval_ms, (n) => set({ interval_ms: Math.max(200, n) }))}<span>ms</span>
+        <span style={mono(500, 11, C.t4)}>— a cue reaches it within {(sl.interval_ms / 1000).toFixed(1)} s; about {dutyMa} mA on average</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+        <span style={{ width: 44 }} />
+        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_min, (n) => set({ checkin_min: Math.max(1, n) }), 56)}<span>min</span>
+        <span style={mono(500, 11, C.t4)}>— its sensor pins wake it at once; it also wakes for the next schedule window</span>
+      </div>
     </div>
   );
 }

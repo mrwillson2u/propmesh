@@ -7,6 +7,7 @@
 // and sensor events come back up as {"evt":...} lines. A node saved in
 // bridge mode drives no pins and keeps the mesh clock.
 // docs/generic-boards.md.
+#include "pm_sleep.h"
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 #include "pm_ws.h"
@@ -173,6 +174,7 @@ void setup() {
   delay(300);
 
   pm_api_begin(BOARD);
+  pm_sleep_begin();  // wake cause; the wall clock after a deep sleep
 
   // Stored config is re-validated against THIS firmware's board table:
   // a file from another board, or from before a rule changed, must not
@@ -200,6 +202,7 @@ void setup() {
   pm_on_input(on_input);
   pm_node_apply(cfg);
   pm_show_begin();
+  pm_sleep_after_boot(cfg);  // a sensor woke us: run its triggers
 
   char id[9];
   snprintf(id, sizeof(id), "%08lx", (unsigned long)pm_node_id());
@@ -211,6 +214,7 @@ void setup() {
   evt["build"] = PM_BUILD;
   evt["pending"] = pm_ota_pending();  // a fresh OTA image, not yet proven
   evt["reset"] = pm_reset_reason();
+  evt["wake"] = pm_sleep_wake_cause();
   evt["config"] = config_state;
   evt["bridge"] = cfg.bridge;
   evt["channels"] = cfg.channel_count;
@@ -253,6 +257,7 @@ void loop() {
   pm_wifi_loop();
   ws_loop();
   pm_mesh_loop();
+  pm_sleep_loop();
   pm_link_loop();
   election();
   heartbeat();

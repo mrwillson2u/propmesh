@@ -1,3 +1,27 @@
+// A battery board (boards/esp32-huzzah32.yaml, -DPM_NO_BLE) has no
+// Bluetooth: it never drives floods, and the controller's code would not
+// fit the chip's IRAM beside WiFi and deep sleep (2026-10-11).
+#ifdef PM_NO_BLE
+#include "pm_ble_tx.h"
+extern "C" bool btInUse() { return false; }
+bool pm_ble_start() { return false; }
+bool pm_ble_running() { return false; }
+void pm_ble_set_key(const uint8_t *) {}
+void pm_ble_light(uint8_t, uint32_t) {}
+void pm_ble_raw(const uint8_t *, uint8_t) {}
+void pm_ble_tx_window(uint16_t) {}
+uint16_t pm_ble_tx_window() { return 0; }
+void pm_ble_loop() {}
+bool pm_ble_scan(uint32_t) { return false; }
+void pm_ble_scan_duty(uint16_t, uint16_t) {}
+bool pm_ble_pair(const uint8_t *, uint8_t, uint32_t) { return false; }
+uint8_t pm_ble_mode() { return PM_BLE_IDLE; }
+uint32_t pm_ble_remaining_ms() { return 0; }
+uint8_t pm_ble_found(const PmBleLight **list) { *list = nullptr; return 0; }
+uint8_t pm_ble_others(const PmBleRaw **list) { *list = nullptr; return 0; }
+void pm_ble_on_paired(void (*)(uint8_t, const char *)) {}
+PmBleStats pm_ble_stats() { return PmBleStats(); }
+#else
 #include <Arduino.h>
 #include <esp_bt.h>
 #include <freertos/FreeRTOS.h>
@@ -416,3 +440,5 @@ void pm_ble_loop() {
 PmBleStats pm_ble_stats() {
   return {started, bursts, cmd_ok, cmd_failed, last_status, last_opcode, failed_opcode, failed_status, heard, reports, pair_key_match};
 }
+
+#endif  // PM_NO_BLE

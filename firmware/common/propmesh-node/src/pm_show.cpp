@@ -406,6 +406,10 @@ static void put_mode(JsonObject resp) {
   }
 }
 
+uint32_t pm_show_next_change_s() {
+  return (sched.active() && pm_wall().ok()) ? last_ev.next_s : 0;
+}
+
 bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
   if (!strcmp(cmd, "get_show")) {
     resp["armed"] = mode == PM_MODE_ARMED;

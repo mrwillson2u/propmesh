@@ -36,6 +36,9 @@ export interface NodeConfig {
   wifi?: { ssid: string; pass?: string; pass_set?: boolean };
   // "battery": a leaf that never relays (and later sleeps between triggers); "mains" (default) relays.
   power?: "mains" | "battery";
+  // Sleep on battery (docs §6f): show tier listens window_ms of every interval_ms;
+  // off tier deep-sleeps, checking in every checkin_min minutes.
+  sleep?: { interval_ms: number; window_ms: number; checkin_min: number };
   channels: ChannelCfg[];
 }
 

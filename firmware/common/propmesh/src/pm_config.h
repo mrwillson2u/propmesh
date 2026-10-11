@@ -68,6 +68,12 @@ struct PmNodeConfig {
   // nodes never relay"). Deep sleep between triggers comes next (docs
   // §6f). false = mains/USB, the default.
   bool battery = false;
+  // Sleep on battery (docs §6f). Show tier: the radio listens `sleep_window_ms`
+  // of every `sleep_interval_ms` while the show runs. Off tier: deep sleep,
+  // waking every `sleep_checkin_min` minutes (and on the sensor pins).
+  uint16_t sleep_interval_ms = 1000;
+  uint16_t sleep_window_ms = 100;
+  uint16_t sleep_checkin_min = 5;
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

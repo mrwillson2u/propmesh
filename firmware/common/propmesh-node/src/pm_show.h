@@ -31,6 +31,8 @@ void pm_show_hand_set(uint8_t kind, uint8_t index, int32_t value);
 void pm_show_hand_clear();
 // Adds the mode block (mode, reason, clock, next_s, …) to a reply.
 void pm_show_put_mode(JsonObject resp);
+// UTC seconds of the schedule's next mode change; 0 if no schedule/clock.
+uint32_t pm_show_next_change_s();
 void pm_show_arm(bool armed);
 bool pm_show_armed();
 
