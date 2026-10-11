@@ -24,7 +24,7 @@ const field: React.CSSProperties = {
 };
 
 interface Served { build: string; size: number; sha256: string }
-type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: number; was?: string; note?: string; progress?: number };
+type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: number; was?: string; upWas?: number; note?: string; progress?: number };
 const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
 export default function OtaPanel({ link, entries }: { link: NodeLink; entries: Record<string, Entry> }) {
@@ -118,8 +118,13 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         if (j.state === "done" || j.state === "failed") continue;
         const en = entriesRef.current[node];
         const build = en?.hello?.build;
-        // Back with a different build, or back on probation (same build re-sent).
-        if (en && build && (build !== j.was || (j.state === "waiting" && en.hello?.pending))) { next[node] = { ...j, state: "done", note: `now ${build}` }; changed = true; }
+        // Done when the board is back with a different build, or back on
+        // probation, or its uptime restarted — the same build sent again
+        // (2026-10-11: a real, confirmed update read "didn't come back"
+        // because the build id hadn't changed and the 10 s download never
+        // made the board look missing).
+        const rebooted = en?.hello?.pending || (j.upWas !== undefined && en?.hb !== undefined && en.hb.up < j.upWas);
+        if (en && build && (build !== j.was || rebooted)) { next[node] = { ...j, state: "done", note: build !== j.was ? `now ${build}` : `restarted on ${build}` }; changed = true; }
         else if (j.state === "sent" && en && isMissing(en, now)) { next[node] = { ...j, state: "waiting" }; changed = true; }
         else if (j.state !== "sending" && now - j.since > CAME_BACK_MS) { next[node] = { ...j, state: "failed", note: "didn't come back with a new build — check its serial log" }; changed = true; }
       }
@@ -142,7 +147,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
       if (typeof image !== "object" || !image) return;
       const sig = { stop: false };
       stops.current.set(node, sig);
-      setJobs((j) => ({ ...j, [node]: { state: "sending", since: Date.now(), was: en.hello?.build, progress: 0 } }));
+      setJobs((j) => ({ ...j, [node]: { state: "sending", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up, progress: 0 } }));
       try {
         await streamImage(t, image, (w, total) => setJobs((j) => ({ ...j, [node]: { ...j[node], progress: w / total, since: Date.now() } })), sig);
         // Accepted and verified: it reboots now; the checker waits for it to come back.
@@ -150,7 +155,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
       } catch (e) { failed((e as Error).message); }
       return;
     }
-    setJobs((j) => ({ ...j, [node]: { state: "sent", since: Date.now(), was: en.hello?.build } }));
+    setJobs((j) => ({ ...j, [node]: { state: "sent", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up } }));
     try {
       const r = await t.request("ota", { url, ssid, pass });
       if (!r.ok) failed(r.error ?? "refused");
