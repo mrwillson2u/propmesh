@@ -29,6 +29,8 @@ interface Props {
   nameOf: (node: string) => string;
   activity: Activity[];
   onChange: (rules: Rule[]) => void;
+  // Simulate: play a sequence for real (the console's cue), as the chain would.
+  onFire: (seq: number) => Promise<string | null>;  // null = ok, else why not
 }
 
 const field: React.CSSProperties = {
@@ -39,7 +41,7 @@ const num: React.CSSProperties = { ...field, width: 58, ...mono(500, 11.5, C.t1)
 
 // The editor hands each node its context through module state: React
 // Flow owns the node tree, and functions in node data would churn it.
-let ctx: { show: Show; sensors: Sensor[]; nameOf: (n: string) => string; update: (id: string, patch: Partial<BlockData>) => void; remove: (id: string) => void } | null = null;
+let ctx: { show: Show; sensors: Sensor[]; nameOf: (n: string) => string; update: (id: string, patch: Partial<BlockData>) => void; remove: (id: string) => void; simulate: (id: string) => void; simulating: string | null } | null = null;
 
 function PmBlock({ id, data, selected }: NodeProps<PmNode>) {
   const c = ctx!;
@@ -70,6 +72,10 @@ function PmBlock({ id, data, selected }: NodeProps<PmNode>) {
         <span style={{ flex: 1 }} />
         {data.active && <span style={{ font: `700 9px ${MONO}`, color: C.emberT, letterSpacing: ".06em" }}>{isAction ? "PLAYING" : "FIRED"}</span>}
         {data.unwired && !data.active && <span title="Not part of a complete chain — it does nothing until wired trigger → … → sequence" style={{ font: `700 9px ${MONO}`, color: C.amber }}>UNWIRED</span>}
+        {isTrigger && !data.unwired && (
+          <span className="nodrag" onClick={() => c.simulate(id)} title="Simulate: run this chain now as if the trigger fired — delays, random pick, and the sequences play for real (cooldown and lockout are not enforced)"
+            style={{ ...sys(700, 10, c.simulating === id ? C.emberT : C.t3), cursor: "pointer", padding: "1px 6px", border: `1px solid ${c.simulating === id ? C.ember : C.b3}`, borderRadius: 4 }}>▶ sim</span>
+        )}
         <span className="nodrag" onClick={() => c.remove(id)} title="Remove block" style={{ color: C.t5, cursor: "pointer", fontSize: 11 }}>✕</span>
       </div>
       <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
@@ -132,9 +138,12 @@ export default function GraphEditor(props: Props) {
   return <ReactFlowProvider><Canvas {...props} /></ReactFlowProvider>;
 }
 
-function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
+function Canvas({ rules, show, sensors, nameOf, activity, onChange, onFire }: Props) {
   const flow = useReactFlow();
   const positions = useRef(loadPositions());
+  const [simulating, setSimulating] = useState<string | null>(null);
+  const [simMsg, setSimMsg] = useState<string | null>(null);
+  const simBlocks = useRef(new Set<string>());  // blocks lit by a running simulation
   const [nodes, setNodes] = useState<PmNode[]>([]);
   const [edges, setEdges] = useState<RFEdge[]>([]);
   const lastCompiled = useRef<Rule[] | null>(null);
@@ -172,8 +181,63 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, onChange]);
 
+  // Simulate a chain: walk it from the trigger as the board would — light
+  // each block in turn, honour the delays, pick one sequence if there's a
+  // Random pick, then play the sequences for real. Cooldown and lockout are
+  // shown, not enforced: a simulation is for seeing the chain, not gating it.
+  const simulate = async (triggerId: string) => {
+    if (simulating) return;
+    const g = toGraph(nodes, edges);
+    const byId = new Map(g.blocks.map((b) => [b.id, b]));
+    const out = new Map<string, string[]>();
+    for (const w of g.wires) { if (!out.has(w.source)) out.set(w.source, []); out.get(w.source)!.push(w.target); }
+    const light = (id: string, on: boolean) => { if (on) simBlocks.current.add(id); else simBlocks.current.delete(id); };
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    setSimulating(triggerId);
+    setSimMsg(null);
+    try {
+      const trig = byId.get(triggerId);
+      if (!trig) return;
+      light(triggerId, true);
+      // Breadth-first along the chain, in wall time.
+      let frontier = [triggerId];
+      const seqs: number[] = [];
+      let random = false;
+      let startDelay = trig.data.kind === "after" && trig.data.atEnd ? lengthMs(show.sequences.find((q) => q.id === trig.data.seq) ?? { steps: [] } as unknown as Parameters<typeof lengthMs>[0]) : 0;
+      if (startDelay) { setSimMsg(`waiting ${(startDelay / 1000).toFixed(1)} s for the sequence to end…`); await sleep(startDelay); }
+      while (frontier.length) {
+        const next: string[] = [];
+        for (const id of frontier) {
+          for (const to of out.get(id) ?? []) {
+            const b = byId.get(to);
+            if (!b) continue;
+            light(to, true);
+            if (b.data.kind === "delay") { setSimMsg(`delay ${((b.data.ms ?? 0) / 1000).toFixed(1)} s…`); await sleep(b.data.ms ?? 0); }
+            if (b.data.kind === "pick") random = true;
+            if (b.data.kind === "action") { if (b.data.seq) seqs.push(b.data.seq); }
+            else next.push(to);
+          }
+        }
+        frontier = next;
+      }
+      const chosen = random && seqs.length ? [seqs[Math.floor(Math.random() * seqs.length)]] : [...new Set(seqs)];
+      if (!chosen.length) { setSimMsg("the chain reaches no sequence"); return; }
+      const names = chosen.map((q) => show.sequences.find((s) => s.id === q)?.name ?? `#${q}`);
+      setSimMsg(`playing ${names.join(", ")}`);
+      for (const q of chosen) {
+        const err = await onFire(q);
+        if (err) { setSimMsg(`couldn't play ${names[chosen.indexOf(q)]}: ${err}`); break; }
+      }
+      await sleep(1500);
+    } finally {
+      simBlocks.current.clear();
+      setSimulating(null);
+      setTimeout(() => setSimMsg(null), 4000);
+    }
+  };
+
   ctx = {
-    show, sensors, nameOf,
+    show, sensors, nameOf, simulate: (id) => void simulate(id), simulating,
     update: (id, patch) => setNodes((cur) => { const next = cur.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)); emit(next, edges); return next; }),
     remove: (id) => { const ns = nodes.filter((n) => n.id !== id), es = edges.filter((e) => e.source !== id && e.target !== id); setNodes(ns); setEdges(es); emit(ns, es); },
   };
@@ -198,14 +262,14 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
   const live = useMemo(() => {
     const now = Date.now();
     const recent = activity.filter((a) => now - a.at < 3000);
-    return (n: PmNode) => recent.some((a) =>
+    return (n: PmNode) => simBlocks.current.has(n.id) || recent.some((a) =>
       (a.kind === "input" && a.value === 1 && n.data.kind === "sensor" && a.node === n.data.node && a.index === n.data.input) ||
       (a.kind === "cue" && (n.data.kind === "action" || n.data.kind === "after") && a.seq === n.data.seq));
   }, [activity]);
   useEffect(() => {
     const tick = () => setNodes((cur) => cur.map((n) => (!!n.data.active === live(n) ? n : { ...n, data: { ...n.data, active: live(n) } })));
     tick();
-    const id = setInterval(tick, 500);
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [live]);
   const styledEdges = useMemo(() => edges.map((e) => {
@@ -214,7 +278,7 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
   }), [edges, nodes]);
 
   // The palette: click to add a block near the top-left of what's visible.
-  const add = (kind: BlockKind) => {
+  const add = (kind: BlockKind, at?: { x: number; y: number }) => {
     const n = nodes.length;
     const data: BlockData = { kind };
     if (kind === "sensor" && sensors[0]) { data.node = sensors[0].node; data.input = sensors[0].index; data.on = "active"; }
@@ -228,12 +292,18 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
     // Below the lowest block in its column, so chains read left → right.
     const inCol = nodes.filter((b) => (TRIGGER_KINDS.includes(b.data.kind) ? 0 : LOGIC_KINDS.includes(b.data.kind) ? 1 : 2) === col);
     const y = inCol.length ? Math.max(...inCol.map((b) => b.position.y)) + 150 : 40;
-    const block: Block = { id, data, x: 40 + col * 250, y };
+    const block: Block = { id, data, x: at?.x ?? 40 + col * 250, y: at?.y ?? y };
     const next = [...nodes, { id, type: "pm" as const, position: { x: block.x, y: block.y }, data: { ...data } }];
     setNodes(next);
     emit(next, edges);
     void n;
-    setTimeout(() => flow.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }), 50);
+    if (!at) setTimeout(() => flow.fitView({ padding: 0.2, maxZoom: 1, duration: 200 }), 50);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const kind = e.dataTransfer.getData("application/propmesh-block") as BlockKind;
+    if (!kind) return;
+    add(kind, flow.screenToFlowPosition({ x: e.clientX - 105, y: e.clientY - 20 }));  // the card under the cursor's grab point
   };
 
   const palette: [string, BlockKind[]][] = [["TRIGGERS", ["sensor", "after"]], ["LOGIC", ["delay", "cooldown", "lockout", "pick"]], ["ACTIONS", ["action"]]];
@@ -245,18 +315,24 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange }: Props) {
             <div style={{ font: "700 9.5px system-ui", letterSpacing: ".1em", color: C.t5, marginBottom: 6 }}>{cat}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {kinds.map((k) => (
-                <div key={k} onClick={() => add(k)} title={BLOCK_HELP[k]}
-                  style={{ padding: "7px 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(600, 11.5, C.t2), cursor: "pointer" }}>{BLOCK_LABEL[k]}</div>
+                <div key={k} onClick={() => add(k)} title={BLOCK_HELP[k]} draggable
+                  onDragStart={(e) => { e.dataTransfer.setData("application/propmesh-block", k); e.dataTransfer.effectAllowed = "move"; }}
+                  style={{ padding: "7px 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(600, 11.5, C.t2), cursor: "grab" }}>{BLOCK_LABEL[k]}</div>
               ))}
             </div>
           </div>
         ))}
         <div style={{ flex: 1 }} />
         <div style={{ font: "400 10.5px/1.5 system-ui", color: C.t6 }}>
-          Click a block to add it, drag the dots to wire them left → right. A chain is one trigger rule, stored on the trigger's board. Save with <b>Save triggers</b>.
+          Drag a block onto the canvas (or click it), then drag the dots to wire them left → right. A chain is one trigger rule, stored on the trigger's board. <b>▶ sim</b> on a trigger runs its chain now. Save with <b>Save triggers</b>.
         </div>
       </div>
-      <div style={{ flex: 1, minWidth: 0, position: "relative", background: C.bg }}>
+      <div style={{ flex: 1, minWidth: 0, position: "relative", background: C.bg }} onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}>
+        {simMsg && (
+          <div style={{ position: "absolute", top: 10, right: 10, zIndex: 5, padding: "5px 10px", borderRadius: 6, background: C.emberBg, border: `1px solid ${C.emberB}`, ...mono(600, 11, C.emberT) }}>
+            ▶ SIM · {simMsg}
+          </div>
+        )}
         <style>{`
           .react-flow__controls { background: ${C.card}; border: 1px solid ${C.b2}; box-shadow: none; }
           .react-flow__controls-button { background: ${C.card}; border-bottom: 1px solid ${C.b2}; color: ${C.t3}; fill: ${C.t3}; }

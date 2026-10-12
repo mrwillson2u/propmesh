@@ -165,9 +165,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   const draftRef = useRef<Sequence | null>(null);
   const showRef = useRef<Show | null>(null);
   const msgRef = useRef<typeof msg>(null);
+  const rulesRef = useRef<Rule[]>([]);
   draftRef.current = draft;
   showRef.current = show;
   msgRef.current = msg;
+  rulesRef.current = rules;
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
@@ -182,7 +184,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       const onBoards = d && sh.sequences.find((x) => x.id === d.id);
       const unsaved = !!d && !sameSequence(d, before) && !sameSequence(d, onBoards);
       setShow(sh);
-      setRules(sh.rules);
+      // Unsaved trigger edits (rows or graph) survive a reload, like an
+      // unsaved sequence does — a mode change or a board catching up used
+      // to wipe a half-built chain (2026-10-12).
+      const rulesUnsaved = JSON.stringify(rulesRef.current) !== JSON.stringify(showRef.current?.rules ?? []);
+      if (!rulesUnsaved) setRules(sh.rules);
       if (!unsaved) {
         const keep = sh.sequences.find((s) => s.id === sel) ?? sh.sequences[0] ?? null;
         setSel(keep?.id ?? null);
@@ -563,7 +569,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
               )}
               {graphView && (
                 <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: "calc(100vh - 230px)", minHeight: 460 }}>
-                  <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules} />
+                  <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules}
+                    onFire={async (seq) => { try { const r = await conn.link.request("cue", { seq }); return r.ok ? null : (r.error ?? "refused"); } catch (e) { return (e as Error).message; } }} />
                 </div>
               )}
               {!graphView && rules.map((r, i) => <RuleRow key={i} r={r} show={show} sensors={sensors} nameOf={nameOf}
