@@ -115,7 +115,8 @@ export interface Show {
   floods: FloodsState; // the mesh-wide flood lights and which boards send to them
   armed: Record<string, boolean>;
   modes: Record<string, ModeStatus>; // per board: mode, why, what the schedule does next
-  unreachable: string[]; // nodes that didn't answer during load
+  unreachable: string[]; // nodes that didn't answer during load, and nobody holds a copy for
+  fromBridge: string[]; // nodes that didn't answer; their part shown from the bridge's copy (docs §6k)
 }
 
 const ask = (link: NodeLink, en: Entry, cmd: string, body: Record<string, unknown> = {}): Promise<Reply> =>
@@ -126,9 +127,43 @@ type Wire =
   | [number, ChannelKindName, number, number, number, number, number]
   | [number, ChannelKindName, number, number, number, string]; // named preset, before 2026-10-06
 
-export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> {
-  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [] };
+// `prev`: the last load, for a board that doesn't answer this time — its
+// channels are kept for the pickers. `viaBridge`: the console is on a
+// bridge, which holds a copy of every board's part; a board that doesn't
+// answer is shown from that copy instead of vanishing from the show.
+export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | null = null, viaBridge = false): Promise<Show> {
+  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [], fromBridge: [] };
   const byId = new Map<number, Sequence>();
+  const addPart = (node: string, p: { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] }, problem?: string) => {
+    const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], problems: [] };
+    if (!seq.name && p.name) seq.name = p.name;
+    if (p.ambient) { seq.ambient = true; seq.loop_ms = Math.max(seq.loop_ms ?? 0, p.loop_ms ?? 0) || undefined; }
+    seq.loadedOn.push(node);
+    if (problem) seq.problems.push(problem);
+    for (const w of p.steps) {
+      const [t_ms, kind, index, value] = w;
+      // Flood steps are the same on every sender: they belong to the Floods pseudo-node.
+      const st: Step = { uid: newUid(), t_ms, node: kind === "BLE_LIGHT" ? FLOODS : node, kind, index, value };
+      if (w.length === 7 && w[4] > 0) { st.dur_ms = w[4]; st.ease_in = w[5]; st.ease_out = w[6]; }
+      if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; [st.ease_in, st.ease_out] = LEGACY[w[5]] ?? [50, 50]; }
+      seq.steps.push(st);
+    }
+    byId.set(p.id, seq);
+  };
+  // The bridge's copy of a board's part: what the console last saved for it.
+  const fromBridge = async (node: string) => {
+    const idx = await link.request("pull_index", { for: node });
+    if (!idx.ok) return false;
+    const seqs = (idx.seqs ?? {}) as Record<string, { at: number; del?: boolean }>;
+    for (const [id, e] of Object.entries(seqs)) {
+      if (e.del) continue;
+      const r = await link.request("pull_seq", { for: node, seq: Number(id) });
+      if (r.ok && r.sequence) addPart(node, r.sequence as Parameters<typeof addPart>[1]);
+    }
+    const rules = await link.request("pull_rules", { for: node });
+    if (rules.ok) for (const r of (rules.rules as Omit<Rule, "node">[]) ?? []) show.rules.push({ ...r, node });
+    return true;
+  };
   await Promise.all(entries.map(async (en) => {
     try {
       const cfg = await ask(link, en, "get_config");
@@ -144,24 +179,20 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
       for (const sum of (sh.sequences as { id: number; name: string; problem?: string }[]) ?? []) {
         const part = await ask(link, en, "get_sequence", { seq: sum.id });
         if (!part.ok) continue;
-        const p = part.sequence as { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] };
-        const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], problems: [] };
-        if (!seq.name && p.name) seq.name = p.name;
-        if (p.ambient) { seq.ambient = true; seq.loop_ms = Math.max(seq.loop_ms ?? 0, p.loop_ms ?? 0) || undefined; }
-        seq.loadedOn.push(en.node);
-        if (sum.problem) seq.problems.push(`${en.hello?.name || en.node}: ${sum.problem}`);
-        for (const w of p.steps) {
-          const [t_ms, kind, index, value] = w;
-          // Flood steps are the same on every sender: they belong to the Floods pseudo-node.
-          const st: Step = { uid: newUid(), t_ms, node: kind === "BLE_LIGHT" ? FLOODS : en.node, kind, index, value };
-          if (w.length === 7 && w[4] > 0) { st.dur_ms = w[4]; st.ease_in = w[5]; st.ease_out = w[6]; }
-          if (w.length === 6 && w[4] > 0) { st.dur_ms = w[4]; [st.ease_in, st.ease_out] = LEGACY[w[5]] ?? [50, 50]; }
-          seq.steps.push(st);
-        }
-        byId.set(p.id, seq);
+        addPart(en.node, part.sequence as Parameters<typeof addPart>[1], sum.problem ? `${en.hello?.name || en.node}: ${sum.problem}` : undefined);
       }
     } catch {
-      show.unreachable.push(en.node);
+      // Off the mesh. Its channels from last time, its part from the bridge.
+      const kept = prev?.configs[en.node];
+      let shown = false;
+      if (viaBridge) {
+        if (kept) show.configs[en.node] = kept;
+        try { shown = await fromBridge(en.node); } catch { /* the bridge itself didn't answer */ }
+      }
+      if (shown) {
+        show.fromBridge.push(en.node);
+        if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node];
+      } else show.unreachable.push(en.node);
     }
   }));
   // The floods: one pseudo-node in the pickers, and each sender's copy of a

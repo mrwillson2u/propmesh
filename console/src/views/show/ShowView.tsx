@@ -152,14 +152,16 @@ function Editor({ conn }: { conn: Connection }) {
   // wipe it (2026-10-06).
   const draftRef = useRef<Sequence | null>(null);
   const showRef = useRef<Show | null>(null);
+  const msgRef = useRef<typeof msg>(null);
   draftRef.current = draft;
   showRef.current = show;
+  msgRef.current = msg;
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
     setMsg(null);
     try {
-      const sh = await loadShow(conn.link, known);
+      const sh = await loadShow(conn.link, known, showRef.current, viaBridge);
       if (gen !== loadGen.current) return;
       const d = draftRef.current;
       const before = d && showRef.current?.sequences.find((x) => x.id === d.id);
@@ -175,6 +177,9 @@ function Editor({ conn }: { conn: Connection }) {
         setDraft(keep ? sortSteps(structuredClone(keep)) : null);
       }
       if (sh.unreachable.length) setMsg({ text: `No answer from ${sh.unreachable.map(nameOf).join(", ")} — its part of the show isn't shown.`, bad: true });
+      // A board away but covered by the bridge: say so only when nothing
+      // more specific (a save's own message) is already showing.
+      else if (sh.fromBridge.length && !msgRef.current) setMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} off the mesh — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part.` });
     } finally {
       if (gen === loadGen.current) setLoading(false);
     }
