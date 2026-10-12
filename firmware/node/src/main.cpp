@@ -22,6 +22,7 @@
 #include "pm_link.h"
 #include "pm_pinrules.h"
 #include "pm_show.h"
+#include "pm_lastwords.h"
 
 #ifndef PM_CHANNEL
 #define PM_CHANNEL 1
@@ -192,6 +193,7 @@ void setup() {
       config_state = "ok";
     }
   }
+  pm_lastwords_begin();  // what went wrong before this boot, if anything
 
   // Powered generic nodes relay; pm_node_apply adds bridge + conductor.
   // Start on the channel the mesh was last found on (docs §6d).
@@ -216,6 +218,7 @@ void setup() {
   evt["pending"] = pm_ota_pending();  // a fresh OTA image, not yet proven
   evt["reset"] = pm_reset_reason();
   evt["wake"] = pm_sleep_wake_cause();
+  if (pm_lastwords_any()) pm_lastwords_to_json(evt["last"].to<JsonObject>());
   evt["config"] = config_state;
   evt["bridge"] = cfg.bridge;
   evt["channels"] = cfg.channel_count;
@@ -236,6 +239,54 @@ void setup() {
   esp_err_t wdt_err = esp_task_wdt_add(nullptr);
   if (wdt_err == ESP_OK || esp_task_wdt_status(nullptr) == ESP_OK) Serial.println("wdt: watching the main loop (30 s)");
   else Serial.printf("wdt: NOT watching the main loop (%s) — a hang won't reboot\n", esp_err_to_name(wdt_err));
+}
+
+// "Nobody hears me" (pm_mesh_unheard_ms): neighbors' heartbeats keep
+// arriving but none lists this node, so its own frames aren't getting out
+// — the radio can receive but not send. Seen on Prop 2026-10-12 after
+// hours idle: every request to and from it timed out, nothing on the log.
+// First restart ESP-NOW; if two more minutes go by still unheard, reboot.
+// At most 3 such reboots in a row (an honestly one-way link at the edge
+// of range mustn't reboot forever); being heard for 10 min resets that.
+#define MUTE_MS 120000
+RTC_NOINIT_ATTR static uint32_t rtc_mute_magic, rtc_mute_reboots;
+static void mute_watch() {
+  static uint8_t stage;  // 0 fine, 1 radio restarted
+  static uint32_t heard_since_ms = millis();
+  static uint32_t last_check_ms;
+  uint32_t now = millis();
+  if (now - last_check_ms < 1000) return;
+  last_check_ms = now;
+  if (rtc_mute_magic != 0x4D555445) { rtc_mute_magic = 0x4D555445; rtc_mute_reboots = 0; }
+  uint32_t unheard = pm_mesh_unheard_ms();
+  if (unheard < MUTE_MS) {
+    if (unheard == 0 && stage) { Serial.println("mesh: heard again"); stage = 0; }
+    if (unheard == 0 && now - heard_since_ms > 600000) rtc_mute_reboots = 0;
+    if (unheard) heard_since_ms = now;
+    return;
+  }
+  heard_since_ms = now;
+  char detail[96];
+  const pm_stats_t *st = pm_stats();
+  snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s)",
+           (unsigned long)(unheard / 1000), (unsigned long)st->tx_err,
+           st->last_tx_err ? esp_err_to_name(st->last_tx_err) : "none");
+  if (stage == 0) {
+    pm_lastwords_note("mute: radio restarted", detail);
+    Serial.printf("mesh: MUTE — %s; restarting ESP-NOW\n", detail);
+    pm_mesh_recover(pm_mesh_channel());
+    pm_mesh_unheard_reset();
+    stage = 1;
+  } else if (rtc_mute_reboots < 3) {
+    rtc_mute_reboots++;
+    pm_lastwords_note("mute: rebooted", detail);
+    Serial.printf("mesh: still MUTE after a radio restart — rebooting (%lu of 3)\n", (unsigned long)rtc_mute_reboots);
+    Serial.flush();
+    delay(100);
+    esp_restart();
+  } else {
+    pm_mesh_unheard_reset();  // gave up rebooting; keep listening, check again later
+  }
 }
 
 // A freshly updated image proves itself by running with the mesh up for
@@ -262,4 +313,5 @@ void loop() {
   pm_link_loop();
   election();
   heartbeat();
+  mute_watch();
 }

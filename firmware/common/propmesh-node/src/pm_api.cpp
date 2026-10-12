@@ -11,6 +11,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_channels.h"
 #include "pm_show.h"
 #include "pm_ble_tx.h"
+#include "pm_lastwords.h"
 
 static const pm_board_t *board;
 
@@ -69,6 +70,8 @@ static void cmd_hello(JsonObject resp) {
   resp["fw"] = PM_FW_VERSION;
   resp["build"] = PM_BUILD;
   resp["reset"] = pm_reset_reason();
+  resp["up_s"] = millis() / 1000;
+  if (pm_lastwords_any()) pm_lastwords_to_json(resp["last"].to<JsonObject>());
   resp["board"] = board->id;
   if (pm_channels_config().battery) {
     resp["power"] = "battery";
@@ -145,6 +148,11 @@ static void cmd_mesh(JsonObject resp) {
     resp["conductor"] = id;
     resp["hop"] = pm_sync_hop();
   }
+  const pm_stats_t *st = pm_stats();
+  resp["tx"] = st->tx;
+  resp["tx_err"] = st->tx_err;
+  if (st->last_tx_err) resp["last_tx_err"] = esp_err_to_name(st->last_tx_err);
+  if (pm_mesh_unheard_ms()) resp["unheard_s"] = pm_mesh_unheard_ms() / 1000;  // neighbors heard, none hear us
   pm_neighbor_t nb[PM_MAX_NEIGHBORS];
   uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);
   JsonArray arr = resp["neighbors"].to<JsonArray>();

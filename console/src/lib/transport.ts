@@ -35,6 +35,10 @@ export interface NodeHello {
   tz_min?: number;
   sunset_s?: number;
   outputs_on?: number; // outputs on right now (firmware 2026-10-11+)
+  reset?: string; // why the board last restarted ("power on", "task watchdog (the firmware hung)", …)
+  up_s?: number; // seconds since that restart
+  // What went wrong before that restart, saved to flash (firmware 2026-10-12+).
+  last?: { what: string; detail?: string; up_s?: number; utc_s?: number };
 }
 
 // A heartbeat heard on the mesh, as the USB node reports it.

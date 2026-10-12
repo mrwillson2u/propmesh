@@ -233,6 +233,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         {!applied.bridge && <button onClick={allOff} style={btn()}>All off</button>}
       </div>
 
+      <Health hello={hello} />
       {askBattery && (
         <Confirm title="This board sends to the floods" okLabel="Put it on battery" onCancel={() => setAskBattery(false)}
           onOk={() => { setAskBattery(false); setDraft((d) => ({ ...d, power: "battery" })); }}>
@@ -686,6 +687,24 @@ interface Cal {
   pulse: (us: number) => void;
   setMin: (us: number) => void;
   setMax: (us: number) => void;
+}
+
+// Why the board last restarted, and what it saved to flash before that
+// (pm_lastwords). Shown only when there is something worth reading: a
+// plain power-on with nothing saved says nothing.
+const dur = (s: number) => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min` : `${s} s`;
+function Health({ hello }: { hello: NodeHello }) {
+  const odd = hello.reset && !["power on", "software (update or restart)", "deep sleep", "reset pin"].includes(hello.reset);
+  if (!odd && !hello.last) return null;
+  const when = hello.last?.utc_s ? new Date(hello.last.utc_s * 1000).toLocaleString() : hello.last?.up_s !== undefined ? `after ${dur(hello.last.up_s)} running` : "";
+  return (
+    <div style={{ padding: "6px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", gap: 14, flexWrap: "wrap", ...sys(400, 11.5, C.t3) }}>
+      {hello.reset && <span>Last restart: <b style={{ color: odd ? C.amber : C.t2 }}>{hello.reset}</b>{hello.up_s !== undefined ? ` · up ${dur(hello.up_s)}` : ""}</span>}
+      {hello.last && <span title="Saved to the board's flash when it happened, so a restart doesn't erase it">
+        Before that: <b style={{ color: C.amber }}>{hello.last.what}</b>{hello.last.detail ? ` — ${hello.last.detail}` : ""}{when ? ` (${when})` : ""}
+      </span>}
+    </div>
+  );
 }
 
 // Fire2023's knobs (firmware pm_fire.h). Titles say which way each one

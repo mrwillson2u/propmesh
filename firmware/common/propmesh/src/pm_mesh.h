@@ -21,6 +21,8 @@ typedef struct {
   uint32_t dropped_dupe;  // dedup window hits
   uint32_t dropped_bad;   // wrong magic / net / version / size
   uint32_t relay_overrun; // relay queue full — frame not forwarded
+  uint32_t tx_err;        // esp_now_send refused a frame (ours or a relay)
+  int32_t last_tx_err;    // its esp_err_t, 0 = none yet
 } pm_stats_t;
 
 // Bring up WiFi STA + ESP-NOW on `channel` and join network `net_id`.
@@ -55,6 +57,15 @@ void pm_mesh_set_channel(uint8_t ch);
 // registration and every send fails with "esp now not init" until this
 // runs. Also sets the channel back to `ch`.
 bool pm_mesh_recover(uint8_t ch);
+
+// "Nobody hears me": how long this node has been hearing neighbors'
+// heartbeats while none of them lists it as a neighbor — i.e. its own
+// frames aren't getting out. 0 = fine, or nothing to judge by (no
+// mains-powered neighbor with room in its list heard in the last 20 s).
+// Found 2026-10-12: Prop heard the bridge and the Feather at -35 dBm for
+// hours while neither heard it, with nothing on any log.
+uint32_t pm_mesh_unheard_ms();
+void pm_mesh_unheard_reset();  // start judging afresh (after a radio restart)
 // Called when this node moves to a new channel (persist it for next boot).
 void pm_mesh_on_channel(void (*cb)(uint8_t));
 // Seconds since a bridge was last heard; 0xFFFF = never.

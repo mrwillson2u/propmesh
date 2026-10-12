@@ -1100,6 +1100,41 @@ drawing. Checked in the simulated console; the DevKit and Feather
 headers are from the DOIT 30-pin and Adafruit layouts — ⚠ confirm
 against a board in hand.
 
+## 6j. Boards that go quiet — diagnosis (2026-10-12)
+
+**Seen:** the morning after a quiet night (show off), the console
+couldn't reach the bridge over WiFi, and **Prop could hear the mesh but
+not be heard**: it listed the bridge (−35 dBm) and the Feather as
+neighbors and received their heartbeats, yet neither listed Prop, and
+every request to *and from* Prop timed out. Bluetooth was idle (all 10
+bursts closed cleanly). Nothing on any log; the firmware didn't count
+failed sends. Opening the bridge's USB port to ask rebooted it and erased
+its state (pyserial with DTR/RTS forced low toggles the auto-reset
+circuit — leave both asserted, the default, to listen without a reset).
+Reflashing cleared both. **Root cause still unknown** — this round adds
+the instruments to catch it next time, and a self-heal.
+
+- **Send errors counted:** `mesh` now reports `tx`, `tx_err` and
+  `last_tx_err` (the esp_err name) — an ESP-NOW buffer leak would show
+  as `ESP_ERR_ESPNOW_NO_MEM`.
+- **"Nobody hears me" detector** (`pm_mesh_unheard_ms`): a neighbor's
+  heartbeat lists who it hears; if mains neighbors with room in their
+  lists keep talking but none lists this node, its frames aren't getting
+  out. `mesh` shows `unheard_s`. After **2 min** unheard the board
+  restarts ESP-NOW (`pm_mesh_recover`); after 2 more, it reboots — at
+  most 3 times in a row (RTC counter), reset by 10 min of being heard,
+  so a genuinely one-way link at the edge of range can't reboot forever.
+- **Last words** (`pm_lastwords`, `/last.json`): WiFi lost (+ reason),
+  WiFi back, mute → radio restarted, mute → rebooted, with uptime and
+  wall time — at most one write per 10 s. The previous boot's record is
+  in the boot event and `hello.last`; the console's node editor shows
+  **Last restart** (reason, uptime) and **Before that** (the saved
+  record) whenever either is worth reading.
+- **Next time it happens:** open the board in the console (over WiFi,
+  or USB) *before* power-cycling — `hello.last`, `mesh.tx_err` and
+  `unheard_s` say what happened, and if the detector fired the board
+  will already have healed itself and said so.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

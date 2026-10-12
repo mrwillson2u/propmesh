@@ -45,6 +45,9 @@ static void (*s_channel_cb)(uint8_t);
 #define LEAF_FORGET_MS 60000
 static struct { uint32_t id; uint16_t listen_ms; uint32_t heard_ms; } s_leaves[MAX_LEAVES];
 static uint32_t s_stale_ms = PM_SYNC_STALE_MS;
+// pm_mesh_unheard_ms(): when a neighbor last listed us, when a neighbor that
+// could have (mains, room in its list) last spoke, and when judging began.
+static uint32_t s_echo_ms, s_judge_ms, s_judge_since_ms;
 
 static void note_leaf(uint32_t id, uint16_t listen_ms, uint32_t now_ms) {
   int at = -1, oldest = 0;
@@ -117,6 +120,24 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   // at PM_DEFAULT_TTL, which is what makes the test valid.
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && hdr.ttl == PM_DEFAULT_TTL)
     s_neighbors.observe(hdr.src_id, rssi, now_ms);
+
+  // Does that neighbor hear us? Its heartbeat lists who it hears. A battery
+  // board listening in windows may simply have missed us, and a full list
+  // may have dropped us for stronger ones — neither counts against us.
+  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && hdr.ttl == PM_DEFAULT_TTL &&
+      plen > offsetof(pm_heartbeat_t, neighbors)) {
+    pm_heartbeat_t hb = {};
+    memcpy(&hb, payload, plen < sizeof(hb) ? plen : sizeof(hb));
+    uint8_t n = hb.neighbor_count < PM_MAX_NEIGHBORS ? hb.neighbor_count : PM_MAX_NEIGHBORS;
+    bool lists_us = false;
+    for (uint8_t i = 0; i < n; i++) lists_us |= hb.neighbors[i].node_id == s_node_id;
+    bool leaf = plen > offsetof(pm_heartbeat_t, listen_ms) && hb.listen_ms;
+    if (lists_us) s_echo_ms = now_ms;
+    else if (!leaf && hb.neighbor_count < PM_MAX_NEIGHBORS) {
+      if (!s_judge_since_ms) s_judge_since_ms = now_ms;
+      s_judge_ms = now_ms;
+    }
+  }
 
   // A battery board tells how often it listens: senders repeat into that.
   if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= sizeof(pm_heartbeat_t)) {
@@ -333,8 +354,18 @@ bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
   memcpy(buf, &hdr, sizeof(hdr));
   if (len) memcpy(buf + sizeof(hdr), payload, len);
   s_stats.tx++;
-  return esp_now_send(BCAST, buf, sizeof(hdr) + len) == ESP_OK;
+  esp_err_t err = esp_now_send(BCAST, buf, sizeof(hdr) + len);
+  if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
+  return err == ESP_OK;
 }
+
+uint32_t pm_mesh_unheard_ms() {
+  uint32_t now = millis();
+  if (!s_judge_ms || now - s_judge_ms > 20000) return 0;  // nobody to judge by lately
+  uint32_t since = s_echo_ms > s_judge_since_ms ? s_echo_ms : s_judge_since_ms;
+  return (int32_t)(now - since) > 0 ? now - since : 0;
+}
+void pm_mesh_unheard_reset() { s_echo_ms = 0; s_judge_ms = 0; s_judge_since_ms = 0; }
 
 void pm_on_receive(pm_rx_handler_t handler) { s_handler = handler; }
 
@@ -355,7 +386,8 @@ void pm_mesh_loop() {
           (t->wall_flags & 1) && s_wall.utc_ok)
         t->wall_ms = (uint64_t)s_wall.utc_ms(local_ms());
     }
-    esp_now_send(BCAST, s_relay[i].frame, s_relay[i].len);
+    esp_err_t err = esp_now_send(BCAST, s_relay[i].frame, s_relay[i].len);
+    if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
     s_relay[i].used = false;
     s_stats.relayed++;
   }

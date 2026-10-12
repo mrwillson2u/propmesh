@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include "pm_wifi.h"
 #include "pm_mesh.h"
+#include "pm_lastwords.h"
 
 // While a station is trying to join, it scans every channel for its
 // router — and the radio it scans with is the mesh's. With the core's
@@ -70,6 +71,9 @@ void pm_wifi_loop() {
   if (up && !was_up) {
     strlcpy(ip, WiFi.localIP().toString().c_str(), sizeof(ip));
     Serial.printf("wifi: joined %s as %s on channel %u\n", ssid, ip, pm_mesh_channel());
+    static bool lost_before;
+    if (lost_before) pm_lastwords_note("wifi back", ip);  // a later reboot then won't blame WiFi
+    lost_before = true;
     retry_ms = RETRY_FIRST_MS;
     last_reason = 0;
     if (!mdns_up) {
@@ -83,6 +87,7 @@ void pm_wifi_loop() {
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   } else if (!up && was_up) {
     Serial.printf("wifi: lost (%s) — retrying in %lu s\n", pm_wifi_reason(), (unsigned long)(retry_ms / 1000));
+    pm_lastwords_note("wifi lost", pm_wifi_reason());
     ip[0] = 0;
     last_try_ms = millis();
   }
