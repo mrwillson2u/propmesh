@@ -24,6 +24,11 @@ PmBleStats pm_ble_stats() { return PmBleStats(); }
 #else
 #include <Arduino.h>
 #include <esp_bt.h>
+#if !CONFIG_IDF_TARGET_ESP32
+#include "nimble/nimble_port.h"
+#include "nimble/nimble_port_freertos.h"
+#include "host/ble_hs.h"
+#endif
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "pm_ble_tx.h"
@@ -69,14 +74,12 @@ static volatile uint8_t last_status;
 static volatile uint16_t last_opcode, failed_opcode;
 static volatile uint8_t failed_status;
 
-// --- HCI over VHCI -----------------------------------------------------------
+// --- what the radio heard (both backends) ----------------------------------
 
 // A light advertisement heard while scanning, handed from the controller
-// task to the loop.
+// (or NimBLE host) task to the loop.
 struct Heard { uint8_t addr[6]; int8_t rssi; uint8_t mdata[18]; };
 static QueueHandle_t rxq;
-
-static void on_send_available() {}
 
 // Phone and laptop chatter, left out of the "others" list: Apple,
 // Microsoft, Samsung, Google company ids (little-endian).
@@ -84,27 +87,22 @@ static bool noisy_company(const uint8_t *id) {
   return id[1] == 0 && (id[0] == 0x4C || id[0] == 0x06 || id[0] == 0x75 || id[0] == 0xE0);
 }
 
-// Runs on the controller's task: count Command Complete events, and pass
-// on 18-byte manufacturer-data adverts (what a BRMesh light sends) while
-// finding or pairing. While searching, anything else that isn't phone
-// chatter is kept (last MAX_RAW addresses) so an unrecognised light still
-// shows up somewhere.
-static int on_receive(uint8_t *d, uint16_t len) {
-  if (len >= 7 && d[0] == 0x04 && d[1] == 0x0E) {
-    last_opcode = d[4] | d[5] << 8;
-    last_status = d[6];
-    if (d[6] == 0) cmd_ok++;
-    else { cmd_failed++; failed_opcode = last_opcode; failed_status = d[6]; }
-    return 0;
-  }
-  // LE Meta (0x3E) / Advertising Report (0x02), one report per event
-  if (mode == PM_BLE_IDLE || len < 15 || d[0] != 0x04 || d[1] != 0x3E || d[3] != 0x02 || d[4] < 1) return 0;
+// One command's outcome, for the stats (`ble` in the console API).
+static void note(uint16_t opcode, uint8_t status) {
+  last_opcode = opcode;
+  last_status = status;
+  if (status == 0) cmd_ok++;
+  else { cmd_failed++; failed_opcode = opcode; failed_status = status; }
+}
+
+// Runs on the radio's task: pass on 18-byte manufacturer-data adverts
+// (what a BRMesh light sends) while finding or pairing. While searching,
+// anything else that isn't phone chatter is kept (last MAX_RAW addresses)
+// so an unrecognised light still shows up somewhere. `addr` is
+// little-endian, as both HCI and NimBLE deliver it.
+static void on_advert(const uint8_t *addr, int8_t rssi, const uint8_t *ad, uint8_t dlen) {
+  if (mode == PM_BLE_IDLE) return;
   reports++;
-  const uint8_t *addr = d + 7;
-  uint8_t dlen = d[13];
-  if (14 + dlen + 1 > len) return 0;
-  const uint8_t *ad = d + 14;
-  int8_t rssi = (int8_t)d[14 + dlen];
   bool light = false, noise = false;
   for (uint8_t i = 0; i + 1 < dlen;) {
     uint8_t flen = ad[i];
@@ -122,17 +120,53 @@ static int on_receive(uint8_t *d, uint16_t len) {
     }
     i += 1 + flen;
   }
-  if (light || noise || mode != PM_BLE_SCANNING || !dlen) return 0;
+  if (light || noise || mode != PM_BLE_SCANNING || !dlen) return;
   uint8_t at = raw_n;
   for (uint8_t i = 0; i < raw_n; i++) if (!memcmp(raws[i].addr, addr, 6)) at = i;
   if (at == raw_n) {
-    if (raw_n >= MAX_RAW) return 0;
+    if (raw_n >= MAX_RAW) return;
     raw_n++;
   }
   memcpy(raws[at].addr, addr, 6);
   raws[at].rssi = rssi;
   raws[at].len = dlen > 31 ? 31 : dlen;
   memcpy(raws[at].ad, ad, raws[at].len);
+}
+
+// Scan duty cycle: listen `window_ms` of every `interval_ms`. Bluetooth
+// and ESP-NOW share one radio, so this trades finding lights against
+// staying on the mesh — see pm_ble_scan's caller for the chosen values.
+// 50 % chosen from a sweep (2026-10-06): 100 % heard 28 adverts/s but the node
+// answered 2 of 4 mesh requests; 50 % heard 6/s and answered 10 of 11;
+// 20 % answered everything but heard nothing.
+static uint16_t scan_window_ms = 50, scan_interval_ms = 100;
+static bool scanning;
+
+#define HCI_RESET 0x0C03
+#define HCI_SET_EVENT_MASK 0x0C01
+#define LE_SET_ADV_PARAMS 0x2006
+#define LE_SET_ADV_DATA 0x2008
+#define LE_SET_ADV_ENABLE 0x200A
+#define LE_SET_SCAN_PARAMS 0x200B
+#define LE_SET_SCAN_ENABLE 0x200C
+
+#if CONFIG_IDF_TARGET_ESP32
+// --- ESP32: HCI over VHCI ----------------------------------------------------
+
+static void on_send_available() {}
+
+// Runs on the controller's task: Command Complete events feed the stats,
+// LE Advertising Reports go to on_advert.
+static int on_receive(uint8_t *d, uint16_t len) {
+  if (len >= 7 && d[0] == 0x04 && d[1] == 0x0E) {
+    note(d[4] | d[5] << 8, d[6]);
+    return 0;
+  }
+  // LE Meta (0x3E) / Advertising Report (0x02), one report per event
+  if (len < 15 || d[0] != 0x04 || d[1] != 0x3E || d[3] != 0x02 || d[4] < 1) return 0;
+  uint8_t dlen = d[13];
+  if (14 + dlen + 1 > len) return 0;
+  on_advert(d + 7, (int8_t)d[14 + dlen], d + 14, dlen);
   return 0;
 }
 static esp_vhci_host_callback_t callbacks = {on_send_available, on_receive};
@@ -150,14 +184,6 @@ static bool hci(uint16_t opcode, const uint8_t *params, uint8_t len) {
   return true;
 }
 
-#define HCI_RESET 0x0C03
-#define HCI_SET_EVENT_MASK 0x0C01
-#define LE_SET_ADV_PARAMS 0x2006
-#define LE_SET_ADV_DATA 0x2008
-#define LE_SET_ADV_ENABLE 0x200A
-#define LE_SET_SCAN_PARAMS 0x200B
-#define LE_SET_SCAN_ENABLE 0x200C
-
 static bool adv_data(const uint8_t adv[PM_BRMESH_ADV_LEN]) {
   uint8_t data[1 + PM_BRMESH_ADV_LEN];
   data[0] = PM_BRMESH_ADV_LEN;
@@ -165,7 +191,6 @@ static bool adv_data(const uint8_t adv[PM_BRMESH_ADV_LEN]) {
   return hci(LE_SET_ADV_DATA, data, sizeof(data));
 }
 static bool adv_enable(bool on) { const uint8_t v = on; return hci(LE_SET_ADV_ENABLE, &v, 1); }
-static bool scanning;
 // Only send real changes: the controller refuses "stop" when not scanning.
 static bool scan_enable(bool on) {
   if (on == scanning) return true;
@@ -175,9 +200,16 @@ static bool scan_enable(bool on) {
   return ok;
 }
 
-bool pm_ble_start() {
-  if (started) return true;
-  if (failed) return false;
+// `full`: listen all the time — for the few seconds of a pairing, where the
+// light's one confirmation matters more than answering the mesh.
+static bool apply_scan_params(bool full = false) {
+  uint16_t iv = scan_interval_ms * 1000 / 625, wn = scan_window_ms * 1000 / 625;  // 0.625 ms units
+  if (full) wn = iv;
+  const uint8_t sp[7] = {0x01, (uint8_t)iv, (uint8_t)(iv >> 8), (uint8_t)wn, (uint8_t)(wn >> 8), 0x00, 0x00};
+  return hci(LE_SET_SCAN_PARAMS, sp, sizeof(sp));
+}
+
+static bool radio_start() {
   esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 #if CONFIG_IDF_TARGET_ESP32
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);  // BLE only: frees the classic-BT RAM
@@ -185,10 +217,9 @@ bool pm_ble_start() {
   cfg.mode = ESP_BT_MODE_BLE;
 #endif  // the C6 and friends are BLE-only: no mode field, nothing to release
   if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE &&
-      esp_bt_controller_init(&cfg) != ESP_OK) { failed = true; return false; }
+      esp_bt_controller_init(&cfg) != ESP_OK) return false;
   if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED &&
-      esp_bt_controller_enable(ESP_BT_MODE_BLE) != ESP_OK) { failed = true; return false; }
-  rxq = xQueueCreate(16, sizeof(Heard));
+      esp_bt_controller_enable(ESP_BT_MODE_BLE) != ESP_OK) return false;
   esp_vhci_host_register_callback(&callbacks);
   // Reset, and wait for it to finish: commands sent mid-reset are refused.
   uint32_t before = cmd_ok + cmd_failed;
@@ -206,7 +237,101 @@ bool pm_ble_start() {
   // the whole search (measured 2026-10-06). Lights repeat their adverts,
   // so slices still catch them.
   const uint8_t sp[7] = {0x01, 0xA0, 0x00, 0x20, 0x00, 0x00, 0x00};
-  started = hci(LE_SET_ADV_PARAMS, p, sizeof(p)) && hci(LE_SET_SCAN_PARAMS, sp, sizeof(sp));
+  return hci(LE_SET_ADV_PARAMS, p, sizeof(p)) && hci(LE_SET_SCAN_PARAMS, sp, sizeof(sp));
+}
+
+#else
+// --- ESP32-C6 and newer: NimBLE GAP ------------------------------------------
+// These chips' prebuilt libraries have no VHCI; NimBLE is the host. Its
+// GAP calls do the same five jobs: raw advertising data, non-connectable
+// advertising at 20 ms, active scanning with a duty cycle, and every
+// advert heard. Each call's result feeds the same stats, filed under the
+// HCI opcode it stands for.
+
+static volatile bool synced;
+static uint8_t own_addr = BLE_OWN_ADDR_PUBLIC;
+static uint16_t scan_iv, scan_wn;
+
+static void host_task(void *) {
+  nimble_port_run();  // returns only after nimble_port_stop()
+  nimble_port_freertos_deinit();
+}
+
+// Runs on the NimBLE host task.
+static int on_gap(struct ble_gap_event *ev, void *) {
+  if (ev->type == BLE_GAP_EVENT_DISC)
+    on_advert(ev->disc.addr.val, ev->disc.rssi, ev->disc.data, ev->disc.length_data);
+  else if (ev->type == BLE_GAP_EVENT_DISC_COMPLETE)
+    scanning = false;
+  return 0;
+}
+
+static bool ok(uint16_t opcode, int rc) {
+  note(opcode, rc == 0 ? 0 : (uint8_t)(rc & 0xFF));
+  return rc == 0;
+}
+
+static bool adv_data(const uint8_t adv[PM_BRMESH_ADV_LEN]) {
+  return ok(LE_SET_ADV_DATA, ble_gap_adv_set_data(adv, PM_BRMESH_ADV_LEN));
+}
+static bool adv_enable(bool on) {
+  if (!on) {
+    int rc = ble_gap_adv_stop();
+    return ok(LE_SET_ADV_ENABLE, rc == BLE_HS_EALREADY ? 0 : rc);
+  }
+  // 20 ms interval (32 x 0.625 ms), ADV_NONCONN_IND, all three channels.
+  struct ble_gap_adv_params ap = {};
+  ap.conn_mode = BLE_GAP_CONN_MODE_NON;
+  ap.disc_mode = BLE_GAP_DISC_MODE_NON;
+  ap.itvl_min = ap.itvl_max = 0x20;
+  ap.channel_map = 0x07;
+  return ok(LE_SET_ADV_ENABLE, ble_gap_adv_start(own_addr, nullptr, BLE_HS_FOREVER, &ap, on_gap, nullptr));
+}
+// Only send real changes, as on the ESP32.
+static bool scan_enable(bool on) {
+  if (on == scanning) return true;
+  int rc;
+  if (on) {
+    struct ble_gap_disc_params dp = {};
+    dp.itvl = scan_iv;
+    dp.window = scan_wn;
+    dp.passive = 0;  // active, like the ESP32 path
+    dp.filter_duplicates = 0;  // a light's repeats are how pairing is confirmed
+    rc = ble_gap_disc(own_addr, BLE_HS_FOREVER, &dp, on_gap, nullptr);
+  } else {
+    rc = ble_gap_disc_cancel();
+    if (rc == BLE_HS_EALREADY) rc = 0;
+  }
+  bool good = ok(LE_SET_SCAN_ENABLE, rc);
+  if (good) scanning = on;
+  return good;
+}
+// NimBLE takes the scan parameters when scanning starts, so just keep them.
+static bool apply_scan_params(bool full = false) {
+  scan_iv = scan_interval_ms * 1000 / 625;  // 0.625 ms units
+  scan_wn = full ? scan_iv : scan_window_ms * 1000 / 625;
+  return true;
+}
+
+static bool radio_start() {
+  // Since IDF 5, nimble_port_init() also starts the controller.
+  if (nimble_port_init() != ESP_OK) return false;
+  ble_hs_cfg.sync_cb = [] { synced = true; };
+  ble_hs_cfg.reset_cb = [](int) { synced = false; };
+  nimble_port_freertos_init(host_task);
+  for (int i = 0; i < 300 && !synced; i++) delay(10);  // host ↔ controller handshake
+  if (!synced) return false;
+  // A public address if the chip has one in eFuse, else a random one.
+  if (ble_hs_id_infer_auto(0, &own_addr) != 0) return false;
+  return apply_scan_params();
+}
+#endif
+
+bool pm_ble_start() {
+  if (started) return true;
+  if (failed) return false;
+  if (!rxq) rxq = xQueueCreate(16, sizeof(Heard));
+  started = radio_start();
   failed = !started;
   return started;
 }
@@ -238,28 +363,12 @@ static void stop_radio() {
   advertising = false;
 }
 
-// Scan duty cycle: listen `window_ms` of every `interval_ms`. Bluetooth
-// and ESP-NOW share one radio, so this trades finding lights against
-// staying on the mesh — see pm_ble_scan's caller for the chosen values.
-// 50 % chosen from a sweep (2026-10-06): 100 % heard 28 adverts/s but the node
-// answered 2 of 4 mesh requests; 50 % heard 6/s and answered 10 of 11;
-// 20 % answered everything but heard nothing.
-static uint16_t scan_window_ms = 50, scan_interval_ms = 100;
 void pm_ble_scan_duty(uint16_t window_ms, uint16_t interval_ms) {
   if (window_ms < 3) window_ms = 3;
   if (interval_ms < window_ms) interval_ms = window_ms;
   scan_window_ms = window_ms;
   scan_interval_ms = interval_ms;
 }
-// `full`: listen all the time — for the few seconds of a pairing, where the
-// light's one confirmation matters more than answering the mesh.
-static bool apply_scan_params(bool full = false) {
-  uint16_t iv = scan_interval_ms * 1000 / 625, wn = scan_window_ms * 1000 / 625;  // 0.625 ms units
-  if (full) wn = iv;
-  const uint8_t sp[7] = {0x01, (uint8_t)iv, (uint8_t)(iv >> 8), (uint8_t)wn, (uint8_t)(wn >> 8), 0x00, 0x00};
-  return hci(LE_SET_SCAN_PARAMS, sp, sizeof(sp));
-}
-
 bool pm_ble_scan(uint32_t ms) {
   if (!pm_ble_start()) return false;
   stop_radio();

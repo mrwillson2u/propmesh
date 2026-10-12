@@ -1,12 +1,14 @@
 // Bluetooth for BRMesh flood lights (BLE_LIGHT channels): sending
 // colors, and finding + pairing lights without the BRMesh app.
 //
-// No Bluetooth host stack: the lights only use raw advertisements, so
-// this drives the ESP32's BLE controller directly over VHCI with a
-// handful of HCI commands (advertising parameters/data/enable, scan
+// No Bluetooth host stack on the ESP32: the lights only use raw
+// advertisements, so this drives the BLE controller directly over VHCI
+// with a handful of HCI commands (advertising parameters/data/enable, scan
 // parameters/enable) and reads LE Advertising Report events back. That
-// keeps it far smaller than the Arduino BLE library, and the controller
-// time-shares the radio with ESP-NOW (coexistence is built in).
+// keeps it far smaller than the Arduino BLE library. The ESP32-C6 has no
+// VHCI in its prebuilt libraries, so there the same five jobs go through
+// NimBLE's GAP calls. Either way the controller time-shares the radio with
+// ESP-NOW (coexistence is built in).
 //
 // Sending is non-blocking: each light's newest color is queued and goes
 // out as a ~200 ms advertising burst; a color that changes again before

@@ -950,12 +950,21 @@ The board from the lantern fire test, as a third profile:
 - **Chip differences handled in the build.** `ESP_EXT1_WAKEUP_ALL_LOW` is
   ESP32-only (the C6 takes `ANY_LOW`); the BLE controller config has no
   `mode` field outside the ESP32.
-- **No Bluetooth floods on the C6 yet.** `pm_ble_tx` drives the
-  controller over VHCI (`esp_vhci_host_*`), which the C6's prebuilt
-  Arduino libs don't export — its host is NimBLE. The env builds with
-  `PM_NO_BLE`; a NimBLE port (`ble_gap_adv_set_data` + raw advertising
-  and scanning) is winter work. Floods still work from any ticked
-  DevKit board.
+- **Bluetooth floods on the C6 go through NimBLE** (ported same day).
+  The C6's prebuilt libs have no VHCI (`esp_vhci_host_*` undefined) but
+  ship NimBLE with legacy advertising/scanning (`CONFIG_BT_NIMBLE_EXT_ADV`
+  off) and WiFi/BT coexistence on. `pm_ble_tx.cpp` now has two radio
+  backends under the same five jobs — raw advert data, non-connectable
+  advertising at 20 ms, active scan with the duty cycle, adverts heard,
+  per-call status for the stats (filed under the HCI opcode each stands
+  for). ESP32 keeps the bench-proven VHCI path unchanged; the C6 uses
+  `ble_gap_adv_set_data/adv_start/adv_stop/disc/disc_cancel`. Pairing,
+  identity matching and burst timing are shared code. Bluetooth starts
+  only with a BLE_LIGHT channel or a console search, so a C6 that drives
+  no floods never powers it. Image is 1.64 MB of the 1.9 MB slot (83 %).
+  ⚠ Not yet on hardware: the one unknown is whether NimBLE's controller
+  accepts the 20 ms non-connectable interval (the stats would show
+  `failed_opcode` 0x200A).
 - **Native USB caveats.** `Serial` is the USB-JTAG CDC port
   (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. After a deep
   sleep the port re-enumerates, so a USB-connected console drops and
@@ -964,7 +973,8 @@ The board from the lantern fire test, as a third profile:
   if the port isn't found, hold BOOT while plugging in.
 - **Bench test (to do):** flash, Connect in the console, confirm the
   profile shows 22 pins with 0–7 marked wake-capable; assign 8 = LED_STRIP
-  (1 pixel) and 15 = LED and test-fire; mesh join on channel 11 with a
+  (1 pixel) and 15 = LED and test-fire; tick the C6 as a flood sender and
+  change a flood's color (then a search with a light power-cycled); mesh join on channel 11 with a
   heartbeat on the roster; OTA its own image from `ota_serve.py`
   (`esp32-c6-supermini/firmware.bin`); On battery + a button on GPIO 1
   → deep sleep and wake.
