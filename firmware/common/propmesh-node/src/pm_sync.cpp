@@ -350,10 +350,19 @@ static void on_reply(const char *json, size_t len, void *) {
 }
 
 static bool ask(Ask what, JsonDocument &req) {
-  static char buf[PM_API_MAX_BYTES];
-  size_t n = serializeJson(req, buf, sizeof(buf));
+  // On the heap, for the moment it takes pm_link_ask to copy it: the ESP32
+  // builds have no static RAM to spare — a static 4 KB buffer here left
+  // FreeRTOS unable to start its timer task, and the bridge boot-looped
+  // (2026-10-12).
+  size_t cap = measureJson(req) + 1;
+  if (cap > PM_API_MAX_BYTES) { s_next_ms = millis() + 10000; return false; }
+  char *buf = (char *)malloc(cap);
+  if (!buf) { s_next_ms = millis() + 2000; return false; }
+  size_t n = serializeJson(req, buf, cap);
   pm_sleep_hold(20000);  // a battery board stays listening for the answer
-  if (!pm_link_ask(s_dst, buf, n, on_reply, nullptr)) { s_next_ms = millis() + 2000; return false; }
+  bool ok = pm_link_ask(s_dst, buf, n, on_reply, nullptr);
+  free(buf);
+  if (!ok) { s_next_ms = millis() + 2000; return false; }
   s_busy = what;
   return true;
 }
