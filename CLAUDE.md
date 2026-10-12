@@ -31,6 +31,11 @@ python3 tools/genboards.py --check  # CI
 
 Full design, serial protocol and October plan: `docs/generic-boards.md`.
 
+**Branches:** work goes to GitHub as pull requests into `dev` (the
+default branch); `main` takes PRs from `dev` only. Nobody pushes to
+either directly — commit on a topic branch, `gh pr create --base dev`,
+merge the PR. See `CONTRIBUTING.md`.
+
 ## Locked design decisions — do not relitigate
 
 These were settled after analysis. If a change is proposed, say why the
@@ -50,6 +55,7 @@ original reasoning no longer holds rather than re-deriving it.
 | **Mini stores audio in flash, not SD** | The selected S3 provides 16 MB flash shared by firmware/OTA and audio, avoiding a card socket and separate storage bus. Upload over WiFi. |
 | **5 V load switch on Mini is mandatory** | WS2812 quiescent (~0.7–1 mA/px) turns months of sleep into six days without it. |
 | **Economic PCBA → single-sided SMT** | All SMT parts on the top layer. Constrains layout from the start. |
+| **Copyleft licensing** (2026-10-12) | GPL-3.0 firmware/tools, AGPL-3.0 console, CERN-OHL-S-2.0 hardware, CC BY-SA 4.0 docs — commercial use and variations welcome, closed derivatives not. Never copy code from unlicensed projects (the BRMesh lineage has none). See `LICENSING.md`. |
 
 ## Open verification items — before layout
 

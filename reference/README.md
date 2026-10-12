@@ -15,7 +15,7 @@ BLE keys → placeholders). The raw unscrubbed dump lives in
 | `prop-mesh` | **Node firmware.** painlessMesh on ESP32-C3 Super Mini. JSON messages: `action` (set pins) and `config` (pin modes, persisted to NVS). Role-based mesh OTA. | Worked | Message-type pattern, NVS config persistence, OTA-by-role concept |
 | `prop-mesh-bridge` | **Bridge/root node.** painlessMesh root + home-WiFi station, MQTT gateway: `painlessMesh/to/<id|broadcast|gateway>`, `from/<id>`, `getNodes` topology query, node list published on every topology change. | Worked | The addressing scheme, topology-on-change reporting (seed of the survey view) |
 | `light-mesh-bridge-node` | Earlier experiment: OSC-over-serial → mesh broadcast. | Doesn't compile (half-finished refactor) | Nothing — historical |
-| `brmesh-to-mqtt` | BLE bridge for BRMesh floodlights → Home Assistant. Unrelated to prop mesh. | Worked | Nothing for PropMesh; kept for personal reference |
+| ~~`brmesh-to-mqtt`~~ | BLE bridge for BRMesh floodlights → Home Assistant, built on dsclee1/BRmesh-esp32-mqtt. **Not published**: that project has no license, so it can't be redistributed. Kept locally in `reference/old_files/brmesh-to-mqtt/` (2026-10-12). | Worked | The protocol only — `pm_brmesh.h` reimplements it (THIRD_PARTY.md) |
 | `halloween-stepper` | TMC2209 UART + AccelStepper animation state machine. Prop lid choreography test. | Worked | Library choice (TMCStepper + AccelStepper), UART config sequence, animation state-machine pattern → Pro stepper driver |
 | `lantern-fire-test` | FastLED fire effect on SK9822 (APA102-class, 4-wire) with reusable `Fire2023Lib`. | Worked | The fire effect → stock effect library; proves the Pro's APA102 path |
 

@@ -1,5 +1,6 @@
-// Fire2023 (Anderas2, via Colin's lantern prop) as a strip effect: two
-// layers of Perlin noise — flame and smoke — over a heat map that rises
+// Fire2023 (@Anderas2, as shipped in FastLED's examples under the MIT
+// license — notice in THIRD_PARTY.md; via Colin's lantern prop) as a strip
+// effect: two layers of Perlin noise — flame and smoke — over a heat map that rises
 // through a w × h matrix of vertical columns. The math is FastLED's
 // (inoise16, scale8, gradient palette); the output is any PmPixels.
 // Every parameter is a console field (PmFireCfg); the defaults are the

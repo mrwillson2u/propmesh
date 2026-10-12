@@ -58,4 +58,17 @@ Pre-schematic. See the open verification items in `CLAUDE.md` before layout.
 
 ## License
 
-Hardware: CERN OHL-W · Firmware: MIT · Docs: CC BY-SA 4.0
+Open source, copyleft — use it, change it, sell things built with it,
+but share your changes and keep the credit. Details and the reasoning:
+[`LICENSING.md`](LICENSING.md).
+
+| Part | License |
+|---|---|
+| Firmware, tools, board profiles | GPL-3.0-or-later |
+| Console (web app) | AGPL-3.0-or-later |
+| Board designs (`hardware/`) | CERN-OHL-S-2.0 |
+| Docs | CC BY-SA 4.0 |
+
+The PropMesh name and logo: [`TRADEMARK.md`](TRADEMARK.md). Credits and
+third-party code: [`THIRD_PARTY.md`](THIRD_PARTY.md). Contributing (PRs go
+to `dev`): [`CONTRIBUTING.md`](CONTRIBUTING.md).

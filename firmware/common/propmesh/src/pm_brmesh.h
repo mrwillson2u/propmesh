@@ -3,11 +3,13 @@
 // manufacturer id 0xFFF0 carrying a whitened, key-XORed, CRC'd 24-byte
 // payload — no pairing, no connection, nothing comes back.
 //
-// Ported from Colin's working BRMeshToMQTT code and from
-// dsclee1/BRmesh-esp32-mqtt (which adds pairing), without their mallocs;
-// pm_brmesh tests compare the output byte-for-byte with the latter.
-// NOTE: reference/brmesh-to-mqtt was scrubbed too hard — its default_key
-// is zeroed; the real protocol constant is 5E 36 7B C4 (found 2026-10-06).
+// Written from the protocol as the BRMesh reverse-engineering projects
+// document it (millskyle/BRMesh_homeassistant, ArcadeMachinist/brMeshMQTT,
+// dsclee1/BRmesh-esp32-mqtt — credited in THIRD_PARTY.md). Those projects
+// carry no license, so none of their code is copied here: the CRC is a
+// plain bitwise CRC-16/CCITT and the whitening the Bluetooth spec's own
+// LFSR; the tests check our frames against bytes recorded from their
+// implementation (2026-10-12). The default key is 5E 36 7B C4.
 //
 // Frame classes: 0 = wake/scan (no key), 2 = add device (pairing, sent
 // with the default key), 5 = light control (the network key).
@@ -38,33 +40,41 @@ inline uint16_t rev16(uint16_t d) {
   return r;
 }
 
-inline void crc_step(uint16_t &crc) {
-  for (uint8_t ii = 0; ii < 4; ii++) {
-    uint16_t tmp = crc << 1;
-    if (crc & 0x8000) tmp ^= 0x1021;
-    crc = tmp << 1;
-    if (tmp & 0x8000) crc ^= 0x1021;
-  }
+// CRC-16/CCITT (polynomial 0x1021, start 0xFFFF), one byte MSB first.
+inline uint16_t ccitt(uint16_t crc, uint8_t byte) {
+  crc ^= (uint16_t)byte << 8;
+  for (uint8_t b = 0; b < 8; b++) crc = (crc & 0x8000) ? (uint16_t)((crc << 1) ^ 0x1021) : (uint16_t)(crc << 1);
+  return crc;
 }
 
+// The frame CRC: over the address (last byte first), then the body with
+// each byte bit-reversed (the radio sends LSB first); sent reflected and
+// inverted.
 inline uint16_t crc16(const uint8_t *data, uint8_t len) {
   uint16_t crc = 0xffff;
-  for (int8_t i = 2; i >= 0; i--) { crc ^= ADDR[i] << 8; crc_step(crc); }
-  for (uint8_t i = 0; i < len; i++) { crc ^= rev8(data[i]) << 8; crc_step(crc); }
+  for (int8_t i = 2; i >= 0; i--) crc = ccitt(crc, ADDR[i]);
+  for (uint8_t i = 0; i < len; i++) crc = ccitt(crc, rev8(data[i]));
   return ~rev16(crc) & 0xffff;
 }
 
-inline void whiten(uint8_t *buf, int len) {
-  uint8_t ctx[7] = {1, (0x25 >> 5) & 1, (0x25 >> 4) & 1, (0x25 >> 3) & 1, (0x25 >> 2) & 1, (0x25 >> 1) & 1, 0x25 & 1};
+// Bluetooth data whitening (Core spec Vol 6 Part B §3.2): a 7-bit LFSR,
+// x^7 + x^4 + 1, position 0 = 1 and positions 1–6 = the seed (here 0x25,
+// channel 37) MSB first; each bit, LSB first, is XORed with position 6,
+// which also feeds back into positions 0 and 4.
+inline void whiten(uint8_t *buf, int len, uint8_t seed = 0x25) {
+  uint8_t r[7];
+  r[0] = 1;
+  for (uint8_t k = 0; k < 6; k++) r[1 + k] = (seed >> (5 - k)) & 1;
   for (int i = 0; i < len; i++) {
-    int varC = ctx[3], var14 = ctx[5], var18 = ctx[6], var10 = ctx[4];
-    int var8 = var14 ^ ctx[2], var4 = var10 ^ ctx[1], v = var18 ^ varC, var0 = v ^ ctx[0];
-    int c = buf[i];
-    buf[i] = ((c & 0x80) ^ ((var8 ^ var18) << 7)) + ((c & 0x40) ^ (var0 << 6)) +
-             ((c & 0x20) ^ (var4 << 5)) + ((c & 0x10) ^ (var8 << 4)) + ((c & 0x08) ^ (v << 3)) +
-             ((c & 0x04) ^ (var10 << 2)) + ((c & 0x02) ^ (var14 << 1)) + ((c & 0x01) ^ (var18 << 0));
-    ctx[2] = var4; ctx[3] = var8; ctx[4] = var8 ^ varC; ctx[5] = var0 ^ var10;
-    ctx[6] = var4 ^ var14; ctx[0] = var8 ^ var18; ctx[1] = var0;
+    uint8_t out = 0;
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      uint8_t w = r[6];
+      out |= (uint8_t)((((buf[i] >> bit) & 1) ^ w) << bit);
+      for (uint8_t k = 6; k > 0; k--) r[k] = r[k - 1];
+      r[0] = w;
+      r[4] ^= w;
+    }
+    buf[i] = out;
   }
 }
 

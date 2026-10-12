@@ -1084,11 +1084,21 @@ mature ESP-NOW mesh-time library for show control — compare against
 
 ## 6. Licensing
 
+**Decided 2026-10-12 — see [`LICENSING.md`](../LICENSING.md).** Copyleft
+throughout: commercial use and variations are welcome, closed derivatives
+aren't. (The September draft here proposed CERN-OHL-W + MIT for maximum
+adoption; Colin's concern is a company shipping a closed product built on
+the work, which only reciprocal licenses prevent.)
+
 | Asset | License | Why |
 |---|---|---|
-| PCB / hardware | **CERN OHL-W** | Weakly reciprocal — lets people build commercial products on top, which grows adoption |
-| Firmware | **MIT** or **GPL v3** | MIT for max adoption; GPL if you want derivative boards to stay open |
+| PCB / hardware | **CERN-OHL-S-2.0** | Strongly reciprocal — anyone may make and sell variations, but must publish their changed design sources |
+| Firmware + tools | **GPL-3.0-or-later** | A product shipping changed firmware must publish it; v3 keeps devices re-flashable |
+| Console | **AGPL-3.0-or-later** | Also covers a changed console offered as a hosted service |
 | Documentation | **CC BY-SA 4.0** | |
+
+The name and logo are protected separately (`TRADEMARK.md`; register the
+mark before the 2027 launch).
 
 Publish **KiCad source**, not just Gerbers. That is the community standard and the difference between a project people fork and a project people just buy.
 

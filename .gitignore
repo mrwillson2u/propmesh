@@ -40,3 +40,6 @@ reference/old_files/
 # Node / console
 node_modules/
 console/dist/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

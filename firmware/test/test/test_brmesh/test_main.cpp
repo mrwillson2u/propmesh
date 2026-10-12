@@ -1,7 +1,6 @@
-// pm_brmesh.h against dsclee1/BRmesh-esp32-mqtt (the pairing-capable
-// code; its control path is identical to Colin's working BRMeshToMQTT
-// with the real default key), reproduced here in its logic — mallocs and
-// all — as the golden reference.
+// pm_brmesh.h against adverts recorded from the BRMesh reverse-engineering
+// code (dsclee1/BRmesh-esp32-mqtt — pairing-capable; its control path
+// matches the BRMeshToMQTT build that drove Colin's lights).
 #include <unity.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,143 +9,40 @@
 void setUp() {}
 void tearDown() {}
 
-namespace ref {
-static uint8_t my_key[4];
-static const uint8_t default_key[] = {0x5e, 0x36, 0x7b, 0xc4};  // the real constant
-static uint8_t SEND_SEQ = 0, SEND_COUNT = 1;
-static const uint8_t ADDR[] = {0xC1, 0xC2, 0xC3};
-static const uint8_t addrLength = 3;
+// Golden adverts, recorded 2026-10-12 from dsclee1/BRmesh-esp32-mqtt's
+// implementation (compiled on its own, seq as noted). That project has no
+// license, so its code is not kept here — only what it put on air.
+static const uint8_t CTL_K_1_FF6600[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0x3D, 0x91, 0xB0, 0x1A, 0x9C, 0x55, 0x9E, 0x89, 0xB6, 0x3D, 0xAE, 0x46, 0xAF, 0x51, 0xE4, 0xF9};
+static const uint8_t CTL_K_2_00FF00[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0x3D, 0xF4, 0xB0, 0x19, 0x9C, 0x55, 0x61, 0x10, 0xB6, 0x3D, 0xAE, 0x46, 0xAF, 0x51, 0x7B, 0x42};
+static const uint8_t CTL_K_7_102030[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0x3D, 0x59, 0xB0, 0x1C, 0xFB, 0xAA, 0x34, 0x45, 0xB6, 0x3D, 0xAE, 0x46, 0xAF, 0x51, 0x42, 0xAA};
+static const uint8_t CTL_K1_1_OFF[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0x5C, 0x62, 0xC6, 0x3E, 0x5F, 0x0F, 0x65, 0xCA, 0x0A, 0x67, 0xAA, 0x63, 0x13, 0x0B, 0x3B, 0xEA};
+static const uint8_t CTL_K2_3_OFF[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0xDC, 0xE0, 0x45, 0x0A, 0xA4, 0xB4, 0xC4, 0xFD, 0xF1, 0xDC, 0x0B, 0x54, 0xE8, 0xB0, 0xF0, 0x8E};
+static const uint8_t CTL_K2_255_FFFFFF[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0xDC, 0x18, 0x15, 0xF6, 0xDB, 0x4B, 0x3B, 0x02, 0xF1, 0xDC, 0x0B, 0x54, 0xE8, 0xB0, 0x70, 0xC7};
+static const uint8_t WHITE_K_5_100[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0xDD, 0x2F, 0x3D, 0x0F, 0xB0, 0x1E, 0x87, 0x55, 0x61, 0xEF, 0xC9, 0x42, 0xAE, 0x46, 0xAF, 0x51, 0xB1, 0x4D};
+static const uint8_t WAKE_SEQ10[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0x0D, 0x0F, 0x5C, 0x77, 0xC6, 0x3E, 0x5F, 0x0F, 0x65, 0xCA, 0x0A, 0x67, 0xAA, 0x63, 0x13, 0x0B, 0xB4, 0xFD};
+static const uint8_t ADD_SEQ100[31] = {0x02, 0x01, 0x04, 0x1B, 0xFF, 0xF0, 0xFF, 0x6D, 0xB6, 0x43, 0x68, 0x93, 0x1D, 0x2D, 0x61, 0x67, 0x44, 0xD7, 0x1C, 0x6C, 0x4B, 0x30, 0xAC, 0x09, 0x66, 0x0F, 0x6C, 0x2F, 0x92, 0xA0, 0xBF};
 
-uint8_t package_ble_fastcon_body(int i, int i2, uint8_t sequence, uint8_t safe_key, int forward, const uint8_t* data, int length, const uint8_t* key, uint8_t*& payload) {
-  uint8_t payloadLength = 4 + 12;
-  payload = (uint8_t*)malloc(payloadLength);
-  payload[0] = (i2 & 0b1111) << 0 | (i & 0b111) << 4 | (forward & 0xff) << 7;
-  payload[1] = sequence & 0xff;
-  payload[2] = safe_key;
-  payload[3] = 0;
-  for (int j = 4; j < payloadLength; j++) payload[j] = 0;
-  memcpy(payload + 4, data, length);
-  uint8_t checksum = 0;
-  for (int j = 0; j < length + 4; j++) { if (j == 3) continue; checksum = (checksum + payload[j]) & 0xff; }
-  payload[3] = checksum;
-  for (int j = 0; j < 4; j++) payload[j] = default_key[j & 3] ^ payload[j];
-  for (int j = 0; j < 12; j++) payload[4 + j] = key[j & 3] ^ payload[4 + j];
-  return payloadLength;
-}
-uint8_t get_payload_with_inner_retry(int i, const uint8_t* data, int length, int i2, const uint8_t* key, int forward, uint8_t*& payload) {
-  SEND_COUNT++;
-  SEND_SEQ = SEND_COUNT;
-  uint8_t safe_key = 0xff;
-  bool hasKey = false;
-  for (int k = 0; k < 4; k++) if (key[k] != 0) { hasKey = true; break; }
-  if (hasKey) safe_key = key[3];
-  uint8_t result = package_ble_fastcon_body(i, i2, SEND_SEQ, safe_key, forward, data, length, key, payload);
-  if (!hasKey) for (int k = 4; k < 16; k++) payload[k] = default_key[k & 3];
-  return result;
-}
-void whiteningInit(uint8_t val, uint8_t* ctx) {
-  ctx[0] = 1; ctx[1] = (val >> 5) & 1; ctx[2] = (val >> 4) & 1; ctx[3] = (val >> 3) & 1;
-  ctx[4] = (val >> 2) & 1; ctx[5] = (val >> 1) & 1; ctx[6] = val & 1;
-}
-void whiteningEncode(const uint8_t* data, int len, uint8_t* ctx, uint8_t* result) {
-  memcpy(result, data, len);
-  for (int i = 0; i < len; i++) {
-    int varC = ctx[3], var14 = ctx[5], var18 = ctx[6], var10 = ctx[4];
-    int var8 = var14 ^ ctx[2], var4 = var10 ^ ctx[1], _var = var18 ^ varC, var0 = _var ^ ctx[0];
-    int c = result[i];
-    result[i] = ((c & 0x80) ^ ((var8 ^ var18) << 7)) + ((c & 0x40) ^ (var0 << 6)) + ((c & 0x20) ^ (var4 << 5)) + ((c & 0x10) ^ (var8 << 4)) + ((c & 0x08) ^ (_var << 3)) + ((c & 0x04) ^ (var10 << 2)) + ((c & 0x02) ^ (var14 << 1)) + ((c & 0x01) ^ (var18 << 0));
-    ctx[2] = var4; ctx[3] = var8; ctx[4] = var8 ^ varC; ctx[5] = var0 ^ var10; ctx[6] = var4 ^ var14; ctx[0] = var8 ^ var18; ctx[1] = var0;
-  }
-}
-uint8_t reverse_8(uint8_t d) { uint8_t r = 0; for (uint8_t k = 0; k < 8; k++) r |= ((d >> k) & 1) << (7 - k); return r; }
-uint16_t reverse_16(uint16_t d) { uint16_t r = 0; for (uint8_t k = 0; k < 16; k++) r |= ((d >> k) & 1) << (15 - k); return r; }
-uint16_t crc16(const uint8_t* addr, const uint8_t* data, uint8_t dataLength) {
-  uint16_t crc = 0xffff;
-  for (int8_t i = addrLength - 1; i >= 0; i--) {
-    crc ^= addr[i] << 8;
-    for (uint8_t ii = 0; ii < 4; ii++) { uint16_t tmp = crc << 1; if ((crc & 0x8000) != 0) tmp ^= 0x1021; crc = tmp << 1; if ((tmp & 0x8000) != 0) crc ^= 0x1021; }
-  }
-  for (uint8_t i = 0; i < dataLength; i++) {
-    crc ^= reverse_8(data[i]) << 8;
-    for (uint8_t ii = 0; ii < 4; ii++) { uint16_t tmp = crc << 1; if ((crc & 0x8000) != 0) tmp ^= 0x1021; crc = tmp << 1; if ((tmp & 0x8000) != 0) crc ^= 0x1021; }
-  }
-  crc = ~reverse_16(crc) & 0xffff;
-  return crc;
-}
-uint8_t get_rf_payload(const uint8_t* addr, const uint8_t* data, uint8_t dataLength, uint8_t*& rfPayload) {
-  uint8_t data_offset = 0x12, inverse_offset = 0x0f;
-  uint8_t result_data_size = data_offset + addrLength + dataLength + 2;
-  uint8_t* resultbuf = (uint8_t*)malloc(result_data_size);
-  memset(resultbuf, 0, result_data_size);
-  resultbuf[0x0f] = 0x71; resultbuf[0x10] = 0x0f; resultbuf[0x11] = 0x55;
-  for (uint8_t j = 0; j < addrLength; j++) resultbuf[data_offset + addrLength - j - 1] = addr[j];
-  for (int j = 0; j < dataLength; j++) resultbuf[data_offset + addrLength + j] = data[j];
-  for (int i = inverse_offset; i < inverse_offset + addrLength + 3; i++) resultbuf[i] = reverse_8(resultbuf[i]);
-  int crc = crc16(addr, data, dataLength);
-  resultbuf[result_data_size - 2] = crc & 0xff;
-  resultbuf[result_data_size - 1] = (crc >> 8) & 0xff;
-  rfPayload = resultbuf;
-  return result_data_size;
-}
-uint8_t do_generate_command(int i, const uint8_t* data, uint8_t length, const uint8_t* key, int forward, int, int i2, uint8_t*& rfPayload) {
-  if (i2 < 0) i2 = 0;
-  uint8_t* payload = 0; uint8_t* rfPayloadTmp = 0;
-  uint8_t payloadLength = get_payload_with_inner_retry(i, data, length, i2, key, forward, payload);
-  uint8_t rfPayloadLength = get_rf_payload(ADDR, payload, payloadLength, rfPayloadTmp);
-  free(payload);
-  uint8_t ctx[7];
-  whiteningInit(0x25, &ctx[0]);
-  uint8_t* result = (uint8_t*)malloc(rfPayloadLength);
-  whiteningEncode(rfPayloadTmp, rfPayloadLength, ctx, result);
-  rfPayload = (uint8_t*)malloc(rfPayloadLength - 15);
-  memcpy(rfPayload, result + 15, rfPayloadLength - 15);
-  free(result); free(rfPayloadTmp);
-  return rfPayloadLength - 15;
-}
-// What single_control()+send() put on air: flags 02 01 04 (setFlags(0x04)),
-// then the AD structure built from ble_adv_data[4..] + rfPayload.
-int frame(int cls, int forward, const uint8_t* key, const uint8_t* cmd, int len, uint8_t* out) {
-  const uint8_t ble_adv_data[] = {0x02, 0x01, 0x1A, 0x1B, 0xFF, 0xF0, 0xFF};
-  uint8_t* rf = 0;
-  uint8_t n = do_generate_command(cls, cmd, len, key, forward, true, 0, rf);
-  uint8_t pkt[64];
-  memcpy(pkt, ble_adv_data, 7);
-  memcpy(pkt + 7, rf, n);
-  free(rf);
-  int total = 7 + n;
-  out[0] = 0x02; out[1] = 0x01; out[2] = 0x04;  // setFlags(0x04)
-  out[3] = (uint8_t)(total - 4);                  // strServiceData length byte
-  memcpy(out + 4, pkt + 4, total - 4);
-  return 3 + 1 + (total - 4);
-}
-int advertisement(const uint8_t* key, const uint8_t* cmd, uint8_t* out) { return frame(5, true, key, cmd, 8, out); }
-}  // namespace ref
 
-static void check(const uint8_t key[4], uint8_t light, uint32_t rgb) {
-  memcpy(ref::my_key, key, 4);
-  uint8_t cmd[8];
+// A control advert at seq 42 for (key, light, color) must equal `want`.
+static void check(const uint8_t key[4], uint8_t light, uint32_t rgb, const uint8_t want[31]) {
+  uint8_t cmd[8], got[PM_BRMESH_ADV_LEN];
   pm_brmesh_command(light, rgb, cmd);
-  uint8_t want[64];
-  ref::SEND_COUNT = 41;  // next seq the reference will use: 42
-  int n = ref::advertisement(key, cmd, want);
-  TEST_ASSERT_EQUAL(PM_BRMESH_ADV_LEN, n);
-  uint8_t got[PM_BRMESH_ADV_LEN];
   pm_brmesh_adv(key, 42, cmd, got);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
 }
 
 static void test_matches_reference_color() {
   const uint8_t k[4] = {0x5A, 0x13, 0xC7, 0x9E};
-  check(k, 1, 0xFF6600);
-  check(k, 2, 0x00FF00);
-  check(k, 7, 0x102030);
+  check(k, 1, 0xFF6600, CTL_K_1_FF6600);
+  check(k, 2, 0x00FF00, CTL_K_2_00FF00);
+  check(k, 7, 0x102030, CTL_K_7_102030);
 }
 
 static void test_matches_reference_off_and_other_keys() {
   const uint8_t k1[4] = {0, 0, 0, 0}, k2[4] = {0xFF, 0x01, 0x80, 0x7F};
-  check(k1, 1, 0);
-  check(k2, 3, 0);
-  check(k2, 255, 0xFFFFFF);
+  check(k1, 1, 0, CTL_K1_1_OFF);
+  check(k2, 3, 0, CTL_K2_3_OFF);
+  check(k2, 255, 0xFFFFFF, CTL_K2_255_FFFFFF);
 }
 
 static void test_command_bytes() {
@@ -184,33 +80,24 @@ static void test_command_bytes() {
 // no RGB, bytes 6–7 = 127 127 (the only white values the floods accept).
 static void test_white_matches_reference() {
   const uint8_t k[4] = {0x5A, 0x13, 0xC7, 0x9E};
-  memcpy(ref::my_key, k, 4);
   const uint8_t data[8] = {0x72, 5, 100, 0, 0, 0, 127, 127};
-  uint8_t want[64], got[PM_BRMESH_ADV_LEN], cmd[8];
-  ref::SEND_COUNT = 41;
-  ref::frame(5, true, k, data, 8, want);
+  uint8_t got[PM_BRMESH_ADV_LEN], cmd[8];
   pm_brmesh_command(5, 100u << 24, cmd);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(data, cmd, 8);
   pm_brmesh_adv(k, 42, cmd, got);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(WHITE_K_5_100, got, PM_BRMESH_ADV_LEN);
 }
 
 // Wake (class 0, no key) and add-device (class 2, default key, 12 bytes:
 // light mac, number, group 1, new key) — the pairing frames.
 static void test_pairing_frames_match_reference() {
-  uint8_t want[64], got[PM_BRMESH_ADV_LEN];
-  const uint8_t zero6[6] = {}, nokey[4] = {};
-  ref::SEND_COUNT = 9;
-  TEST_ASSERT_EQUAL(PM_BRMESH_ADV_LEN, ref::frame(0, false, nokey, zero6, 6, want));
+  uint8_t got[PM_BRMESH_ADV_LEN];
   pm_brmesh_wake(10, got);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(WAKE_SEQ10, got, PM_BRMESH_ADV_LEN);
 
   const uint8_t mac[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66}, newkey[4] = {0xA5, 0x0F, 0x3C, 0x99};
-  uint8_t d[12] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 3, 0x01, 0xA5, 0x0F, 0x3C, 0x99};
-  ref::SEND_COUNT = 99;
-  TEST_ASSERT_EQUAL(PM_BRMESH_ADV_LEN, ref::frame(2, false, ref::default_key, d, 12, want));
   pm_brmesh_add(mac, 3, newkey, 100, got);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, PM_BRMESH_ADV_LEN);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(ADD_SEQ100, got, PM_BRMESH_ADV_LEN);
 }
 
 static void test_parse_light_advert() {

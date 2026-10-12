@@ -1,0 +1,26 @@
+# Pull requests into main must come from this repository's dev branch
+# (CONTRIBUTING.md). The "main-from-dev" check is required on main by the
+# repository's ruleset, so a PR from any other branch can't be merged.
+name: main-from-dev
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+permissions: {}
+jobs:
+  main-from-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only dev may merge into main
+        # Branch names come from the PR author: read them from env, never
+        # paste them into the script.
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REF" != "dev" ] || [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "::error::Pull requests into main must come from the dev branch of $THIS_REPO (this one is $HEAD_REPO:$HEAD_REF). Retarget it to dev."
+            exit 1
+          fi
+          echo "dev → main: ok"
