@@ -64,9 +64,15 @@ static void hand_forget(uint8_t kind, uint8_t index) {
 // ~31 KB, so on the heap — not a task stack (the 2026-10-05 crash loop),
 // and not static either: the ESP32 caps statically allocated data near
 // 124 KB and this one object was a quarter of it, so every feature added
-// on 2026-10-07 tipped the link over (2026-10-08). Allocated at start-up,
-// before WiFi and Bluetooth take their share, and never freed.
-static PmShow &show = *new PmShow();
+// on 2026-10-07 tipped the link over (2026-10-08). Allocated in
+// pm_show_begin(), NOT as a static initializer: global constructors run
+// before FreeRTOS starts, when the only heap is what's left of the static
+// data region (~128 KB minus ~96 KB of statics). Taking 31 KB of that
+// left the scheduler nothing for its timer task and every ESP32 build
+// boot-looped — "assert failed: vApplicationGetTimerTaskMemory"
+// (2026-10-12, twice). Never freed.
+static PmShow *showp;
+#define show (*showp)
 static PmPlayer player;
 static PmTriggers triggers;
 static PmCueMemory cues;
@@ -185,6 +191,7 @@ static void load_schedule() {
 }
 
 void pm_show_begin() {
+  if (!showp) showp = new PmShow();
   load_schedule();
   load_manual();
   load_parked();
