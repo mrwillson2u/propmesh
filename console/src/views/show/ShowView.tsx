@@ -1,8 +1,12 @@
-// Cues on real boards: sequences (timed steps on any node's outputs),
-// triggers (a sensor fires a sequence, with a cooldown), arming, and a
-// live log of what the mesh did. Everything is stored on the nodes;
-// this view reads it all in, and Save writes each node its own part.
-// docs/generic-boards.md §"Sequences and triggers".
+// Two sections over one store of what the boards hold (software-plan
+// "Console sections", 2026-10-12):
+//   Sequences — orchestrate predefined sequences of outputs: the Timeline
+//              editor, step list, Play / test.
+//   Show      — wire triggers and logic into a show: the trigger list (the
+//              row view of the Show Graph), the schedule, the mode, and the
+//              live log of what the mesh did.
+// Everything is stored on the nodes; both sections read it all in, and
+// Save writes each node its own part. docs/generic-boards.md §6b.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
@@ -43,7 +47,9 @@ const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "SPI_STRIP",
 
 const clock = (t: number) => new Date(t).toTimeString().slice(0, 8);
 
-export default function ShowView({ onConnect }: { onConnect: () => void }) {
+export type Section = "sequences" | "show";
+
+export default function ShowView({ section, onConnect }: { section: Section; onConnect: () => void }) {
   const conn = useConnection();
   if (!conn) {
     return (
@@ -58,10 +64,11 @@ export default function ShowView({ onConnect }: { onConnect: () => void }) {
       </div>
     );
   }
-  return <Editor conn={conn} />;
+  return <Editor conn={conn} section={section} />;
 }
 
-function Editor({ conn }: { conn: Connection }) {
+function Editor({ conn, section }: { conn: Connection; section: Section }) {
+  const seqSection = section === "sequences";
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
@@ -345,25 +352,26 @@ function Editor({ conn }: { conn: Connection }) {
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
-        <span style={sys(700, 13, C.t1)}>Cues</span>
-        <span style={{
+        <span style={sys(700, 13, C.t1)}>{seqSection ? "Sequences" : "Show"}</span>
+        {seqSection && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
+        {!seqSection && <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
           ...(!modeKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
             : oneMode === "armed" ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
             : oneMode === "ambient" ? { background: C.amberBg, border: `1px solid ${C.amberB}`, ...mono(700, 10.5, C.amber) }
             : oneMode === "off" ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t3) }
             : { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }),
-        }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>
-        <span style={sys(400, 11.5, C.t4)}>
+        }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>}
+        {!seqSection && <span style={sys(400, 11.5, C.t4)}>
           {!modeKnown ? "" : !oneMode ? `Boards disagree: ${modeVals.map((m) => m.mode).join(" / ")} — check their clocks.`
             : statusLine(oneMode, lead)}
           {noClock > 0 && <span style={{ color: C.amber }}> · {noClock} board(s) have no clock</span>}
-        </span>
+        </span>}
         <div style={{ flex: 1 }} />
         {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
         {(loading || busy) && <Spinner />}
         <button onClick={() => void load()} disabled={loading} style={btn(false, loading)}>Reload from boards</button>
-        <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
+        {!seqSection && <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
           {MODES.map((m, i) => {
             const on = oneMode === m;
             return (
@@ -376,10 +384,10 @@ function Editor({ conn }: { conn: Connection }) {
               }}>{MODE_LABEL[m]}</button>
             );
           })}
-        </span>
-        <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>
+        </span>}
+        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
       </div>
-      {schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
+      {!seqSection && schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
 
       {!show && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 16, ...mono(500, 11.5, C.t4) }}>
@@ -390,7 +398,7 @@ function Editor({ conn }: { conn: Connection }) {
       {show && (
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
           {/* sequences */}
-          <div style={{ width: 230, flex: "none", borderRight: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          {seqSection && <div style={{ width: 230, flex: "none", borderRight: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>
             {show.sequences.length === 0 && !draft && <div style={{ padding: "4px 14px", ...sys(400, 11.5, C.t4) }}>None yet.</div>}
             {[...show.sequences, ...(draft && !show.sequences.some((s) => s.id === draft.id) ? [draft] : [])].map((s) => {
@@ -413,11 +421,11 @@ function Editor({ conn }: { conn: Connection }) {
               <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), width: "100%" }}
                 title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New sequence</button>
             </div>
-          </div>
+          </div>}
 
-          {/* editor + triggers */}
+          {/* Sequences: the editor. Show: the triggers (the graph's row view). */}
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-            {draft ? (
+            {!seqSection ? null : draft ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
@@ -525,7 +533,7 @@ function Editor({ conn }: { conn: Connection }) {
             )}
 
             {/* triggers */}
-            <div>
+            {!seqSection && <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={label}>TRIGGERS</span>
                 <span style={sys(400, 11, C.t5)}>stored on the sensor's board — they work with no laptop attached</span>
@@ -575,17 +583,17 @@ function Editor({ conn }: { conn: Connection }) {
                   disabled={!show.sequences.length} title={show.sequences.length ? "" : "Save a sequence first"}
                   style={{ ...btn(false, !show.sequences.length), marginTop: 8 }}>+ Add trigger</button>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* activity */}
-          <div style={{ width: 250, flex: "none", borderLeft: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {!seqSection && <div style={{ width: 250, flex: "none", borderLeft: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>ACTIVITY</div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
               {conn.activity.length === 0 && <div style={sys(400, 11.5, C.t5)}>Sensor changes and cues appear here as they happen.</div>}
               {conn.activity.map((a, i) => <ActivityRow key={i} a={a} nameOf={nameOf} seqName={seqName} show={show} />)}
             </div>
-          </div>
+          </div>}
         </div>
       )}
     </div>

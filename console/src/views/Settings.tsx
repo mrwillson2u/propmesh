@@ -13,7 +13,7 @@ export default function Settings() {
         <div>
           <div style={sys(700, 13, C.t1)}>Show demo data</div>
           <div style={{ ...sys(400, 12, C.t3), marginTop: 4, lineHeight: 1.5 }}>
-            Fills the Yard, Cues and Show Graph views, and the fleet table in Nodes &amp; Channels, with
+            Fills the Yard, Sequences and Show views, and the fleet table in Nodes &amp; Channels, with
             an imaginary eight-node yard from the original design. Useful for previewing views that
             aren't connected to real boards yet. Your real boards are never mixed into it, and it
             never sends anything to them.
