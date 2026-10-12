@@ -893,8 +893,22 @@ verify against the board's silkscreen (the V2 Feather differs).
   Bluetooth (floods) — IRAM holds WiFi + Bluetooth or WiFi + deep sleep;
   the DevKit image keeps Bluetooth and never sleeps (`hello.sleeps`).
   Any DIGITAL_IN on an RTC pin wakes the board; a button with no trigger
-  is a plain wake button. Not yet: current measurements (no battery on
-  the bench yet).
+  is a plain wake button. Same-day fixes: console polls (hello/mesh/
+  state/ota_status) no longer hold a board awake; bridge time beacons
+  count as bridge presence (a leaf hears beacons, not heartbeats); the
+  announced channel is read by field (the last-byte read broke when
+  listen_ms was appended, and nodes sat on channel 10); check-in is
+  `checkin_ms` like the other two settings; the timer-wake dwell is 6 s.
+- **Power budget from published figures (not yet measured here).** Adafruit
+  gives the ESP32 module ~200 mA active on a 500 mA regulator; the chip
+  alone is ~10 µA in deep sleep, but users measure the *original*
+  HUZZAH32 at **~2–7 mA** in deep sleep (regulator + CP2104 USB chip
+  stay powered; the V2 Feather measures ~420 µA). So on this board the
+  floor, not the check-in, sets off-tier life: ~5 mA ≈ 400 h ≈ **2.5
+  weeks** on 2000 mAh regardless of check-in period (a 6 s dwell every
+  5 min adds ~2 mA). Show tier (modem sleep, CPU up): ~25–30 mA average
+  ≈ **3 days** continuous, or ~5 h a night for a week with the off tier
+  in between. Measure to confirm (Colin has a meter; stage 3).
 - **Relaying while awake: yes.** The rule is that the mesh never
   *depends* on a battery board, not that it never relays. A rebroadcast
   costs ~1 ms of radio per frame, negligible against ~100 mA of simply
