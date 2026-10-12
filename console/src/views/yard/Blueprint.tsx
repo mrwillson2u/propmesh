@@ -14,7 +14,7 @@ import {
   COLORS, GRID, MAX_BYTES, PROP_SIZE, SHAPE_DEFAULT, loadYard, saveYard, shapeId, size, snap, stamp,
   type Shape, type ShapeKind, type YardDoc,
 } from "../../lib/yardMap";
-import { PROP_TYPES, PropIcon, type PropType } from "../../lib/propIcons";
+import { PROP_TYPES, PropArt, PropIcon, type PropType } from "../../lib/propIcons";
 
 export type Tool = "select" | ShapeKind | "erase";
 type Pt = { x: number; y: number };
@@ -302,13 +302,13 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
           <g key={s.id} onPointerDown={(e) => startDrag(e, s, null)} style={{ cursor: tool === "erase" ? "not-allowed" : tool === "select" ? "move" : undefined }}>
             {on && <circle cx={p.x} cy={p.y} r={sz * 0.7} fill="none" stroke={C.ember} strokeWidth="1.5" strokeDasharray="4 4" />}
             <circle cx={p.x} cy={p.y} r={sz * 0.62} fill={C.bg} opacity=".01" />
-            <PropIcon type={s.icon ?? "generic"} size={sz} x={p.x - sz / 2} y={p.y - sz / 2} color={s.color ?? C.t3} />
+            <PropArt type={s.icon ?? "generic"} size={sz} x={p.x - sz / 2} y={p.y - sz / 2} />
             {s.label && <text x={p.x} y={p.y + sz / 2 + 13} textAnchor="middle" fontFamily="system-ui" fontSize="11" fontWeight="600" fill={on ? C.emberT : C.t3} style={{ pointerEvents: "none" }}>{s.label}</text>}
           </g>
         );
       })}
       {/* the prop about to be placed */}
-      {placing && hover && <g style={{ pointerEvents: "none" }} opacity=".55"><PropIcon type={propIcon} size={PROP_SIZE[2]} x={hover.x - PROP_SIZE[2] / 2} y={hover.y - PROP_SIZE[2] / 2} color={C.emberT} /></g>}
+      {placing && hover && <g style={{ pointerEvents: "none" }} opacity=".6"><PropArt type={propIcon} size={PROP_SIZE[2]} x={hover.x - PROP_SIZE[2] / 2} y={hover.y - PROP_SIZE[2] / 2} /></g>}
       {/* the selected shape's corners */}
       {selected && tool === "select" && selected.kind !== "prop" && pts(selected).map((p, i) => (
         <rect key={i} x={p.x - 4} y={p.y - 4} width={8} height={8} fill={C.bg} stroke={C.ember} strokeWidth="1.5" style={{ cursor: "crosshair" }}
@@ -327,7 +327,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
 
   // ---- the tool rail -----------------------------------------------------------
   const rail: ReactNode = !active ? null : (
-    <div style={{ position: "absolute", top: 50, left: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, padding: 6, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 8 }}>
+    <div style={{ position: "absolute", top: 96, left: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, padding: 6, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 8 }}>
       {TOOLS.map((t) => {
         const on = tool === t.id;
         return (
@@ -344,7 +344,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
             {PROP_TYPES.filter((p) => p.id !== "hub" && p.id !== "generic").map((p) => {
               const on = p.id === propIcon;
               return <div key={p.id} title={p.label} onClick={() => setPropIcon(p.id)} style={{ height: 38, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
-                <PropIcon type={p.id} size={20} color={on ? C.emberT : C.t3} />
+                <PropArt type={p.id} size={22} />
               </div>;
             })}
           </div>
@@ -377,13 +377,13 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
           )}
           <input autoFocus value={selected.label ?? ""} placeholder={selected.kind === "area" ? "house, garage…" : selected.kind === "path" ? "driveway, sidewalk…" : selected.kind === "prop" ? "name it…" : "property line…"}
             maxLength={24} onChange={(e) => update(selected.id, { label: e.target.value })} style={{ ...field, width: 150 }} />
-          <span style={{ display: "flex", gap: 4 }} title="Color">
+          {selected.kind !== "prop" && <span style={{ display: "flex", gap: 4 }} title="Color">
             {COLORS.map((o) => {
               const on = (selected.color ?? COLORS[0].c) === o.c;
               return <span key={o.c} title={o.name} onClick={() => update(selected.id, { color: o.c === COLORS[0].c ? undefined : o.c })}
                 style={{ width: 16, height: 16, borderRadius: 4, cursor: "pointer", background: o.c, border: `1px solid ${on ? C.ember : C.b3}`, boxShadow: on ? `0 0 0 1px ${C.ember}` : undefined }} />;
             })}
-          </span>
+          </span>}
           {selected.kind === "path" && (
             <select value={selected.w ?? 16} onChange={(e) => update(selected.id, { w: Number(e.target.value) })} style={field}>
               {PATH_WIDTHS.map((o) => <option key={o.w} value={o.w}>{o.label} · {((o.w / GRID) * doc.scale_ft).toFixed(0)} ft</option>)}

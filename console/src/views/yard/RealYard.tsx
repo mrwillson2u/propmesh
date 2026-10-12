@@ -9,7 +9,7 @@ import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { counts, getConnection, useConnection, type Connection } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
-import { PropIcon } from "../../lib/propIcons";
+import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
 import { FLOODS, deriveFloods } from "../../lib/floods";
 import { directLabel, target } from "../../lib/transport";
@@ -191,13 +191,16 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   // to pan (Select tool), +/−/fit buttons. The ground is unbounded;
   // Topology always fits.
   const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
+  const [showUnplaced, setShowUnplaced] = useState(() => { try { return localStorage.getItem("propmesh.yard.unplaced") !== "hide"; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem("propmesh.yard.unplaced", showUnplaced ? "show" : "hide"); } catch { /* private mode */ } }, [showUnplaced]);
   const bp = useBlueprint(conn, layout === "map", svgRef, view);
   const fitTo = (b: { x: number; y: number; w: number; h: number } | null) => {
     if (!b) { setView({ x: 0, y: 0, w: W, h: H }); return; }
-    const pad = 90;
+    // Room around the edges, and more at the top: the toolbar strip sits there.
+    const pad = 90, top = 60;
     let w = Math.max(b.w + 2 * pad, 400), h = w * (H / W);
-    if (b.h + 2 * pad > h) { h = b.h + 2 * pad; w = h * (W / H); }
-    setView({ x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h });
+    if (b.h + 2 * pad + top > h) { h = b.h + 2 * pad + top; w = h * (W / H); }
+    setView({ x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2 - top / 2, w, h });
   };
   // First load of a map with something on it: show all of it.
   const fitted = useRef(false);
@@ -262,28 +265,17 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           </span>
         </div>
 
-        {layout === "map" && (
-          <div style={{ position: "absolute", top: 50, left: 68, zIndex: 3, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
-            <span style={sys(600, 11.5, C.t2)}>Mesh links</span>
-            <Toggle on={showLinks} small onClick={() => setShowLinks(!showLinks)} />
-          </div>
-        )}
-        {bp.rail}
-
-        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
-          box={layout === "topology" ? fitBox(pos) : view}
-          onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
-          onPan={layout === "map" && !bp.drawing && !bp.placing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
-          iconFor={layout === "map" ? bp.icon : undefined} unbounded={layout === "map"}
-          draggable={layout === "map" && !bp.drawing && !bp.placing} showLinks={layout === "topology" || showLinks}
-          onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
-          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
-          onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
-          onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} />
-
-        {(unplaced.length > 0 || unplacedFloods.length > 0) && (
-          <div style={{ position: "absolute", top: 96, left: 68, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
-            <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
+        {(layout === "map" || unplaced.length > 0 || unplacedFloods.length > 0) && (
+          <div style={{ position: "absolute", top: 50, left: 14, right: 14, zIndex: 3, display: "flex", alignItems: "flex-start", gap: 8 }}>
+            {layout === "map" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, whiteSpace: "nowrap" }}>
+                <span style={sys(600, 11.5, C.t2)}>Mesh links</span>
+                <Toggle on={showLinks} small onClick={() => setShowLinks(!showLinks)} />
+              </div>
+            )}
+            {(unplaced.length > 0 || unplacedFloods.length > 0) && (showUnplaced ? (
+              <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
+                <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
             {unplaced.map((n) => (
               <span key={n.id} draggable
                 onDragStart={(e) => e.dataTransfer.setData("text/propmesh-node", n.id)}
@@ -300,8 +292,28 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: floodPaint(f.value)?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />{f.label}
               </span>
             ))}
+                <span title="Hide this bar" onClick={() => setShowUnplaced(false)} style={{ marginLeft: "auto", cursor: "pointer", padding: "2px 6px", ...mono(600, 11, C.t4) }}>hide ✕</span>
+              </div>
+            ) : (
+              <span title="Boards and floods not yet placed on the map" onClick={() => setShowUnplaced(true)}
+                style={{ cursor: "pointer", padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px dashed ${C.b3}`, borderRadius: 7, whiteSpace: "nowrap", ...sys(600, 11.5, C.t3) }}>
+                {unplaced.length + unplacedFloods.length} not on the map ▸
+              </span>
+            ))}
           </div>
         )}
+        {bp.rail}
+
+        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
+          box={layout === "topology" ? fitBox(pos) : view}
+          onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
+          onPan={layout === "map" && !bp.drawing && !bp.placing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
+          iconFor={layout === "map" ? bp.icon : undefined} unbounded={layout === "map"}
+          draggable={layout === "map" && !bp.drawing && !bp.placing} showLinks={layout === "topology" || showLinks}
+          onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
+          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
+          onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
+          onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} />
 
         {layout !== "map" && <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 12, padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
           <span><span style={{ color: C.green }}>━</span> strong ≥−60</span>
@@ -441,6 +453,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
             {(() => {
               const s = big ? 30 : 24;
               const type = big ? "hub" : iconFor?.(n.id) ?? props.get(n.id);
+              if (iconFor && !big && type !== "generic") return <PropArt type={type} size={s} x={p.x - s / 2} y={p.y - s / 2} opacity={n.missing ? 0.55 : 1} />;
               return <PropIcon type={type} size={s} x={p.x - s / 2} y={p.y - s / 2} color={big ? C.emberT : stroke(n)} opacity={n.missing ? 0.7 : 1} />;
             })()}
             <text x={p.x} y={p.y + r + 20} fontSize="12.5" fontWeight="600" textAnchor="middle" fontFamily="system-ui"
@@ -512,7 +525,7 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
             {PROP_TYPES.filter((p) => p.id !== "hub").map((p) => {
               const on = p.id === (icon ?? "generic");
               return <div key={p.id} title={p.label} onClick={() => onIcon(p.id)} style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
-                <PropIcon type={p.id} size={20} color={on ? C.emberT : C.t3} />
+                <PropArt type={p.id} size={22} />
               </div>;
             })}
           </div>
