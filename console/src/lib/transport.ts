@@ -384,7 +384,12 @@ const SIM_REMOTES = [
 // A step on the wire: [t, kind, index, value] or [..., dur, ease_in, ease_out].
 type SimStep = [number, string, number, number] | [number, string, number, number, number, number, number];
 interface SimSeq { id: number; name: string; steps: SimStep[] }
-interface SimRule { input: number; on: "active" | "clear"; seq: number; cooldown_ms: number; enabled: boolean }
+interface SimRule {
+  trigger?: "sensor" | "after";
+  input?: number; on?: "active" | "clear"; after?: number;
+  delay_ms?: number; cooldown_ms: number; limit?: { fires: number; window_min: number };
+  pick?: "all" | "random"; seqs?: number[]; seq?: number; enabled: boolean;
+}
 
 interface SimNode {
   cfg: NodeConfig;
@@ -400,6 +405,7 @@ interface SimNode {
   parked?: Map<string, number>; // by-hand outputs that were on when the show went off
   hand?: Map<string, number>; // last value set by hand (not a sequence preview), per output
   lastFired: Map<number, number>; // rule index -> ms
+  lockout: Map<number, { start: number; count: number }>; // rule index -> fires in the current window
 }
 
 interface SimBleLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; at: number }
@@ -426,7 +432,7 @@ class SimLink implements NodeLink {
       let show: { seqs: SimSeq[]; rules: SimRule[] } | null = null;
       try { show = JSON.parse(localStorage.getItem(SIM_KEY + "show." + id) ?? "null"); } catch { /* ignore */ }
       this.nodes.set(id, {
-        cfg: cfg ?? EMPTY_CONFIG, values: new Map(), armed: true, mode: "armed", lastFired: new Map(),
+        cfg: cfg ?? EMPTY_CONFIG, values: new Map(), armed: true, mode: "armed", lastFired: new Map(), lockout: new Map(),
         seqs: new Map((show?.seqs ?? []).map((q) => [q.id, q])), rules: show?.rules ?? [],
       });
     }
@@ -438,13 +444,10 @@ class SimLink implements NodeLink {
         const v = n.values.get(k) ? 0 : 1;
         n.values.set(k, v);
         this.events.emit({ evt: "input", node, kind: "DIGITAL_IN", index: input.index, value: v });
-        // This node's triggers, as the firmware runs them.
+        // This node's sensor triggers, as the firmware runs them.
         n.rules.forEach((r, i) => {
-          if (!n.armed || !r.enabled || r.input !== input.index || (r.on === "active") !== (v === 1)) return;
-          const last = n.lastFired.get(i);
-          if (last !== undefined && Date.now() - last < r.cooldown_ms) return;
-          n.lastFired.set(i, Date.now());
-          this.fire(node, r.seq);
+          if (!n.armed || !r.enabled || (r.trigger ?? "sensor") !== "sensor" || r.input !== input.index || (r.on ?? "active") === "active" !== (v === 1)) return;
+          this.arm(node, n, r, i);
         });
       });
     }, 4000));
@@ -636,8 +639,9 @@ class SimLink implements NodeLink {
         return { ok: true };
       case "set_rules": {
         const rules = body.rules as SimRule[];
-        if (rules.some((r) => !n.cfg.channels.some((c) => c.kind === "DIGITAL_IN" && c.index === r.input)))
+        if (rules.some((r) => (r.trigger ?? "sensor") === "sensor" && !n.cfg.channels.some((c) => c.kind === "DIGITAL_IN" && c.index === r.input)))
           return { ok: false, error: "trigger uses a sensor input this node doesn't have" };
+        if (rules.some((r) => !((r.seqs?.length ?? 0) || r.seq))) return { ok: false, error: "trigger has no sequence" };
         n.rules = rules;
         n.lastFired.clear();
         this.saveShow(node, n);
@@ -692,8 +696,30 @@ class SimLink implements NodeLink {
   }
 
   // CUE: every armed node with a part plays it 200 ms from now.
+  // A rule's trigger happened on `node`: cooldown and lockout permitting,
+  // its sequences fire after its delay — the firmware's PmTriggers.
+  private arm(node: string, n: SimNode, r: SimRule, i: number) {
+    if (!r.enabled) return;
+    const now = Date.now();
+    const last = n.lastFired.get(i);
+    if (last !== undefined && now - last < r.cooldown_ms) return;
+    if (r.limit?.fires) {
+      const w = n.lockout.get(i) ?? { start: now, count: 0 };
+      if (now - w.start >= r.limit.window_min * 60000) { w.start = now; w.count = 0; }
+      if (w.count >= r.limit.fires) return;
+      w.count++;
+      n.lockout.set(i, w);
+    }
+    n.lastFired.set(i, now);
+    const seqs = r.seqs?.length ? r.seqs : r.seq ? [r.seq] : [];
+    const chosen = r.pick === "random" ? [seqs[Math.floor(Math.random() * seqs.length)]] : seqs;
+    setTimeout(() => { if (n.mode !== "off") chosen.forEach((q) => this.fire(node, q)); }, r.delay_ms ?? 0);
+  }
+
   private fire(from: string, seq: number) {
     this.events.emit({ evt: "cue", node: from, seq, armed: this.nodes.get(SIM_LOCAL)!.armed, here: this.nodes.get(SIM_LOCAL)!.seqs.has(seq) });
+    // "after" rules anywhere: a sequence started.
+    this.nodes.forEach((n, node) => n.rules.forEach((r, i) => { if (r.trigger === "after" && r.after === seq && n.mode !== "off") this.arm(node, n, r, i); }));
     this.nodes.forEach((n) => {
       const part = n.seqs.get(seq);
       if (!part || n.mode === "off") return;

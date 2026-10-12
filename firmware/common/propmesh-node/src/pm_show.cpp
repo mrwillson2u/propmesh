@@ -1,3 +1,4 @@
+#include <new>
 #include <Arduino.h>
 #include <LittleFS.h>
 #include "pm_show.h"
@@ -233,6 +234,7 @@ static bool play(uint16_t seq_id, int64_t start_us, uint32_t offset_ms) {
 #define LEAF_COPY_GAP_MS 100
 static struct { bool used; pm_cue_t cue; uint8_t left; uint32_t next_ms; } cue_repeat;
 
+static void chain_from(uint16_t seq);
 void pm_show_fire(uint16_t seq, uint32_t offset_ms) {
   if (mode == PM_MODE_OFF) return;
   pm_cue_t c = {};
@@ -252,6 +254,7 @@ void pm_show_fire(uint16_t seq, uint32_t offset_ms) {
   }
   if (leaf) cue_repeat = { true, c, (uint8_t)(leaf / LEAF_COPY_GAP_MS + 1), millis() + LEAF_COPY_GAP_MS };
   emit_cue(pm_node_id(), seq, c.cue_id, play(seq, start_local, offset_ms));
+  chain_from(seq);
 }
 
 void pm_show_on_cue(uint32_t src, const pm_cue_t &c) {
@@ -261,12 +264,30 @@ void pm_show_on_cue(uint32_t src, const pm_cue_t &c) {
       ? pm_local_time_us((int64_t)c.fire_at_us)
       : esp_timer_get_time();
   emit_cue(src, c.sequence_id, c.cue_id, play(c.sequence_id, start, c.start_offset_ms));
+  chain_from(c.sequence_id);
 }
 
 void pm_show_on_input(uint8_t index, bool active) {
   if (mode != PM_MODE_ARMED) return;  // sensors scare only while armed
-  uint16_t seq = triggers.on_input(show, index, active, millis());
-  if (seq) pm_show_fire(seq);
+  triggers.on_input(show, index, active, millis());  // due rules fire from pm_show_loop
+}
+
+// A sequence started here or anywhere: "after X" rules arm (in ambient
+// too — a chain off an ambient loop is the point of them).
+static void chain_from(uint16_t seq) {
+  if (mode == PM_MODE_OFF) return;
+  triggers.on_cue(show, seq, millis());
+}
+
+// Rules whose delay ran out: fire their sequences.
+static void fire_due_rules() {
+  uint8_t idx[PM_MAX_RULES];
+  uint8_t n = triggers.due(millis(), idx, PM_MAX_RULES);
+  for (uint8_t k = 0; k < n; k++) {
+    uint16_t seqs[PM_RULE_MAX_SEQS];
+    uint8_t m = triggers.pick(show, idx[k], esp_random(), seqs);
+    for (uint8_t j = 0; j < m; j++) pm_show_fire(seqs[j]);
+  }
 }
 
 static void park_outputs() {
@@ -381,6 +402,7 @@ void pm_show_loop() {
     eval_mode();
   }
   ambient_tick();
+  if (mode != PM_MODE_OFF) fire_due_rules();
   player.tick(esp_timer_get_time(), [](const PmStep &st, int64_t start_us) {
     hand_forget(st.kind, st.index);  // the show drives this output now
     if (st.dur_ms) pm_channel_ramp(st.kind, st.index, st.value, start_us, st.dur_ms, st.ease_in, st.ease_out);
@@ -526,14 +548,18 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "set_rules")) {
-    static PmRule rules[PM_MAX_RULES];
+    // On the heap for the call: static RAM on the ESP32 builds is at the
+    // edge where FreeRTOS can't start (docs §6k, 2026-10-12).
+    PmRule *rules = new (std::nothrow) PmRule[PM_MAX_RULES];
+    if (!rules) { fail(resp, "out of memory"); return true; }
     uint8_t n = 0;
     const char *err = pm_rules_from_json(req["rules"], rules, n);
     if (!err) err = pm_check_rules(rules, n, pm_channels_config());
-    if (err) { fail(resp, err); return true; }
+    if (err) { delete[] rules; fail(resp, err); return true; }
     uint32_t at = req_at(req);
-    if (stale(resp, at, show.rules_at)) return true;
-    memcpy(show.rules, rules, sizeof(rules));
+    if (stale(resp, at, show.rules_at)) { delete[] rules; return true; }
+    memcpy(show.rules, rules, sizeof(PmRule) * PM_MAX_RULES);
+    delete[] rules;
     show.rule_count = n;
     show.rules_at = at;
     triggers.reset();

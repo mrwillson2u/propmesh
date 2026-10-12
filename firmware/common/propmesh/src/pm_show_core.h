@@ -88,12 +88,39 @@ struct PmSequence {
   }
 };
 
+// A trigger rule (software-plan "Console sections", 2026-10-12): trigger →
+// logic → actions, all evaluated on the node that holds the rule, which
+// then broadcasts the cues. The Show Graph's row view edits these.
+//   trigger: a sensor edge on this node, or a sequence starting anywhere
+//            (its CUE heard, or fired here) — "after X" chains; with
+//            delay_ms = X's length it means "when X ends".
+//   logic:   delay, cooldown, lockout (at most max_fires per window_min).
+//   actions: one or more sequences — all of them, or one picked at random.
+#define PM_RULE_MAX_SEQS 4
+#define PM_MAX_DELAY_MS 3600000u
+#define PM_MAX_WINDOW_MIN 1440
+enum { PM_TRIG_SENSOR = 0, PM_TRIG_AFTER = 1 };
+enum { PM_PICK_ALL = 0, PM_PICK_RANDOM = 1 };
 struct PmRule {
-  uint8_t input = 0;        // DIGITAL_IN index on this node
-  bool on_active = true;    // fire when the input becomes active (else: becomes clear)
-  uint16_t sequence = 0;    // show-wide sequence id
+  uint8_t trigger = PM_TRIG_SENSOR;
+  uint8_t input = 0;        // SENSOR: DIGITAL_IN index on this node
+  bool on_active = true;    // SENSOR: fire when the input becomes active (else: becomes clear)
+  uint16_t after = 0;       // AFTER: the sequence whose start triggers this rule
+  uint32_t delay_ms = 0;    // wait this long before the actions
   uint32_t cooldown_ms = 0; // ignore this rule's triggers this long after it fires
+  uint8_t max_fires = 0;    // lockout: at most this many fires per window_min; 0 = no limit
+  uint16_t window_min = 0;
+  uint8_t pick = PM_PICK_ALL;
+  uint8_t seq_count = 0;
+  uint16_t seqs[PM_RULE_MAX_SEQS] = {};
   bool enabled = true;
+  // One sensor → one sequence, the October-2026 form.
+  static PmRule sensor(uint8_t input, bool on_active, uint16_t seq, uint32_t cooldown_ms, bool enabled = true) {
+    PmRule r;
+    r.input = input; r.on_active = on_active; r.cooldown_ms = cooldown_ms; r.enabled = enabled;
+    r.seq_count = 1; r.seqs[0] = seq;
+    return r;
+  }
 };
 
 struct PmShow {
@@ -161,10 +188,25 @@ inline const char *pm_check_sequence(const PmSequence &s, const PmNodeConfig &cf
 inline const char *pm_check_rules(const PmRule *rules, uint8_t n, const PmNodeConfig &cfg) {
   if (n > PM_MAX_RULES) return "too many triggers";
   for (uint8_t i = 0; i < n; i++) {
-    if (!pm_find_channel(cfg, PM_CHANNEL_KIND_DIGITAL_IN, rules[i].input))
-      return "trigger uses a sensor input this node doesn't have";
-    if (!rules[i].sequence) return "trigger has no sequence";
-    if (rules[i].cooldown_ms > PM_MAX_COOLDOWN_MS) return "cooldown over an hour";
+    const PmRule &r = rules[i];
+    if (r.trigger == PM_TRIG_SENSOR) {
+      if (!pm_find_channel(cfg, PM_CHANNEL_KIND_DIGITAL_IN, r.input))
+        return "trigger uses a sensor input this node doesn't have";
+    } else if (r.trigger == PM_TRIG_AFTER) {
+      if (!r.after) return "'after' trigger names no sequence";
+    } else return "unknown trigger";
+    if (!r.seq_count || r.seq_count > PM_RULE_MAX_SEQS) return "trigger has no sequence";
+    for (uint8_t k = 0; k < r.seq_count; k++) if (!r.seqs[k]) return "trigger has no sequence";
+    if (r.cooldown_ms > PM_MAX_COOLDOWN_MS) return "cooldown over an hour";
+    if (r.delay_ms > PM_MAX_DELAY_MS) return "delay over an hour";
+    if (r.window_min > PM_MAX_WINDOW_MIN) return "lockout window over a day";
+    if (r.pick > PM_PICK_RANDOM) return "pick must be all or random";
+    // A sequence that re-triggers itself with no delay and no cooldown
+    // would loop as fast as the mesh can carry cues.
+    if (r.trigger == PM_TRIG_AFTER)
+      for (uint8_t k = 0; k < r.seq_count; k++)
+        if (r.seqs[k] == r.after && r.delay_ms + r.cooldown_ms < 1000)
+          return "a sequence that restarts itself needs a delay or cooldown of at least 1 s";
   }
   return nullptr;
 }
@@ -178,27 +220,82 @@ inline int64_t pm_loop_index(int64_t mesh_ms, uint32_t period_ms) {
 }
 
 // --- triggers ----------------------------------------------------------------
-// Which sequence (if any) an input change fires, honouring each rule's
-// cooldown. Several rules may watch one input; the first that fires wins
-// for this change (one change, one cue).
+// Rules on this node: a trigger (sensor edge, or a sequence starting)
+// arms a rule — cooldown and lockout permitting — which is due delay_ms
+// later; `due()` hands back the rules whose time has come and `pick()`
+// turns one into the sequences to fire. Several rules may watch one
+// trigger; every one that passes fires (fan-out).
 class PmTriggers {
  public:
-  uint16_t on_input(const PmShow &show, uint8_t index, bool active, uint32_t now_ms) {
+  // A sensor edge on this node. Returns how many rules it armed.
+  uint8_t on_input(const PmShow &show, uint8_t index, bool active, uint32_t now_ms) {
+    uint8_t n = 0;
     for (uint8_t i = 0; i < show.rule_count; i++) {
       const PmRule &r = show.rules[i];
-      if (!r.enabled || r.input != index || r.on_active != active) continue;
-      if (m_fired[i] && (uint32_t)(now_ms - m_last[i]) < r.cooldown_ms) continue;
-      m_fired[i] = true;
-      m_last[i] = now_ms;
-      return r.sequence;
+      if (r.trigger != PM_TRIG_SENSOR || r.input != index || r.on_active != active) continue;
+      n += arm(show, i, now_ms);
     }
-    return 0;
+    return n;
   }
-  void reset() { memset(m_fired, 0, sizeof(m_fired)); }
+  // A sequence started (its cue was heard, or fired here).
+  uint8_t on_cue(const PmShow &show, uint16_t seq, uint32_t now_ms) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < show.rule_count; i++) {
+      const PmRule &r = show.rules[i];
+      if (r.trigger != PM_TRIG_AFTER || r.after != seq) continue;
+      n += arm(show, i, now_ms);
+    }
+    return n;
+  }
+  // Rules whose delay has run out. Returns the count written to `out`.
+  uint8_t due(uint32_t now_ms, uint8_t *out, uint8_t max) {
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < PM_MAX_RULES && n < max; i++) {
+      if (!m_pending[i] || (int32_t)(now_ms - m_due[i]) < 0) continue;
+      m_pending[i] = false;
+      out[n++] = i;
+    }
+    return n;
+  }
+  // The sequences rule `i` fires: all of them, or one by `rnd`.
+  uint8_t pick(const PmShow &show, uint8_t i, uint32_t rnd, uint16_t *out) {
+    const PmRule &r = show.rules[i];
+    if (!r.seq_count) return 0;
+    if (r.pick == PM_PICK_RANDOM) { out[0] = r.seqs[rnd % r.seq_count]; return 1; }
+    for (uint8_t k = 0; k < r.seq_count; k++) out[k] = r.seqs[k];
+    return r.seq_count;
+  }
+  bool pending() const { for (bool p : m_pending) if (p) return true; return false; }
+  // Re-armed, or the rules changed: forget cooldowns, lockouts and waits.
+  void reset() {
+    memset(m_fired, 0, sizeof(m_fired));
+    memset(m_pending, 0, sizeof(m_pending));
+    memset(m_count, 0, sizeof(m_count));
+  }
 
  private:
+  bool arm(const PmShow &show, uint8_t i, uint32_t now_ms) {
+    const PmRule &r = show.rules[i];
+    if (!r.enabled || m_pending[i]) return false;
+    if (m_fired[i] && (uint32_t)(now_ms - m_last[i]) < r.cooldown_ms) return false;
+    if (r.max_fires) {
+      uint32_t window_ms = (uint32_t)r.window_min * 60000u;
+      if (!m_count[i] || (uint32_t)(now_ms - m_window[i]) >= window_ms) { m_count[i] = 0; m_window[i] = now_ms; }
+      if (m_count[i] >= r.max_fires) return false;
+      m_count[i]++;
+    }
+    m_fired[i] = true;
+    m_last[i] = now_ms;
+    m_pending[i] = true;
+    m_due[i] = now_ms + r.delay_ms;
+    return true;
+  }
   bool m_fired[PM_MAX_RULES] = {};
   uint32_t m_last[PM_MAX_RULES] = {};
+  bool m_pending[PM_MAX_RULES] = {};
+  uint32_t m_due[PM_MAX_RULES] = {};
+  uint8_t m_count[PM_MAX_RULES] = {};
+  uint32_t m_window[PM_MAX_RULES] = {};
 };
 
 // --- duplicate cues ------------------------------------------------------------

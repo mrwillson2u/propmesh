@@ -455,8 +455,10 @@ under the mesh key → doc. Group addressing later.
 of timed steps `[t_ms, kind, index, value]` on any node's outputs. Each
 node stores only **its own part** of each sequence, plus the
 *triggers* on **its own sensors**, in `/show.json` — so the show runs
-with no laptop and no bridge. A trigger: "when `DIGITAL_IN_n` becomes
-active (or clear), play sequence N; then ignore this trigger for
+with no laptop and no bridge. A trigger (the 2026-10-05 form; v2 below
+adds delay, lockout, fan-out, random and chaining): "when
+`DIGITAL_IN_n` becomes active (or clear), play sequence N; then ignore
+this trigger for
 `cooldown_ms`".
 
 **Ramps** (2026-10-05 — the Timeline's line between keyframes;
@@ -493,6 +495,33 @@ rejoined with a different clock) plays now. Servo steps glide with the
 servo's smoothing setting. Up to 4 sequences play at once per node;
 re-firing a playing sequence restarts it.
 
+**Rules, v2 (2026-10-12 — software-plan "Console sections").** A
+trigger rule is *trigger → logic → actions*, all evaluated on the board
+that holds it, which then broadcasts the cues (so the execution model
+is unchanged: no bridge at show time).
+- **Trigger:** a sensor edge on this board (`sensor`: `input`, `on`), or
+  **a sequence starting anywhere** (`after`: its CUE heard, or fired
+  here). Any board may hold an `after` rule — pick one that's always
+  powered. Sensor rules fire only while armed; `after` rules in ambient
+  too (a chain off an ambient loop is the point).
+- **Logic:** `delay_ms` before the actions — "when X ends" is simply
+  `after: X` with `delay_ms` = X's show-wide length, which the console
+  sets; `cooldown_ms`; **lockout** `limit: {fires, window_min}` — at
+  most N fires per window (0 = no limit).
+- **Actions:** `seqs[]` (1–4): `pick: "all"` fires every one (fan-out),
+  `"random"` one of them. Several rules may share a trigger — each that
+  passes fires.
+- A rule that restarts its own trigger sequence needs delay + cooldown
+  ≥ 1 s (refused otherwise): a zero-delay self-loop would run as fast
+  as the mesh carries cues.
+- Firmware: `PmTriggers` arms a rule (cooldown, lockout), `due()` hands
+  back rules whose delay ran out, `pick()` the sequences; host-tested
+  (`test_show`: delay + fan-out, random + lockout, chaining). Console:
+  the **Show** section's rows read as the sentence *When [sensor
+  becomes active | sequence X starts/ends] (+ wait) play [all of | one
+  of] [seqs] · wait N s · at most N times per M min [· on board]*; the
+  Show Graph will edit the same rules.
+
 **Arming.** Disarmed nodes ignore triggers and cues and stop playing.
 Nodes **boot armed** (a power cut never leaves the show dead). STOP ALL
 disarms every node, then turns every output off; RE-ARM SHOW arms them.
@@ -510,7 +539,7 @@ reports the problem and the console shows ⚠.
 | `get_sequence` | `seq` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]` or `[…, dur_ms, "ease"]`) |
 | `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
 | `delete_sequence` | `seq` | — |
-| `set_rules` | `rules[]` of `{input, on: "active"\|"clear", seq, cooldown_ms, enabled}` | — (replaces all this node's triggers) |
+| `set_rules` | `rules[]` of `{trigger: "sensor"\|"after", input, on: "active"\|"clear", after, delay_ms, cooldown_ms, limit: {fires, window_min}?, pick: "all"\|"random", seqs[], enabled}` (the 2026-10-05 form `{input, on, seq, cooldown_ms, enabled}` still reads) | — (replaces all this node's triggers) |
 | `cue` | `seq`, `offset_ms?` | — (fires show-wide from this node; refused while disarmed) |
 | `arm` | `on` | `armed` |
 
