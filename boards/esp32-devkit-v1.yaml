@@ -26,6 +26,15 @@ mcu: ESP32-WROOM-32
 board_type: DEVKIT            # BoardType in schema/messages.yaml
 ledc_channels: 16
 rmt_tx_channels: 8
+pinout_url: https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
+
+# The two headers as printed, top to bottom with the USB socket at the
+# bottom — drawn by the console's pinout diagram. Every GPIO label above
+# must appear; the rest are power and control pins.
+header:
+  usb: bottom
+  left:  [EN, VP, VN, D34, D35, D32, D33, D25, D26, D27, D14, D12, D13, GND, VIN]
+  right: [D23, D22, TX0, RX0, D21, D19, D18, D5, TX2, RX2, D4, D2, D15, GND, 3V3]
 
 # Why the recommended pins, per function — shown in the console's guide.
 guide:

@@ -33,6 +33,14 @@ mcu: ESP32-WROOM-32
 board_type: HUZZAH32         # BoardType in schema/messages.yaml
 ledc_channels: 16
 rmt_tx_channels: 8
+pinout_url: https://learn.adafruit.com/adafruit-huzzah32-esp32-feather/pinouts
+
+# Feather headers, top to bottom, USB socket at the bottom (A13 / GPIO 35
+# is the battery divider — not on a header).
+header:
+  usb: bottom
+  left:  [RST, 3V, AREF, GND, A0, A1, A2, A3, A4, A5, SCK, MO, MI, RX, TX, "21"]
+  right: [SDA, SCL, "14", "32", "15", "33", "27", "12", "13", USB, EN, BAT]
 
 # Battery: VBAT through a 2:1 divider on GPIO 35 (Feather "A13"), read by
 # the firmware for the heartbeat's battery_mv. Not assignable in the console.

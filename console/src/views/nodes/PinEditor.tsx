@@ -14,6 +14,7 @@ import {
 import { issueText, validate, type Issue } from "../../lib/pinRules";
 import { SHORT, isBest, isGood, tips } from "../../lib/pinAdvice";
 import PinGuide from "./PinGuide";
+import Pinout from "./Pinout";
 import type { NodeHello, NodeTarget } from "../../lib/transport";
 import { useConnection, type LocalMesh } from "../../lib/connection";
 
@@ -281,6 +282,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           : <SleepSettings draft={draft} setDraft={setDraft} />
       )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
+        <Pinout board={board} cfg={draft} />
         <PinGuide board={board} cfg={draft} />
         <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
           <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>

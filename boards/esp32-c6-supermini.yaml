@@ -27,6 +27,9 @@ id: esp32-c6-supermini
 name: ESP32-C6 SuperMini
 mcu: ESP32-C6FH4
 board_type: C6_SUPERMINI      # BoardType in schema/messages.yaml
+pinout_url: https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-datasheet-schema-and-specs/
+# No `header`: SuperMini vendors order the pins differently, so the console
+# shows this board as a list of GPIO numbers, not a drawing.
 ledc_channels: 6              # the C6 has 6 LEDC channels (ESP32: 16)
 rmt_tx_channels: 2            # 2 RMT TX channels → at most 2 strips
 

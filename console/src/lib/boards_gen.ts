@@ -31,6 +31,10 @@ export interface Board {
   ledcChannels: number;
   rmtTxChannels: number;
   battery?: { gpio: number; divider: number }; // VBAT sense pin, VBAT = reading * divider
+  pinoutUrl?: string; // the vendor's pinout page, for the photo-style reference
+  // The headers as printed, top to bottom, for the console's pinout drawing;
+  // absent when vendors differ (the C6 SuperMini) — shown as a list instead.
+  header?: { usb: "top" | "bottom"; left: string[]; right: string[] };
   pins: BoardPin[];
   guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function
 }
@@ -67,6 +71,8 @@ export const BOARDS: Record<string, Board> = {
     ledcChannels: 6,
     rmtTxChannels: 2,
     battery: undefined,
+    pinoutUrl: "https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-datasheet-schema-and-specs/",
+    header: undefined,
     pins: [
       { gpio: 0, label: "0", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
       { gpio: 1, label: "1", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
@@ -107,6 +113,8 @@ export const BOARDS: Record<string, Board> = {
     ledcChannels: 16,
     rmtTxChannels: 8,
     battery: undefined,
+    pinoutUrl: "https://randomnerdtutorials.com/esp32-pinout-reference-gpios/",
+    header: {"usb": "bottom", "left": ["EN", "VP", "VN", "D34", "D35", "D32", "D33", "D25", "D26", "D27", "D14", "D12", "D13", "GND", "VIN"], "right": ["D23", "D22", "TX0", "RX0", "D21", "D19", "D18", "D5", "TX2", "RX2", "D4", "D2", "D15", "GND", "3V3"]},
     pins: [
       { gpio: 36, label: "VP", caps: 0x31, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
       { gpio: 39, label: "VN", caps: 0x31, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
@@ -150,6 +158,8 @@ export const BOARDS: Record<string, Board> = {
     ledcChannels: 16,
     rmtTxChannels: 8,
     battery: {"gpio": 35, "divider": 2.0},
+    pinoutUrl: "https://learn.adafruit.com/adafruit-huzzah32-esp32-feather/pinouts",
+    header: {"usb": "bottom", "left": ["RST", "3V", "AREF", "GND", "A0", "A1", "A2", "A3", "A4", "A5", "SCK", "MO", "MI", "RX", "TX", "21"], "right": ["SDA", "SCL", "14", "32", "15", "33", "27", "12", "13", "USB", "EN", "BAT"]},
     pins: [
       { gpio: 26, label: "A0", caps: 0x2f, tier: "good", note: "also DAC2", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },
       { gpio: 25, label: "A1", caps: 0x2f, tier: "good", note: "also DAC1", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },

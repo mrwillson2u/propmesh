@@ -72,6 +72,14 @@ def validate(funcs, boards, enums, consts):
                 errs.append(f"{bid}: battery needs gpio and divider")
             elif bat["gpio"] not in {p["gpio"] for p in b["pins"]}:
                 errs.append(f"{bid}: battery gpio {bat['gpio']} is not one of the board's pins")
+        hdr = b.get("header")
+        if hdr is not None:
+            if hdr.get("usb") not in ("top", "bottom"):
+                errs.append(f"{bid}: header.usb must be top or bottom")
+            listed = {str(x) for x in hdr.get("left", []) + hdr.get("right", [])}
+            for p in b["pins"]:
+                if p["tier"] != "reserved" and str(p["label"]) not in listed:
+                    errs.append(f"{bid}: GPIO {p['gpio']} ({p['label']}) is not in the header drawing")
         seen = {}
         for p in b["pins"]:
             g = p["gpio"]
@@ -238,6 +246,10 @@ def render_ts(funcs, boards, enums):
           "  ledcChannels: number;",
           "  rmtTxChannels: number;",
           "  battery?: { gpio: number; divider: number }; // VBAT sense pin, VBAT = reading * divider",
+          "  pinoutUrl?: string; // the vendor's pinout page, for the photo-style reference",
+          "  // The headers as printed, top to bottom, for the console's pinout drawing;",
+          "  // absent when vendors differ (the C6 SuperMini) — shown as a list instead.",
+          "  header?: { usb: \"top\" | \"bottom\"; left: string[]; right: string[] };",
           "  pins: BoardPin[];",
           "  guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function",
           "}",
@@ -274,6 +286,8 @@ def render_ts(funcs, boards, enums):
               f"    ledcChannels: {b['ledc_channels']},",
               f"    rmtTxChannels: {b['rmt_tx_channels']},",
               f"    battery: {json.dumps(b['battery']) if b.get('battery') else 'undefined'},",
+              f"    pinoutUrl: {json.dumps(b['pinout_url']) if b.get('pinout_url') else 'undefined'},",
+              f"    header: {json.dumps({k: ([str(x) for x in v] if isinstance(v, list) else v) for k, v in b['header'].items()}) if b.get('header') else 'undefined'},",
               "    pins: ["]
         for p in b["pins"]:
             note = f", note: {json.dumps(p['note'], ensure_ascii=False)}" if p.get("note") else ""

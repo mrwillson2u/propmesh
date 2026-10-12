@@ -1082,6 +1082,24 @@ losing its look, and fire becomes something any strip can do.
   zigzag; if colors are off, order. Then a cue with the strip at a
   color → out, fired from another board.
 
+## 6i. Pinout drawing (2026-10-11)
+
+The editor's **Pinout** panel (above the pin guide) draws the board from
+its profile — `header: {usb, left, right}` in `boards/<id>.yaml`, the
+two headers as printed, top to bottom — with this node's assignments on
+the pads (output ember, input blue, free, caveat amber, reserved
+hollow); click a pad to jump to its row. Drawn, not fetched: the console
+will be served from the bridge in the yard with no internet, vendor
+images have licensing and hotlink problems, and a drawing can show
+your assignments. Each profile's `pinout_url` links the vendor's own
+page ("vendor pinout ↗") for the photo-style reference. A profile
+without `header` (the C6 SuperMini — vendors order its pins
+differently) shows a list of GPIO numbers to match to the silkscreen.
+`genboards.py --check` fails if a usable GPIO is missing from the
+drawing. Checked in the simulated console; the DevKit and Feather
+headers are from the DOIT 30-pin and Adafruit layouts — ⚠ confirm
+against a board in hand.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
