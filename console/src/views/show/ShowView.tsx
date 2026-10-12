@@ -260,12 +260,10 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   const newSequence = () => {
     if (!show) return;
     const id = nextSequenceId(show);
-    const firstNode = outNodes[0];
-    const first = firstNode ? outputs[firstNode][0] : undefined;
-    const seq: Sequence = {
-      id, name: `Sequence ${id}`, loadedOn: [], problems: [],
-      steps: first ? [{ uid: newUid(), t_ms: 0, node: firstNode, kind: first.kind, index: first.index, value: first.kind === "RELAY" ? 1 : 500 }] : [],
-    };
+    // Blank: the Timeline offers "Add first track…" (a guessed first
+    // output — whatever happened to be first on the first board — was
+    // always the wrong one, 2026-10-12).
+    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], problems: [], steps: [] };
     setSel(id);
     setDraft(seq);
     setOpened((n) => n + 1);
