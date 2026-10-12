@@ -5,6 +5,7 @@
 // the firmware's validator and its verdict is what gets shown on save.
 import { Cap, FUNCTIONS, type Board } from "./boards_gen";
 import {
+  FIRE_DEFAULTS, isStrip,
   MAX_CHANNELS, MAX_EASE_MS, MAX_TRAVEL_MS, SERVO_MAX_US, SERVO_MIN_TRAVEL_US, SERVO_MIN_US, STRIP_MAX_PIXELS,
   channelCode, type NodeConfig,
 } from "./nodeConfig";
@@ -71,9 +72,14 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
       if (!/^[0-9a-fA-F]{8}$/.test(cfg.brmesh_key ?? "") && !out.some((x) => x.code === "ble_no_key"))
         add("ble_no_key", true, -1); // once per board
     }
-    if (c.kind === "LED_STRIP") {
+    if (isStrip(c.kind)) {
       const n = c.pixels ?? 30;
       if (!(n >= 1 && n <= STRIP_MAX_PIXELS)) add("pixel_count", true, i);
+      // A fire is a matrix of columns: w × h must be the strip, at least 2 tall.
+      if (c.effect === "fire") {
+        const f = c.fire ?? FIRE_DEFAULTS;
+        if (!(f.w >= 1 && f.h >= 2 && f.w * f.h === n)) add("fire_matrix", true, i);
+      }
     }
     ledc += f.ledc;
     rmt += f.rmt;
@@ -91,7 +97,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
   const pin = bp ? `${bp.label} (GPIO ${bp.gpio})` : `GPIO ${it.gpio}`;
   switch (it.code) {
     case "pin_count":
-      return c?.kind === "MOTOR" ? `${who}: choose the second pin (IN2)` : `${who}: wrong number of pins`;
+      return c?.kind === "MOTOR" ? `${who}: choose the second pin (IN2)` : c?.kind === "SPI_STRIP" ? `${who}: choose the clock pin` : `${who}: wrong number of pins`;
     case "no_such_pin": return `${who}: ${pin} is not on this board`;
     case "pin_reserved": return `${who}: ${pin} is reserved — ${bp?.note ?? ""}`;
     case "pin_cannot": return `${who}: ${pin} can't do this${bp?.note ? ` — ${bp.note}` : ""}`;
@@ -105,6 +111,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "ble_light_dup": return `${who}: another light on this board already uses number ${c?.light}`;
     case "ble_no_key": return "Bluetooth lights need the BRMesh key (8 hex digits) — enter it above the light list";
     case "pixel_count": return `${who}: pixel count must be 1–${STRIP_MAX_PIXELS}`;
+    case "fire_matrix": return `${who}: the fire's columns × height must equal the pixel count (${c?.pixels ?? "?"}), at least 2 tall`;
     case "pwm_budget": return `Too many PWM outputs — this board has ${board.ledcChannels} PWM channels (a motor uses 2)`;
     case "strip_budget": return `Too many LED strips — this board drives ${board.rmtTxChannels}`;
     case "too_many_channels": return `Too many channels — a node holds ${MAX_CHANNELS}`;

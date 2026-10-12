@@ -69,6 +69,7 @@ enums:
     LED_STRIP: 5              # addressable pixels
     DIGITAL_IN: 6             # PIR, button, beam — debounced
     BLE_LIGHT: 7              # BRMesh BLE flood light — no pin; the node broadcasts its color over Bluetooth
+    SPI_STRIP: 8              # clocked addressable pixels (SK9822 / APA102): DATA + CLOCK, bit-banged
 
 # Reusable structs (must be defined before the messages that use them)
 structs:

@@ -1,6 +1,8 @@
 #include "pm_config_store.h"
 #include <Arduino.h>
 #include "pm_ws2812.h"
+#include "pm_apa102.h"
+#include "pm_fire.h"
 #include "pm_channels.h"
 #include "pm_motion.h"
 #include "pm_ramp.h"
@@ -24,7 +26,8 @@ struct Runtime {
   PmMotion motion;      // SERVO with smoothing: where it actually is now
   bool moving;
   PmRamp ramp;          // a sequence ramp in progress (SERVO / LED / MOTOR)
-  PmStrip *strip;
+  PmPixels *strip;      // LED_STRIP / SPI_STRIP
+  PmFire *fire;         // a strip showing the fire effect
   bool raw;             // last sampled input level (active = true)
   uint32_t changed_ms;  // when `raw` last differed from `value`
 };
@@ -82,8 +85,10 @@ static void release(const PmChannelCfg &c, Runtime &r) {
       for (uint8_t p = 0; p < c.pin_count; p++) ledcDetach(c.pins[p]);
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
+    case PM_CHANNEL_KIND_SPI_STRIP:
+      if (r.fire) { r.fire->end(); delete r.fire; r.fire = nullptr; }
       if (r.strip) {
-        r.strip->end();  // all off, channel released
+        r.strip->end();  // all off, pins released
         delete r.strip;
       }
       break;
@@ -118,10 +123,23 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       }
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
-      r.strip = new PmStrip();
-      ok = r.strip->begin(c.pins[0], c.pixels);  // starts all off
-      if (!ok) { delete r.strip; r.strip = nullptr; }
+    case PM_CHANNEL_KIND_SPI_STRIP: {
+      if (c.kind == PM_CHANNEL_KIND_LED_STRIP) {
+        PmStrip *st = new PmStrip();
+        ok = st->begin(c.pins[0], c.pixels, c.order);  // starts all off
+        r.strip = st;
+      } else {
+        PmApa102 *st = new PmApa102();
+        ok = st->begin(c.pins[0], c.pins[1], c.pixels, c.order);
+        r.strip = st;
+      }
+      if (!ok) { delete r.strip; r.strip = nullptr; break; }
+      if (c.effect == PM_EFFECT_FIRE) {
+        r.fire = new PmFire();
+        if (!r.fire->begin(c.fire, c.pixels)) { delete r.fire; r.fire = nullptr; ok = false; }
+      }
       break;
+    }
     case PM_CHANNEL_KIND_BLE_LIGHT:
       // No pin. The light keeps whatever it was showing until commanded.
       ok = pm_ble_start();
@@ -136,6 +154,16 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
   }
   return ok;
 }
+
+// A strip: solid shows the color; a fire strip's value only switches the
+// effect — 0 = out (black), anything else = burning, painted by the loop.
+static void strip_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
+  if (!r.strip) return;
+  if (r.fire && v != 0) return;  // next fire tick paints it
+  r.strip->fill((uint32_t)v & 0xFFFFFF);
+  r.strip->show();
+}
+static uint32_t last_fire_ms;
 
 // Put a level on the pins with no smoothing — a ramp's own interpolation
 // is the motion.
@@ -156,8 +184,8 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
     // Color fades (2026-10-07: a flood fade computed perfectly here and
     // sent nothing — these two cases were missing).
     case PM_CHANNEL_KIND_LED_STRIP:
-      r.strip->fill((uint32_t)v & 0xFFFFFF);
-      r.strip->show();
+    case PM_CHANNEL_KIND_SPI_STRIP:
+      strip_out(c, r, v);
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);
@@ -197,8 +225,8 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
       ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
-      r.strip->fill((uint32_t)v & 0xFFFFFF);
-      r.strip->show();
+    case PM_CHANNEL_KIND_SPI_STRIP:
+      strip_out(c, r, v);
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);  // 0xWWRRGGBB, W 0–127
@@ -303,6 +331,15 @@ void pm_channels_loop() {
       if (c.kind != PM_CHANNEL_KIND_SERVO || !r.moving) continue;
       r.moving = r.motion.step((float)dt, c.travel_ms, c.ease_ms);
       servo_out(c, (int32_t)(r.motion.pos + 0.5f));
+    }
+  }
+  if ((uint32_t)(now - last_fire_ms) >= PM_FIRE_TICK_MS) {
+    last_fire_ms = now;
+    for (uint8_t i = 0; i < active.channel_count; i++) {
+      Runtime &r = rt[i];
+      if (!r.fire || !r.strip || r.value == 0) continue;
+      r.fire->update(now, *r.strip);
+      r.strip->show();
     }
   }
   for (uint8_t i = 0; i < active.channel_count; i++) {

@@ -58,6 +58,7 @@ typedef enum {
     PM_CHANNEL_KIND_LED_STRIP = 5,
     PM_CHANNEL_KIND_DIGITAL_IN = 6,
     PM_CHANNEL_KIND_BLE_LIGHT = 7,
+    PM_CHANNEL_KIND_SPI_STRIP = 8,
 } pm_channel_kind_t;
 
 #pragma pack(push, 1)

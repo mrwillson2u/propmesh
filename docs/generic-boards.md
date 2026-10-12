@@ -1032,6 +1032,56 @@ The board from the lantern fire test, as a third profile:
   (`esp32-c6-supermini/firmware.bin`); On battery + a button on GPIO 1
   → deep sleep and wake.
 
+## 6h. Clocked strips and the fire effect (built 2026-10-11, not yet on hardware)
+
+Colin's lantern prop — an ESP32-C6 SuperMini driving a 2 × 4 **SK9822**
+matrix (data 20, clock 19, BGR) with Fire2023 — becomes a node without
+losing its look, and fire becomes something any strip can do.
+
+- **FastLED, measured, and where it ended up.** On the ESP32 FastLED's
+  strip output sits on the same IDF RMT driver as ours and costs slightly
+  *more* IRAM (the build overflowed by 4 bytes with it), and it bakes
+  the pin into the type (`addLeds<WS2812, PIN>`), refusing some pins at
+  compile time — incompatible with assigning pins from the console. Its
+  **math** (`inoise16`, `scale8`, gradient palettes) costs ~11 KB flash
+  and no IRAM. So: FastLED 3.10.3 (pinned — 3.10.7 doesn't compile on
+  this core) for the fire's math only; output stays on our drivers.
+- **`SPI_STRIP`** — "LED strip (SK9822 / APA102, clocked)": DATA + CLOCK
+  pins, bit-banged (`pm_apa102`) — a clocked protocol has no timing to
+  meet, so no peripheral, no IRAM, interrupts stay on; 100 px ≈ 1 ms.
+  `LED_STRIP` (WS2812, RMT) is unchanged. Both are a `PmPixels`
+  (`pm_pixels.h`), and both take a color **order** (`grb` default for
+  WS2812, `bgr` for SK9822).
+- **Effect per strip: `solid` or `fire`.** Fire2023 ported to
+  `pm_fire.{h,cpp}` with its constants turned into `PmFireCfg` fields,
+  the lantern's values as defaults: columns × height (must equal the
+  pixel count, height ≥ 2), zigzag wiring (odd columns run back down —
+  the lantern's `{3,4,2,5,1,6,0,7}` table generalized), brightness 128,
+  speed 2, flame 3.0 (stored ×10), noise 0, smoke speed 25, smoke 250,
+  smoke scale 125. The lantern's arithmetic is kept to the truncation
+  (`d / smoke_dim` into a byte) so the look is the same. Runs every 8 ms
+  in `pm_channels_loop` for every burning fire strip.
+- **A fire strip's value is a switch:** 0 = out (black), anything else =
+  burning at its configured brightness. So cues, triggers, ramps and the
+  by-hand restore all work unchanged — "flames on at the scare, out 10 s
+  later" is a plain step. The editor's Test shows **Burn / Out** instead
+  of a color picker. (Tinting the flames from the cue color is a
+  possible later use of the value.)
+- **Console:** strips get clock pin (SPI_STRIP), pixels, order and effect
+  in the options column; choosing fire opens the FIRE row of knobs with
+  a tooltip per knob saying which way it pushes the look. Validation
+  (both sides): `fire_matrix` — columns × height ≠ pixels, or height
+  < 2. Config JSON: `"order"`, `"effect"`, `"fire": {w, h, zigzag,
+  brightness, speed, flame10, noise, smoke_speed, smoke_dim,
+  smoke_scale}`.
+- **Bench test (to do) — the lantern:** flash `esp32-c6-supermini`,
+  Connect, assign GPIO 20 = SPI_STRIP with clock 19, pixels 8, order
+  BGR, effect fire (defaults load the lantern's 2×4 zigzag) → Save →
+  **Burn**. Watch for: the same flame as the old sketch (seeded at the
+  bottom, rising, smoke veils). If columns look upside down, toggle
+  zigzag; if colors are off, order. Then a cue with the strip at a
+  color → out, fired from another board.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

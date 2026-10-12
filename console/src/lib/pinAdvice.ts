@@ -6,12 +6,12 @@ import { type Board, type BoardPin, type ChannelKindName } from "./boards_gen";
 import { channelCode, type NodeConfig } from "./nodeConfig";
 
 // Guide order: what moves, what switches, what lights, what senses.
-export const GUIDE_ORDER: ChannelKindName[] = ["SERVO", "MOTOR", "RELAY", "LED_STRIP", "LED", "DIGITAL_IN"];
+export const GUIDE_ORDER: ChannelKindName[] = ["SERVO", "MOTOR", "RELAY", "LED_STRIP", "SPI_STRIP", "LED", "DIGITAL_IN"];
 
 // Plural, lower-case names for sentences ("better for servos").
 export const SHORT: Record<ChannelKindName, string> = {
   RELAY: "relays", LED: "LED dimmers", SERVO: "servos", MOTOR: "DC motors",
-  LED_STRIP: "LED strips", DIGITAL_IN: "sensors & buttons", BLE_LIGHT: "Bluetooth lights",
+  LED_STRIP: "LED strips", SPI_STRIP: "clocked LED strips", DIGITAL_IN: "sensors & buttons", BLE_LIGHT: "Bluetooth lights",
 };
 
 export const isBest = (p: BoardPin, k: ChannelKindName) => p.best === k;

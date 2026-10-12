@@ -71,6 +71,25 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
     c.travel_ms = jc["travel_ms"] | c.travel_ms;
     c.ease_ms = jc["ease_ms"] | c.ease_ms;
     c.pixels = jc["pixels"] | c.pixels;
+    if (c.kind == PM_CHANNEL_KIND_SPI_STRIP) c.order = PM_ORDER_BGR;
+    const char *order = jc["order"] | "";
+    if (*order) {
+      c.order = !strcmp(order, "grb") ? PM_ORDER_GRB : !strcmp(order, "rgb") ? PM_ORDER_RGB
+              : !strcmp(order, "bgr") ? PM_ORDER_BGR : 0xFF;
+      if (c.order == 0xFF) return "order must be grb, rgb or bgr";
+    }
+    const char *effect = jc["effect"] | "solid";
+    c.effect = !strcmp(effect, "solid") ? PM_EFFECT_SOLID : !strcmp(effect, "fire") ? PM_EFFECT_FIRE : 0xFF;
+    if (c.effect == 0xFF) return "effect must be solid or fire";
+    JsonVariantConst fj = jc["fire"];
+    if (!fj.isNull()) {
+      PmFireCfg &f = c.fire;
+      f.w = fj["w"] | f.w;  f.h = fj["h"] | f.h;  f.zigzag = fj["zigzag"] | f.zigzag;
+      f.brightness = fj["brightness"] | f.brightness;  f.speed = fj["speed"] | f.speed;
+      f.flame10 = fj["flame10"] | f.flame10;  f.noise = fj["noise"] | f.noise;
+      f.smoke_speed = fj["smoke_speed"] | f.smoke_speed;  f.smoke_dim = fj["smoke_dim"] | f.smoke_dim;
+      f.smoke_scale = fj["smoke_scale"] | f.smoke_scale;
+    }
     long light = jc["light"] | (long)c.light_id;
     if (light < 0 || light > 255) return "light must be 1-255";
     c.light_id = (uint8_t)light;
@@ -134,7 +153,18 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
         jc["ease_ms"] = c.ease_ms;
         break;
       case PM_CHANNEL_KIND_LED_STRIP:
+      case PM_CHANNEL_KIND_SPI_STRIP:
         jc["pixels"] = c.pixels;
+        jc["order"] = c.order == PM_ORDER_RGB ? "rgb" : c.order == PM_ORDER_BGR ? "bgr" : "grb";
+        jc["effect"] = c.effect == PM_EFFECT_FIRE ? "fire" : "solid";
+        if (c.effect == PM_EFFECT_FIRE) {
+          JsonObject fj = jc["fire"].to<JsonObject>();
+          const PmFireCfg &f = c.fire;
+          fj["w"] = f.w;  fj["h"] = f.h;  fj["zigzag"] = f.zigzag;
+          fj["brightness"] = f.brightness;  fj["speed"] = f.speed;  fj["flame10"] = f.flame10;
+          fj["noise"] = f.noise;  fj["smoke_speed"] = f.smoke_speed;  fj["smoke_dim"] = f.smoke_dim;
+          fj["smoke_scale"] = f.smoke_scale;
+        }
         break;
       case PM_CHANNEL_KIND_BLE_LIGHT:
         jc["light"] = c.light_id;

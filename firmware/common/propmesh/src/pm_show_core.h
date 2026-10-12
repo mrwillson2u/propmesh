@@ -43,7 +43,7 @@ struct PmStep {
 
 // Color outputs: value 0xWWRRGGBB, ramped per component (pm_ramp.h).
 inline bool pm_kind_color(uint8_t kind) {
-  return kind == PM_CHANNEL_KIND_LED_STRIP || kind == PM_CHANNEL_KIND_BLE_LIGHT;
+  return pm_kind_is_strip(kind) || kind == PM_CHANNEL_KIND_BLE_LIGHT;
 }
 // Kinds a ramp makes sense for: a level, a position or a color — not a switch.
 inline bool pm_kind_ramps(uint8_t kind) {

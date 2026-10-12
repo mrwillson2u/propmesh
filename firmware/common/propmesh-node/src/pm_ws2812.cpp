@@ -15,10 +15,11 @@
 #define T1H 8
 #define T1L 5
 
-bool PmStrip::begin(uint8_t gpio, uint16_t pixels) {
+bool PmStrip::begin(uint8_t gpio, uint16_t pixels, uint8_t ord) {
   end();
   buf = (uint8_t *)calloc(pixels, 3);
   if (!buf) return false;
+  order = ord;
   rmt_tx_channel_config_t tx = {};
   tx.gpio_num = (gpio_num_t)gpio;
   tx.clk_src = RMT_CLK_SRC_DEFAULT;
@@ -55,12 +56,6 @@ void PmStrip::end() {
   }
   free(buf); buf = nullptr;
   n = 0;
-}
-
-void PmStrip::fill(uint32_t rgb) {
-  if (!buf) return;
-  const uint8_t g = rgb >> 8, r = rgb >> 16, b = rgb;
-  for (uint16_t i = 0; i < n; i++) { buf[i * 3] = g; buf[i * 3 + 1] = r; buf[i * 3 + 2] = b; }
 }
 
 void PmStrip::show() {

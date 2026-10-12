@@ -7,7 +7,8 @@ import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
-  EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, newChannel, pinRole,
+  EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
+  type ColorOrder, type FireCfg, type StripEffect,
   type ChannelCfg, type NodeConfig, type Pull,
 } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
@@ -322,7 +323,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
+                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
                         cal={c.kind !== "SERVO" ? undefined : {
                           on: cal?.code === channelCode(c),
@@ -594,8 +595,37 @@ function Options({ c, pin, in2, onChange }: {
           <Smoothing c={c} onChange={onChange} />
         </>
       )}
-      {c.kind === "LED_STRIP" && (
-        <label style={optLabel}>pixels <input type="number" min={1} value={c.pixels ?? 30} onChange={(e) => onChange({ pixels: int(e.target.value) })} style={num} /></label>
+      {isStrip(c.kind) && (
+        <>
+          {c.kind === "SPI_STRIP" && (
+            <label style={optLabel} title={`DATA is ${pin.label}`}>clock
+              <select value={c.pins[1] ?? ""} style={field}
+                onChange={(e) => onChange({ pins: e.target.value === "" ? [c.pins[0]] : [c.pins[0], Number(e.target.value)] })}>
+                <option value="">— choose —</option>
+                {in2.filter((p) => p.gpio !== c.pins[0]).map((p) => <option key={p.gpio} value={p.gpio}>{p.label}{p.tier === "caution" ? " ⚠" : ""}</option>)}
+              </select>
+            </label>
+          )}
+          <label style={optLabel}>pixels <input type="number" min={1} value={c.pixels ?? 30} onChange={(e) => onChange({ pixels: int(e.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Color order on the wire — WS2812 is usually GRB, SK9822 / APA102 BGR. Wrong order = wrong colors, nothing worse.">order
+            <select value={c.order ?? (c.kind === "SPI_STRIP" ? "bgr" : "grb")} onChange={(e) => onChange({ order: e.target.value as ColorOrder })} style={field}>
+              <option value="grb">GRB</option><option value="rgb">RGB</option><option value="bgr">BGR</option>
+            </select>
+          </label>
+          <label style={optLabel} title="Solid: the strip shows the color it is set to. Fire: a flame effect runs on the strip; a cue or test color only switches it on (any color) or off (0).">effect
+            <select value={c.effect ?? "solid"} style={field}
+              onChange={(e) => {
+                const effect = e.target.value as StripEffect;
+                // First time: the lantern's 2×4 if the count fits, else one column.
+                const n = c.pixels ?? 30;
+                const fire = c.fire ?? (n === 8 ? { ...FIRE_DEFAULTS } : { ...FIRE_DEFAULTS, w: 1, h: n, zigzag: false });
+                onChange({ effect, fire });
+              }}>
+              <option value="solid">solid color</option><option value="fire">fire</option>
+            </select>
+          </label>
+          {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
+        </>
       )}
       {c.kind === "MOTOR" && (
         <label style={optLabel} title={`IN1 is ${pin.label}`}>IN2
@@ -656,6 +686,38 @@ interface Cal {
   setMax: (us: number) => void;
 }
 
+// Fire2023's knobs (firmware pm_fire.h). Titles say which way each one
+// pushes the look; the defaults are Colin's lantern.
+function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCfg>) => void }) {
+  const u8 = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10) || 0));
+  const small: React.CSSProperties = { ...num, width: 50 };
+  const field = (key: keyof FireCfg, label: string, title: string, max = 255) => (
+    <label style={optLabel} title={title}>{label}
+      <input type="number" min={0} max={max} value={f[key] as number} onChange={(e) => onChange({ [key]: Math.min(max, u8(e.target.value)) })} style={small} />
+    </label>
+  );
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+      <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FIRE</span>
+      {field("w", "columns", "Columns of pixels, side by side around the prop. columns × height = pixel count.", 60)}
+      {field("h", "height", "Pixels per column, bottom to top. The flame is seeded at the bottom.", 255)}
+      <label style={optLabel} title="Serpentine wiring: the first column runs bottom to top, the next top to bottom, and so on (the lantern). Off: every column starts at the bottom.">
+        <input type="checkbox" checked={f.zigzag} onChange={(e) => onChange({ zigzag: e.target.checked })} /> zigzag
+      </label>
+      {field("brightness", "brightness", "Overall level, 0–255.")}
+      {field("speed", "speed", "How fast the flames move. Small matrices want small values (the lantern: 2).")}
+      <label style={optLabel} title="Flame height — higher values cool the heat less, so flames climb further up the column (the lantern: 3.0).">flame
+        <input type="number" min={0.1} max={25} step={0.1} value={(f.flame10 / 10).toFixed(1)}
+          onChange={(e) => onChange({ flame10: Math.max(1, Math.min(255, Math.round((parseFloat(e.target.value) || 0) * 10))) })} style={small} />
+      </label>
+      {field("noise", "noise", "Flame noise scale: 0 = one smooth flame across the columns, bigger = each column flickers on its own.")}
+      {field("smoke_speed", "smoke speed", "How fast the smoke layer drifts — a little faster than the flames reads best (the lantern: 25).")}
+      {field("smoke_dim", "smoke", "Smoke thickness: lower = brighter, more visible flames; higher = more cut off by smoke (the lantern: 250).")}
+      {field("smoke_scale", "smoke scale", "Smoke noise scale: small = soft veils, big = blinky (the lantern: 125).")}
+    </span>
+  );
+}
+
 function Test({ c, value, disabled, onFire, cal }: {
   c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void; cal?: Cal;
 }) {
@@ -671,6 +733,15 @@ function Test({ c, value, disabled, onFire, cal }: {
       <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>
         <button onClick={() => onFire(v ? 0 : 1)} style={{ ...btn(!!v), width: 104, flex: "none" }}>{v ? "⏻ TURN OFF" : "⏻ TURN ON"}</button>
         <span style={mono(700, 11, v ? C.green : C.t5)}>{v ? "● ON" : "○ OFF"}</span>
+      </span>
+    );
+  // A fire strip has no color to pick: it burns or it doesn't.
+  if (isStrip(c.kind) && c.effect === "fire")
+    return (
+      <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <button disabled={disabled} onClick={() => onFire(0xff5500)} style={btn(true, disabled)}>Burn</button>
+        <button disabled={disabled} onClick={() => onFire(0)} style={btn(false, disabled)}>Out</button>
+        {value !== undefined && <span style={mono(500, 11, value ? C.amber : C.t5)}>{value ? "burning" : "out"}</span>}
       </span>
     );
   if (isColor(c.kind))

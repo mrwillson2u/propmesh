@@ -26,6 +26,25 @@
 #define PM_STRIP_MAX_PIXELS 300
 
 enum { PM_PULL_NONE = 0, PM_PULL_UP = 1, PM_PULL_DOWN = 2 };
+// Color order on the wire (LED_STRIP / SPI_STRIP). WS2812 is GRB, SK9822 BGR.
+enum { PM_ORDER_GRB = 0, PM_ORDER_RGB = 1, PM_ORDER_BGR = 2 };
+// What a strip shows: the color it is set to, or a running effect that
+// the set value only switches on (any color) and off (0).
+enum { PM_EFFECT_SOLID = 0, PM_EFFECT_FIRE = 1 };
+
+// Fire2023 (pm_fire.h) on a strip laid out as a w × h matrix of vertical
+// columns, bottom to top — the lantern prop's values are the defaults.
+struct PmFireCfg {
+  uint8_t w = 2, h = 4;
+  bool zigzag = true;         // odd columns run top to bottom (serpentine)
+  uint8_t brightness = 128;   // output scale 0-255
+  uint8_t speed = 2;          // how fast the flame noise moves
+  uint8_t flame10 = 30;       // flame height × 10 (3.0): higher = taller flames
+  uint8_t noise = 0;          // flame noise scale: small = soft, big = blinky
+  uint8_t smoke_speed = 25;
+  uint8_t smoke_dim = 250;    // smoke thickness: lower = brighter flames
+  uint8_t smoke_scale = 125;
+};
 
 struct PmChannelCfg {
   uint8_t kind = 0;   // pm_channel_kind_t
@@ -45,8 +64,15 @@ struct PmChannelCfg {
   uint16_t travel_ms = 0;
   uint16_t ease_ms = 0;
   uint8_t light_id = 1;           // BLE_LIGHT: the light's number in the BRMesh app
-  uint16_t pixels = 30;           // LED_STRIP
+  uint16_t pixels = 30;           // LED_STRIP / SPI_STRIP
+  uint8_t order = PM_ORDER_GRB;   // strips: color order on the wire
+  uint8_t effect = PM_EFFECT_SOLID;
+  PmFireCfg fire;                 // when effect == PM_EFFECT_FIRE
 };
+
+inline bool pm_kind_is_strip(uint8_t kind) {
+  return kind == PM_CHANNEL_KIND_LED_STRIP || kind == PM_CHANNEL_KIND_SPI_STRIP;
+}
 
 struct PmNodeConfig {
   char name[PM_NAME_LEN] = {};

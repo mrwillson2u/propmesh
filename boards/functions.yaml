@@ -40,6 +40,10 @@ functions:
     pins: [{role: DATA, need: out}]
     rmt: 1
     value: {min: 0, max: 16777215}   # 0xRRGGBB, whole strip
+  SPI_STRIP:
+    label: LED strip (SK9822 / APA102, clocked)
+    pins: [{role: DATA, need: out}, {role: CLOCK, need: out}]
+    value: {min: 0, max: 16777215}   # 0xRRGGBB, whole strip — a fire strip: 0 off, else burning
   DIGITAL_IN:
     label: Sensor / button input
     pins: [{role: IN, need: in}]

@@ -79,7 +79,7 @@ export function sortSteps(seq: Sequence): Sequence {
   return { ...seq, steps };
 }
 
-export const RAMP_KINDS: ChannelKindName[] = ["SERVO", "LED", "MOTOR", "LED_STRIP", "BLE_LIGHT"];
+export const RAMP_KINDS: ChannelKindName[] = ["SERVO", "LED", "MOTOR", "LED_STRIP", "SPI_STRIP", "BLE_LIGHT"];
 export const canRamp = (kind: ChannelKindName) => RAMP_KINDS.includes(kind);
 
 export interface Sequence {

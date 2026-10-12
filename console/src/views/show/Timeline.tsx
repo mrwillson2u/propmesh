@@ -21,7 +21,7 @@ const TICKS = [100, 200, 250, 500, 1000, 2000, 5000, 10000, 15000, 30000, 60000]
 const fmtT = (ms: number) => ms >= 60000 ? `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}` : `${ms / 1000}s`;
 const H_VALUE = 76, H_SWITCH = 34;
 const COLORS = [C.emberT, C.green, "#7d87b8", C.amber, "#c678dd", "#56b6c2", "#e06c75", "#98c379"];
-const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "BLE_LIGHT"];
+const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "SPI_STRIP", "BLE_LIGHT"];
 
 // Keep receiving moves after the pointer leaves the element. Must never
 // abort the handler: it throws for a pointer the browser isn't tracking.

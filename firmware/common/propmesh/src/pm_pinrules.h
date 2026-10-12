@@ -113,9 +113,13 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
           out.add("ble_light_dup", true, i);
       if (!cfg.has_brmesh_key && !out.has("ble_no_key")) out.add("ble_no_key", true, -1);  // once per board
     }
-    if (c.kind == PM_CHANNEL_KIND_LED_STRIP &&
+    if (pm_kind_is_strip(c.kind) &&
         (c.pixels == 0 || c.pixels > PM_STRIP_MAX_PIXELS))
       out.add("pixel_count", true, i);
+    // A fire is a matrix of columns: w × h must be the strip, at least 2 tall.
+    if (pm_kind_is_strip(c.kind) && c.effect == PM_EFFECT_FIRE &&
+        (c.fire.w < 1 || c.fire.h < 2 || (uint16_t)c.fire.w * c.fire.h != c.pixels))
+      out.add("fire_matrix", true, i);
 
     ledc += f->ledc;
     rmt += f->rmt;

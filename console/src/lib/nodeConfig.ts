@@ -17,12 +17,34 @@ export interface ChannelCfg {
   max_us?: number; // SERVO: pulse at 100 % — below min_us = reversed
   travel_ms?: number; // SERVO smoothing: full sweep at cruise, 0 = snap
   ease_ms?: number; // SERVO smoothing: time to reach cruise speed
-  pixels?: number; // LED_STRIP
+  pixels?: number; // LED_STRIP / SPI_STRIP
+  order?: ColorOrder; // strips: color order on the wire (WS2812 grb, SK9822 bgr)
+  effect?: StripEffect; // strips: what they show — the set color, or a running effect the color only switches on/off
+  fire?: FireCfg; // when effect is "fire"
   light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
 
+export type ColorOrder = "grb" | "rgb" | "bgr";
+export type StripEffect = "solid" | "fire";
+
+// Fire2023 on a strip laid out as w × h vertical columns, bottom to top
+// (firmware pm_fire.h). The lantern prop's values are the defaults.
+export interface FireCfg {
+  w: number; h: number;
+  zigzag: boolean; // odd columns run top to bottom (serpentine wiring)
+  brightness: number; // 0–255
+  speed: number; // flame noise speed
+  flame10: number; // flame height × 10 — taller flames with higher values
+  noise: number; // flame noise scale: small = soft, big = blinky
+  smoke_speed: number;
+  smoke_dim: number; // smoke thickness: lower = brighter flames
+  smoke_scale: number;
+}
+export const FIRE_DEFAULTS: FireCfg = { w: 2, h: 4, zigzag: true, brightness: 128, speed: 2, flame10: 30, noise: 0, smoke_speed: 25, smoke_dim: 250, smoke_scale: 125 };
+
+export const isStrip = (kind: string) => kind === "LED_STRIP" || kind === "SPI_STRIP";
 // Outputs whose value is a color (0xRRGGBB, 0 = off) rather than a level.
-export const isColor = (kind: string) => kind === "LED_STRIP" || kind === "BLE_LIGHT";
+export const isColor = (kind: string) => isStrip(kind) || kind === "BLE_LIGHT";
 
 export interface NodeConfig {
   v: 1;
@@ -80,7 +102,8 @@ export function newChannel(cfg: NodeConfig, kind: ChannelKindName, gpio: number)
   if (kind === "RELAY") c.active_low = false;
   if (kind === "DIGITAL_IN") { c.active_low = false; c.pull = "none"; }
   if (kind === "SERVO") { c.min_us = 500; c.max_us = 2500; c.travel_ms = 0; c.ease_ms = 0; }
-  if (kind === "LED_STRIP") c.pixels = 30;
+  if (kind === "LED_STRIP") { c.pixels = 30; c.order = "grb"; c.effect = "solid"; }
+  if (kind === "SPI_STRIP") { c.pixels = 8; c.order = "bgr"; c.effect = "solid"; }
   return c;
 }
 
