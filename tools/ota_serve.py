@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every board's image: <build root>/<env>/firmware.bin — the console picks
 # the env from each board's profile (boards/<id>.yaml ↔ [env:<id>]).
 BUILD_ROOT = os.path.join(ROOT, "firmware", "node", ".pio", "build")
-ENVS = ["esp32-devkit-v1", "esp32-huzzah32"]
+ENVS = ["esp32-devkit-v1", "esp32-huzzah32", "esp32-c6-supermini"]
 BUILD_DIR = os.path.join(BUILD_ROOT, ENVS[0])
 
 class Handler(http.server.SimpleHTTPRequestHandler):

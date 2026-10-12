@@ -41,6 +41,7 @@ enums:
     PRO: 1
     MINI: 2
     HUZZAH32: 3               # Adafruit ESP32 Feather — LiPo input, stands in for the Mini's battery story
+    C6_SUPERMINI: 4           # ESP32-C6 SuperMini — tiny RISC-V board, native USB, LP pins 0-7
 
   # Bit flags — a node may hold several roles.
   NodeRole:

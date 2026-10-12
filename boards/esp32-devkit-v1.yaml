@@ -6,7 +6,7 @@
 # This is NOT a pin assignment (that is what the user does in the
 # console) — it is what each pin is ABLE to do, and what to warn about.
 #
-# caps:  in, out, pullup, pulldown, adc
+# caps:  in, out, pullup, pulldown, adc, wake (can wake from deep sleep)
 # best:  the use this pin is recommended for; also: other good uses.
 #        Advice only — the console shows it as a pin guide and ★ in the
 #        dropdowns; the rules that block or warn are caps + tier.
@@ -38,29 +38,29 @@ guide:
 
 pins:
   # left header, top (EN end) to bottom
-  - {gpio: 36, label: VP,  caps: [in, adc], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
-  - {gpio: 39, label: VN,  caps: [in, adc], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
-  - {gpio: 34, label: D34, caps: [in, adc], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
-  - {gpio: 35, label: D35, caps: [in, adc], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
-  - {gpio: 32, label: D32, caps: [in, out, pullup, pulldown, adc], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
-  - {gpio: 33, label: D33, caps: [in, out, pullup, pulldown, adc], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
-  - {gpio: 25, label: D25, caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
-  - {gpio: 26, label: D26, caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
-  - {gpio: 27, label: D27, caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
-  - {gpio: 14, label: D14, caps: [in, out, pullup, pulldown], tier: caution, best: LED, also: [LED_STRIP], note: "pulses briefly at power-up — a relay or motor here may twitch on boot"}
+  - {gpio: 36, label: VP,  caps: [in, adc, wake], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 39, label: VN,  caps: [in, adc, wake], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 34, label: D34, caps: [in, adc, wake], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 35, label: D35, caps: [in, adc, wake], tier: good, best: DIGITAL_IN, note: "input only, no internal pull — a button here needs an external resistor"}
+  - {gpio: 32, label: D32, caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 33, label: D33, caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 25, label: D25, caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
+  - {gpio: 26, label: D26, caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
+  - {gpio: 27, label: D27, caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
+  - {gpio: 14, label: D14, caps: [in, out, pullup, pulldown, wake], tier: caution, best: LED, also: [LED_STRIP], note: "pulses briefly at power-up — a relay or motor here may twitch on boot"}
   - {gpio: 12, label: D12, caps: [out], tier: caution, best: LED, note: "STRAPPING: must be LOW at power-up or the board will not boot. Outputs only, and nothing that pulls it high (many relay modules do)"}
-  - {gpio: 13, label: D13, caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [RELAY, MOTOR]}
+  - {gpio: 13, label: D13, caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [RELAY, MOTOR]}
   # right header, top to bottom
   - {gpio: 23, label: D23, caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR]}
   - {gpio: 22, label: D22, caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR]}
-  - {gpio: 1,  label: TX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
-  - {gpio: 3,  label: RX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
+  - {gpio: 1, label: TX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
+  - {gpio: 3, label: RX0, caps: [], tier: reserved, note: "USB serial — the console and the flasher live here"}
   - {gpio: 21, label: D21, caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR]}
   - {gpio: 19, label: D19, caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
   - {gpio: 18, label: D18, caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
-  - {gpio: 5,  label: D5,  caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"}
+  - {gpio: 5, label: D5,  caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"}
   - {gpio: 17, label: TX2, caps: [in, out, pullup, pulldown], tier: good, best: LED_STRIP, also: [RELAY, SERVO, LED]}
   - {gpio: 16, label: RX2, caps: [in, out, pullup, pulldown], tier: good, best: LED_STRIP, also: [RELAY, SERVO, LED]}
-  - {gpio: 4,  label: D4,  caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [RELAY, MOTOR]}
-  - {gpio: 2,  label: D2,  caps: [out], tier: caution, best: LED, note: "STRAPPING + the onboard blue LED. Outputs only; anything holding it high blocks flashing"}
+  - {gpio: 4, label: D4,  caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [RELAY, MOTOR]}
+  - {gpio: 2, label: D2,  caps: [out], tier: caution, best: LED, note: "STRAPPING + the onboard blue LED. Outputs only; anything holding it high blocks flashing"}
   - {gpio: 15, label: D15, caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING: pulled high and pulses at power-up — fine for an LED or strip, not for a relay or motor"}

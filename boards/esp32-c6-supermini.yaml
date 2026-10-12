@@ -1,0 +1,67 @@
+# ESP32-C6 SuperMini (generic, ~22 × 18 mm, ESP32-C6FH4) — generic-board profile.
+#
+# Edit, then run:  python3 tools/genboards.py
+# Never hand-edit boards_gen.h / boards_gen.ts.
+#
+# Same rules as esp32-devkit-v1.yaml: caps / tier / best are what each pin
+# CAN do and what to warn about; the user assigns functions in the console.
+#
+# Why this board: a few dollars, USB-C with native USB serial (no bridge
+# chip, so its deep-sleep floor is far below the HUZZAH32's), BLE 5 for
+# the floods AND deep sleep in one build. 4 MB flash. No battery input
+# — a cell goes through an external charger/regulator to 5V or 3V3.
+#
+# Sources: ESP32-C6 datasheet v1.5 §2.3 (pin table), §3.3 (strapping:
+# GPIO 4, 5, 8, 9, 15), §4 (LP GPIO 0-7, ADC1 CH0-6 on GPIO 0-6);
+# esp32.co.uk and mischianti.org SuperMini pinouts. ⚠ "SuperMini" is not
+# one official board: header ORDER differs between vendors, so the
+# labels here are the GPIO numbers printed on the silkscreen, not
+# positions. Verify the onboard LEDs on the board in hand (RGB pixel on
+# 8 on all of them; a plain status LED on 15 on most).
+#
+# Native USB: the console and the flasher are the USB-JTAG port on
+# GPIO 12/13 (reserved). After a deep sleep the port re-enumerates, so a
+# USB-connected console drops and reconnects on every wake.
+
+id: esp32-c6-supermini
+name: ESP32-C6 SuperMini
+mcu: ESP32-C6FH4
+board_type: C6_SUPERMINI      # BoardType in schema/messages.yaml
+ledc_channels: 6              # the C6 has 6 LEDC channels (ESP32: 16)
+rmt_tx_channels: 2            # 2 RMT TX channels → at most 2 strips
+
+guide:
+  SERVO: "Quiet at power-up, so nothing twitches while the board boots."
+  MOTOR: "A quiet pair side by side for IN1 / IN2 — a motor never lurches at boot."
+  RELAY: "Quiet at power-up, so a relay never clicks on during boot."
+  LED_STRIP: "Any output can drive a strip; the C6 has two strip engines (RMT), so two strips at most. 3.3 V board — use a 74AHCT-type level shifter for 5 V strips."
+  LED: "The boot-quirk pins — a flicker at power-up doesn't matter for a light. 15 is the blue status LED on most SuperMinis."
+  DIGITAL_IN: "GPIO 0–7 are the low-power pins: the only ones that can wake the board from deep sleep on battery. All have internal pull-ups, so buttons need no resistor. 0–6 also read analog."
+
+pins:
+  # low-power pins — wake from deep sleep, ADC on 0-6
+  - {gpio: 0,  label: "0",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 1,  label: "1",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 2,  label: "2",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 3,  label: "3",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 4,  label: "4",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY], note: "strapping pin (SDIO timing) — sampled at power-up but harmless for anything this board does"}
+  - {gpio: 5,  label: "5",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY], note: "strapping pin (SDIO timing) — sampled at power-up but harmless for anything this board does"}
+  - {gpio: 6,  label: "6",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 7,  label: "7",  caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
+  # onboard parts and strapping
+  - {gpio: 8,  label: "8",  caps: [out], tier: caution, best: LED_STRIP, note: "STRAPPING + the onboard RGB pixel's data line (WS2812). LED_STRIP with 1 pixel lights it; nothing else belongs here"}
+  - {gpio: 9,  label: "9",  caps: [in, pullup, pulldown], tier: caution, best: DIGITAL_IN, note: "STRAPPING + the BOOT button: low at reset = download mode. A button here is fine (don't hold it while resetting); inputs only"}
+  - {gpio: 15, label: "15", caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING + the blue status LED on most boards: outputs only, and nothing that pulls it low at reset"}
+  - {gpio: 16, label: "16", caps: [in, out, pullup, pulldown], tier: caution, best: LED, also: [LED_STRIP], note: "UART0 TX: the boot ROM prints here at power-up — fine for a light or strip, not for a relay or motor. The console uses USB, not this pin"}
+  - {gpio: 17, label: "17", caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR], note: "UART0 RX — unused here (the console runs on USB)"}
+  # general purpose
+  - {gpio: 14, label: "14", caps: [in, out, pullup, pulldown], tier: good, best: SERVO, also: [MOTOR, RELAY, LED]}
+  - {gpio: 18, label: "18", caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
+  - {gpio: 19, label: "19", caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
+  - {gpio: 20, label: "20", caps: [in, out, pullup, pulldown], tier: good, best: LED_STRIP, also: [RELAY, SERVO, LED]}
+  - {gpio: 21, label: "21", caps: [in, out, pullup, pulldown], tier: good, best: LED_STRIP, also: [RELAY, SERVO, LED]}
+  - {gpio: 22, label: "22", caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR]}
+  - {gpio: 23, label: "23", caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, MOTOR]}
+  # reserved
+  - {gpio: 12, label: "12", caps: [], tier: reserved, note: "USB D− — the console and the flasher live on the USB port"}
+  - {gpio: 13, label: "13", caps: [], tier: reserved, note: "USB D+ — the console and the flasher live on the USB port"}

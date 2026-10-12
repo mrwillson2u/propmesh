@@ -923,6 +923,52 @@ verify against the board's silkscreen (the V2 Feather differs).
   from its profile id (`imageUrlFor`), over the mesh or over WiFi. A
   sleeping board is woken by the bridge's hold_awake burst first.
 
+## 6g. ESP32-C6 SuperMini (added 2026-10-11, not yet on hardware)
+
+The board from the lantern fire test, as a third profile:
+`boards/esp32-c6-supermini.yaml`, env `esp32-c6-supermini`
+(`board = esp32-c6-devkitm-1`, the same as the lantern project).
+
+- **What it brings.** A few dollars, 22 × 18 mm, USB-C with *native* USB
+  serial — no CP2104, so its deep-sleep floor should be hundreds of µA,
+  not the Feather's milliamps. No battery input: a cell goes through an
+  external charger/regulator. 4 MB flash, so the same `min_spiffs`
+  partition table and OTA slots. 6 LEDC channels (ESP32: 16) and 2 RMT
+  channels, so **at most two strips** — the profile's budgets say so.
+- **Pins.** "SuperMini" is not one official board and vendors order the
+  headers differently, so the profile labels pins by the GPIO number on
+  the silkscreen. GPIO **0–7 are the low-power pins** — the only ones
+  that wake the board from deep sleep (0–6 also read analog). 12/13 are
+  USB (reserved), 8 the onboard RGB pixel (LED_STRIP with 1 pixel lights
+  it), 9 the BOOT button, 15 the status LED + JTAG strap, 16 UART0 TX
+  (boot ROM chatter at power-up). Strapping: 4, 5, 8, 9, 15.
+- **Wake pins now come from the profile.** A new `wake` capability in
+  `boards/*.yaml` (ESP32: the RTC GPIOs; C6: LP 0–7) replaces the
+  hardcoded ESP32 list in `pm_pinrules.h`, `pm_sleep.cpp` and
+  `pinRules.ts`; the console's "can't wake the board" warning lists the
+  board's own wake pins.
+- **Chip differences handled in the build.** `ESP_EXT1_WAKEUP_ALL_LOW` is
+  ESP32-only (the C6 takes `ANY_LOW`); the BLE controller config has no
+  `mode` field outside the ESP32.
+- **No Bluetooth floods on the C6 yet.** `pm_ble_tx` drives the
+  controller over VHCI (`esp_vhci_host_*`), which the C6's prebuilt
+  Arduino libs don't export — its host is NimBLE. The env builds with
+  `PM_NO_BLE`; a NimBLE port (`ble_gap_adv_set_data` + raw advertising
+  and scanning) is winter work. Floods still work from any ticked
+  DevKit board.
+- **Native USB caveats.** `Serial` is the USB-JTAG CDC port
+  (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. After a deep
+  sleep the port re-enumerates, so a USB-connected console drops and
+  reconnects on every wake — on battery, talk to it over the mesh
+  instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;
+  if the port isn't found, hold BOOT while plugging in.
+- **Bench test (to do):** flash, Connect in the console, confirm the
+  profile shows 22 pins with 0–7 marked wake-capable; assign 8 = LED_STRIP
+  (1 pixel) and 15 = LED and test-fire; mesh join on channel 11 with a
+  heartbeat on the roster; OTA its own image from `ota_serve.py`
+  (`esp32-c6-supermini/firmware.bin`); On battery + a button on GPIO 1
+  → deep sleep and wake.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

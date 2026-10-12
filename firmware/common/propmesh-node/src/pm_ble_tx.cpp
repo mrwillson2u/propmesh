@@ -178,10 +178,12 @@ static bool scan_enable(bool on) {
 bool pm_ble_start() {
   if (started) return true;
   if (failed) return false;
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);  // BLE only: frees the classic-BT RAM
   esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+#if CONFIG_IDF_TARGET_ESP32
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);  // BLE only: frees the classic-BT RAM
   // The framework's default is dual mode; enable() must match init's mode.
   cfg.mode = ESP_BT_MODE_BLE;
+#endif  // the C6 and friends are BLE-only: no mode field, nothing to release
   if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE &&
       esp_bt_controller_init(&cfg) != ESP_OK) { failed = true; return false; }
   if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED &&

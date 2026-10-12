@@ -20,7 +20,9 @@ OUTPUTS = {
     "ts": ROOT / "console" / "src" / "lib" / "boards_gen.ts",
 }
 
-CAPS = {"in": 0x01, "out": 0x02, "pullup": 0x04, "pulldown": 0x08, "adc": 0x10}
+# wake: an RTC / low-power pin — the only kind that can wake the chip
+# from deep sleep (ESP32: RTC GPIOs; ESP32-C6: LP GPIO 0-7).
+CAPS = {"in": 0x01, "out": 0x02, "pullup": 0x04, "pulldown": 0x08, "adc": 0x10, "wake": 0x20}
 TIERS = ["good", "caution", "reserved"]
 MAX_FN_PINS = 2
 # Functions that move or switch something: never recommend them on a
@@ -79,6 +81,8 @@ def validate(funcs, boards, enums, consts):
             for c in p["caps"]:
                 if c not in CAPS:
                     errs.append(f"{bid}: GPIO {g} unknown capability '{c}'")
+            if "wake" in p["caps"] and "in" not in p["caps"]:
+                errs.append(f"{bid}: GPIO {g} can wake but can't be an input")
             if p["tier"] not in TIERS:
                 errs.append(f"{bid}: GPIO {g} unknown tier '{p['tier']}'")
             if p["tier"] == "reserved" and p["caps"]:

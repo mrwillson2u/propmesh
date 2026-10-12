@@ -4,6 +4,7 @@
 // makes it a leaf; it just never sleeps.
 #ifdef PM_NO_SLEEP
 #include "pm_sleep.h"
+#include "pm_pinrules.h"
 void pm_sleep_begin() {}
 void pm_sleep_after_boot(const PmNodeConfig &) {}
 void pm_sleep_apply(const PmNodeConfig &) {}
@@ -14,7 +15,7 @@ bool pm_sleep_supported() { return false; }
 uint16_t pm_sleep_listen_ms() { return 0; }
 const char *pm_sleep_wake_cause() { return "power"; }
 int pm_sleep_wake_gpio() { return -1; }
-bool pm_sleep_rtc_pin(uint8_t g) { return g == 0 || g == 2 || g == 4 || (g >= 12 && g <= 15) || (g >= 25 && g <= 27) || (g >= 32 && g <= 39); }
+bool pm_sleep_rtc_pin(uint8_t g) { const pm_board_pin_t *p = pm_board_pin(PM_BOARD_PROFILE, g); return p && (p->caps & PM_CAP_WAKE); }
 #else
 #include <Arduino.h>
 #include <sys/time.h>
@@ -54,9 +55,11 @@ static const char *cause = "power";
 static int wake_gpio = -1;
 static bool show_tier;  // modem sleep configured
 
-// RTC-capable GPIOs on the ESP32 (the only ones ext1 can wake on).
+// Pins the board profile marks `wake` (ESP32: RTC GPIOs; C6: LP GPIO
+// 0-7) — the only ones ext1 can wake on.
 bool pm_sleep_rtc_pin(uint8_t g) {
-  return g == 0 || g == 2 || g == 4 || (g >= 12 && g <= 15) || (g >= 25 && g <= 27) || (g >= 32 && g <= 39);
+  const pm_board_pin_t *p = pm_board_pin(PM_BOARD_PROFILE, g);
+  return p && (p->caps & PM_CAP_WAKE);
 }
 
 void pm_sleep_begin() {
@@ -146,7 +149,11 @@ static void deep_sleep(uint32_t seconds, const char *why) {
     (c.active_low ? lo : hi) |= 1ULL << c.pins[0];
   }
   if (hi) esp_sleep_enable_ext1_wakeup(hi, ESP_EXT1_WAKEUP_ANY_HIGH);
-  else if (lo) esp_sleep_enable_ext1_wakeup(lo, ESP_EXT1_WAKEUP_ALL_LOW);
+#if CONFIG_IDF_TARGET_ESP32
+  else if (lo) esp_sleep_enable_ext1_wakeup(lo, ESP_EXT1_WAKEUP_ALL_LOW);  // the ESP32 has no ANY_LOW
+#else
+  else if (lo) esp_sleep_enable_ext1_wakeup(lo, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
   esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
   // Carry the wall clock: the system clock runs on the RTC through sleep.
   PmWallClock &w = pm_wall();
