@@ -15,6 +15,7 @@ export interface NodeHello {
   build?: string; // git commit the firmware was built from ("+" = dirty tree)
   power?: "battery"; // on battery (a leaf; sleeps if its build can)
   sleeps?: boolean; // false: a mains-board build — "On battery" only stops it relaying
+  ble?: boolean; // false: built without Bluetooth (the HUZZAH32) — can't drive floods. Absent on firmware before 2026-10-11
   awake?: boolean; // held awake (console or sensor) rather than free to sleep
   checkin_ms?: number;
   pending?: boolean; // a fresh OTA image not yet proven
@@ -455,7 +456,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };

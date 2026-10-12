@@ -1,9 +1,12 @@
-// A battery board (boards/esp32-huzzah32.yaml, -DPM_NO_BLE) has no
-// Bluetooth: it never drives floods, and the controller's code would not
-// fit the chip's IRAM beside WiFi and deep sleep (2026-10-11).
+// The HUZZAH32 build (-DPM_NO_BLE) has no Bluetooth: on the ESP32 the
+// controller's code doesn't fit IRAM beside WiFi and deep sleep
+// (2026-10-11), so that board can't drive floods. The console says so.
+// Battery boards whose chip fits both (the C6) do send — when awake.
 #ifdef PM_NO_BLE
 #include "pm_ble_tx.h"
 extern "C" bool btInUse() { return false; }
+bool pm_ble_available() { return false; }
+bool pm_ble_busy() { return false; }
 bool pm_ble_start() { return false; }
 bool pm_ble_running() { return false; }
 void pm_ble_set_key(const uint8_t *) {}
@@ -337,6 +340,13 @@ bool pm_ble_start() {
 }
 
 bool pm_ble_running() { return started; }
+bool pm_ble_available() { return true; }
+bool pm_ble_busy() {
+  if (!started) return false;
+  if (advertising || raw_dirty || mode != PM_BLE_IDLE) return true;
+  for (int i = 0; i < MAX_LIGHTS; i++) if (q[i].used && q[i].dirty) return true;
+  return false;
+}
 void pm_ble_raw(const uint8_t cmd[8], uint8_t hi) { memcpy(raw_cmd, cmd, 8); raw_hi = hi; raw_dirty = true; }
 void pm_ble_tx_window(uint16_t ms) { tx_window_ms = ms < 20 ? 20 : ms; }
 uint16_t pm_ble_tx_window() { return tx_window_ms; }

@@ -37,6 +37,11 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const nameOf = (node: string) => entries[node]?.hello?.name || node;
   // Any board but the bridge can send (its radio already shares USB and the mesh).
   const candidates = known.filter((e) => !e.hello!.bridge).map((e) => e.node).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  // Built without Bluetooth (the HUZZAH32: on the ESP32, Bluetooth and deep
+  // sleep don't both fit). Older firmware doesn't say — assume it can.
+  const noBle = (n: string) => entries[n]?.hello?.ble === false;
+  const onBattery = (n: string) => entries[n]?.hello?.power === "battery";
+  const canSearch = candidates.filter((n) => !noBle(n));
 
   const knownKey = known.map((e) => e.node).sort().join(",");
   const readConfigs = useCallback(async () => {
@@ -85,7 +90,10 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const dirty = senders !== null || Object.keys(labels).length > 0 || removed.length > 0;
   const bad = mismatched(st);
   const online = (n: string) => !!entries[n] && !isMissing(entries[n]);
-  const searchFrom = from && candidates.includes(from) ? from : curSenders.find(online) ?? candidates.find(online) ?? null;
+  // Default to a board that is awake and has Bluetooth; mains before battery.
+  const awakeFirst = [...canSearch].sort((x, y) => Number(onBattery(x)) - Number(onBattery(y)));
+  const searchFrom = from && canSearch.includes(from) ? from
+    : awakeFirst.find((n) => curSenders.includes(n) && online(n)) ?? awakeFirst.find(online) ?? null;
 
   const revert = () => { setLabels({}); setRemoved([]); setSenders(null); setMsg(null); };
   const save = async (keyFrom?: string) => {
@@ -154,9 +162,13 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
         <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SENDING BOARDS</span>
         {candidates.length === 0 && <span style={sys(400, 12, C.t4)}>No prop boards on the mesh yet (the bridge never drives lights).</span>}
         {candidates.map((n) => (
-          <label key={n} style={{ display: "flex", alignItems: "center", gap: 6, ...sys(500, 12, online(n) ? C.t1 : C.t4), cursor: "pointer" }}>
-            <input type="checkbox" checked={curSenders.includes(n)} onChange={() => toggleSender(n)} />
+          <label key={n} title={noBle(n) ? "This board's firmware has no Bluetooth, so it can't send to the floods." : undefined}
+            style={{ display: "flex", alignItems: "center", gap: 6, ...sys(500, 12, online(n) && !noBle(n) ? C.t1 : C.t4), cursor: noBle(n) && !curSenders.includes(n) ? "default" : "pointer" }}>
+            {/* A no-Bluetooth board can be unticked, never ticked. */}
+            <input type="checkbox" checked={curSenders.includes(n)} disabled={noBle(n) && !curSenders.includes(n)} onChange={() => toggleSender(n)} />
             {nameOf(n)}
+            {noBle(n) && <span style={{ ...mono(700, 9.5, C.t5), letterSpacing: ".05em" }}>NO BLUETOOTH</span>}
+            {!noBle(n) && onBattery(n) && <span style={{ ...mono(700, 9.5, C.amber), letterSpacing: ".05em" }}>ON BATTERY</span>}
             {st.keys[n] && <span title="holds the floods key" style={{ ...mono(700, 9.5, bad.includes(n) ? C.amber : C.green), letterSpacing: ".05em" }}>{bad.includes(n) ? "OTHER KEY" : "KEY"}</span>}
             {!online(n) && <span style={mono(500, 10.5, C.t5)}>not heard</span>}
           </label>
@@ -166,6 +178,30 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
           {st.key ? `key set on ${st.senders.length} board${st.senders.length === 1 ? "" : "s"}` : "no key yet — pairing the first light makes one"}
         </span>
       </div>
+      {(() => {
+        const bat = curSenders.filter((n) => onBattery(n) && !noBle(n));
+        const dead = curSenders.filter(noBle);
+        if (!bat.length && !dead.length) return null;
+        const live = curSenders.filter((n) => !noBle(n) && !onBattery(n));
+        const lag = Math.max(0, ...bat.map((n) => entries[n]?.hb?.listen ?? 0));
+        return (
+          <div style={{ padding: "9px 12px", borderRadius: 7, background: C.card, border: `1px solid ${C.b2}`, ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
+            {bat.length > 0 && (<>
+              <b style={{ color: C.amber }}>{bat.map(nameOf).join(", ")} {bat.length === 1 ? "is" : "are"} on battery.</b>{" "}
+              {bat.length === 1 ? "It sends" : "They send"} only while awake: during the show {bat.length === 1 ? "it hears" : "they hear"} commands
+              in short listen windows, so a change can reach the lights up to {lag ? `${(lag / 1000).toFixed(lag % 1000 ? 1 : 0)} s` : "one listen interval"} late,
+              and while the show is off {bat.length === 1 ? "it is" : "they are"} in deep sleep and send nothing.{" "}
+              {live.length ? <>{live.map(nameOf).join(", ")} {live.length === 1 ? "covers" : "cover"} the lights on time.</>
+                : <b style={{ color: C.amber }}>No mains-powered board is ticked, so the floods will lag and won't change while the show is off.</b>}
+            </>)}
+            {dead.length > 0 && (<>
+              {bat.length > 0 && " "}
+              <b style={{ color: C.amber }}>{dead.map(nameOf).join(", ")} {dead.length === 1 ? "has" : "have"} no Bluetooth</b> in {dead.length === 1 ? "its" : "their"} firmware
+              (on the ESP32, Bluetooth and deep sleep don't both fit), so {dead.length === 1 ? "it" : "they"} can't reach the lights — untick to tidy up.
+            </>)}
+          </div>
+        );
+      })()}
       {bad.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", ...sys(500, 12, C.amber) }}>
           ⚠ {bad.map(nameOf).join(", ")} hold a different key from {st.senders.filter((n) => !bad.includes(n)).map(nameOf).join(", ")} — lights answer only one. Keep:
@@ -181,11 +217,11 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
         <span style={sys(400, 12, C.t3)}>{lights.length ? `${lights.length} paired` : "none yet"}</span>
         <div style={{ flex: 1 }} />
         {dirty && <span style={mono(600, 11, C.amber)}>save or revert your changes to find lights</span>}
-        {candidates.length > 1 && (
+        {canSearch.length > 1 && (
           <label style={{ display: "flex", alignItems: "center", gap: 6, ...sys(500, 11.5, C.t3) }}>
             search from
             <select value={searchFrom ?? ""} onChange={(e) => setFrom(e.target.value)} style={{ ...field, height: 28 }}>
-              {candidates.map((n) => <option key={n} value={n}>{nameOf(n)}{online(n) ? "" : " (not heard)"}</option>)}
+              {canSearch.map((n) => <option key={n} value={n}>{nameOf(n)}{online(n) ? "" : " (not heard)"}</option>)}
             </select>
           </label>
         )}

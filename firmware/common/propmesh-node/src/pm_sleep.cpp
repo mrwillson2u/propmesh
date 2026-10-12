@@ -29,6 +29,7 @@ bool pm_sleep_rtc_pin(uint8_t g) { const pm_board_pin_t *p = pm_board_pin(PM_BOA
 #include "pm_mesh.h"
 #include "pm_schedule.h"
 #include "pm_channels.h"
+#include "pm_ble_tx.h"
 
 // Awake at least this long after a timer wake: send a heartbeat, hear the
 // bridge's beacon (every ≤5 s) and any waiting request. At ~100 mA awake,
@@ -176,6 +177,9 @@ void pm_sleep_loop() {
   set_show_tier(!off && !pm_sleep_holding());
   if (!off || pm_sleep_holding()) return;
   if (pm_ota_state() == PM_OTA_DOWNLOADING || pm_ota_state() == PM_OTA_CONNECTING || pm_ota_state() == PM_OTA_REBOOTING) return;
+  // A flood color just sent (e.g. "dark" at the end of the show) goes out
+  // before the radio does.
+  if (pm_ble_busy()) return;
   // How long: the check-in, or sooner if a schedule window starts first.
   uint32_t secs = checkin_ms / 1000;
   uint32_t next = pm_show_next_change_s();

@@ -76,6 +76,7 @@ static void cmd_hello(JsonObject resp) {
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }
+  resp["ble"] = pm_ble_available();  // false: built without Bluetooth — can't drive floods
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;
   resp["role"] = pm_role();

@@ -26,6 +26,12 @@
 #include <stdint.h>
 #include "pm_brmesh.h"
 
+// Built with Bluetooth? False on a -DPM_NO_BLE build (the HUZZAH32: on the
+// ESP32, Bluetooth and deep sleep don't both fit IRAM). Reported in hello.
+bool pm_ble_available();
+// Colors queued, a burst on air, or a search/pairing running — a battery
+// board finishes these before it deep-sleeps.
+bool pm_ble_busy();
 // Start the controller (once). False if Bluetooth couldn't start.
 bool pm_ble_start();
 bool pm_ble_running();

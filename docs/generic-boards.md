@@ -902,11 +902,16 @@ verify against the board's silkscreen (the V2 Feather differs).
 - **Power budget from published figures (not yet measured here).** Adafruit
   gives the ESP32 module ~200 mA active on a 500 mA regulator; the chip
   alone is ~10 µA in deep sleep, but users measure the *original*
-  HUZZAH32 at **~2–7 mA** in deep sleep (regulator + CP2104 USB chip
-  stay powered; the V2 Feather measures ~420 µA). So on this board the
-  floor, not the check-in, sets off-tier life: ~5 mA ≈ 400 h ≈ **2.5
-  weeks** on 2000 mAh regardless of check-in period (a 6 s dwell every
-  5 min adds ~2 mA). Show tier (modem sleep, CPU up): ~25–30 mA average
+  HUZZAH32 at **~6.5 mA** in deep sleep: the CP2104 USB chip runs from
+  the 3.3 V rail, so it's powered on battery too, and with no USB host
+  its D− line floats and it never enters USB suspend. A pull-down
+  resistor from D− to GND puts it in suspend: **~200–250 µA** whole
+  board (voneicken.com, 2018; value not given — 10–100 kΩ is the usual
+  range, ⚠ check before soldering). The V2 Feather measures ~420 µA. So as bought the
+  floor sets off-tier life: ~6.5 mA + ~2 mA for a 6 s dwell every 5 min
+  ≈ 8.5 mA ≈ **~10 days** on 2000 mAh. With the D− pull-down the dwell
+  dominates instead: ~2.3 mA ≈ **~5 weeks**, and the check-in period
+  becomes the knob that matters. Show tier (modem sleep, CPU up): ~25–30 mA average
   ≈ **3 days** continuous, or ~5 h a night for a week with the off tier
   in between. Measure to confirm (Colin has a meter; stage 3).
 - **Relaying while awake: yes.** The rule is that the mesh never
@@ -973,8 +978,7 @@ The board from the lantern fire test, as a third profile:
   if the port isn't found, hold BOOT while plugging in.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
   Bluetooth stack doesn't change sleep: on battery the off tier is deep
-  sleep (radio off, Bluetooth included) and battery boards don't drive
-  floods. The limit on both chips is the prebuilt Arduino SDK:
+  sleep (radio off, Bluetooth included). The limit on both chips is the prebuilt Arduino SDK:
   `CONFIG_PM_ENABLE` off (no automatic light sleep between ESP-NOW
   listen windows, so the CPU stays up in the show tier) and on the C6
   also `CONFIG_BT_LE_SLEEP_ENABLE` off. What differs is the board: no
@@ -982,6 +986,20 @@ The board from the lantern fire test, as a third profile:
   SuperMini's always-on **power LED** and the **RGB pixel on GPIO 8**
   (~1 mA quiescent) — likely ~1–3 mA as bought, tens of µA with both
   removed. Measure.
+- **Battery boards DO send to floods when awake** (Colin, 2026-10-11:
+  "if it is on and available it should in a pinch rather than
+  restricting it"). Nothing restricts it: a battery board ticked as a
+  sender gets flood commands in its listen windows (senders repeat into
+  them) and bursts them out, so a change can land up to one listen
+  interval late; in the off tier it's asleep and the other senders cover.
+  It finishes a queued burst before deep-sleeping (`pm_ble_busy()`).
+  The only board that can't is the **HUZZAH32**, and that's the ESP32
+  chip, not policy: Bluetooth and deep sleep don't both fit its IRAM, so
+  its build is `PM_NO_BLE`. hello now carries `ble` (false on that
+  build). The Floods tab tags senders **ON BATTERY** / **NO BLUETOOTH**
+  (a no-Bluetooth board can be unticked, never ticked, and isn't offered
+  for searching), and explains the lag — loudly if no mains board is
+  ticked.
 - **The real lever (winter, not before the freeze):** pioarduino's
   `custom_sdkconfig` rebuilds the Arduino libs with `CONFIG_PM_ENABLE`,
   `CONFIG_FREERTOS_USE_TICKLESS_IDLE` (and `CONFIG_BT_LE_SLEEP_ENABLE` on
