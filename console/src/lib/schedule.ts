@@ -2,7 +2,7 @@
 // docs/generic-boards.md §6e). The boards evaluate it themselves — this
 // side only edits it, sends every board the same copy, sets their clocks
 // from this device, and previews what the windows mean today.
-import { target, type NodeLink, type Reply } from "./transport";
+import { editStamp, target, type NodeLink, type Reply } from "./transport";
 import type { Entry } from "./connection";
 
 export type Mode = "off" | "ambient" | "armed";
@@ -161,10 +161,11 @@ export async function loadSchedule(link: NodeLink, entries: Entry[]): Promise<Sc
 
 export async function saveSchedule(link: NodeLink, entries: Entry[], s: Schedule): Promise<{ node: string; error: string }[]> {
   const failed: { node: string; error: string }[] = [];
+  const at = editStamp();  // one edit, one stamp on every board's copy
   await Promise.all(entries.map(async (en) => {
     try {
       await setClock(link, en); // a schedule is no use to a board without the time
-      const r = await ask(link, en, "set_schedule", { schedule: s });
+      const r = await ask(link, en, "set_schedule", { schedule: s, at });
       if (!r.ok) failed.push({ node: en.node, error: r.error ?? "refused" });
     } catch (e) {
       failed.push({ node: en.node, error: (e as Error).message });

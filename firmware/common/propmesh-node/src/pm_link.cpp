@@ -37,6 +37,8 @@ struct Pending {
   uint32_t sent_ms;
   long long console_id;  // the console's "id", for the timeout reply
   bool has_console_id;
+  pm_ask_cb_t cb;        // set: this node's own request (pm_link_ask), reply goes here
+  void *ctx;
   char *text;
   size_t len;
 };
@@ -163,6 +165,9 @@ void pm_link_request(const char *json, size_t len) {
   }
 
   if (!pm_api_chunk_count(len)) return reply_error(has_id, id, "request too large for the mesh");
+  // A bridge keeps a copy of every sequence and trigger the console sends
+  // to any board, so a board that was asleep or away can pull it later.
+  if (pm_role() & PM_NODE_ROLE_BRIDGE) pm_show_mirror(dst, req.as<JsonObjectConst>());
   Pending *p = nullptr;
   for (Pending &q : s_pending) if (!q.used) { p = &q; break; }
   if (!p) return reply_error(has_id, id, "bridge busy — too many requests in flight");
@@ -188,7 +193,30 @@ void pm_link_request(const char *json, size_t len) {
 static void drop(Pending &p) {
   free(p.text);
   p.text = nullptr;
+  p.cb = nullptr;
   p.used = false;
+}
+
+bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, void *ctx) {
+  if (!dst || dst == pm_node_id() || !pm_api_chunk_count(len)) return false;
+  Pending *p = nullptr;
+  for (Pending &q : s_pending) if (!q.used) { p = &q; break; }
+  if (!p) return false;
+  p->text = (char *)malloc(len);
+  if (!p->text) return false;
+  memcpy(p->text, json, len);
+  p->len = len;
+  p->used = true;
+  p->dst = dst;
+  p->req_id = ++s_next_req;
+  p->tries = 1;
+  p->sent_ms = millis();
+  p->has_console_id = false;
+  p->cb = cb;
+  p->ctx = ctx;
+  p->waiting_wake = false;
+  send_chunked(PM_MSG_TYPE_API_REQ, dst, p->req_id, p->text, p->len);
+  return true;
 }
 
 static void retry_pending() {
@@ -196,6 +224,7 @@ static void retry_pending() {
   for (Pending &p : s_pending) {
     if (!p.used || p.waiting_wake || (uint32_t)(now - p.sent_ms) < REMOTE_TIMEOUT_MS) continue;
     if (p.tries >= REMOTE_TRIES) {
+      if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(nullptr, 0, ctx); continue; }
       char hex[9], why[48];
       node_hex(hex, p.dst);
       snprintf(why, sizeof(why), "no reply from node %s", hex);
@@ -282,6 +311,7 @@ static void on_api(const RxFrame &f) {
     if (a.req_id == WAKE_REQ_ID) { on_wake_reply(f.hdr.src_id); return; }
     for (Pending &p : s_pending) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
+      if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(msg, n, ctx); return; }
       if (s_out) s_out(msg, n);  // the target's reply, verbatim
       drop(p);
       return;

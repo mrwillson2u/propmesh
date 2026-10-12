@@ -82,6 +82,20 @@ static PmModeKeeper keeper;
 static PmSchedEval last_ev;
 static bool sched_dirty = true;
 static int64_t saved_until = -1;  // hold end as written to MODE_PATH; -1 = no file
+// When each mesh-wide document was last edited (UTC s, docs §6k). Newest
+// wins everywhere: a set_* older than what a board holds is ignored, so a
+// late or replayed request can never undo a newer edit.
+static uint32_t sched_at, mode_at;
+static uint32_t now_s() { return pm_wall().utc_ok ? (uint32_t)(pm_wall_utc_ms() / 1000) : 0; }
+// The request's own stamp (the console's clock, or the copy being synced),
+// else this board's clock, else 0 (no clock anywhere: apply, as before).
+static uint32_t req_at(JsonObjectConst req) { uint32_t a = req["at"] | 0UL; return a ? a : now_s(); }
+static bool stale(JsonObject resp, uint32_t at, uint32_t have) {
+  if (!at || !have || at >= have) return false;
+  resp["stale"] = true;  // ok, but ignored: this board holds a newer edit
+  resp["have_at"] = have;
+  return true;
+}
 static uint32_t last_eval_ms;
 static int64_t loop_k[PM_MAX_SEQUENCES];  // last repeat started, per ambient sequence slot
 static void reset_loops() { for (int64_t &k : loop_k) k = INT64_MIN; }
@@ -96,6 +110,7 @@ static bool save() {
   JsonArray seqs = doc["sequences"].to<JsonArray>();
   for (uint8_t i = 0; i < show.seq_count; i++) pm_sequence_to_json(show.seqs[i], seqs.add<JsonObject>());
   pm_rules_to_json(show.rules, show.rule_count, doc["rules"].to<JsonArray>());
+  if (show.rules_at) doc["rules_at"] = show.rules_at;
   File f = LittleFS.open(TMP, "w");
   if (!f) return false;
   bool ok = serializeJson(doc, f) > 0;
@@ -108,6 +123,7 @@ static bool save() {
 static bool save_schedule() {
   JsonDocument doc;
   pm_schedule_to_json(sched, doc["schedule"].to<JsonObject>());
+  if (sched_at) doc["at"] = sched_at;
   const PmWallClock &w = pm_wall();
   if (w.tz_ok) {  // SNTP brings UTC back after a power cut; the zone has to come from here
     doc["tz"]["offset_min"] = w.tz_min;
@@ -123,10 +139,14 @@ static bool save_schedule() {
   return LittleFS.rename(SCHED_TMP, SCHED_PATH);
 }
 
+// The hold — or, once it has ended, just when the last one was set: the
+// stamp must survive a restart, or a board would take an old STOP ALL
+// from the conductor as news.
 static void save_manual() {
   JsonDocument doc;
-  doc["mode"] = pm_mode_name(keeper.manual_mode());
+  doc["mode"] = keeper.holding() ? pm_mode_name(keeper.manual_mode()) : "none";
   doc["until_s"] = (double)keeper.until();  // double: exact for these values, no 64-bit JSON ints needed
+  if (mode_at) doc["at"] = mode_at;
   File f = LittleFS.open(MODE_PATH, "w");
   if (!f) return;
   serializeJson(doc, f);
@@ -140,8 +160,9 @@ static void load_manual() {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, f);
   f.close();
+  mode_at = err ? 0 : (doc["at"] | 0UL);
   uint8_t m = err ? 0xFF : pm_mode_from_str(doc["mode"] | "");
-  if (m == 0xFF) { LittleFS.remove(MODE_PATH); return; }
+  if (m == 0xFF) return;  // "none": no hold, only its stamp
   int64_t until = (int64_t)(doc["until_s"] | 0.0);
   keeper.restore(m, until);
   mode = m;  // boot straight into it: no armed blip before the first evaluation
@@ -157,6 +178,7 @@ static void load_schedule() {
   f.close();
   if (err) return;
   if (pm_schedule_from_json(doc["schedule"], sched)) sched = PmSchedule();
+  sched_at = doc["at"] | 0UL;
   if (doc["tz"].is<JsonObjectConst>() && !pm_wall().tz_ok)
     pm_wall().set_tz(doc["tz"]["offset_min"] | 0, doc["tz"]["next_change_s"] | 0UL, doc["tz"]["next_offset_min"] | 0);
 }
@@ -177,6 +199,7 @@ void pm_show_begin() {
     if (!pm_sequence_from_json(j, s)) show.put(s);
   if (pm_rules_from_json(doc["rules"].as<JsonArrayConst>(), show.rules, show.rule_count))
     show.rule_count = 0;
+  show.rules_at = doc["rules_at"] | 0UL;
 }
 
 // --- playing -------------------------------------------------------------------
@@ -322,8 +345,8 @@ static void eval_mode() {
     next = keeper.update(scheduled, last_ev, utc_s, sched.manual_max_min);
     mode_reason = keeper.holding() ? "manual" : scheduled ? "schedule" : sched.active() ? "no clock" : "no schedule";
   }
-  // Keep the saved hold in step: its end once known, gone once over.
-  if (!keeper.holding() && saved_until >= 0) { LittleFS.remove(MODE_PATH); saved_until = -1; }
+  // Keep the saved hold in step: its end once known, "none" once over.
+  if (!keeper.holding() && saved_until >= 0) { save_manual(); saved_until = -1; }
   else if (keeper.holding() && keeper.until() != saved_until) save_manual();
   apply_mode(next);
 }
@@ -371,10 +394,39 @@ void pm_show_stop() {
 }
 
 void pm_show_set_mode(uint8_t m) {
+  mode_at = now_s();
   keeper.manual(m);
   save_manual();
   eval_mode();
 }
+
+// --- the show follows the conductor (docs §6k) ------------------------------------
+
+void pm_show_stamps(pm_show_stamps_t &out) {
+  // A schedule saved before stamps existed (2026-10-12) counts as the
+  // oldest possible edit: a board with none pulls it, any real edit wins.
+  if (!sched_at && sched.active()) sched_at = 1;
+  out.mode_manual = keeper.holding() ? keeper.manual_mode() : 0xFF;
+  out.mode_at = mode_at;
+  out.mode_until = keeper.holding() && keeper.until() > 0 ? (uint32_t)keeper.until() : 0;
+  out.sched_at = sched_at;
+}
+
+void pm_show_follow_mode(uint8_t manual, uint32_t at, uint32_t until) {
+  if (!at || at <= mode_at) return;
+  mode_at = at;
+  if (manual == 0xFF) keeper.clear();
+  else keeper.restore(manual, until);
+  save_manual();
+  saved_until = keeper.holding() ? keeper.until() : -1;
+  eval_mode();
+}
+
+int64_t pm_show_seq_at(uint16_t id) {
+  PmSequence *q = show.find(id);
+  return q ? (int64_t)q->at : -1;
+}
+uint32_t pm_show_rules_at() { return show.rules_at; }
 void pm_show_arm(bool on) { pm_show_set_mode(on ? PM_MODE_ARMED : PM_MODE_OFF); }
 bool pm_show_armed() { return mode == PM_MODE_ARMED; }
 uint8_t pm_show_mode() { return mode; }
@@ -438,6 +490,10 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
       if (bad) j["problem"] = bad;
     }
     pm_rules_to_json(show.rules, show.rule_count, resp["rules"].to<JsonArray>());
+    JsonObject sync = resp["sync"].to<JsonObject>();  // what this board holds, for the console
+    sync["sched_at"] = sched_at;
+    sync["mode_at"] = mode_at;
+    sync["rules_at"] = show.rules_at;
     return true;
   }
   if (!strcmp(cmd, "get_sequence")) {
@@ -451,6 +507,9 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     const char *err = pm_sequence_from_json(req["sequence"], s);
     if (!err) err = pm_check_sequence(s, pm_channels_config());
     if (err) { fail(resp, err); return true; }
+    if (req["at"].is<uint32_t>() || !s.at) s.at = req_at(req);
+    PmSequence *have = show.find(s.id);
+    if (have && stale(resp, s.at, have->at)) return true;
     player.stop_all();  // the store moves under any running pointer
     reset_loops();
     if (!show.put(s)) { fail(resp, "this node holds 16 sequences already"); return true; }
@@ -458,6 +517,8 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "delete_sequence")) {
+    PmSequence *have = show.find(req["seq"] | 0);
+    if (have && stale(resp, req_at(req), have->at)) return true;
     player.stop_all();
     reset_loops();
     show.remove(req["seq"] | 0);  // deleting what isn't there is fine
@@ -470,8 +531,11 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     const char *err = pm_rules_from_json(req["rules"], rules, n);
     if (!err) err = pm_check_rules(rules, n, pm_channels_config());
     if (err) { fail(resp, err); return true; }
+    uint32_t at = req_at(req);
+    if (stale(resp, at, show.rules_at)) return true;
     memcpy(show.rules, rules, sizeof(rules));
     show.rule_count = n;
+    show.rules_at = at;
     triggers.reset();
     if (!save()) fail(resp, "could not save to flash");
     return true;
@@ -484,7 +548,11 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "arm")) {  // the pre-schedule API: armed / off, held like set_mode
+    uint32_t at = req_at(req);
+    if (stale(resp, at, mode_at)) { put_mode(resp); return true; }
     pm_show_arm(req["on"] | true);
+    mode_at = at;
+    save_manual();
     resp["armed"] = mode == PM_MODE_ARMED;
     put_mode(resp);
     return true;
@@ -492,7 +560,11 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
   if (!strcmp(cmd, "set_mode")) {
     uint8_t m = pm_mode_from_str(req["mode"] | "");
     if (m == 0xFF) { fail(resp, "mode must be off, ambient or armed"); return true; }
+    uint32_t at = req_at(req);
+    if (stale(resp, at, mode_at)) { put_mode(resp); return true; }
     pm_show_set_mode(m);
+    mode_at = at;
+    save_manual();
     put_mode(resp);
     return true;
   }
@@ -519,7 +591,10 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     PmSchedule s;
     const char *err = pm_schedule_from_json(req["schedule"], s);
     if (err) { fail(resp, err); return true; }
+    uint32_t at = req_at(req);
+    if (stale(resp, at, sched_at)) { put_mode(resp); return true; }
     sched = s;
+    sched_at = at;
     if (!save_schedule()) fail(resp, "could not save to flash");
     eval_mode();
     put_mode(resp);
@@ -527,6 +602,7 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
   }
   if (!strcmp(cmd, "get_schedule")) {
     pm_schedule_to_json(sched, resp["schedule"].to<JsonObject>());
+    resp["at"] = sched_at;  // a follower syncing from the conductor keeps the same stamp
     put_mode(resp);
     return true;
   }

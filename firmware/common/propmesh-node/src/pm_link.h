@@ -22,6 +22,11 @@ void pm_link_begin(pm_line_out_t out);
 
 // One request line from the console.
 void pm_link_request(const char *json, size_t len);
+// This node's own request to another node (a follower pulling the show
+// from the conductor, docs §6k). `cb` gets the reply JSON, or nullptr
+// after 3 tries with no answer. One in flight per caller is plenty.
+typedef void (*pm_ask_cb_t)(const char *json, size_t len, void *ctx);
+bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, void *ctx);
 
 void pm_link_loop();
 

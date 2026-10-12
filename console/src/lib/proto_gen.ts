@@ -177,8 +177,14 @@ export interface Time {
   tz_offset_min: number;  // local − UTC now, minutes (−240 = EDT)
   tz_next_change_s: number;  // UTC s of the next UTC-offset change (DST); 0 = none known
   tz_next_offset_min: number;  // the offset from then on
+  mode_manual: number;  // a mode set by hand (STOP ALL, Off/Ambient/Armed) the conductor is holding: PmMode, 0xFF = none. Followers apply the newest (mode_at), so STOP ALL reaches a board that missed it
+  mode_at: number;  // UTC s that mode was set (the console's clock); 0 = none ever
+  mode_until: number;  // UTC s the hold ends; 0 = not worked out yet
+  sched_at: number;  // UTC s the schedule was last edited; a follower with an older one pulls it (pull_schedule)
+  show_at: number;  // UTC s of the newest sequence/trigger edit the conductor holds for ANY board; a follower that hasn't synced since pulls its own part (pull_index / pull_seq / pull_rules)
+  floods_at: number;  // UTC s the floods key / light list last changed; a sending board (holds a key) with an older copy pulls it (pull_floods)
 }
-export const Time_SIZE = 31;
+export const Time_SIZE = 52;
 export function decodeTime(dv: DataView, off = 0): Time {
   let o = off;
   const mesh_time_us = dv.getBigUint64(o, true); o += 8;
@@ -190,7 +196,13 @@ export function decodeTime(dv: DataView, off = 0): Time {
   const tz_offset_min = dv.getInt16(o, true); o += 2;
   const tz_next_change_s = dv.getUint32(o, true); o += 4;
   const tz_next_offset_min = dv.getInt16(o, true); o += 2;
-  return { mesh_time_us, hop, conductor_id, priority, wall_ms, wall_flags, tz_offset_min, tz_next_change_s, tz_next_offset_min };
+  const mode_manual = dv.getUint8(o); o += 1;
+  const mode_at = dv.getUint32(o, true); o += 4;
+  const mode_until = dv.getUint32(o, true); o += 4;
+  const sched_at = dv.getUint32(o, true); o += 4;
+  const show_at = dv.getUint32(o, true); o += 4;
+  const floods_at = dv.getUint32(o, true); o += 4;
+  return { mesh_time_us, hop, conductor_id, priority, wall_ms, wall_flags, tz_offset_min, tz_next_change_s, tz_next_offset_min, mode_manual, mode_at, mode_until, sched_at, show_at, floods_at };
 }
 export function encodeTime(v: Time, dv: DataView, off = 0): number {
   let o = off;
@@ -203,6 +215,12 @@ export function encodeTime(v: Time, dv: DataView, off = 0): number {
   dv.setInt16(o, v.tz_offset_min, true); o += 2;
   dv.setUint32(o, v.tz_next_change_s, true); o += 4;
   dv.setInt16(o, v.tz_next_offset_min, true); o += 2;
+  dv.setUint8(o, v.mode_manual); o += 1;
+  dv.setUint32(o, v.mode_at, true); o += 4;
+  dv.setUint32(o, v.mode_until, true); o += 4;
+  dv.setUint32(o, v.sched_at, true); o += 4;
+  dv.setUint32(o, v.show_at, true); o += 4;
+  dv.setUint32(o, v.floods_at, true); o += 4;
   return o - off;
 }
 

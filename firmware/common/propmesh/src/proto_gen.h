@@ -104,6 +104,12 @@ typedef struct {
     int16_t tz_offset_min;  // local − UTC now, minutes (−240 = EDT)
     uint32_t tz_next_change_s;  // UTC s of the next UTC-offset change (DST); 0 = none known
     int16_t tz_next_offset_min;  // the offset from then on
+    uint8_t mode_manual;  // a mode set by hand (STOP ALL, Off/Ambient/Armed) the conductor is holding: PmMode, 0xFF = none. Followers apply the newest (mode_at), so STOP ALL reaches a board that missed it
+    uint32_t mode_at;  // UTC s that mode was set (the console's clock); 0 = none ever
+    uint32_t mode_until;  // UTC s the hold ends; 0 = not worked out yet
+    uint32_t sched_at;  // UTC s the schedule was last edited; a follower with an older one pulls it (pull_schedule)
+    uint32_t show_at;  // UTC s of the newest sequence/trigger edit the conductor holds for ANY board; a follower that hasn't synced since pulls its own part (pull_index / pull_seq / pull_rules)
+    uint32_t floods_at;  // UTC s the floods key / light list last changed; a sending board (holds a key) with an older copy pulls it (pull_floods)
 } pm_time_t;
 
 typedef struct {

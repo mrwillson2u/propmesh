@@ -61,11 +61,12 @@ struct PmSequence {
   // mesh time, so every node's part stays in step with no messages.
   bool ambient = false;
   uint32_t loop_ms = 0;  // 0 = this node's part's own length (min 1 s)
+  uint32_t at = 0;  // UTC s this part was last edited (docs §6k); 0 = before stamps
   uint8_t step_count = 0;
   PmStep steps[PM_MAX_STEPS];
   // Clear in place. Never `s = PmSequence()`: that builds a ~1.2 KB
   // temporary on the stack first.
-  void clear() { id = 0; name[0] = 0; ambient = false; loop_ms = 0; step_count = 0; }
+  void clear() { id = 0; name[0] = 0; ambient = false; loop_ms = 0; at = 0; step_count = 0; }
   uint32_t period_ms() const {
     uint32_t p = loop_ms ? loop_ms : length_ms();
     return p < PM_MIN_LOOP_MS ? PM_MIN_LOOP_MS : p;
@@ -100,12 +101,13 @@ struct PmShow {
   PmSequence seqs[PM_MAX_SEQUENCES];
   uint8_t rule_count = 0;
   PmRule rules[PM_MAX_RULES];
+  uint32_t rules_at = 0;  // UTC s the triggers were last edited
 
   // Clear in place. NEVER `show = PmShow()` on the device: it builds a
   // ~19 KB temporary on the stack, the loop task has 8 KB, and the
   // overflow corrupts the WiFi task — every board crash-looped at boot
   // on 2026-10-05 until this.
-  void clear() { seq_count = 0; rule_count = 0; }
+  void clear() { seq_count = 0; rule_count = 0; rules_at = 0; }
 
   PmSequence *find(uint16_t id) {
     for (uint8_t i = 0; i < seq_count; i++) if (seqs[i].id == id) return &seqs[i];

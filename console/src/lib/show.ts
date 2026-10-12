@@ -5,7 +5,7 @@
 // and saving splits a sequence back into per-node parts. A dead bridge
 // costs the console, never the show. docs/generic-boards.md.
 import { FLOODS, deriveFloods, floodsConfig, type FloodsState } from "./floods";
-import { target, type NodeLink, type Reply } from "./transport";
+import { editStamp, target, type NodeLink, type Reply } from "./transport";
 import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
 import type { Entry } from "./connection";
@@ -209,18 +209,19 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
     }
   }
   const nodes = new Set([...parts.keys(), ...seq.loadedOn]);
+  const at = editStamp();  // one edit, one stamp on every part
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
     if (!en) { failed.push({ node, error: "not on the mesh right now" }); return; }
     const steps = parts.get(node);
     try {
       const r = steps
-        ? await ask(link, en, "set_sequence", { sequence: {
+        ? await ask(link, en, "set_sequence", { at, sequence: {
             id: seq.id, name: seq.name, steps,
             // One period for every board: each part's own length differs.
             ...(seq.ambient ? { ambient: true, loop_ms: Math.max(seq.loop_ms ?? 0, lengthMs(seq), 1000) } : {}),
           } })
-        : await ask(link, en, "delete_sequence", { seq: seq.id });
+        : await ask(link, en, "delete_sequence", { seq: seq.id, at });
       if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
     } catch (e) {
       failed.push({ node, error: (e as Error).message });
@@ -238,12 +239,13 @@ export async function deleteSequence(link: NodeLink, entries: Record<string, Ent
 export async function saveRules(link: NodeLink, entries: Record<string, Entry>, rules: Rule[], before: Rule[]): Promise<SaveResult> {
   const nodes = new Set([...rules.map((r) => r.node), ...before.map((r) => r.node)]);
   const failed: SaveResult["failed"] = [];
+  const at = editStamp();
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
     if (!en) { failed.push({ node, error: "not on the mesh right now" }); return; }
     const mine = rules.filter((r) => r.node === node).map(({ node: _n, ...r }) => r);
     try {
-      const r = await ask(link, en, "set_rules", { rules: mine });
+      const r = await ask(link, en, "set_rules", { rules: mine, at });
       if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
     } catch (e) {
       failed.push({ node, error: (e as Error).message });
