@@ -490,6 +490,19 @@ execution model is unchanged: the node evaluates and broadcasts cues.
 The row view can edit it before any canvas exists; the graph is then
 the editor for the same model.
 
+**Built 2026-10-12** (`console/src/lib/graph.ts`, `views/show/GraphEditor.tsx`):
+the Show section's **Graph** view — a palette (Sensor, After a sequence;
+Delay, Cooldown, Lockout, Random pick; Play sequence), cards with their
+parameters inline, wires left → right. Every chain trigger → logic →
+actions **compiles** to one rule row (`compile`), and the rows
+**decompile** to chains (`decompile`), so Graph and List are two views of
+the same rules; Save triggers writes the rules as before. Blocks in no
+complete chain show UNWIRED. Live: a block lights when its sensor fires
+or its sequence starts. Positions live in the browser, never on the
+boards. Round-tripped on hardware: a Sensor → Delay → Random pick → Play
+chain saved to Prop, reloaded from the board, decompiled to the same
+chain. Bundle 119 → 192 KB gzipped (React Flow).
+
 **React Flow first** (decided 2026-10-12): the design is the expensive
 part; the renderer is swappable. The graph model stays in our own types
 with React Flow as the view only, and styling in our tokens, so a later

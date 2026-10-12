@@ -18,6 +18,7 @@ import { target } from "../../lib/transport";
 import { isColor } from "../../lib/nodeConfig";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import Timeline, { type Output } from "./Timeline";
+import GraphEditor from "./GraphEditor";
 import {
   EASE_PRESETS, RULE_MAX_SEQS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
   type Rule, type Sequence, type Show, type Step,
@@ -85,6 +86,10 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   const setSorted = (s: Sequence) => setDraft(sortSteps(s));
   const [playingFrom, setPlayingFrom] = useState<number | null>(null);
   const [schedOpen, setSchedOpen] = useState(false);
+  // The Show's triggers as a graph (the editor) or as rows (the same
+  // rules, one sentence each). Remembered per browser.
+  const [graphView, setGraphViewState] = useState(() => { try { return localStorage.getItem("propmesh.show.graph") !== "0"; } catch { return true; } });
+  const setGraphView = (g: boolean) => { setGraphViewState(g); try { localStorage.setItem("propmesh.show.graph", g ? "1" : "0"); } catch { /* private mode */ } };
 
   // Send a value to a real output, coalesced per output: one request in
   // flight, and only the newest value queued behind it — so dragging a
@@ -535,8 +540,17 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
             {/* triggers */}
             {!seqSection && <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={label}>TRIGGERS</span>
-                <span style={sys(400, 11, C.t5)}>stored on the sensor's board — they work with no laptop attached</span>
+                <span style={label}>{graphView ? "SHOW GRAPH" : "TRIGGERS"}</span>
+                <span style={sys(400, 11, C.t5)}>{graphView ? "trigger → logic → sequences; each chain is a rule stored on its trigger's board" : "stored on the sensor's board — they work with no laptop attached"}</span>
+                <span style={{ display: "flex", marginLeft: 6 }}>
+                  {(["graph", "list"] as const).map((v, i) => {
+                    const on = graphView === (v === "graph");
+                    return <button key={v} onClick={() => setGraphView(v === "graph")} style={{
+                      height: 24, padding: "0 10px", cursor: "pointer", borderRadius: i === 0 ? "5px 0 0 5px" : "0 5px 5px 0", marginLeft: i ? -1 : 0,
+                      background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`, ...sys(600, 11, on ? C.emberT : C.t3),
+                    }}>{v === "graph" ? "Graph" : "List"}</button>;
+                  })}
+                </span>
                 <div style={{ flex: 1 }} />
                 {rulesDirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
                 <button onClick={() => setRules(show.rules)} disabled={!rulesDirty || !!busy} style={btn(false, !rulesDirty || !!busy)}>Revert</button>
@@ -547,10 +561,15 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   No sensor inputs yet. Assign a pin to <b>Sensor / button input</b> in Nodes &amp; Channels — a PIR on VP/VN/D34/D35 is a good start.
                 </div>
               )}
-              {rules.map((r, i) => <RuleRow key={i} r={r} show={show} sensors={sensors} nameOf={nameOf}
+              {graphView && (
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: "calc(100vh - 230px)", minHeight: 460 }}>
+                  <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules} />
+                </div>
+              )}
+              {!graphView && rules.map((r, i) => <RuleRow key={i} r={r} show={show} sensors={sensors} nameOf={nameOf}
                 onChange={(p) => setRules(rules.map((x, j) => (j === i ? { ...x, ...p } : x)))}
                 onRemove={() => setRules(rules.filter((_, j) => j !== i))} />)}
-              {(sensors.length > 0 || show.sequences.length > 0) && (
+              {!graphView && (sensors.length > 0 || show.sequences.length > 0) && (
                 <button onClick={() => setRules([...rules, sensors.length
                   ? { node: sensors[0].node, trigger: "sensor", input: sensors[0].index, on: "active", after: 0, delay_ms: 0, cooldown_ms: 30000, pick: "all", seqs: [show.sequences[0]?.id ?? 0], enabled: true }
                   : { node: show.sequences[0]?.loadedOn[0] ?? known[0]?.node ?? "", trigger: "after", input: 0, on: "active", after: show.sequences[0]?.id ?? 0, delay_ms: lengthMs(show.sequences[0]), cooldown_ms: 0, pick: "all", seqs: [show.sequences[0]?.id ?? 0], enabled: true }])}

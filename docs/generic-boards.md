@@ -520,7 +520,8 @@ is unchanged: no bridge at show time).
   the **Show** section's rows read as the sentence *When [sensor
   becomes active | sequence X starts/ends] (+ wait) play [all of | one
   of] [seqs] · wait N s · at most N times per M min [· on board]*; the
-  Show Graph will edit the same rules.
+  **Show Graph** (Graph / List toggle, software-plan "Console sections")
+  edits the same rules as chains of blocks.
 
 **Arming.** Disarmed nodes ignore triggers and cues and stop playing.
 Nodes **boot armed** (a power cut never leaves the show dead). STOP ALL
