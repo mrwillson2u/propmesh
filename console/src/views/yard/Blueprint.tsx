@@ -11,12 +11,14 @@ import { C, MONO } from "../../lib/tokens";
 import { mono, sys } from "../../ui";
 import type { Connection } from "../../lib/connection";
 import {
-  COLORS, GRID, MAP_H, MAP_W, MAX_BYTES, SHAPE_DEFAULT, loadYard, saveYard, shapeId, size, snap, stamp,
+  COLORS, GRID, MAX_BYTES, PROP_SIZE, SHAPE_DEFAULT, loadYard, saveYard, shapeId, size, snap, stamp,
   type Shape, type ShapeKind, type YardDoc,
 } from "../../lib/yardMap";
+import { PROP_TYPES, PropIcon, type PropType } from "../../lib/propIcons";
 
 export type Tool = "select" | ShapeKind | "erase";
 type Pt = { x: number; y: number };
+export type View = { x: number; y: number; w: number; h: number };
 
 // 16 px line icons in the current color.
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -30,6 +32,7 @@ const ICONS: Record<Tool | "undo", ReactNode> = {
   path: <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: "block" }}><path d="M5.5 2 L3 14 M10.5 2 L13 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><path d="M8 3.5 V5.5 M8 7.5 V9.5 M8 11.5 V13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" /></svg>,
   line: <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: "block" }}><path d="M2 12 L14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="3 2.5" /><path d="M4 13.5 V10 M12 6 V2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
   erase: <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: "block" }}><path d="M9.5 2.5 L14 7 L8 13 L4.5 13 L2 10.5 Z" fill="currentColor" fillOpacity=".25" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M6 6 L11 11" stroke="currentColor" strokeWidth="1.5" /><path d="M3 14.5 H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>,
+  prop: <PropIcon type="tombstone" size={16} />,
   undo: <Icon d="M6 3.5 L3 6.5 L6 9.5 M3 6.5 H10 A3 3 0 0 1 10 12.5 H7" />,
 };
 const TOOLS: { id: Tool; name: string; title: string }[] = [
@@ -37,6 +40,7 @@ const TOOLS: { id: Tool; name: string; title: string }[] = [
   { id: "area", name: "Area", title: "Area — a building, bed or lawn: click its corners, then click the first corner (or double-click) to close it" },
   { id: "path", name: "Walkway", title: "Walkway — a driveway, sidewalk or path: a wide band. Click along it, double-click to finish" },
   { id: "line", name: "Border", title: "Border — a property line or fence: a thin dashed line. Click along it, double-click to finish" },
+  { id: "prop", name: "Prop", title: "Prop — place a tombstone, skeleton, spider… where a prop stands (one without a board of its own, or just to dress the map). Pick the picture, then click to place; Esc when done" },
   { id: "erase", name: "Erase", title: "Erase — click a shape to remove it" },
 ];
 const PATH_WIDTHS: { w: number; label: string }[] = [
@@ -55,7 +59,6 @@ const midOf = (ps: Pt[]) => {
   const k = Math.floor((ps.length - 1) / 2);
   return { x: (ps[k].x + ps[k + 1].x) / 2, y: (ps[k].y + ps[k + 1].y) / 2 };
 };
-const clampPt = (p: Pt): Pt => ({ x: Math.max(0, Math.min(MAP_W, p.x)), y: Math.max(0, Math.min(MAP_H, p.y)) });
 
 export function toMap(svg: SVGSVGElement | null, cx: number, cy: number): Pt {
   const m = svg?.getScreenCTM();
@@ -64,8 +67,9 @@ export function toMap(svg: SVGSVGElement | null, cx: number, cy: number): Pt {
   return { x: p.x, y: p.y };
 }
 
-export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObject<SVGSVGElement>) {
+export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObject<SVGSVGElement>, view: View) {
   const [doc, setDoc] = useState<YardDoc | null>(null);
+  const [propIcon, setPropIcon] = useState<PropType>("tombstone");  // what the Prop tool places
   const [onBoard, setOnBoard] = useState(false);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
   const [tool, setTool] = useState<Tool>("select");
@@ -125,12 +129,15 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     setDraft([]);
   }, [doc, draft, tool, commit]);
 
+  const drawing = tool === "area" || tool === "path" || tool === "line";
+  const placing = tool === "prop";
+
   // Keys: Enter finishes, Escape cancels, ⌘/ctrl-Z undoes, Delete removes the selected shape.
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       const typing = (e.target as HTMLElement)?.tagName === "INPUT";
-      if (e.key === "Escape") { setDraft([]); setSel(null); }
+      if (e.key === "Escape") { setDraft([]); setSel(null); if (placing) setTool("select"); }
       else if (e.key === "Enter" && draft.length) finish();
       else if ((e.metaKey || e.ctrlKey) && e.key === "z" && !typing) { e.preventDefault(); undo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel && !typing && doc) {
@@ -140,24 +147,29 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, draft, finish, undo, sel, doc, commit]);
-
-  const drawing = tool === "area" || tool === "path" || tool === "line";
+  }, [active, draft, finish, undo, sel, doc, commit, placing]);
 
   // Background pointer events, from the map's <svg>.
   const onBgDown = (p: Pt) => {
+    if (placing && doc) {
+      const q = { x: snap(p.x), y: snap(p.y) };
+      const sh: Shape = { id: shapeId(), kind: "prop", pts: flat([q]), ...SHAPE_DEFAULT.prop, icon: propIcon };
+      commit({ ...doc, shapes: [...doc.shapes, sh] });
+      setSel(sh.id);
+      return;
+    }
     if (!drawing) { setSel(null); return; }
-    const q = clampPt({ x: snap(p.x), y: snap(p.y) });
+    const q = { x: snap(p.x), y: snap(p.y) };
     // Click the first corner again to close an area.
     if (tool === "area" && draft.length >= 3 && Math.hypot(q.x - draft[0].x, q.y - draft[0].y) < GRID * 0.6) { finish(); return; }
     setDraft([...draft, q]);
   };
   const onMove = (p: Pt) => {
-    if (drawing) setHover(clampPt({ x: snap(p.x), y: snap(p.y) }));
+    if (drawing || placing) setHover({ x: snap(p.x), y: snap(p.y) });
     if (drag && doc) {
       const dx = snap(p.x - drag.from.x), dy = snap(p.y - drag.from.y);
       const moved = drag.orig.map((v, i) => (drag.verts === null || drag.verts.includes(Math.floor(i / 2)) ? v + (i % 2 ? dy : dx) : v));
-      setDoc({ ...doc, shapes: doc.shapes.map((s) => (s.id === drag.id ? { ...s, pts: moved.map((v, i) => Math.max(0, Math.min(i % 2 ? MAP_H : MAP_W, v))) } : s)) });
+      setDoc({ ...doc, shapes: doc.shapes.map((s) => (s.id === drag.id ? { ...s, pts: moved } : s)) });
     }
   };
   const onUp = () => {
@@ -221,6 +233,18 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   };
 
   const update = (id: string, patch: Partial<Shape>) => doc && commit({ ...doc, shapes: doc.shapes.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+  const setIcon = (nodeId: string, type: PropType) => doc && commit({ ...doc, icons: { ...doc.icons, [nodeId]: type } });
+
+  // Everything on the map, for "fit": shapes and placed boards.
+  const bounds = (): View | null => {
+    if (!doc) return null;
+    const xs: number[] = [], ys: number[] = [];
+    for (const sh of doc.shapes) for (let i = 0; i + 1 < sh.pts.length; i += 2) { xs.push(sh.pts[i]); ys.push(sh.pts[i + 1]); }
+    for (const p of Object.values(doc.pos)) { xs.push(p[0]); ys.push(p[1]); }
+    if (!xs.length) return null;
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  };
 
   // ---- the layer: grid, shapes, the drawing in progress ----------------------
   const selected = doc?.shapes.find((s) => s.id === sel) ?? null;
@@ -235,10 +259,10 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
           <path d={`M ${GRID * 5} 0 L 0 0 0 ${GRID * 5}`} fill="none" stroke={C.grid} strokeWidth="1" />
         </pattern>
       </defs>
-      <rect data-bg="1" x={0} y={0} width={MAP_W} height={MAP_H} fill={C.bg} />
-      <rect data-bg="1" x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#yard-grid5)" />
-      <rect data-bg="1" x={0} y={0} width={MAP_W} height={MAP_H} fill="url(#yard-grid)" />
-      <rect x={0.5} y={0.5} width={MAP_W - 1} height={MAP_H - 1} fill="none" stroke={C.b2} strokeDasharray="6 5" style={{ pointerEvents: "none" }} />
+      {/* The ground goes on forever: the grid is drawn over whatever is in view (and a view's worth around it). */}
+      <rect data-bg="1" x={view.x - view.w} y={view.y - view.h} width={view.w * 3} height={view.h * 3} fill={C.bg} />
+      <rect data-bg="1" x={view.x - view.w} y={view.y - view.h} width={view.w * 3} height={view.h * 3} fill="url(#yard-grid5)" />
+      <rect data-bg="1" x={view.x - view.w} y={view.y - view.h} width={view.w * 3} height={view.h * 3} fill="url(#yard-grid)" />
       {/* paths first (under), then areas, then lines on top */}
       {doc.shapes.filter((s) => s.kind === "path").map((s) => {
         const ps = pts(s), m = midOf(ps), on = s.id === sel;
@@ -270,8 +294,23 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
           </g>
         );
       })}
+      {/* clip-art props */}
+      {doc.shapes.filter((s) => s.kind === "prop").map((s) => {
+        const p = pts(s)[0], sz = PROP_SIZE[s.size ?? 2], on = s.id === sel;
+        if (!p) return null;
+        return (
+          <g key={s.id} onPointerDown={(e) => startDrag(e, s, null)} style={{ cursor: tool === "erase" ? "not-allowed" : tool === "select" ? "move" : undefined }}>
+            {on && <circle cx={p.x} cy={p.y} r={sz * 0.7} fill="none" stroke={C.ember} strokeWidth="1.5" strokeDasharray="4 4" />}
+            <circle cx={p.x} cy={p.y} r={sz * 0.62} fill={C.bg} opacity=".01" />
+            <PropIcon type={s.icon ?? "generic"} size={sz} x={p.x - sz / 2} y={p.y - sz / 2} color={s.color ?? C.t3} />
+            {s.label && <text x={p.x} y={p.y + sz / 2 + 13} textAnchor="middle" fontFamily="system-ui" fontSize="11" fontWeight="600" fill={on ? C.emberT : C.t3} style={{ pointerEvents: "none" }}>{s.label}</text>}
+          </g>
+        );
+      })}
+      {/* the prop about to be placed */}
+      {placing && hover && <g style={{ pointerEvents: "none" }} opacity=".55"><PropIcon type={propIcon} size={PROP_SIZE[2]} x={hover.x - PROP_SIZE[2] / 2} y={hover.y - PROP_SIZE[2] / 2} color={C.emberT} /></g>}
       {/* the selected shape's corners */}
-      {selected && tool === "select" && pts(selected).map((p, i) => (
+      {selected && tool === "select" && selected.kind !== "prop" && pts(selected).map((p, i) => (
         <rect key={i} x={p.x - 4} y={p.y - 4} width={8} height={8} fill={C.bg} stroke={C.ember} strokeWidth="1.5" style={{ cursor: "crosshair" }}
           onPointerDown={(e) => startDrag(e, selected, [i])} onDoubleClick={(e) => { e.stopPropagation(); removeVertex(selected, i); }} />
       ))}
@@ -298,6 +337,20 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
           }}>{ICONS[t.id]}<span style={{ font: "600 9px system-ui", letterSpacing: ".02em" }}>{t.name}</span></button>
         );
       })}
+      {placing && (
+        <div style={{ position: "absolute", left: 66, top: 0, zIndex: 6, width: 232, padding: 8, background: "rgba(16,19,24,.98)", border: `1px solid ${C.b2}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,.5)" }}>
+          <div style={{ font: "600 9.5px system-ui", letterSpacing: ".1em", color: C.t5, marginBottom: 6 }}>PLACE A…</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+            {PROP_TYPES.filter((p) => p.id !== "hub" && p.id !== "generic").map((p) => {
+              const on = p.id === propIcon;
+              return <div key={p.id} title={p.label} onClick={() => setPropIcon(p.id)} style={{ height: 38, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
+                <PropIcon type={p.id} size={20} color={on ? C.emberT : C.t3} />
+              </div>;
+            })}
+          </div>
+          <div style={{ ...sys(500, 11, C.t4), marginTop: 6 }}>{PROP_TYPES.find((p) => p.id === propIcon)?.label} — click the map to place it</div>
+        </div>
+      )}
       <button title="Undo (⌘/ctrl-Z)" onClick={undo} disabled={!undoable} style={{
         width: 58, height: 32, borderRadius: 7, cursor: undoable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: 0,
         background: C.raised, border: `1px solid ${C.b3}`, color: C.t4, opacity: undoable ? 1 : 0.4,
@@ -311,8 +364,18 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     <div style={{ position: "absolute", right: 14, bottom: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7, maxWidth: 640 }}>
       {selected ? (
         <>
-          <span style={{ ...mono(700, 10, C.t5), letterSpacing: ".08em" }}>{selected.kind.toUpperCase()}</span>
-          <input autoFocus value={selected.label ?? ""} placeholder={selected.kind === "area" ? "house, garage…" : selected.kind === "path" ? "driveway, sidewalk…" : "property line…"}
+          <span style={{ ...mono(700, 10, C.t5), letterSpacing: ".08em" }}>{selected.kind === "path" ? "WALKWAY" : selected.kind === "line" ? "BORDER" : selected.kind.toUpperCase()}</span>
+          {selected.kind === "prop" && (
+            <select value={selected.icon ?? "generic"} onChange={(e) => update(selected.id, { icon: e.target.value as PropType })} style={field}>
+              {PROP_TYPES.filter((p) => p.id !== "hub").map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          )}
+          {selected.kind === "prop" && (
+            <select value={selected.size ?? 2} onChange={(e) => update(selected.id, { size: Number(e.target.value) as 1 | 2 | 3 })} style={field}>
+              <option value={1}>small</option><option value={2}>medium</option><option value={3}>large</option>
+            </select>
+          )}
+          <input autoFocus value={selected.label ?? ""} placeholder={selected.kind === "area" ? "house, garage…" : selected.kind === "path" ? "driveway, sidewalk…" : selected.kind === "prop" ? "name it…" : "property line…"}
             maxLength={24} onChange={(e) => update(selected.id, { label: e.target.value })} style={{ ...field, width: 150 }} />
           <span style={{ display: "flex", gap: 4 }} title="Color">
             {COLORS.map((o) => {
@@ -327,10 +390,13 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
             </select>
           )}
           <button onClick={() => { commit({ ...doc, shapes: doc.shapes.filter((s) => s.id !== selected.id) }); setSel(null); }} style={{ ...field, cursor: "pointer", color: C.red }}>Remove</button>
+          {selected.kind !== "prop" && <span style={mono(500, 10.5, C.t5)}>drag an edge to push it · double-click an edge for a new corner · double-click a corner to remove it</span>}
         </>
+      ) : placing ? (
+        <span style={sys(500, 11.5, C.t3)}>Click where the prop stands · pick another picture on the left · Esc or Select when done</span>
       ) : drawing ? (
         <span style={sys(500, 11.5, C.t3)}>
-          {draft.length === 0 ? `Click to start the ${tool}.` : tool === "area" ? "Click the next corner · click the first corner or double-click to close · Esc cancels" : "Click the next point · double-click or Enter to finish · Esc cancels"}
+          {draft.length === 0 ? `Click to start the ${tool === "path" ? "walkway" : tool === "line" ? "border" : tool}.` : tool === "area" ? "Click the next corner · click the first corner or double-click to close · Esc cancels" : "Click the next point · double-click or Enter to finish · Esc cancels"}
         </span>
       ) : (
         <span style={mono(500, 10.5, C.t5)}>drag boards to where they sit · draw the yard with the tools on the left · scroll to zoom, drag empty ground to pan</span>
@@ -346,8 +412,9 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   );
 
   return {
-    doc, layer, rail, panel, setPos,
-    drawing,
+    doc, layer, rail, panel, setPos, setIcon, bounds,
+    icon: (nodeId: string): PropType | undefined => doc?.icons?.[nodeId],
+    drawing, placing,
     pos: (id: string): Pt | null => { const p = doc?.pos[id]; return p ? { x: p[0], y: p[1] } : null; },
     onBgDown, onMove, onUp, onBgDouble: () => { if (drawing) finish(); },
   };

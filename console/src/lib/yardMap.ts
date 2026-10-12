@@ -13,20 +13,27 @@
 // grid square, which is `scale_ft` feet. Everything is whole numbers and
 // points are flat [x, y, x, y, …] so the document fits one 4 KB request.
 import { target, type NodeLink } from "./transport";
+import type { PropType } from "./propIcons";
 
+// The canvas is unbounded; this frame is only the default view and where
+// the old 1000 × 640 map sat. GRID units make one grid square.
 export const MAP_W = 1000, MAP_H = 640, GRID = 20;
 export const MAX_BYTES = 3800;  // a set_yard request must fit the board's 4 KB line
 
 // area: a building, bed or lawn (closed). path: a walkway or driveway (a
 // wide band). line: a border — property line, fence (thin, dashed).
-export type ShapeKind = "area" | "path" | "line";
+// prop: a clip-art marker — a tombstone, skeleton, spider… — for a prop
+// that has no board of its own, or just to dress the map.
+export type ShapeKind = "area" | "path" | "line" | "prop";
 export interface Shape {
   id: string;
   kind: ShapeKind;
-  pts: number[];   // x0, y0, x1, y1, …
+  pts: number[];   // x0, y0, x1, y1, … (a prop: one point)
   label?: string;
   w?: number;      // path: width in map units (a sidewalk ~ half a square, a driveway ~ 1.5)
-  color?: string;  // "#rrggbb" fill (area) / stroke (path, line); absent = the default gray
+  color?: string;  // "#rrggbb" fill (area) / stroke (path, line, prop); absent = the default gray
+  icon?: PropType; // prop: which clip art
+  size?: 1 | 2 | 3;  // prop: small / medium / large
 }
 // Muted fills that read on the dark canvas: gray (default), stone, grass,
 // soil, water, wood, ember, slate.
@@ -40,6 +47,7 @@ export interface YardDoc {
   scale_ft: number;                    // feet per grid square
   shapes: Shape[];
   pos: Record<string, [number, number]>;  // board / flood id → where it sits
+  icons?: Record<string, PropType>;       // board id → the clip art it's drawn as (what the prop IS)
 }
 
 export const EMPTY_YARD: YardDoc = { v: 1, at: 0, scale_ft: 5, shapes: [], pos: {} };
@@ -47,7 +55,9 @@ export const SHAPE_DEFAULT: Record<ShapeKind, Partial<Shape>> = {
   area: { label: "" },
   path: { w: 16 },
   line: {},
+  prop: { icon: "tombstone", size: 2 },
 };
+export const PROP_SIZE: Record<1 | 2 | 3, number> = { 1: 28, 2: 40, 3: 60 };  // map units
 
 const LOCAL = "propmesh.yard.doc";
 const OLD_POS = "propmesh.yard.pos.";  // per-id browser positions, before 2026-10-12

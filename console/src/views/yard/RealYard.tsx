@@ -15,6 +15,7 @@ import { FLOODS, deriveFloods } from "../../lib/floods";
 import { directLabel, target } from "../../lib/transport";
 import type { NodeConfig } from "../../lib/nodeConfig";
 import { useBlueprint, toMap } from "./Blueprint";
+import { PROP_TYPES, type PropType } from "../../lib/propIcons";
 
 type Layout = "topology" | "map";
 const W = 1000, H = 640;
@@ -186,12 +187,23 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 }) {
   const now = Date.now();
   const svgRef = useRef<SVGSVGElement>(null);
-  const bp = useBlueprint(conn, layout === "map", svgRef);
   // The Map's view: scroll to zoom around the pointer, drag empty ground
-  // to pan (Select tool), +/−/fit buttons. Topology always fits.
+  // to pan (Select tool), +/−/fit buttons. The ground is unbounded;
+  // Topology always fits.
   const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
+  const bp = useBlueprint(conn, layout === "map", svgRef, view);
+  const fitTo = (b: { x: number; y: number; w: number; h: number } | null) => {
+    if (!b) { setView({ x: 0, y: 0, w: W, h: H }); return; }
+    const pad = 90;
+    let w = Math.max(b.w + 2 * pad, 400), h = w * (H / W);
+    if (b.h + 2 * pad > h) { h = b.h + 2 * pad; w = h * (W / H); }
+    setView({ x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h });
+  };
+  // First load of a map with something on it: show all of it.
+  const fitted = useRef(false);
+  useEffect(() => { if (bp.doc && !fitted.current) { fitted.current = true; if (bp.bounds()) fitTo(bp.bounds()); } }, [bp.doc]);  // eslint-disable-line react-hooks/exhaustive-deps
   const zoomBy = (f: number, at?: { x: number; y: number }) => setView((v) => {
-    const w = Math.max(W / 5, Math.min(W * 2.5, v.w / f)), h = w * (H / W);
+    const w = Math.max(W / 8, Math.min(W * 12, v.w / f)), h = w * (H / W);
     const a = at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 };
     const fx = (a.x - v.x) / v.w, fy = (a.y - v.y) / v.h;
     return { x: a.x - fx * w, y: a.y - fy * h, w, h };
@@ -261,10 +273,11 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
         <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
           box={layout === "topology" ? fitBox(pos) : view}
           onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
-          onPan={layout === "map" && !bp.drawing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
-          draggable={layout === "map" && !bp.drawing} showLinks={layout === "topology" || showLinks}
+          onPan={layout === "map" && !bp.drawing && !bp.placing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
+          iconFor={layout === "map" ? bp.icon : undefined} unbounded={layout === "map"}
+          draggable={layout === "map" && !bp.drawing && !bp.placing} showLinks={layout === "topology" || showLinks}
           onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
-          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && bp.drawing}
+          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
           onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
           onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} />
 
@@ -301,7 +314,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
         {bp.panel}
         {layout === "map" && (
           <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 4, padding: 4, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
-            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["⛶", () => setView({ x: 0, y: 0, w: W, h: H }), "Fit the whole yard"]].map(([t, fn, title]) => (
+            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["⛶", () => fitTo(bp.bounds()), "Fit everything on the map"]].map(([t, fn, title]) => (
               <button key={t as string} title={title as string} onClick={fn as () => void} style={{ width: 28, height: 26, borderRadius: 5, cursor: "pointer", background: C.raised, border: `1px solid ${C.b3}`, color: C.t3, font: "600 13px system-ui" }}>{t as string}</button>
             ))}
           </div>
@@ -309,6 +322,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
       </div>
 
       {selNode && <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
+        icon={bp.icon(selNode.id)} onIcon={(t) => bp.setIcon(selNode.id, t)}
         onClose={() => setSel(null)} onOpen={() => onOpenNode(selNode.id)} />}
       {selFlood && <FloodDetail f={selFlood} nameOf={(id) => topo.nodes.find((n) => n.id === id)?.name ?? id}
         onClose={() => setSel(null)} onOpen={() => onOpenNode(FLOODS)} />}
@@ -318,7 +332,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
 // ---- canvas -----------------------------------------------------------------
 
-function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onWheel, onPan }: {
+function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onWheel, onPan, iconFor, unbounded }: {
   topo: TopoNode[]; links: TopoLink[]; floods: YardFlood[]; pos: Map<string, { x: number; y: number }>;
   box: { x: number; y: number; w: number; h: number };
   sel: string | null; onSelect: (id: string) => void;
@@ -332,6 +346,8 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
   onUp?: () => void; onBgDouble?: () => void;
   onWheel?: (factor: number, at: { x: number; y: number }) => void;  // zoom around a map point
   onPan?: (dx: number, dy: number) => void;  // map units; set = dragging empty ground pans
+  iconFor?: (id: string) => PropType | undefined;  // the map's chosen clip art per board
+  unbounded?: boolean;  // the Map: no edge to keep boards inside
 }) {
   const props = useProps();
   const own = useRef<SVGSVGElement>(null);
@@ -344,7 +360,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
     const m = svg.current?.getScreenCTM();
     if (!m) return { x: 0, y: 0 };
     const p = new DOMPoint(cx, cy).matrixTransform(m.inverse());
-    return { x: Math.max(30, Math.min(W - 30, p.x)), y: Math.max(30, Math.min(H - 30, p.y)) };
+    return unbounded ? { x: p.x, y: p.y } : { x: Math.max(30, Math.min(W - 30, p.x)), y: Math.max(30, Math.min(H - 30, p.y)) };
   };
   const at = (id: string) => (drag?.id === id ? drag : pos.get(id));
 
@@ -424,7 +440,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
               : <circle cx={p.x} cy={p.y} r={r} fill={C.raised2} stroke={stroke(n)} strokeWidth="2" strokeDasharray={n.missing ? "3 3" : ""} />}
             {(() => {
               const s = big ? 30 : 24;
-              const type = big ? "hub" : props.get(n.id);
+              const type = big ? "hub" : iconFor?.(n.id) ?? props.get(n.id);
               return <PropIcon type={type} size={s} x={p.x - s / 2} y={p.y - s / 2} color={big ? C.emberT : stroke(n)} opacity={n.missing ? 0.7 : 1} />;
             })()}
             <text x={p.x} y={p.y + r + 20} fontSize="12.5" fontWeight="600" textAnchor="middle" fontFamily="system-ui"
@@ -452,8 +468,9 @@ function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
   );
 }
 
-function Detail({ n, links, nodes, now, onClose, onOpen }: {
+function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
   n: TopoNode; links: TopoLink[]; nodes: TopoNode[]; now: number;
+  icon?: PropType; onIcon?: (t: PropType) => void;
   onClose: () => void; onOpen: () => void;
 }) {
   const e = n.entry;
@@ -488,6 +505,19 @@ function Detail({ n, links, nodes, now, onClose, onOpen }: {
         <Stat k="NODE ID" v={n.id} />
       </div>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}`, ...mono(500, 11, C.t4) }}>{board}</div>
+      {!n.bridge && onIcon && (
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}` }}>
+          <div style={{ ...label, marginBottom: 6 }}>DRAWN AS <span style={{ color: C.t3, letterSpacing: 0, fontWeight: 500 }}>· {PROP_TYPES.find((p) => p.id === (icon ?? "generic"))?.label}</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+            {PROP_TYPES.filter((p) => p.id !== "hub").map((p) => {
+              const on = p.id === (icon ?? "generic");
+              return <div key={p.id} title={p.label} onClick={() => onIcon(p.id)} style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
+                <PropIcon type={p.id} size={20} color={on ? C.emberT : C.t3} />
+              </div>;
+            })}
+          </div>
+        </div>
+      )}
       <div style={{ padding: "12px 14px", flex: 1 }}>
         <div style={{ ...label, marginBottom: 8 }}>HEARS DIRECTLY</div>
         {nbrs.length === 0 && <div style={mono(500, 11, C.t5)}>no neighbor reports yet — they arrive with the next heartbeat</div>}
