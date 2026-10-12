@@ -609,6 +609,20 @@ holds its own outgoing edges (with delays, cooldowns, targets) and
 that execute them. A dead bridge therefore costs the console and sACN
 ingress, never the show — consistent with conductor election.
 
+**Map drawing tools — built 2026-10-12** (handoff 1e, ahead of the v2
+plan): the Yard's Map has a tool rail — Select (drag boards and shapes,
+drag a shape's corners), Area (house, garage: click corners, close on the
+first), Path (driveway, sidewalk: a wide band, width presets in feet),
+Line (property line, fence: dashed), Erase, Undo — over a grid whose
+square is a set number of feet. One map document (shapes + where every
+board and flood sits) is kept **on the board the console connects to**
+(`get_yard` / `set_yard`, `/yard.json`, newest `at` wins), so a phone in
+the yard and the laptop share it; the browser keeps a copy, and the
+browser-only positions from before are folded in. Whole-number
+coordinates, flat point lists: a house + driveway + three boards is
+~300 bytes of the 3.8 KB a request can carry. Not yet: the phone layout
+(1f bottom sheet), signal heat.
+
 *Design note:* the handoff drew Topology and Map as separate views
 (Survey and Blueprint). Merged during implementation — same nodes,
 statuses, links and selection, so two canvases could (and in the

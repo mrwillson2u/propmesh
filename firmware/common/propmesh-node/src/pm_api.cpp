@@ -3,6 +3,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_wifi.h"
 #include "pm_ota.h"
 #include <Arduino.h>
+#include <LittleFS.h>
 #include "pm_api.h"
 #include "pm_mesh.h"
 #include "pm_pinrules.h"
@@ -307,6 +308,38 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     pm_sleep_hold(600000);
   if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
   if (!strcmp(cmd, "hello")) cmd_hello(resp);
+  // The Yard's map (console lib/yardMap.ts): a drawing of the yard and
+  // where every board sits, kept on the board the console connects to so
+  // a phone and a laptop share it. Opaque to the firmware; newest wins.
+  else if (!strcmp(cmd, "get_yard")) {
+    File f = LittleFS.open("/yard.json", "r");
+    if (f) {
+      JsonDocument d;
+      if (!deserializeJson(d, f)) resp["yard"] = d;
+      f.close();
+    }
+  }
+  else if (!strcmp(cmd, "set_yard")) {
+    JsonObjectConst y = req["yard"];
+    if (y.isNull() || (y["v"] | 0) != 1) return fail(resp, "yard must be an object with v: 1");
+    uint32_t at = req["at"] | 0UL;
+    File cur = LittleFS.open("/yard.json", "r");
+    if (cur) {
+      JsonDocument have;
+      JsonDocument filter;
+      filter["at"] = true;
+      uint32_t have_at = deserializeJson(have, cur, DeserializationOption::Filter(filter)) ? 0 : (have["at"] | 0UL);
+      cur.close();
+      if (at && have_at && at < have_at) { resp["stale"] = true; resp["have_at"] = have_at; return; }
+    }
+    File f = LittleFS.open("/yard.tmp", "w");
+    if (!f) return fail(resp, "could not save to flash");
+    bool ok = serializeJson(y, f) > 0;
+    f.close();
+    if (!ok) return fail(resp, "could not save to flash");
+    LittleFS.remove("/yard.json");
+    LittleFS.rename("/yard.tmp", "/yard.json");
+  }
   else if (!strcmp(cmd, "get_config"))
     pm_config_to_json(pm_channels_config(), resp["config"].to<JsonObject>());
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
