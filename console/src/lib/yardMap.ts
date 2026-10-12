@@ -17,6 +17,8 @@ import { target, type NodeLink } from "./transport";
 export const MAP_W = 1000, MAP_H = 640, GRID = 20;
 export const MAX_BYTES = 3800;  // a set_yard request must fit the board's 4 KB line
 
+// area: a building, bed or lawn (closed). path: a walkway or driveway (a
+// wide band). line: a border — property line, fence (thin, dashed).
 export type ShapeKind = "area" | "path" | "line";
 export interface Shape {
   id: string;
@@ -24,7 +26,14 @@ export interface Shape {
   pts: number[];   // x0, y0, x1, y1, …
   label?: string;
   w?: number;      // path: width in map units (a sidewalk ~ half a square, a driveway ~ 1.5)
+  color?: string;  // "#rrggbb" fill (area) / stroke (path, line); absent = the default gray
 }
+// Muted fills that read on the dark canvas: gray (default), stone, grass,
+// soil, water, wood, ember, slate.
+export const COLORS: { c: string; name: string }[] = [
+  { c: "#14171c", name: "gray" }, { c: "#2a2d33", name: "stone" }, { c: "#16281a", name: "grass" }, { c: "#2b2014", name: "soil" },
+  { c: "#132433", name: "water" }, { c: "#2e2418", name: "wood" }, { c: "#2a1108", name: "ember" }, { c: "#1c2240", name: "slate" },
+];
 export interface YardDoc {
   v: 1;
   at: number;                          // UTC s of the last edit

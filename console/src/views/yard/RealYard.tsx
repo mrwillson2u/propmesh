@@ -186,6 +186,15 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   const now = Date.now();
   const svgRef = useRef<SVGSVGElement>(null);
   const bp = useBlueprint(conn, layout === "map", svgRef);
+  // The Map's view: scroll to zoom around the pointer, drag empty ground
+  // to pan (Select tool), +/−/fit buttons. Topology always fits.
+  const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
+  const zoomBy = (f: number, at?: { x: number; y: number }) => setView((v) => {
+    const w = Math.max(W / 5, Math.min(W * 2.5, v.w / f)), h = w * (H / W);
+    const a = at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 };
+    const fx = (a.x - v.x) / v.w, fy = (a.y - v.y) / v.h;
+    return { x: a.x - fx * w, y: a.y - fy * h, w, h };
+  });
   const topo = useMemo(() => buildTopology(conn, now), [conn, Math.floor(now / 1000)]);
   const floods = useFloods(conn);
   const c = counts(conn, now);
@@ -222,7 +231,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
   return (
     <>
-      <div style={{ flex: 1, minWidth: 0, position: "relative", backgroundColor: C.bg, backgroundImage: `radial-gradient(${C.grid} 1px,transparent 1px)`, backgroundSize: "24px 24px" }}>
+      <div style={{ flex: 1, minWidth: 0, position: "relative", backgroundColor: C.bg, backgroundImage: layout === "map" ? undefined : `radial-gradient(${C.grid} 1px,transparent 1px)`, backgroundSize: "24px 24px" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0))", pointerEvents: "none", flexWrap: "wrap" }}>
           <span style={sys(700, 13, C.t1)}>Yard</span>
           <div style={{ display: "flex", gap: 2, padding: 2, background: "rgba(20,23,28,.9)", border: `1px solid ${C.b2}`, borderRadius: 7, pointerEvents: "auto" }}>
@@ -249,7 +258,9 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
         {bp.rail}
 
         <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
-          box={layout === "topology" ? fitBox(pos) : { x: 0, y: 0, w: W, h: H }}
+          box={layout === "topology" ? fitBox(pos) : view}
+          onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
+          onPan={layout === "map" && !bp.drawing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
           draggable={layout === "map" && !bp.drawing} showLinks={layout === "topology" || showLinks}
           onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
           svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && bp.drawing}
@@ -287,6 +298,13 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           {floods.length > 0 && <span><span style={{ color: C.bluetooth }}>┈</span> Bluetooth to a flood</span>}
         </div>}
         {bp.panel}
+        {layout === "map" && (
+          <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 4, padding: 4, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
+            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["⛶", () => setView({ x: 0, y: 0, w: W, h: H }), "Fit the whole yard"]].map(([t, fn, title]) => (
+              <button key={t as string} title={title as string} onClick={fn as () => void} style={{ width: 28, height: 26, borderRadius: 5, cursor: "pointer", background: C.raised, border: `1px solid ${C.b3}`, color: C.t3, font: "600 13px system-ui" }}>{t as string}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       {selNode && <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
@@ -299,7 +317,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
 // ---- canvas -----------------------------------------------------------------
 
-function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble }: {
+function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onWheel, onPan }: {
   topo: TopoNode[]; links: TopoLink[]; floods: YardFlood[]; pos: Map<string, { x: number; y: number }>;
   box: { x: number; y: number; w: number; h: number };
   sel: string | null; onSelect: (id: string) => void;
@@ -311,11 +329,15 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
   under?: React.ReactNode; nodesInert?: boolean;
   onBgDown?: (p: { x: number; y: number }) => void; onMove?: (p: { x: number; y: number }) => void;
   onUp?: () => void; onBgDouble?: () => void;
+  onWheel?: (factor: number, at: { x: number; y: number }) => void;  // zoom around a map point
+  onPan?: (dx: number, dy: number) => void;  // map units; set = dragging empty ground pans
 }) {
   const props = useProps();
   const own = useRef<SVGSVGElement>(null);
   const svg = svgRef ?? own;
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
+  const pan = useRef<{ x: number; y: number } | null>(null);  // last pointer position while panning, map units
+  const isBg = (t: EventTarget | null) => t === svg.current || !!(t as Element)?.getAttribute?.("data-bg");
 
   const toSvg = (cx: number, cy: number) => {
     const m = svg.current?.getScreenCTM();
@@ -332,11 +354,22 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
         const id = e.dataTransfer.getData("text/propmesh-node");
         if (id) onDrop(id, toSvg(e.clientX, e.clientY));
       }}
-      onPointerDown={(e) => { if (e.target === svg.current || (e.target as Element).getAttribute?.("data-bg")) onBgDown?.(toMap(svg.current, e.clientX, e.clientY)); }}
+      onWheel={(e) => { if (onWheel) { e.preventDefault(); onWheel(Math.exp(-e.deltaY * 0.0015), toMap(svg.current, e.clientX, e.clientY)); } }}
+      onPointerDown={(e) => {
+        if (!isBg(e.target)) return;
+        onBgDown?.(toMap(svg.current, e.clientX, e.clientY));
+        if (onPan && (e.button === 0 || e.button === 1)) { pan.current = toMap(svg.current, e.clientX, e.clientY); (e.target as Element).setPointerCapture?.(e.pointerId); }
+      }}
       onDoubleClick={() => onBgDouble?.()}
-      onPointerMove={(e) => { onMove?.(toMap(svg.current, e.clientX, e.clientY)); if (drag) setDrag({ id: drag.id, ...toSvg(e.clientX, e.clientY) }); }}
-      onPointerUp={() => { onUp?.(); if (drag) { onDrop(drag.id, { x: drag.x, y: drag.y }); setDrag(null); } }}
-      onPointerLeave={() => setDrag(null)}>
+      onPointerMove={(e) => {
+        const p = toMap(svg.current, e.clientX, e.clientY);
+        onMove?.(p);
+        if (drag) setDrag({ id: drag.id, ...toSvg(e.clientX, e.clientY) });
+        // While panning the view moves under the pointer, so measure against the start of this step.
+        if (pan.current && onPan) { onPan(p.x - pan.current.x, p.y - pan.current.y); }
+      }}
+      onPointerUp={() => { onUp?.(); pan.current = null; if (drag) { onDrop(drag.id, { x: drag.x, y: drag.y }); setDrag(null); } }}
+      onPointerLeave={() => { setDrag(null); pan.current = null; }}>
       {under}
       {showLinks && links.map((l) => {
         const A = at(l.a), B = at(l.b);
