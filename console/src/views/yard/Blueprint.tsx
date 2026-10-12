@@ -192,6 +192,9 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   // ([i, j] — both ends together, so the edge stays straight: push a wall out).
   const startDrag = (e: React.PointerEvent, s: Shape, verts: number[] | null) => {
     e.stopPropagation();
+    // Placing a prop or drawing: a click on a shape is a click on the ground
+    // under it (a prop inside the graveyard, a walkway that starts on the lawn).
+    if (placing || drawing) { onBgDown(toMap(svgRef.current, e.clientX, e.clientY)); return; }
     if (tool === "erase" && doc) { commit({ ...doc, shapes: doc.shapes.filter((x) => x.id !== s.id) }); return; }
     if (tool !== "select" || !doc) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -203,8 +206,8 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   // Double-click an edge: a new corner right there (on the edge, snapped),
   // which then drags like any other.
   const insertOnEdge = (e: React.MouseEvent, s: Shape, i: number) => {
+    if (tool !== "select" || !doc) return;  // drawing: let the double-click finish the shape
     e.stopPropagation();
-    if (tool !== "select" || !doc) return;
     const ps = pts(s);
     const a = ps[i], b = ps[(i + 1) % ps.length];
     const p = toMap(svgRef.current, e.clientX, e.clientY);
@@ -417,5 +420,6 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     drawing, placing,
     pos: (id: string): Pt | null => { const p = doc?.pos[id]; return p ? { x: p[0], y: p[1] } : null; },
     onBgDown, onMove, onUp, onBgDouble: () => { if (drawing) finish(); },
+    onLeave: () => setHover(null),  // the pointer left the map: no preview stuck at the edge
   };
 }

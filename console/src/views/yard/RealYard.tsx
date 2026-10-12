@@ -313,7 +313,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
           svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
           onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
-          onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} />
+          onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} onLeave={layout === "map" ? bp.onLeave : undefined} />
 
         {layout !== "map" && <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 12, padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
           <span><span style={{ color: C.green }}>━</span> strong ≥−60</span>
@@ -344,7 +344,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
 // ---- canvas -----------------------------------------------------------------
 
-function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onWheel, onPan, iconFor, unbounded }: {
+function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onLeave, onWheel, onPan, iconFor, unbounded }: {
   topo: TopoNode[]; links: TopoLink[]; floods: YardFlood[]; pos: Map<string, { x: number; y: number }>;
   box: { x: number; y: number; w: number; h: number };
   sel: string | null; onSelect: (id: string) => void;
@@ -354,7 +354,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
   // background's pointer events; boards ignore the pointer while drawing.
   svgRef?: React.RefObject<SVGSVGElement>;
   under?: React.ReactNode; nodesInert?: boolean;
-  onBgDown?: (p: { x: number; y: number }) => void; onMove?: (p: { x: number; y: number }) => void;
+  onBgDown?: (p: { x: number; y: number }) => void; onMove?: (p: { x: number; y: number }) => void; onLeave?: () => void;
   onUp?: () => void; onBgDouble?: () => void;
   onWheel?: (factor: number, at: { x: number; y: number }) => void;  // zoom around a map point
   onPan?: (dx: number, dy: number) => void;  // map units; set = dragging empty ground pans
@@ -398,7 +398,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
         if (pan.current && onPan) { onPan(p.x - pan.current.x, p.y - pan.current.y); }
       }}
       onPointerUp={() => { onUp?.(); pan.current = null; if (drag) { onDrop(drag.id, { x: drag.x, y: drag.y }); setDrag(null); } }}
-      onPointerLeave={() => { setDrag(null); pan.current = null; }}>
+      onPointerLeave={() => { setDrag(null); pan.current = null; onLeave?.(); }}>
       {under}
       {showLinks && links.map((l) => {
         const A = at(l.a), B = at(l.b);
