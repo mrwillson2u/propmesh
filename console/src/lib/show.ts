@@ -186,15 +186,20 @@ export async function loadShow(link: NodeLink, entries: Entry[]): Promise<Show> 
   return show;
 }
 
-export interface SaveResult { failed: { node: string; error: string }[] }
+// failed: refused, or unreachable with nobody keeping a copy. queued: the
+// board didn't answer, but the console is on a bridge, which kept the edit;
+// the board pulls it when it's back (firmware pm_sync, docs §6k).
+export interface SaveResult { failed: { node: string; error: string }[]; queued: string[]; at: number }
+export const isAway = (error: string) => /no reply|not on the mesh|timed out|timeout/i.test(error);
 
 // Push one sequence: each node gets the steps for its own channels;
 // nodes that had a part and now have none get it deleted. Flood steps
 // (node FLOODS) go into every sender's part — each transmits them, so a
 // missing board costs nothing.
-export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = []): Promise<SaveResult> {
+export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = [], viaBridge = false): Promise<SaveResult> {
   const parts = new Map<string, Wire[]>();
   const failed: SaveResult["failed"] = [];
+  const queued: string[] = [];
   for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
     const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
     const w: Wire = dur > 0
@@ -212,46 +217,53 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
   const at = editStamp();  // one edit, one stamp on every part
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
-    if (!en) { failed.push({ node, error: "not on the mesh right now" }); return; }
+    // Through a bridge even a board that's gone gets the write: the bridge
+    // keeps the copy for it.
+    if (!en && !viaBridge) { failed.push({ node, error: "not on the mesh right now" }); return; }
+    const to = en ?? ({ node, usb: false } as Entry);  // addressed through the bridge
     const steps = parts.get(node);
+    const away = (error: string) => { if (viaBridge && isAway(error)) queued.push(node); else failed.push({ node, error }); };
     try {
       const r = steps
-        ? await ask(link, en, "set_sequence", { at, sequence: {
+        ? await ask(link, to, "set_sequence", { at, sequence: {
             id: seq.id, name: seq.name, steps,
             // One period for every board: each part's own length differs.
             ...(seq.ambient ? { ambient: true, loop_ms: Math.max(seq.loop_ms ?? 0, lengthMs(seq), 1000) } : {}),
           } })
-        : await ask(link, en, "delete_sequence", { seq: seq.id, at });
-      if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
+        : await ask(link, to, "delete_sequence", { seq: seq.id, at });
+      if (!r.ok) away(r.error ?? "refused");
     } catch (e) {
-      failed.push({ node, error: (e as Error).message });
+      away((e as Error).message);
     }
   }));
-  return { failed };
+  return { failed, queued, at };
 }
 
-export async function deleteSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence): Promise<SaveResult> {
-  return saveSequence(link, entries, { ...seq, steps: [] });
+export async function deleteSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, viaBridge = false): Promise<SaveResult> {
+  return saveSequence(link, entries, { ...seq, steps: [] }, [], viaBridge);
 }
 
 // Triggers live on their sensor's node: one set_rules per node,
 // including nodes whose last trigger was removed.
-export async function saveRules(link: NodeLink, entries: Record<string, Entry>, rules: Rule[], before: Rule[]): Promise<SaveResult> {
+export async function saveRules(link: NodeLink, entries: Record<string, Entry>, rules: Rule[], before: Rule[], viaBridge = false): Promise<SaveResult> {
   const nodes = new Set([...rules.map((r) => r.node), ...before.map((r) => r.node)]);
   const failed: SaveResult["failed"] = [];
+  const queued: string[] = [];
   const at = editStamp();
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
-    if (!en) { failed.push({ node, error: "not on the mesh right now" }); return; }
+    if (!en && !viaBridge) { failed.push({ node, error: "not on the mesh right now" }); return; }
+    const to = en ?? ({ node, usb: false } as Entry);
+    const away = (error: string) => { if (viaBridge && isAway(error)) queued.push(node); else failed.push({ node, error }); };
     const mine = rules.filter((r) => r.node === node).map(({ node: _n, ...r }) => r);
     try {
-      const r = await ask(link, en, "set_rules", { rules: mine, at });
-      if (!r.ok) failed.push({ node, error: r.error ?? "refused" });
+      const r = await ask(link, to, "set_rules", { rules: mine, at });
+      if (!r.ok) away(r.error ?? "refused");
     } catch (e) {
-      failed.push({ node, error: (e as Error).message });
+      away((e as Error).message);
     }
   }));
-  return { failed };
+  return { failed, queued, at };
 }
 
 export const nextSequenceId = (show: Show) => Math.max(0, ...show.sequences.map((s) => s.id)) + 1;

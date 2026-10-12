@@ -39,6 +39,8 @@ export interface NodeHello {
   up_s?: number; // seconds since that restart
   // What went wrong before that restart, saved to flash (firmware 2026-10-12+).
   last?: { what: string; detail?: string; up_s?: number; utc_s?: number };
+  // Which edits of the mesh-wide documents this board holds (firmware pm_sync, docs §6k).
+  sync?: { sched_at: number; mode_at: number; show_synced: number; floods_at: number };
 }
 
 // A heartbeat heard on the mesh, as the USB node reports it.

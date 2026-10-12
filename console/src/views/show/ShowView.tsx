@@ -110,6 +110,38 @@ function Editor({ conn }: { conn: Connection }) {
   const entries = conn.entries;
   const known = Object.values(entries).filter((e) => e.hello);
   const nameOf = (node: string) => node === FLOODS ? FLOODS_NAME : entries[node]?.hello?.name || node;
+  // Through a bridge, a board that's away still gets every edit: the bridge
+  // keeps a copy and the board pulls it when it's back (docs §6k).
+  const viaBridge = !!conn.hello.bridge;
+  // Boards that were away for a save, and the edit they still have to pull.
+  const [pending, setPending] = useState<{ nodes: string[]; at: number; what: string } | null>(null);
+  const names = (ns: string[]) => ns.map(nameOf).join(", ");
+  const awayText = (ns: string[]) =>
+    `${names(ns)} ${ns.length === 1 ? "is" : "are"} off the mesh — the bridge kept a copy and ${ns.length === 1 ? "it picks" : "they pick"} it up when back.`;
+  // Watch the boards that were away: when one has caught up (its show_synced
+  // has reached the save's stamp), say so and re-read the show.
+  useEffect(() => {
+    if (!pending) return;
+    const started = Date.now();
+    const id = setInterval(async () => {
+      if (Date.now() - started > 30 * 60_000) { setPending(null); return; }  // stop watching after 30 min
+      const caught: string[] = [];
+      await Promise.all(pending.nodes.map(async (n) => {
+        try {
+          const h = await target(conn.link, n).request("hello");
+          const synced = (h.sync as { show_synced?: number } | undefined)?.show_synced ?? 0;
+          if (h.ok && synced >= pending.at) caught.push(n);
+        } catch { /* still away */ }
+      }));
+      if (!caught.length) return;
+      const left = pending.nodes.filter((n) => !caught.includes(n));
+      setMsg({ text: `${names(caught)} ${caught.length === 1 ? "is" : "are"} back and picked up ${pending.what}.${left.length ? " " + awayText(left) : ""}` });
+      setPending(left.length ? { ...pending, nodes: left } : null);
+      void load();
+    }, 5000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
 
   // Loads overlap (one starts each time a board introduces itself);
   // only the newest may land, or an early load that saw fewer boards
@@ -240,13 +272,16 @@ function Editor({ conn }: { conn: Connection }) {
     setBusy("save");
     setMsg(null);
     const steps = [...draft.steps].sort((a, b) => a.t_ms - b.t_ms);
-    const r = await saveSequence(conn.link, entries, { ...draft, steps }, show?.floods.senders ?? []);
+    const r = await saveSequence(conn.link, entries, { ...draft, steps }, show?.floods.senders ?? [], viaBridge);
     setBusy(null);
     if (r.failed.length) {
       setMsg({ text: `Not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
       return;
     }
-    setMsg({ text: `Saved “${draft.name}” to ${new Set(steps.map((s) => s.node)).size} board(s).` });
+    if (r.queued.length) {
+      setMsg({ text: `Saved “${draft.name}”. ${awayText(r.queued)}` });
+      setPending({ nodes: r.queued, at: r.at, what: `“${draft.name}”` });
+    } else setMsg({ text: `Saved “${draft.name}” to ${new Set(steps.map((s) => s.node)).size} board(s).` });
     await load();
   };
 
@@ -266,10 +301,11 @@ function Editor({ conn }: { conn: Connection }) {
     if (!draft) return;
     if (!confirmDelete) { setConfirmDelete(true); return; }
     setBusy("delete");
-    const r = await deleteSequence(conn.link, entries, draft);
+    const r = await deleteSequence(conn.link, entries, draft, viaBridge);
     setBusy(null);
     setConfirmDelete(false);
     if (r.failed.length) setMsg({ text: `Still on ${r.failed.map((f) => nameOf(f.node)).join(", ")} — try again`, bad: true });
+    else if (r.queued.length) { setMsg({ text: `Deleted “${draft.name}”. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the deletion" }); }
     setSel(null);
     await load();
   };
@@ -277,9 +313,10 @@ function Editor({ conn }: { conn: Connection }) {
   const saveTriggers = async () => {
     setBusy("rules");
     setMsg(null);
-    const r = await saveRules(conn.link, entries, rules, show?.rules ?? []);
+    const r = await saveRules(conn.link, entries, rules, show?.rules ?? [], viaBridge);
     setBusy(null);
     if (r.failed.length) setMsg({ text: `Triggers not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
+    else if (r.queued.length) { setMsg({ text: `Triggers saved. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the triggers" }); }
     else setMsg({ text: "Triggers saved." });
     await load();
   };
@@ -288,7 +325,9 @@ function Editor({ conn }: { conn: Connection }) {
     setBusy("mode");
     const failed = await setModeAll(m);
     setBusy(null);
-    if (failed.length) setMsg({ text: `No confirmation from ${failed.map(nameOf).join(", ")}`, bad: true });
+    // The mode rides on the conductor's beacon: a board that missed this
+    // takes it the moment it hears the mesh again (docs §6k).
+    if (failed.length) setMsg({ text: `${names(failed)} didn't answer — ${failed.length === 1 ? "it follows" : "they follow"} the new mode as soon as ${failed.length === 1 ? "it's" : "they're"} back on the mesh.` });
     await load();
   };
 
