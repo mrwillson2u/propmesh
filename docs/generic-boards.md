@@ -955,7 +955,9 @@ The board from the lantern fire test, as a third profile:
 - **Chip differences handled in the build.** `ESP_EXT1_WAKEUP_ALL_LOW` is
   ESP32-only (the C6 takes `ANY_LOW`); the BLE controller config has no
   `mode` field outside the ESP32.
-- **Bluetooth floods on the C6 go through NimBLE** (ported same day).
+- **Bluetooth floods on the C6 go through NimBLE** (ported same day;
+  the ESP32 IRAM story that first made the C6 the only battery board
+  with floods is resolved above — the Feather has them too now).
   The C6's prebuilt libs have no VHCI (`esp_vhci_host_*` undefined) but
   ship NimBLE with legacy advertising/scanning (`CONFIG_BT_NIMBLE_EXT_ADV`
   off) and WiFi/BT coexistence on. `pm_ble_tx.cpp` now has two radio
@@ -993,13 +995,28 @@ The board from the lantern fire test, as a third profile:
   them) and bursts them out, so a change can land up to one listen
   interval late; in the off tier it's asleep and the other senders cover.
   It finishes a queued burst before deep-sleeping (`pm_ble_busy()`).
-  The only board that can't is the **HUZZAH32**, and that's the ESP32
-  chip, not policy: Bluetooth and deep sleep don't both fit its IRAM, so
-  its build is `PM_NO_BLE`. hello now carries `ble` (false on that
-  build). The Floods tab tags senders **ON BATTERY** / **NO BLUETOOTH**
+  hello carries `ble` (false on a build without Bluetooth — none shipped
+  since the IRAM fix below, but older Feather images say so). The Floods tab tags senders **ON BATTERY** / **NO BLUETOOTH**
   (a no-Bluetooth board can be unticked, never ticked, and isn't offered
   for searching), and explains the lag — loudly if no mains board is
   ticked.
+- **IRAM, and why the Feather lost Bluetooth for a day (2026-10-11).**
+  The ESP32's 128 KB IRAM holds the code that must run from RAM: WiFi,
+  the Bluetooth controller (33 KB), FreeRTOS, flash, heap, sleep — all
+  Espressif's prebuilt libraries, none of ours. With WiFi + Bluetooth +
+  deep sleep the Feather build overflowed by **104 bytes**, so each ESP32
+  build dropped one feature (`PM_NO_SLEEP` on the DevKit, `PM_NO_BLE` on
+  the Feather). Colin asked for an audit instead. The map showed the
+  only elective IRAM was the strip driver: Adafruit_NeoPixel goes through
+  the Arduino core's `esp32-hal-rmt.c`, which links the RMT **receive**
+  driver (523 B), a copy encoder (248 B) and carrier code a strip never
+  uses. `pm_ws2812.{h,cpp}` drives WS2812 straight on the IDF `rmt_tx`
+  bytes encoder (hardware timing, no bit-banging) — NeoPixel is gone
+  from `lib_deps`, and **every build now carries every feature**; the
+  DevKit sleeps on battery too. ⚠ Strip timing (0.4/0.85, 0.8/0.45 µs at
+  10 MHz) is unverified on a real strip — bench-check a WS2812 before
+  relying on it. The `PM_NO_BLE` / `PM_NO_SLEEP` flags remain as escape
+  hatches if IRAM fills again; `firmware.map` says who grew.
 - **The real lever (winter, not before the freeze):** pioarduino's
   `custom_sdkconfig` rebuilds the Arduino libs with `CONFIG_PM_ENABLE`,
   `CONFIG_FREERTOS_USE_TICKLESS_IDLE` (and `CONFIG_BT_LE_SLEEP_ENABLE` on

@@ -38,8 +38,8 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const nameOf = (node: string) => entries[node]?.hello?.name || node;
   // Any board but the bridge can send (its radio already shares USB and the mesh).
   const candidates = known.filter((e) => !e.hello!.bridge).map((e) => e.node).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-  // Built without Bluetooth (the HUZZAH32: on the ESP32, Bluetooth and deep
-  // sleep don't both fit). Older firmware doesn't say — assume it can.
+  // Built without Bluetooth (-DPM_NO_BLE; no shipped build since 2026-10-11,
+  // when pm_ws2812 made room in IRAM). Older firmware doesn't say — assume it can.
   const noBle = (n: string) => entries[n]?.hello?.ble === false;
   const onBattery = (n: string) => entries[n]?.hello?.power === "battery";
   const canSearch = candidates.filter((n) => !noBle(n));
@@ -211,7 +211,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
             {dead.length > 0 && (<>
               {bat.length > 0 && " "}
               <b style={{ color: C.amber }}>{dead.map(nameOf).join(", ")} {dead.length === 1 ? "has" : "have"} no Bluetooth</b> in {dead.length === 1 ? "its" : "their"} firmware
-              (on the ESP32, Bluetooth and deep sleep don't both fit), so {dead.length === 1 ? "it" : "they"} can't reach the lights — untick to tidy up.
+              — a build from before 2026-10-11, when the Feather image had no room for it. Update {dead.length === 1 ? "it" : "them"} and {dead.length === 1 ? "it" : "they"} can send; until then, untick to tidy up.
             </>)}
           </div>
         );

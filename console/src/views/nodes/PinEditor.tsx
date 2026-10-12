@@ -276,7 +276,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
       )}
       {loaded && !draft.bridge && draft.power === "battery" && (
         hello.sleeps === false
-          ? <div style={{ padding: "0 16px 12px", ...sys(500, 12, C.amber) }}>This board's firmware is a mains build (Bluetooth floods, no deep sleep): on battery it stops relaying for others, but it won't sleep. The Feather build sleeps.</div>
+          ? <div style={{ padding: "0 16px 12px", ...sys(500, 12, C.amber) }}>This board's firmware can't deep-sleep (a build from before 2026-10-11, when DevKit images left sleep out): on battery it stops relaying for others, but it won't sleep. Update it and it will.</div>
           : <SleepSettings draft={draft} setDraft={setDraft} />
       )}
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
