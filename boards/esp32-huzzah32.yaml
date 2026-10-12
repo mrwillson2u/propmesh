@@ -10,6 +10,18 @@
 # and a battery-voltage divider, so it stands in for the battery Mini's
 # story (leaf node, sleep discipline) on a board you can buy today.
 #
+# ⚠ Battery life, as bought: the CP2104 USB-serial chip runs from the
+# 3.3 V rail, so it is powered on battery too, and with no USB host its
+# D− line floats and it never enters USB suspend — ~6.5 mA around the
+# clock, deep sleep included (pantaluna's HUZZAH32 notes; TvE's blog,
+# 2018). FIX: a pull-down resistor from USB D− to GND (the CP2104's D−
+# pin, or the D− pad of the micro-USB connector) puts it in suspend;
+# TvE measured the whole board at ~200–250 µA afterwards. He did not
+# give the value — 10–100 kΩ is the usual range, and the resistor must
+# not stop USB working when a host IS attached (a host drives D−, so a
+# weak pull-down is harmless). Confirm with the meter before and after.
+# The Feather V2 (ESP32-PICO) has no such chip and sits at ~420 µA.
+#
 # Sources: Adafruit HUZZAH32 pinout page (learn.adafruit.com/adafruit-huzzah32-esp32-feather/pinouts),
 # ESP32 datasheet §2.2 / §2.4. ⚠ VERIFY against the silkscreen of the board
 # in hand before trusting a pin: Feather labels (A0…A5, SCK, MO, MI) map to

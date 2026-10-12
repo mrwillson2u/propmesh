@@ -1,5 +1,5 @@
 // Small shared pieces from the handoff's component sheet.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { C, MONO } from "./lib/tokens";
 
 export function Logo({ size = 24 }: { size?: number }) {
@@ -38,6 +38,30 @@ export function Toggle({ on, small, onClick }: { on: boolean; small?: boolean; o
         position: "absolute", top: 3, width: k, height: k, borderRadius: "50%",
         ...(on ? { right: 3, background: C.onEmber } : { left: 3, background: C.t5 }),
       }} />
+    </div>
+  );
+}
+
+// A yes/no question in front of everything. Click outside or Cancel to say no.
+export function Confirm({ title, children, okLabel = "OK", onOk, onCancel }: {
+  title: string; children: ReactNode; okLabel?: string; onOk: () => void; onCancel: () => void;
+}) {
+  const b = (primary: boolean): CSSProperties => ({
+    height: 30, padding: "0 14px", borderRadius: 6, cursor: "pointer",
+    background: primary ? C.ember : C.card,
+    border: `1px solid ${primary ? C.ember : C.b2}`, ...sys(600, 12, primary ? C.onEmber : C.t2),
+  });
+  return (
+    <div onClick={onCancel} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ width: 460, maxWidth: "90vw", background: C.panel, border: `1px solid ${C.b2}`, borderRadius: 10, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12, boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}>
+        <div style={sys(700, 14, C.t1)}>{title}</div>
+        <div style={{ ...sys(400, 12.5, C.t3), lineHeight: 1.55 }}>{children}</div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={b(false)}>Cancel</button>
+          <button onClick={onOk} style={b(true)}>{okLabel}</button>
+        </div>
+      </div>
     </div>
   );
 }

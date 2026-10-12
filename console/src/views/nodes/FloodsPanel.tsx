@@ -3,7 +3,7 @@
 // choose which boards send. lib/floods.ts holds the model.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Spinner, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, Spinner, mono, sys } from "../../ui";
 import { deriveFloods, mismatched, syncFloods, type FloodsState } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
@@ -32,6 +32,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const [finding, setFinding] = useState(false);
   const [from, setFrom] = useState<string | null>(null);
   const [values, setValues] = useState<Record<number, number>>({});
+  const [askTick, setAskTick] = useState<string | null>(null); // ticking a battery board: say what it costs first
 
   const known = Object.values(entries).filter((e) => e.hello);
   const nameOf = (node: string) => entries[node]?.hello?.name || node;
@@ -134,7 +135,8 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
       });
   };
 
-  const toggleSender = (n: string) => {
+  const toggleSender = (n: string, confirmed = false) => {
+    if (!confirmed && !curSenders.includes(n) && onBattery(n)) { setAskTick(n); return; }
     const cur = new Set(curSenders);
     if (cur.has(n)) cur.delete(n); else cur.add(n);
     setSenders([...cur].sort());
@@ -151,6 +153,18 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
         {dirty && <button onClick={() => void save()} disabled={busy} style={btn(true, busy)}>{busy ? "Saving…" : "Save to boards"}</button>}
       </div>
       {msg && <div style={mono(600, 11.5, msg.bad ? C.red : C.green)}>{msg.bad ? "✕ " : "✓ "}{msg.text}</div>}
+      {askTick && (
+        <Confirm title={`${nameOf(askTick)} is on battery`} okLabel="Tick it anyway" onCancel={() => setAskTick(null)}
+          onOk={() => { const n = askTick; setAskTick(null); toggleSender(n, true); }}>
+          It will send to the floods, but only while awake: during the show it hears commands in short listen windows, so a
+          change can reach the lights up to one listen interval late
+          ({entries[askTick]?.hb?.listen ? `about ${(entries[askTick].hb!.listen! / 1000).toFixed(1)} s` : "typically a second"}), and while
+          the show is off it is in deep sleep and sends nothing.
+          {" "}{curSenders.some((n) => !onBattery(n) && !noBle(n))
+            ? "A mains-powered board is also ticked, so the lights still change on time."
+            : "No mains-powered board is ticked: the floods will lag, and won't change while the show is off."}
+        </Confirm>
+      )}
       <div style={{ padding: "9px 12px", borderRadius: 7, background: C.card, border: `1px solid ${C.b2}`, ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
         <b style={{ color: C.amber }}>The lights never answer.</b> BRMesh only goes one way, so there is no way to tell whether a light is
         powered, in range, or actually showing what you set. The colors here are what your boards <b>last sent</b> (they remember it

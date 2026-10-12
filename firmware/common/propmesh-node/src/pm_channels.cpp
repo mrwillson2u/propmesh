@@ -1,6 +1,8 @@
 #include "pm_config_store.h"
 #include <Arduino.h>
+#ifndef PM_NO_STRIP
 #include <Adafruit_NeoPixel.h>
+#endif
 #include "pm_channels.h"
 #include "pm_motion.h"
 #include "pm_ramp.h"
@@ -24,7 +26,9 @@ struct Runtime {
   PmMotion motion;      // SERVO with smoothing: where it actually is now
   bool moving;
   PmRamp ramp;          // a sequence ramp in progress (SERVO / LED / MOTOR)
+#ifndef PM_NO_STRIP
   Adafruit_NeoPixel *strip;
+#endif
   bool raw;             // last sampled input level (active = true)
   uint32_t changed_ms;  // when `raw` last differed from `value`
 };
@@ -82,11 +86,13 @@ static void release(const PmChannelCfg &c, Runtime &r) {
       for (uint8_t p = 0; p < c.pin_count; p++) ledcDetach(c.pins[p]);
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
+#ifndef PM_NO_STRIP
       if (r.strip) {
         r.strip->clear();
         r.strip->show();
         delete r.strip;
       }
+#endif
       break;
   }
   for (uint8_t p = 0; p < c.pin_count; p++) pinMode(c.pins[p], INPUT);
@@ -119,9 +125,13 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       }
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
+#ifdef PM_NO_STRIP
+      ok = false;  // this build has no strip driver (the validator refuses it first)
+#else
       r.strip = new Adafruit_NeoPixel(c.pixels, c.pins[0], NEO_GRB + NEO_KHZ800);
       r.strip->begin();
       r.strip->show();
+#endif
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       // No pin. The light keeps whatever it was showing until commanded.
@@ -157,8 +167,10 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
     // Color fades (2026-10-07: a flood fade computed perfectly here and
     // sent nothing — these two cases were missing).
     case PM_CHANNEL_KIND_LED_STRIP:
+#ifndef PM_NO_STRIP
       r.strip->fill((uint32_t)v & 0xFFFFFF);
       r.strip->show();
+#endif
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);
@@ -198,8 +210,10 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
       ledcWrite(c.pins[1], v < 0 ? pm_duty(-v, MOTOR_BITS) : 0);
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
+#ifndef PM_NO_STRIP
       r.strip->fill((uint32_t)v & 0xFFFFFF);
       r.strip->show();
+#endif
       break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);  // 0xWWRRGGBB, W 0–127

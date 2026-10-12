@@ -4,7 +4,7 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
   EMPTY_CONFIG, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, newChannel, pinRole,
@@ -65,6 +65,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nodeIssues, setNodeIssues] = useState<Issue[] | null>(null); // the node's verdict on the last save
+  const [askBattery, setAskBattery] = useState(false); // "this board sends to the floods" check
 
   const issues = useMemo(() => validate(board, draft), [board, draft]);
   const hasErrors = issues.some((i) => i.error);
@@ -213,7 +214,11 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         {!draft.bridge && (
           <label title="On a battery this board is a leaf: it never relays for others, so losing it costs the mesh nothing. (Sleeping between triggers comes next.)"
             style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.power === "battery" ? C.amber : C.t3) }}>
-            <Toggle small on={draft.power === "battery"} onClick={() => setDraft((d) => ({ ...d, power: d.power === "battery" ? "mains" : "battery" }))} /> On battery
+            <Toggle small on={draft.power === "battery"} onClick={() => {
+              // Going on battery on a flood sender: say what it costs first.
+              if (draft.power !== "battery" && draft.brmesh_key && hello.ble !== false) setAskBattery(true);
+              else setDraft((d) => ({ ...d, power: d.power === "battery" ? "mains" : "battery" }));
+            }} /> On battery
           </label>
         )}
         <div style={{ flex: 1 }} />
@@ -226,6 +231,15 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         {!applied.bridge && <button onClick={allOff} style={btn()}>All off</button>}
       </div>
 
+      {askBattery && (
+        <Confirm title="This board sends to the floods" okLabel="Put it on battery" onCancel={() => setAskBattery(false)}
+          onOk={() => { setAskBattery(false); setDraft((d) => ({ ...d, power: "battery" })); }}>
+          On battery it still sends, but only while awake: during the show it hears commands in short listen windows, so a
+          flood change can reach the lights up to one listen interval late (about {((draft.sleep?.interval_ms ?? 1000) / 1000).toFixed(1)} s with
+          the current settings), and while the show is off it is in deep sleep and sends nothing.
+          {" "}Keep a mains-powered board ticked in the Floods tab so the lights change on time.
+        </Confirm>
+      )}
       {(error || shown.length > 0 || advice.length > 0) && (
         <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 4 }}>
           {error && <div style={mono(600, 11.5, C.red)}>✕ {error}</div>}
