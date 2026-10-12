@@ -971,6 +971,24 @@ The board from the lantern fire test, as a third profile:
   reconnects on every wake — on battery, talk to it over the mesh
   instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;
   if the port isn't found, hold BOOT while plugging in.
+- **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
+  Bluetooth stack doesn't change sleep: on battery the off tier is deep
+  sleep (radio off, Bluetooth included) and battery boards don't drive
+  floods. The limit on both chips is the prebuilt Arduino SDK:
+  `CONFIG_PM_ENABLE` off (no automatic light sleep between ESP-NOW
+  listen windows, so the CPU stays up in the show tier) and on the C6
+  also `CONFIG_BT_LE_SLEEP_ENABLE` off. What differs is the board: no
+  USB bridge chip, so the deep-sleep floor is the regulator plus the
+  SuperMini's always-on **power LED** and the **RGB pixel on GPIO 8**
+  (~1 mA quiescent) — likely ~1–3 mA as bought, tens of µA with both
+  removed. Measure.
+- **The real lever (winter, not before the freeze):** pioarduino's
+  `custom_sdkconfig` rebuilds the Arduino libs with `CONFIG_PM_ENABLE`,
+  `CONFIG_FREERTOS_USE_TICKLESS_IDLE` (and `CONFIG_BT_LE_SLEEP_ENABLE` on
+  the C6), so the chip light-sleeps between listen windows instead of
+  idling in modem sleep. Costs: a slow first build, PWM outputs
+  (servo/LED/motor) need a PM lock while active or they glitch, and the
+  USB console drops while the chip sleeps. Applies to the ESP32 too.
 - **Bench test (to do):** flash, Connect in the console, confirm the
   profile shows 22 pins with 0–7 marked wake-capable; assign 8 = LED_STRIP
   (1 pixel) and 15 = LED and test-fire; tick the C6 as a flood sender and
