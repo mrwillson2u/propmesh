@@ -33,7 +33,7 @@ const ICONS: Record<Tool | "undo", ReactNode> = {
   undo: <Icon d="M6 3.5 L3 6.5 L6 9.5 M3 6.5 H10 A3 3 0 0 1 10 12.5 H7" />,
 };
 const TOOLS: { id: Tool; name: string; title: string }[] = [
-  { id: "select", name: "Select", title: "Select — drag boards and shapes; drag a corner to reshape, drag a midpoint to add a corner, double-click a corner to remove it. Drag empty ground to pan." },
+  { id: "select", name: "Select", title: "Select — drag a shape to move it, drag an edge to push it out (it stays straight), drag a corner to reshape; double-click an edge to add a corner there, double-click a corner to remove it. Drag empty ground to pan." },
   { id: "area", name: "Area", title: "Area — a building, bed or lawn: click its corners, then click the first corner (or double-click) to close it" },
   { id: "path", name: "Walkway", title: "Walkway — a driveway, sidewalk or path: a wide band. Click along it, double-click to finish" },
   { id: "line", name: "Border", title: "Border — a property line or fence: a thin dashed line. Click along it, double-click to finish" },
@@ -72,7 +72,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   const [draft, setDraft] = useState<Pt[]>([]);
   const [hover, setHover] = useState<Pt | null>(null);
   const [sel, setSel] = useState<string | null>(null);
-  const [drag, setDrag] = useState<{ id: string; vertex: number | null; from: Pt; orig: number[] } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; verts: number[] | null; from: Pt; orig: number[] } | null>(null);
   const history = useRef<YardDoc[]>([]);
   const [undoable, setUndoable] = useState(0);  // history length, so the button re-renders
   const saveT = useRef<ReturnType<typeof setTimeout>>();
@@ -156,7 +156,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     if (drawing) setHover(clampPt({ x: snap(p.x), y: snap(p.y) }));
     if (drag && doc) {
       const dx = snap(p.x - drag.from.x), dy = snap(p.y - drag.from.y);
-      const moved = drag.orig.map((v, i) => (drag.vertex === null || Math.floor(i / 2) === drag.vertex ? v + (i % 2 ? dy : dx) : v));
+      const moved = drag.orig.map((v, i) => (drag.verts === null || drag.verts.includes(Math.floor(i / 2)) ? v + (i % 2 ? dy : dx) : v));
       setDoc({ ...doc, shapes: doc.shapes.map((s) => (s.id === drag.id ? { ...s, pts: moved.map((v, i) => Math.max(0, Math.min(i % 2 ? MAP_H : MAP_W, v))) } : s)) });
     }
   };
@@ -176,7 +176,9 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     }
   };
 
-  const startDrag = (e: React.PointerEvent, s: Shape, vertex: number | null) => {
+  // Start moving a whole shape (verts null), one corner ([i]) or one edge
+  // ([i, j] — both ends together, so the edge stays straight: push a wall out).
+  const startDrag = (e: React.PointerEvent, s: Shape, verts: number[] | null) => {
     e.stopPropagation();
     if (tool === "erase" && doc) { commit({ ...doc, shapes: doc.shapes.filter((x) => x.id !== s.id) }); return; }
     if (tool !== "select" || !doc) return;
@@ -184,24 +186,32 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     setSel(s.id);
     history.current = [...history.current.slice(-29), doc];
     setUndoable(history.current.length);
-    setDrag({ id: s.id, vertex, from: toMap(svgRef.current, e.clientX, e.clientY), orig: [...s.pts] });
+    setDrag({ id: s.id, verts, from: toMap(svgRef.current, e.clientX, e.clientY), orig: [...s.pts] });
   };
-  // Drag a midpoint handle: a new corner appears there and follows the pointer.
-  const startInsert = (e: React.PointerEvent, s: Shape, after: number) => {
+  // Double-click an edge: a new corner right there (on the edge, snapped),
+  // which then drags like any other.
+  const insertOnEdge = (e: React.MouseEvent, s: Shape, i: number) => {
     e.stopPropagation();
     if (tool !== "select" || !doc) return;
     const ps = pts(s);
-    const a = ps[after], b = ps[(after + 1) % ps.length];
-    const mid = { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2) };
-    const next = [...ps.slice(0, after + 1), mid, ...ps.slice(after + 1)];
-    const shape = { ...s, pts: flat(next) };
-    history.current = [...history.current.slice(-29), doc];
-    setUndoable(history.current.length);
-    const nd = { ...doc, shapes: doc.shapes.map((x) => (x.id === s.id ? shape : x)) };
-    docRef.current = nd;
-    setDoc(nd);
-    (e.target as Element).setPointerCapture?.(e.pointerId);
-    setDrag({ id: s.id, vertex: after + 1, from: toMap(svgRef.current, e.clientX, e.clientY), orig: [...shape.pts] });
+    const a = ps[i], b = ps[(i + 1) % ps.length];
+    const p = toMap(svgRef.current, e.clientX, e.clientY);
+    const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1;
+    const t = Math.max(0.05, Math.min(0.95, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2));
+    const q = { x: snap(a.x + t * (b.x - a.x)), y: snap(a.y + t * (b.y - a.y)) };
+    update(s.id, { pts: flat([...ps.slice(0, i + 1), q, ...ps.slice(i + 1)]) });
+    setSel(s.id);
+  };
+  // The edges of a shape, each grabbable on its own (Select tool).
+  const edgeHits = (s: Shape, closed: boolean) => {
+    if (tool !== "select") return null;
+    const ps = pts(s);
+    const n = closed ? ps.length : ps.length - 1;
+    return Array.from({ length: n }, (_, i) => {
+      const a = ps[i], b = ps[(i + 1) % ps.length];
+      return <line key={`e${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="12" strokeLinecap="round"
+        style={{ cursor: "move" }} onPointerDown={(e) => startDrag(e, s, [i, (i + 1) % ps.length])} onDoubleClick={(e) => insertOnEdge(e, s, i)} />;
+    });
   };
   // Double-click a corner to remove it (an area keeps 3, a line 2).
   const removeVertex = (s: Shape, i: number) => {
@@ -235,6 +245,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
         return (
           <g key={s.id} onPointerDown={(e) => startDrag(e, s, null)} style={{ cursor: tool === "erase" ? "not-allowed" : tool === "select" ? "move" : undefined }}>
             <polyline points={ps.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color ? s.color : on ? "#2c3240" : "#22262d"} strokeWidth={s.w ?? 16} strokeLinejoin="round" strokeLinecap="round" opacity={on ? 1 : 0.9} />
+            {edgeHits(s, false)}
             {s.label && m && <text x={m.x} y={m.y + 4} textAnchor="middle" fontFamily={MONO} fontSize="11" fill={C.t5} style={{ pointerEvents: "none" }}>{s.label}</text>}
           </g>
         );
@@ -244,8 +255,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
         return (
           <g key={s.id} onPointerDown={(e) => startDrag(e, s, null)} style={{ cursor: tool === "erase" ? "not-allowed" : tool === "select" ? "move" : undefined }}>
             <polygon points={ps.map((p) => `${p.x},${p.y}`).join(" ")} fill={s.color ?? C.card} stroke={on ? C.t3 : C.wire} strokeWidth="1.5" />
-            {/* the edge itself is grabbable, not just the inside */}
-            <polygon points={ps.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="transparent" strokeWidth="10" />
+            {edgeHits(s, true)}
             {s.label && <text x={c.x} y={c.y + 4} textAnchor="middle" fontFamily={MONO} fontSize="12" letterSpacing="1.5" fill={C.t5} style={{ pointerEvents: "none" }}>{s.label.toUpperCase()}</text>}
           </g>
         );
@@ -254,30 +264,17 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
         const ps = pts(s), m = midOf(ps), on = s.id === sel;
         return (
           <g key={s.id} onPointerDown={(e) => startDrag(e, s, null)} style={{ cursor: tool === "erase" ? "not-allowed" : tool === "select" ? "move" : undefined }}>
-            <polyline points={ps.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="transparent" strokeWidth="12" />
             <polyline points={ps.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke={s.color ?? (on ? C.t4 : C.b3)} strokeWidth="1.5" strokeDasharray="7 6" />
+            {edgeHits(s, false)}
             {s.label && m && <text x={m.x} y={m.y - 6} textAnchor="middle" fontFamily={MONO} fontSize="11" fill={C.t5} style={{ pointerEvents: "none" }}>{s.label}</text>}
           </g>
         );
       })}
-      {/* the selected shape's corners, and a midpoint on each edge that adds one */}
-      {selected && tool === "select" && (() => {
-        const ps = pts(selected);
-        const edges = selected.kind === "area" ? ps.length : ps.length - 1;
-        return (
-          <>
-            {Array.from({ length: edges }, (_, i) => {
-              const a = ps[i], b = ps[(i + 1) % ps.length];
-              return <circle key={`m${i}`} cx={(a.x + b.x) / 2} cy={(a.y + b.y) / 2} r={3.5} fill={C.bg} stroke={C.t4} strokeWidth="1.2" style={{ cursor: "copy" }}
-                onPointerDown={(e) => startInsert(e, selected, i)} />;
-            })}
-            {ps.map((p, i) => (
-              <rect key={i} x={p.x - 4} y={p.y - 4} width={8} height={8} fill={C.bg} stroke={C.ember} strokeWidth="1.5" style={{ cursor: "crosshair" }}
-                onPointerDown={(e) => startDrag(e, selected, i)} onDoubleClick={(e) => { e.stopPropagation(); removeVertex(selected, i); }} />
-            ))}
-          </>
-        );
-      })()}
+      {/* the selected shape's corners */}
+      {selected && tool === "select" && pts(selected).map((p, i) => (
+        <rect key={i} x={p.x - 4} y={p.y - 4} width={8} height={8} fill={C.bg} stroke={C.ember} strokeWidth="1.5" style={{ cursor: "crosshair" }}
+          onPointerDown={(e) => startDrag(e, selected, [i])} onDoubleClick={(e) => { e.stopPropagation(); removeVertex(selected, i); }} />
+      ))}
       {/* the drawing in progress */}
       {drawing && draft.length > 0 && (
         <g style={{ pointerEvents: "none" }}>

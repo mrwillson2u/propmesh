@@ -151,7 +151,8 @@ export default function RealYard({ onOpenNode, onConnect }: {
   onConnect: () => void;
 }) {
   const conn = useConnection();
-  const [layout, setLayout] = useState<Layout>("topology");
+  // ?layout=map deep-links the Map, as it does for the design preview.
+  const [layout, setLayout] = useState<Layout>(() => new URLSearchParams(location.search).get("layout")?.toLowerCase() === "map" ? "map" : "topology");
   const [sel, setSel] = useState<string | null>(null);
   const [showLinks, setShowLinks] = useState(true);
   const [, bump] = useState(0); // re-render after a drag saves a position
