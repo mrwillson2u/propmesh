@@ -445,7 +445,7 @@ reflash) is a later option. Bundle size is checked in CI.
 2. **Nodes & channels**: name nodes, map logical channels to props,
    test-fire any output, edit node settings, trigger OTA.
 3. **Show Graph** *(v1 — restored 2026-09-02)*: **the trigger-wiring
-   layer.** Trigger nodes (sensors, time, sACN, manual) → logic nodes
+   layer.** *Sections decided 2026-10-12 — see "Console sections" below.* Trigger nodes (sensors, time, sACN, manual) → logic nodes
    (delay, random, cooldown, lockout, group) → **action nodes, where an
    action is a reference to a sequence** authored in the Timeline. A
    one-PIR show is a two-node graph; the same editor scales to fan-out,
@@ -464,6 +464,39 @@ reflash) is a later option. Bundle size is checked in CI.
    Gilderfluke, xLights). Simple first: blocks and numbers, no curve
    editor. Every track type carries a **pre-roll offset** for
    slow-starting targets (video players, fog machines, pneumatics).
+
+#### Console sections (decided 2026-10-12)
+
+The October build conflated two jobs in one "Cues" view: authoring
+sequences (the Timeline) and wiring triggers (a flat rule list) — half
+of what the Show Graph is for. Colin: *"the timeline editor should be a
+sequence editor … then the graph view and triggers should be in another
+section by themselves where the logic can be chained together."* So:
+
+| Section | Job | Holds |
+|---|---|---|
+| **Yard** | see the mesh | topology / map, node detail |
+| **Nodes & Channels** | configure boards | pins, settings, floods, firmware |
+| **Sequences** | orchestrate predefined sequences of outputs | the Timeline editor, step list, Play / test, ambient loop |
+| **Show** | wire triggers and logic into a show | the Show Graph (React Flow) with the trigger list as its row view; Schedule; the mode buttons |
+
+"Cues" is no longer a section. The word keeps its one precise meaning:
+the mesh message a node broadcasts to start a sequence.
+
+**Rule model, before the canvas:** a rule becomes *trigger → chain of
+logic (delay, random pick, lockout, fan-out, chaining from a sequence's
+end) → actions*. All of it is local to the sensor's node, so the
+execution model is unchanged: the node evaluates and broadcasts cues.
+The row view can edit it before any canvas exists; the graph is then
+the editor for the same model.
+
+**React Flow first** (decided 2026-10-12): the design is the expensive
+part; the renderer is swappable. The graph model stays in our own types
+with React Flow as the view only, and styling in our tokens, so a later
+port to an SVG canvas (if the bridge-served console needs the ~150 KB
+back) replaces one component. The bridge may instead serve a lighter
+show-night build (Yard, STOP ALL, mode) with the full editor laptop-
+served.
 
 #### Timeline — implementation approach (decided 2026-09-05)
 
@@ -598,7 +631,12 @@ Sep 2026, field season Oct 2026, Mini v0.1 Nov–Dec, launch Sep 2027.
 | **Mar–Apr 2027** | sACN ingress + xLights smoke test; Nodes & Channels view; Cues view; mesh OTA | v0.2 |
 | **May–Jun 2027** | Hardening for beta: Mini sleep current, sync accuracy, OTA reliability; fogger profile end-to-end; beta ships | beta fleet |
 | **Jul–Aug 2027** | Beta feedback loop; docs; Blueprint view if time allows; promo season | beta fleet |
-| **Sep 2027** | Ship. Console v2 features (graph editor) are post-ship | ship |
+| **Sep 2027** | Ship. | ship |
+
+**Revised 2026-10-12:** the Pro v0.1 PCB slips to after Halloween 2026;
+the 2026 show runs on dev boards with the generic-board firmware, and
+the software freeze is dropped — the Show Graph and the richer rule
+model move into October–November, on the yard as a test bed.
 
 **De-scope line (protect the ship date):** v1 ships without Blueprint
 drawing tools, Node-RED nodes, ESPHome, MQTT, BRMesh adapter (*built
