@@ -28,6 +28,13 @@ const CAPS = { out: "output", in: "input", pullup: "pull-up", pulldown: "pull-do
 const SHORT = { RELAY: "relay", LED: "LED", SERVO: "servo", MOTOR: "motor", LED_STRIP: "strip", SPI_STRIP: "strip", DIGITAL_IN: "sensor" };
 const TIER = { good: "✅ good", caution: "⚠️ caution", reserved: "⛔ reserved" };
 const fnLabel = (k) => fns[k]?.label ?? k;
+// How far each board has been tried on real hardware (boards/*.yaml `status`).
+const STATUS = {
+  tested: { badge: "✅ Tested", aside: "tip", title: "Tested on real hardware" },
+  partial: { badge: "🟡 Partly tested", aside: "note", title: "Partly tested" },
+  untested: { badge: "🧪 Not yet tried", aside: "caution", title: "Not yet tried on real hardware" },
+};
+const status = (b) => STATUS[b.status] ?? STATUS.untested;
 const esc = (s) => String(s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
 const x = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
@@ -72,6 +79,7 @@ function boardPage(b) {
     "---", "",
     "{/* GENERATED from boards/" + b.id + ".yaml by website/scripts/gen-boards.mjs — edit the yaml, not this file. */}", "");
   L.push("import { Aside, Badge } from '@astrojs/starlight/components';", "");
+  L.push(`<Aside type="${status(b).aside}" title="${status(b).title}">${b.status_note ?? "No bench report yet."}</Aside>`, "");
   L.push(`| | |`, `|---|---|`,
     `| **Chip** | ${esc(b.mcu)} |`,
     `| **Dimmers, servos & motors** | ${b.ledc_channels} PWM channels (a motor takes 2) |`,
@@ -110,16 +118,23 @@ function indexPage() {
   const L = ["---", "title: Choosing a board", "description: The boards PropMesh runs on today, side by side.", "sidebar:", "  order: 0", "---", "",
     "{/* GENERATED from boards/*.yaml by website/scripts/gen-boards.mjs. */}", "",
     "PropMesh runs on inexpensive ESP32 development boards. Every board below runs the **same firmware features** — the mesh, triggers, LED strips and fire, Bluetooth flood lights, updates over the air — and you can mix them in one show.", "",
-    "| Board | Chip | PWM channels | LED strips | Battery | Pick it if… |", "|---|---|---|---|---|---|"];
+    "| Board | Status | Chip | PWM channels | LED strips | Battery | Pick it if… |", "|---|---|---|---|---|---|---|"];
   const why = {
     "esp32-devkit-v1": "you want the easy default: cheap, everywhere, lots of pins.",
     "esp32-huzzah32": "the prop runs on a battery — it has a LiPo charger built in.",
     "esp32-c6-supermini": "you need it tiny, or a battery prop with a very low sleep current.",
   };
-  for (const b of boards) L.push(`| [${b.name}](/propmesh/boards/${b.id}/) | ${esc(b.mcu)} | ${b.ledc_channels} | ${b.rmt_tx_channels} | ${b.battery ? "built in" : "external"} | ${why[b.id] ?? ""} |`);
+  for (const b of boards) L.push(`| [${b.name}](/propmesh/boards/${b.id}/) | ${status(b).badge} | ${esc(b.mcu)} | ${b.ledc_channels} | ${b.rmt_tx_channels} | ${b.battery ? "built in" : "external"} | ${why[b.id] ?? ""} |`);
   L.push("", "**Not sure? Get an ESP32 DevKit V1.** It's the board everything is tested on first.", "",
+    "**Status** is honest about where each board stands: *tested* boards run the project's own yard; *partly tested* ones work, with some features still waiting for a bench test; *not yet tried* means the firmware is built but nobody has run it on that board yet — early adopters welcome.", "",
     "One board in every show is the **bridge**: it stays plugged into your computer or on WiFi and connects the console to all the others. Any board can be the bridge — it's a switch in the console.", "",
-    "Using a board that isn't listed? It needs a profile — a short file describing what each pin can do. See [Contributing](/propmesh/contribute/).");
+    "## Coming later: PropMesh's own boards", "",
+    "Dev boards on a breadboard work — this year's show runs on them — but they were never meant to live in a wet yard. Two purpose-built PropMesh boards are being designed, aiming for the 2027 season:", "",
+    "- **PropMesh Pro** — the big one for a prop that does everything: runs from a 12–30 V supply, screw terminals for field wiring, sockets for stepper drivers, plenty of servo and LED outputs, relays, sound, and the level shifting and protection already on the board.",
+    "- **PropMesh Mini** — small and battery-powered, for a prop with no cable: sleeps between shows, stores its own sounds, and fits inside the prop.", "",
+    "Both run the same firmware and console as the boards above, so a show you build now carries over. Designs are open (CERN-OHL-S) and in the [repository](https://github.com/mrwillson2u/propmesh/tree/dev/hardware); the details will land here when the first boards have been built and tested.", "",
+    "## More boards are coming", "",
+    "This list will grow. Want a board that isn't here? [Request it on GitHub](https://github.com/mrwillson2u/propmesh/issues/new?template=board-request.yml) — say which board and what you'd use it for, and it helps decide what comes next. Comfortable describing its pins yourself? A board only needs a *profile*, a short file saying what each pin can do — see [Contributing](/propmesh/contribute/).");
   return L.join("\n");
 }
 
