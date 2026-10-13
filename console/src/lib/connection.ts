@@ -5,7 +5,7 @@
 // same list), and so a view switch or a dev hot reload can't close the
 // port. Only Disconnect, an unplug, or leaving the page ends it.
 import { useSyncExternalStore } from "react";
-import { target, type Heartbeat, type NodeHello, type NodeLink } from "./transport";
+import { target, type Heartbeat, type NodeHello, type NodeLink, editStamp } from "./transport";
 import { clockBody, type Mode } from "./schedule";
 
 // A node not heard for three heartbeats is shown as missing.
@@ -288,6 +288,7 @@ export function showState(c: Connection | null) {
 async function everyNode(cmd: string, body: Record<string, unknown> = {}): Promise<string[]> {
   const c = current;
   if (!c) return [];
+  body = { at: editStamp(), ...body };  // one stamp for every board's copy
   const results = await Promise.all(Object.values(c.entries).map((n) =>
     target(c.link, n.usb ? null : n.node).request(cmd, body)
       .then((r) => (r.ok ? null : n.node))

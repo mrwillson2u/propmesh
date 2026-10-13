@@ -2,6 +2,7 @@
 // arms at dusk, goes lights-only, and switches off for the neighbors.
 // Every board gets the same copy and decides for itself on its own
 // clock, so the show keeps time with no laptop attached.
+import { isAway } from "../../lib/show";
 import { useEffect, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys } from "../../ui";
@@ -116,8 +117,19 @@ export default function SchedulePanel({ conn, onSaved }: { conn: Connection; onS
     const clean: Schedule = { ...sched, windows: sched.windows.map((w) => ({ ...w, start: w.start.trim(), end: w.end.trim() })) };
     const failed = await saveSchedule(conn.link, boards, clean);
     setBusy(null);
-    if (failed.length) {
-      setMsg({ text: `Not saved on ${failed.map((f) => `${conn.entries[f.node]?.hello?.name || f.node} (${f.error})`).join("; ")}`, bad: true });
+    const nm = (n: string) => conn.entries[n]?.hello?.name || n;
+    // A board that didn't answer takes the schedule from the conductor when
+    // it's back (docs §6k) — as long as one board, the conductor's copy, has it.
+    const away = failed.filter((f) => isAway(f.error));
+    const refused = failed.filter((f) => !isAway(f.error));
+    if (refused.length || away.length === boards.length) {
+      setMsg({ text: `Not saved on ${failed.map((f) => `${nm(f.node)} (${f.error})`).join("; ")}`, bad: true });
+      return;
+    }
+    if (away.length) {
+      setSched(clean);
+      setSaved(JSON.stringify(clean));
+      setMsg({ text: `Saved. ${away.map((f) => nm(f.node)).join(", ")} didn't answer — ${away.length === 1 ? "it takes" : "they take"} the schedule from the mesh when back.` });
       return;
     }
     setSched(clean);

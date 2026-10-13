@@ -23,6 +23,7 @@
 #include "pm_pinrules.h"
 #include "pm_show.h"
 #include "pm_lastwords.h"
+#include "pm_sync.h"
 
 #ifndef PM_CHANNEL
 #define PM_CHANNEL 1
@@ -205,6 +206,7 @@ void setup() {
   pm_on_input(on_input);
   pm_node_apply(cfg);
   pm_show_begin();
+  pm_sync_begin();
   pm_sleep_after_boot(cfg);  // a sensor woke us: run its triggers
 
   char id[9];
@@ -304,6 +306,7 @@ void loop() {
   pm_channels_loop();
   pm_show_loop();
   if (!mesh_up) return;
+  pm_sync_loop();
   confirm_image();
   pm_ota_loop();
   pm_wifi_loop();

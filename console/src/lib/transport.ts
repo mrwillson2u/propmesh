@@ -39,6 +39,8 @@ export interface NodeHello {
   up_s?: number; // seconds since that restart
   // What went wrong before that restart, saved to flash (firmware 2026-10-12+).
   last?: { what: string; detail?: string; up_s?: number; utc_s?: number };
+  // Which edits of the mesh-wide documents this board holds (firmware pm_sync, docs §6k).
+  sync?: { sched_at: number; mode_at: number; show_synced: number; floods_at: number };
 }
 
 // A heartbeat heard on the mesh, as the USB node reports it.
@@ -85,8 +87,20 @@ export interface NodeLink extends NodeTarget {
 }
 
 // Requests for `node` through `link`; null = the USB node itself.
+// Writes of mesh-wide documents carry the moment they were made ("at", UTC
+// seconds): every board keeps the newest and the conductor's beacon brings
+// the rest up to date (firmware pm_sync, docs §6k). Callers that write the
+// same thing to several boards stamp it ONCE (editStamp) so the copies match;
+// this is the fallback for a single write.
+const STAMPED = new Set(["set_schedule", "set_mode", "arm", "set_sequence", "delete_sequence", "set_rules", "set_config"]);
+export const editStamp = () => Math.floor(Date.now() / 1000);
 export function target(link: NodeLink, node: string | null): NodeTarget {
-  return { request: (cmd, body = {}) => link.request(cmd, node ? { ...body, node } : body) };
+  return {
+    request: (cmd, body = {}) => {
+      const b = STAMPED.has(cmd) && body.at === undefined ? { ...body, at: editStamp() } : body;
+      return link.request(cmd, node ? { ...b, node } : b);
+    },
+  };
 }
 
 class Listeners<T> {

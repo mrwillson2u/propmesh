@@ -12,6 +12,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_show.h"
 #include "pm_ble_tx.h"
 #include "pm_lastwords.h"
+#include "pm_sync.h"
 
 static const pm_board_t *board;
 
@@ -72,6 +73,7 @@ static void cmd_hello(JsonObject resp) {
   resp["reset"] = pm_reset_reason();
   resp["up_s"] = millis() / 1000;
   if (pm_lastwords_any()) pm_lastwords_to_json(resp["last"].to<JsonObject>());
+  pm_sync_status(resp["sync"].to<JsonObject>());  // which edits of the mesh-wide documents it holds (docs §6k)
   resp["board"] = board->id;
   if (pm_channels_config().battery) {
     resp["power"] = "battery";
@@ -100,6 +102,7 @@ static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
   if (issues.errors) return fail(resp, "invalid config");
   if (!pm_store_save(cfg)) return fail(resp, "could not save to flash");
   if (!pm_node_apply(cfg)) return fail(resp, "saved, but a pin failed to start");
+  pm_sync_config_saved(req);
 }
 
 static void cmd_set(JsonObjectConst req, JsonObject resp) {
@@ -387,5 +390,6 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     resp["last_status"] = b.last_status;
     resp["last_opcode"] = b.last_opcode;
   }
+  else if (pm_sync_handle(cmd, req, resp)) {}
   else if (!pm_show_handle(cmd, req, resp)) fail(resp, "unknown command");
 }

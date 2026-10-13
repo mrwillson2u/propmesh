@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, Spinner, mono, sys } from "../../ui";
+import { isAway } from "../../lib/show";
 import { deriveFloods, mismatched, syncFloods, type FloodsState } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
@@ -102,7 +103,13 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
     setMsg(null);
     try {
       const r = await syncFloods(link, entries, { ...st, lights }, curSenders, keyFrom);
-      if (r.failed.length) setMsg({ text: r.failed.map((f) => `${nameOf(f.node)}: ${f.error}`).join(" · "), bad: true });
+      // Through a bridge, a sender that didn't answer pulls the key and lights
+      // from it when back (docs §6k); anything else is a real failure.
+      const away = link && (entries[Object.keys(entries).find((n) => entries[n].usb) ?? ""]?.hello?.bridge)
+        ? r.failed.filter((f) => isAway(f.error)) : [];
+      const real = r.failed.filter((f) => !away.includes(f));
+      if (real.length) setMsg({ text: real.map((f) => `${nameOf(f.node)}: ${f.error}`).join(" · "), bad: true });
+      else if (away.length) setMsg({ text: `Saved. ${away.map((f) => nameOf(f.node)).join(", ")} didn't answer — the bridge kept the floods and ${away.length === 1 ? "it picks" : "they pick"} them up when back.` });
       else setMsg({ text: curSenders.length ? `Saved to ${curSenders.map(nameOf).join(", ")}` : "Saved — no board is sending" });
       revert();
       await load();

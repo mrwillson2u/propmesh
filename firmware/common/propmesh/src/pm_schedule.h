@@ -170,6 +170,8 @@ class PmModeKeeper {
   // not worked out yet). A STOP ALL must survive a reboot (2026-10-10).
   void restore(uint8_t mode, int64_t until) { m_manual = mode; m_has = true; m_until = until; }
   uint8_t manual_mode() const { return m_manual; }
+  // The conductor's hold ended (or was replaced by the schedule): follow it.
+  void clear() { m_has = false; m_until = 0; }
 
   // `ev` is ignored unless `scheduled` (schedule active AND clock valid).
   uint8_t update(bool scheduled, const PmSchedEval &ev, int64_t utc_s, uint16_t max_min) {

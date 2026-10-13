@@ -118,6 +118,17 @@ messages:
       - {name: tz_offset_min, type: i16, note: "local − UTC now, minutes (−240 = EDT)"}
       - {name: tz_next_change_s, type: u32, note: "UTC s of the next UTC-offset change (DST); 0 = none known"}
       - {name: tz_next_offset_min, type: i16, note: "the offset from then on"}
+      # The show follows the conductor (docs/generic-boards.md §6k, 2026-10-12):
+      # every mesh-wide document carries the UTC second it was edited, the
+      # conductor beacons those stamps, and a board that is behind pulls the
+      # newer copy from it. A board that joins, wakes or was out of range
+      # catches up by itself; nothing has to be online when the console saves.
+      - {name: mode_manual, type: u8, note: "a mode set by hand (STOP ALL, Off/Ambient/Armed) the conductor is holding: PmMode, 0xFF = none. Followers apply the newest (mode_at), so STOP ALL reaches a board that missed it"}
+      - {name: mode_at, type: u32, note: "UTC s that mode was set (the console's clock); 0 = none ever"}
+      - {name: mode_until, type: u32, note: "UTC s the hold ends; 0 = not worked out yet"}
+      - {name: sched_at, type: u32, note: "UTC s the schedule was last edited; a follower with an older one pulls it (pull_schedule)"}
+      - {name: show_at, type: u32, note: "UTC s of the newest sequence/trigger edit the conductor holds for ANY board; a follower that hasn't synced since pulls its own part (pull_index / pull_seq / pull_rules)"}
+      - {name: floods_at, type: u32, note: "UTC s the floods key / light list last changed; a sending board (holds a key) with an older copy pulls it (pull_floods)"}
 
   Cue:
     type: CUE

@@ -1135,6 +1135,82 @@ the instruments to catch it next time, and a self-heal.
   `unheard_s` say what happened, and if the detector fired the board
   will already have healed itself and said so.
 
+## 6k. The show follows the conductor (2026-10-12)
+
+**Why:** the Feather joined after the schedule was saved, never got it,
+and sat in a stale manual "armed" all night — so it never slept. Each
+board held its own copy of every mesh-wide document and only the console
+wrote them, one board at a time; a board that was asleep, rebooting or
+out of range missed the write (or a STOP ALL) and nothing ever retried.
+
+**Model (Colin's):** mesh-wide state vs. per-node state.
+
+| Mesh-wide — follows the conductor | Per node — stays on the board |
+|---|---|
+| Schedule (+ location, time zone) | Pin assignments, channels |
+| Mode held by hand / STOP ALL | Name |
+| Each board's part of the sequences and triggers | Battery / sleep settings |
+| Floods key + light list (sending boards) | Bridge WiFi |
+
+**Edit stamps, newest wins.** Every mesh-wide document carries the UTC
+second it was edited — stamped once per edit by the console
+(`editStamp()`, the same `at` on every board's copy). Not a counter: a
+counter resets with the board that holds it (a replaced or reflashed
+bridge would restart at 0 and every node would think itself ahead),
+while a timestamp is monotonic across reboots and owners, is comparable
+between boards, means something ("saved 09:41"), and lasts to 2106.
+Every `set_*` handler ignores an `at` older than what it holds
+(`"stale": true`), so no late, retried or replayed request can undo a
+newer edit. No clock anywhere (`at` 0) applies as before.
+
+**How it moves:**
+- The conductor's time beacon (every second while a battery board
+  listens, else every 5 s) carries `mode_manual/mode_at/mode_until`,
+  `sched_at`, `show_at`, `floods_at` (schema `Time`).
+- **Mode** comes straight from the beacon: a follower takes a newer hold
+  (or its end) with no request. STOP ALL still goes to every board at
+  once; the beacon is the backstop that reaches the ones that missed it.
+- **Schedule:** a follower behind sends `get_schedule` to the conductor.
+- **Sequences + triggers:** the **bridge** keeps a copy of every
+  `set_sequence` / `delete_sequence` (a tombstone, so a deletion reaches
+  a board that was away) / `set_rules` the console sends any board
+  (`/m/<node>_*.json`). A board whose `show_synced` is behind the beacon's
+  `show_at` asks `pull_index` for its own part and fetches what's newer
+  (`pull_seq`, `pull_rules`). Unknown-to-the-bridge parts are never
+  deleted — a replaced bridge starts with an empty copy and loses nothing.
+- **Floods:** the bridge keeps the key + light list from any sender's
+  `set_config`, only when they actually change (editing one board's pins
+  must not restart every sender's outputs). A board holding a key with an
+  older copy pulls it (`pull_floods`); one that already matches only takes
+  the stamp.
+- **Ahead of the conductor** (the bridge was replaced, or missed the
+  console's write): a follower pushes its newer mode or schedule to the
+  conductor, and the rest of the mesh follows from there.
+- Battery boards hold themselves awake 20 s while a pull is in flight;
+  a board waking for its check-in catches up in that window.
+- A mesh **without a bridge** still shares schedule and mode through
+  whichever board is conductor; sequences/triggers/floods then stay as
+  each board holds them (nothing to heal from).
+- Schedules saved before stamps count as edited at 1 — the oldest — so a
+  board with none pulls one, and any real edit beats it.
+- `hello.sync` shows each board's stamps: `sched_at`, `mode_at`,
+  `show_synced`, `floods_at`.
+
+**Bench, 2026-10-12** (bridge, Prop, Feather): the Feather pulled the
+schedule within a minute of booting. Mode set on the bridge alone: Prop
+followed in 1.6 s, the Feather at once. Schedule re-saved on the bridge
+alone: Prop pulled it in 4.8 s. Prop's copy of a sequence deleted behind
+the bridge's back came back by itself 3.2 s after the next show change.
+Floods copy created from Prop's config; Prop took the stamp without a
+rewrite. **Lesson on the way:** a 4 KB static buffer in pm_sync left
+FreeRTOS no heap for its timer task and the ESP32 builds boot-looped
+(`assert failed: vApplicationGetTimerTaskMemory`) — static RAM must stay
+≤ ~95.7 KB; transient buffers go on the heap.
+
+**Bench test still to do (needs Colin):** unplug a board, edit and save a
+sequence that uses it in the console (the save reports it unreachable),
+plug it back in — it should have the edit within seconds.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

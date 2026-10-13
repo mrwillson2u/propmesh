@@ -6,7 +6,7 @@
 // pseudo-node, FLOODS, next to the real boards. docs/generic-boards.md §6a-ii.
 import type { Entry } from "./connection";
 import { EMPTY_CONFIG, type ChannelCfg, type NodeConfig } from "./nodeConfig";
-import { target, type NodeLink } from "./transport";
+import { editStamp, target, type NodeLink } from "./transport";
 
 export const FLOODS = "floods";
 export const FLOODS_NAME = "Floods";
@@ -60,6 +60,7 @@ export async function syncFloods(
   const key = keyFrom ? st.keys[keyFrom] : st.key;
   const failed: SyncResult["failed"] = [];
   const nodes = new Set([...senders, ...st.senders]);
+  const at = editStamp();  // one edit, one stamp on every sender's copy
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
     if (!en) { failed.push({ node, error: "not on the mesh right now" }); return; }
@@ -77,7 +78,7 @@ export async function syncFloods(
       } else {
         delete next.brmesh_key;
       }
-      const w = await t.request("set_config", { config: next });
+      const w = await t.request("set_config", { config: next, at });
       if (!w.ok) throw new Error(w.error ?? "refused");
     } catch (e) {
       failed.push({ node, error: (e as Error).message });

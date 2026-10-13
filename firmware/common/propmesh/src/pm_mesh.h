@@ -58,6 +58,18 @@ void pm_mesh_set_channel(uint8_t ch);
 // runs. Also sets the channel back to `ch`.
 bool pm_mesh_recover(uint8_t ch);
 
+// The show's stamps (schema Time, docs §6k): the conductor beacons its
+// own; followers get the conductor's in the callback and pull what is
+// newer than theirs (pm_show.cpp).
+typedef struct {
+  uint8_t mode_manual;  // PmMode or 0xFF = no hold
+  uint32_t mode_at, mode_until, sched_at, show_at, floods_at;
+} pm_show_stamps_t;
+void pm_mesh_set_stamps(const pm_show_stamps_t &s);
+// Called (from the mesh receive path — keep it quick) with the stamps of
+// each beacon from the conductor this node follows.
+void pm_mesh_on_stamps(void (*cb)(uint32_t conductor, const pm_show_stamps_t &s));
+
 // "Nobody hears me": how long this node has been hearing neighbors'
 // heartbeats while none of them lists it as a neighbor — i.e. its own
 // frames aren't getting out. 0 = fine, or nothing to judge by (no

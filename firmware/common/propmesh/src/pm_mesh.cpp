@@ -48,6 +48,10 @@ static uint32_t s_stale_ms = PM_SYNC_STALE_MS;
 // pm_mesh_unheard_ms(): when a neighbor last listed us, when a neighbor that
 // could have (mains, room in its list) last spoke, and when judging began.
 static uint32_t s_echo_ms, s_judge_ms, s_judge_since_ms;
+static pm_show_stamps_t s_stamps = {0xFF, 0, 0, 0, 0, 0};
+static void (*s_stamps_cb)(uint32_t, const pm_show_stamps_t &);
+void pm_mesh_set_stamps(const pm_show_stamps_t &s) { s_stamps = s; }
+void pm_mesh_on_stamps(void (*cb)(uint32_t, const pm_show_stamps_t &)) { s_stamps_cb = cb; }
 
 static void note_leaf(uint32_t id, uint16_t listen_ms, uint32_t now_ms) {
   int at = -1, oldest = 0;
@@ -200,6 +204,11 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
     if (!(s_role & PM_NODE_ROLE_CONDUCTOR) && t.conductor_id == s_clock.conductor()) {
       if (t.wall_flags & 1) s_wall.set_utc((int64_t)t.wall_ms, local_ms());
       if (t.wall_flags & 2) s_wall.set_tz(t.tz_offset_min, t.tz_next_change_s, t.tz_next_offset_min);
+      // The show's stamps: only a full-length beacon carries them.
+      if (plen >= sizeof(pm_time_t) && s_stamps_cb) {
+        pm_show_stamps_t st = {t.mode_manual, t.mode_at, t.mode_until, t.sched_at, t.show_at, t.floods_at};
+        s_stamps_cb(t.conductor_id, st);
+      }
     }
   }
 
@@ -417,6 +426,12 @@ void pm_mesh_loop() {
       t.tz_next_change_s = s_wall.tz_next_s;
       t.tz_next_offset_min = s_wall.tz_next_min;
     }
+    t.mode_manual = s_stamps.mode_manual;
+    t.mode_at = s_stamps.mode_at;
+    t.mode_until = s_stamps.mode_until;
+    t.sched_at = s_stamps.sched_at;
+    t.show_at = s_stamps.show_at;
+    t.floods_at = s_stamps.floods_at;
     pm_send(PM_MSG_TYPE_TIME, &t, sizeof(t));
   }
 }

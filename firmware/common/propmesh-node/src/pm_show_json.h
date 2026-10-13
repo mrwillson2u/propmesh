@@ -19,6 +19,7 @@ inline const char *pm_sequence_from_json(JsonVariantConst j, PmSequence &out) {
   long loop = j["loop_ms"] | 0L;
   if (loop < 0) return "bad loop_ms";
   out.loop_ms = (uint32_t)loop;
+  out.at = j["at"] | 0UL;
   JsonArrayConst steps = j["steps"];
   if (steps.size() > PM_MAX_STEPS) return "too many steps";
   for (JsonArrayConst st : steps) {
@@ -65,6 +66,7 @@ inline void pm_sequence_to_json(const PmSequence &s, JsonObject j) {
   j["name"] = s.name;
   if (s.ambient) j["ambient"] = true;
   if (s.loop_ms) j["loop_ms"] = s.loop_ms;
+  if (s.at) j["at"] = s.at;
   JsonArray steps = j["steps"].to<JsonArray>();
   for (uint8_t i = 0; i < s.step_count; i++) {
     JsonArray st = steps.add<JsonArray>();
@@ -88,6 +90,7 @@ inline void pm_sequence_summary(const PmSequence &s, JsonObject j) {
   j["length_ms"] = s.length_ms();
   if (s.ambient) j["ambient"] = true;
   if (s.loop_ms) j["loop_ms"] = s.loop_ms;
+  if (s.at) j["at"] = s.at;
 }
 
 inline const char *pm_rules_from_json(JsonArrayConst a, PmRule *out, uint8_t &n) {

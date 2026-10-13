@@ -41,3 +41,16 @@ void pm_show_stop();
 
 // Console API for the show; false if `cmd` isn't a show command.
 bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp);
+
+// --- following the conductor (docs §6k) ------------------------------------
+#include "pm_mesh.h"  // pm_show_stamps_t
+// This board's mode and schedule stamps (show_at / floods_at: pm_sync).
+void pm_show_stamps(pm_show_stamps_t &out);
+// Take the conductor's hold (0xFF = none) if its stamp is newer than ours.
+void pm_show_follow_mode(uint8_t manual, uint32_t at, uint32_t until);
+int64_t pm_show_seq_at(uint16_t id);  // -1 = this board has no part of it
+uint32_t pm_show_rules_at();
+// Bridge only: keep a copy of what the console sends another board
+// (set_sequence / delete_sequence / set_rules / set_config's floods), so
+// that board can pull it later. pm_sync.cpp.
+void pm_show_mirror(uint32_t dst, JsonObjectConst req);
