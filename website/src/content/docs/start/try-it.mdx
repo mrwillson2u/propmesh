@@ -1,25 +1,25 @@
 ---
 title: Try it in your browser
-description: Open the PropMesh console connected to a simulated yard of boards — no hardware, nothing to install.
+description: Open the PropMesh console connected to a simulated yard of boards. No hardware, nothing to install.
 ---
 
 import { Aside, LinkButton } from '@astrojs/starlight/components';
 
-The console has a built-in **simulator**: a pretend bridge with two prop boards behind it. Everything works the way it does with real boards — assign pins, build a sequence, wire a trigger, draw your yard — and nothing you do leaves your browser.
+The console has a built-in **simulator**: a pretend bridge with two prop boards behind it. You can do almost everything you would do with real boards, such as assign pins, build a sequence, wire a trigger and draw your yard, and nothing you do leaves your browser.
 
 <LinkButton href="/propmesh/console/?sim=1" icon="external" iconPlacement="end">Open the console</LinkButton>
 
 ## Things to try
 
-- **Yard** shows the pretend boards and the radio links between them. Switch to **Map** and draw your yard with the tools on the left — drop a tombstone or two.
-- **Nodes & Channels** lists every board. Pick one and give a pin a job — a servo, an LED strip, a sensor — then **Save to node** and drag the test slider.
-- **Sequences** → **+ New sequence**, then **+ Add first track…** for the output you just set up. Double-click the track to add a keyframe, and drag it around — **Live preview** plays it as you edit.
-- **Show** → drag a **⊙ Sensor** block onto the graph, drag a **⚡ Play sequence** block next to it, and connect the dots left to right. Press **▶ sim** on the sensor block to run the chain.
+- **Yard** shows the pretend boards and the radio links between them. Switch to **Map** and draw your yard with the tools on the left. Drop in a tombstone or two.
+- **Nodes & Channels** lists every board. Pick one and give a pin a job (a servo, an LED strip, a sensor), then **Save to node** and drag the test slider.
+- **Sequences**: press **+ New sequence**, then **+ Add first track…** for the output you just set up. Double-click the track to add a keyframe and drag it around. **Live preview** plays it as you edit.
+- **Show**: drag a **⊙ Sensor** block onto the graph, drag a **⚡ Play sequence** block next to it, and connect the dots left to right. Press **▶ sim** on the sensor block to run the chain.
 
 The simulated boards flip their first input every few seconds, so a sensor trigger will fire on its own.
 
 <Aside title="Your work stays in this browser">
-The simulator keeps its boards' settings in your browser's storage. Clear your site data to start over.
+The simulator keeps its boards' settings in your browser's storage. Clear the site's data to start over.
 </Aside>
 
 When you're ready for real hardware: [Your first scare in 15 minutes](/propmesh/start/first-scare/).

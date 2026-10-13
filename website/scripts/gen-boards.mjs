@@ -84,19 +84,19 @@ function boardPage(b) {
     `| **Chip** | ${esc(b.mcu)} |`,
     `| **Dimmers, servos & motors** | ${b.ledc_channels} PWM channels (a motor takes 2) |`,
     `| **LED strips (WS2812)** | up to ${strips} |`,
-    `| **Battery** | ${b.battery ? "built-in LiPo connector and charger — battery level is reported" : "no — power it from USB or a 5 V supply"} |`,
-    `| **Firmware** | \`${b.id}\` — [install it from your browser](/propmesh/start/flash/?board=${b.id}) |`, "");
+    `| **Battery** | ${b.battery ? "built-in LiPo connector and charger; battery level is reported" : "no; power it from USB or a 5 V supply"} |`,
+    `| **Firmware** | \`${b.id}\`, [install it from your browser](/propmesh/start/flash/?board=${b.id}) |`, "");
   L.push("## Pinout", "");
   if (b.header) {
     L.push(`![Pinout of the ${b.name}: each GPIO colored green (good), amber (caution) or red (reserved), labeled with what it's best for](/propmesh/boards/${b.id}.svg)`, "");
-    L.push("Green pins are good for anything they can do. Amber pins work but have a quirk — read the note below before putting a relay or motor on one. Red pins are taken by the board itself. Gray pins are power and control (GND, 3V3, EN…).", "");
+    L.push("Green pins are good for anything they can do. Amber pins work but have a quirk, so read the note below before putting a relay or motor on one. Red pins are taken by the board itself. Gray pins are power and control (GND, 3V3, EN and so on).", "");
   } else {
-    L.push(`<Aside>Different sellers lay this board's pins out in a different order, so there is no drawing here — go by the **GPIO numbers printed on the board** and the table below.</Aside>`, "");
+    L.push(`<Aside>Different sellers lay this board's pins out in a different order, so there is no drawing here. Go by the **GPIO numbers printed on the board** and the table below.</Aside>`, "");
   }
   if (b.pinout_url) L.push(`The seller-style pinout with photos: [${new URL(b.pinout_url).hostname}](${b.pinout_url}).`, "");
 
   L.push("## Which pin for what", "",
-    "The console marks these with ★ when you assign pins. They're advice — any pin that *can* do a job is allowed.", "",
+    "The console marks these with ★ when you assign pins. They are advice. Any pin that *can* do a job is allowed.", "",
     "| To connect… | Use | Why |", "|---|---|---|");
   for (const [k, why] of Object.entries(b.guide ?? {})) {
     const best = b.pins.filter((p) => p.best === k).map((p) => `\`${p.label}\``);
@@ -110,14 +110,14 @@ function boardPage(b) {
     L.push(`| \`${esc(p.label)}\` | ${p.gpio} | ${TIER[p.tier] ?? p.tier} | ${esc(can)} | ${esc(p.note ?? "")} |`);
   }
   L.push("");
-  if (b.battery) L.push(`<Aside title="Battery sense">GPIO ${b.battery.gpio} reads the battery through a ${b.battery.divider}:1 divider. It isn't on a header and can't be assigned — the board reports its battery voltage on its own.</Aside>`, "");
+  if (b.battery) L.push(`<Aside title="Battery sense">GPIO ${b.battery.gpio} reads the battery through a ${b.battery.divider}:1 divider. It isn't on a header and can't be assigned. The board reports its battery voltage on its own.</Aside>`, "");
   return L.join("\n");
 }
 
 function indexPage() {
   const L = ["---", "title: Choosing a board", "description: The boards PropMesh runs on today, side by side.", "sidebar:", "  order: 0", "---", "",
     "{/* GENERATED from boards/*.yaml by website/scripts/gen-boards.mjs. */}", "",
-    "PropMesh runs on inexpensive ESP32 development boards. Every board below runs the **same firmware features** — the mesh, triggers, LED strips and fire, Bluetooth flood lights, updates over the air — and you can mix them in one show.", "",
+    "PropMesh runs on inexpensive ESP32 development boards. Every board below runs the **same firmware features**: the mesh, triggers, LED strips and fire, Bluetooth flood lights, and updates over the air. You can mix them in one show.", "",
     "| Board | Status | Chip | PWM channels | LED strips | Battery | Pick it if… |", "|---|---|---|---|---|---|---|"];
   const why = {
     "esp32-devkit-v1": "you want the easy default: cheap, everywhere, lots of pins.",
@@ -125,16 +125,16 @@ function indexPage() {
     "esp32-c6-supermini": "you need it tiny, or a battery prop with a very low sleep current.",
   };
   for (const b of boards) L.push(`| [${b.name}](/propmesh/boards/${b.id}/) | ${status(b).badge} | ${esc(b.mcu)} | ${b.ledc_channels} | ${b.rmt_tx_channels} | ${b.battery ? "built in" : "external"} | ${why[b.id] ?? ""} |`);
-  L.push("", "**Not sure? Get an ESP32 DevKit V1.** It's the board everything is tested on first.", "",
-    "**Status** is honest about where each board stands: *tested* boards run the project's own yard; *partly tested* ones work, with some features still waiting for a bench test; *not yet tried* means the firmware is built but nobody has run it on that board yet — early adopters welcome.", "",
-    "One board in every show is the **bridge**: it stays plugged into your computer or on WiFi and connects the console to all the others. Any board can be the bridge — it's a switch in the console.", "",
+  L.push("", "**Not sure? Get an ESP32 DevKit V1.** It is the board everything is tested on first.", "",
+    "**Status** says how far each board has been tried. *Tested* boards run the project's own yard. *Partly tested* boards work, with some features still waiting for a bench test. *Not yet tried* means the firmware builds but nobody has run it on that board yet, so if you have one, you would be the first.", "",
+    "One board in every show is the **bridge**. It stays plugged into your computer or on your WiFi and connects the console to all the others. Any board can be the bridge; it is a switch in the console.", "",
     "## Coming later: PropMesh's own boards", "",
-    "Dev boards on a breadboard work — this year's show runs on them — but they were never meant to live in a wet yard. Two purpose-built PropMesh boards are being designed, aiming for the 2027 season:", "",
-    "- **PropMesh Pro** — the big one for a prop that does everything: runs from a 12–30 V supply, screw terminals for field wiring, sockets for stepper drivers, plenty of servo and LED outputs, relays, sound, and the level shifting and protection already on the board.",
-    "- **PropMesh Mini** — small and battery-powered, for a prop with no cable: sleeps between shows, stores its own sounds, and fits inside the prop.", "",
-    "Both run the same firmware and console as the boards above, so a show you build now carries over. Designs are open (CERN-OHL-S) and in the [repository](https://github.com/mrwillson2u/propmesh/tree/dev/hardware); the details will land here when the first boards have been built and tested.", "",
+    "Dev boards on a breadboard work, and this year's show runs on them, but they were never meant to live in a wet yard. Two purpose-built PropMesh boards are being designed, aiming for the 2027 season:", "",
+    "- **PropMesh Pro**: the big one, for a prop that does everything. It runs from a 12 to 30 V supply and has screw terminals for field wiring, sockets for stepper drivers, plenty of servo and LED outputs, relays, sound, and the level shifting and protection built in.",
+    "- **PropMesh Mini**: small and battery-powered, for a prop with no cable. It sleeps between shows, stores its own sounds, and fits inside the prop.", "",
+    "Both run the same firmware and console as the boards above, so a show you build now carries over. The designs are open (CERN-OHL-S) and live in the [repository](https://github.com/mrwillson2u/propmesh/tree/dev/hardware). The details will appear here once the first boards have been built and tested.", "",
     "## More boards are coming", "",
-    "This list will grow. Want a board that isn't here? [Request it on GitHub](https://github.com/mrwillson2u/propmesh/issues/new?template=board-request.yml) — say which board and what you'd use it for, and it helps decide what comes next. Comfortable describing its pins yourself? A board only needs a *profile*, a short file saying what each pin can do — see [Contributing](/propmesh/contribute/).");
+    "This list will grow. Want a board that isn't here? [Request it on GitHub](https://github.com/mrwillson2u/propmesh/issues/new?template=board-request.yml). Say which board and what you would use it for, and it helps decide what comes next. Comfortable describing its pins yourself? A board only needs a *profile*, a short file saying what each pin can do. See [Contributing](/propmesh/contribute/).");
   return L.join("\n");
 }
 

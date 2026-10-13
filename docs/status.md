@@ -41,9 +41,9 @@ Head", Feather):
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
 Branches: work goes to `dev` by PR; `main` takes PRs from `dev` only and
-publishes the site. Open: **PR #8** (beta notice, board status, Pro/Mini
-teaser, board-request form) → `dev`; site text goes live on the next
-`dev` → `main`.
+publishes the site. The site text was audited and rewritten 2026-10-13
+([`site-audit-2026-10-13.md`](site-audit-2026-10-13.md)); it goes live
+on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
@@ -80,6 +80,9 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
   fix the text.
 - **README board table is stale** (Mini listed as C3 + microSD; it's an
   ESP32-S3-WROOM-1U-N16R2 with audio in flash — CLAUDE.md).
+- **Console's Firmware panel says "About six minutes a board"** for mesh
+  updates; measured 3.5 min since the 921600 baud change (generic-boards
+  §6c). Site audit 2026-10-13 lists the other small ones.
 - **`software-plan.md` §8 milestones** describe the original plan (real
   stack as winter work); most of it was pulled into October. The table is
   history; this file is current.
