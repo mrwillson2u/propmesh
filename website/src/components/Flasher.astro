@@ -11,7 +11,7 @@ const boards = readdirSync(join(root, "boards"))
   .filter((f) => f.endsWith(".yaml") && f !== "functions.yaml")
   .map((f) => parse(readFileSync(join(root, "boards", f), "utf8")))
   .sort((a, b) => a.name.localeCompare(b.name))
-  .map((b) => ({ id: b.id, name: b.name, built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
+  .map((b) => ({ id: b.id, name: b.name + (b.status === "untested" ? " (not yet tried)" : b.status === "partial" ? " (partly tested)" : ""), built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const first = boards.find((b) => b.id === "esp32-devkit-v1") ?? boards[0];
 const anyBuilt = boards.some((b) => b.built);
@@ -37,7 +37,7 @@ const anyBuilt = boards.some((b) => b.built);
     Already running PropMesh? Download the <a id="pm-update-link" href={`${base}/firmware/${first.id}/propmesh-${first.id}-update.bin`} download>update file</a> instead and <a href={`${base}/help/updating/`}>send it over the air</a>.
   </p>
   <p id="pm-missing" class="warn" hidden={first.built}>
-    {anyBuilt ? "There's no firmware for this board on the site yet." : "Firmware files are added when the site is published — this local preview has none."}
+    {anyBuilt ? "There's no firmware for this board on the site yet." : "Firmware files are added when the site is published. This local preview has none."}
   </p>
 </div>
 

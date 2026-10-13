@@ -7,7 +7,11 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Addressable LED strips are the fastest way to make a prop look alive: glowing eyes, a lantern that flickers, a cauldron that bubbles green.
+Addressable LED strips are the quickest way to make a prop look alive: glowing eyes, a lantern that flickers, a cauldron that bubbles green.
+
+<Aside type="caution" title="Not yet tested on a real strip">
+The strip driver was rewritten in October 2026, and the clocked-strip support and the fire effect are new. None of the three has been run on a real strip yet, only on the bench without one. If your strip stays dark or shows the wrong colors, please [report it](https://github.com/mrwillson2u/propmesh/issues) with the strip type and board.
+</Aside>
 
 ## Which strip?
 
@@ -16,7 +20,7 @@ Addressable LED strips are the fastest way to make a prop look alive: glowing ey
 | **WS2812B** (often sold as "NeoPixel") | one data wire | **LED strip (WS2812)** |
 | **SK9822** or **APA102** ("DotStar") | data **and** clock | **LED strip (SK9822 / APA102, clocked)** |
 
-Either is fine. WS2812 is cheaper and everywhere; the clocked kind is more forgiving about timing and long wires. Each board page lists how many strips it can run (the DevKit V1: up to 8 WS2812 strips).
+Either kind works. WS2812 is cheaper and easier to find. The clocked kind is more forgiving about timing and long wires. Each board page says how many strips it can run. The DevKit V1 can run up to 8 WS2812 strips.
 
 ## Wiring
 
@@ -27,35 +31,35 @@ Power supply GND ──┬─────────── strip GND
 Board pin ── level shifter ──── strip DIN  (and CLK for a clocked strip)
 ```
 
-1. **Power the strip from its own 5 V supply**, not from the board. A pixel at full white draws about 60 mA, so 30 pixels can want nearly 2 A — far more than a USB port or the board's regulator can give.
-2. **Join the grounds.** The supply's GND, the strip's GND and the board's GND all connect. A strip that flickers randomly is very often a missing ground.
-3. **Use a level shifter on the data line.** The board speaks 3.3 V; a 5 V strip expects close to 5 V. It often works without one — until it's cold, or the wire is long, and then it flickers. A **74AHCT125** (or the one-channel **74AHCT1G125**) fixes it for under a dollar.
+1. **Power the strip from its own 5 V supply**, not from the board. A pixel at full white draws about 60 mA, so 30 pixels can want nearly 2 A. That is far more than a USB port or the board's regulator can give.
+2. **Join the grounds.** The supply's GND, the strip's GND and the board's GND all connect together. A strip that flickers at random very often has a missing ground.
+3. **Use a level shifter on the data line.** The board's signal is 3.3 V and a 5 V strip expects close to 5 V. It often works without one, until the night is cold or the wire is long, and then it flickers. A **74AHCT125** (or the one-channel **74AHCT1G125**) fixes it for under a dollar.
 
-<Aside type="tip" title="The small extras that prevent headaches">
-A **330 Ω resistor** in series with the data line, close to the strip, and a **1000 µF capacitor** across 5 V and GND where power enters the strip. Both are cheap insurance.
+<Aside type="tip" title="Two small extras that prevent headaches">
+A **330 Ω resistor** in series with the data line, close to the strip, and a **1000 µF capacitor** across 5 V and GND where the power enters the strip.
 </Aside>
 
 ## Setting it up in the console
 
 Assign the pin to **LED strip (WS2812)** and set:
 
-- **pixels** — how many LEDs on the strip (up to 300).
-- **order** — the color order: try **GRB** first (most WS2812). If red shows as green, switch to **RGB**.
-- **effect** — **solid color** or **fire**.
+- **pixels**: how many LEDs are on the strip (up to 300).
+- **order**: the color order. Try **GRB** first, which most WS2812 strips use. If red shows up as green, switch to **RGB**.
+- **effect**: **solid color** or **fire**.
 
-**Save to node**, then use the color picker in the TEST column. A solid strip takes any color in a sequence; **Off** turns it dark.
+**Save to node**, then use the color picker in the TEST column. In a sequence, a solid strip takes any color, and **Off** turns it dark.
 
 ## The fire effect
 
-Set **effect** to **fire** for a flame that never repeats — great in lanterns, jack-o'-lanterns and torches. The **FIRE** settings shape it:
+Set **effect** to **fire** for a flame that never repeats. It suits lanterns, jack-o'-lanterns and torches. The **FIRE** settings shape it:
 
 | Setting | What it changes |
 |---|---|
-| **columns**, **height**, **zigzag** | how your strip is arranged — a single strip is 1 column; a strip folded into a grid has several, and *zigzag* means every other row runs backwards |
+| **columns**, **height**, **zigzag** | how your strip is arranged. A single strip is 1 column. A strip folded into a grid has several, and *zigzag* means every other row runs backwards. |
 | **brightness**, **speed** | how bright and how lively |
 | **flame**, **noise** | how tall and how ragged the flames are |
 | **smoke**, **smoke speed**, **smoke scale** | the darker, drifting layer on top |
 
-In the TEST column a fire strip has **Burn** and **Out**; in a sequence, any value but zero means burning.
+In the TEST column a fire strip has **Burn** and **Out**. In a sequence, any value other than zero means burning.
 
 <Aside>The fire effect is a port of the "Fire2023" example from the FastLED project.</Aside>

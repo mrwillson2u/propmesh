@@ -1,9 +1,12 @@
 ---
 title: PropMesh
-description: Wireless control for Halloween and holiday props — cheap ESP32 boards, one show, no wires between them.
+description: Wireless control for Halloween and holiday props. Inexpensive ESP32 boards, one show, no wires between them.
 template: splash
+banner:
+  content: |
+    PropMesh is in <strong>beta</strong> and changing quickly. Expect rough edges, and <a href="/propmesh/start/what-is-propmesh/#its-in-beta">read what that means</a> before you plan a show around it.
 hero:
-  tagline: Make your whole yard jump at once. Cheap ESP32 boards hidden in your props talk to each other by radio, so a sensor at the gate can set off a skeleton by the porch — no wires across the lawn, no internet needed.
+  tagline: Small radio boards hidden in your props talk to each other, so a sensor at the gate can set off a skeleton by the porch. No wires across the lawn, and no internet needed.
   image:
     file: ../../assets/logo.svg
   actions:
@@ -21,26 +24,26 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid>
 	<Card title="Props that react" icon="rocket">
-		A motion sensor sees someone coming; a skull's eyes light up, a coffin lid rattles and the fog machine kicks on — on different boards, in sync.
+		A motion sensor sees someone coming. A skull's eyes light up, a coffin lid rattles and the fog machine starts, each on its own board, all on the same cue.
 	</Card>
 	<Card title="Lights that set the mood" icon="star">
-		LED strips with a flickering fire effect, dimmable lanterns, and cheap Bluetooth flood lights — all part of the same show.
+		LED strips with a flickering fire effect, dimmable lanterns and inexpensive Bluetooth flood lights, all run from the same show.
 	</Card>
 	<Card title="A show that runs itself" icon="seti:clock">
-		Set it to come on at dusk and switch off at bedtime. One big **STOP ALL** button when you need it.
+		Set it to come on at dusk and go quiet at bedtime. There is a **STOP ALL** button for when you need everything off right now.
 	</Card>
 	<Card title="No wires between props" icon="random">
-		Boards pass messages along to each other, so the far corner of the yard works even where your WiFi doesn't reach.
+		Boards pass messages along to each other, so a prop in the far corner of the yard works even where your WiFi doesn't reach.
 	</Card>
 </CardGrid>
 
 ## What you need
 
-- **ESP32 boards** — about $5–10 each. [Which one?](/propmesh/boards/)
-- **A computer with Chrome or Edge** to set things up. Everything happens in a web page; there's nothing to install.
+- **ESP32 boards**, about $5 to $10 each. [Which one?](/propmesh/boards/)
+- **A computer with Chrome or Edge** for setup. Everything happens in a web page, so there is nothing to install.
 - Whatever your props already use: servos, LED strips, relays, motion sensors.
 
-No soldering is required to get started, and no programming at all.
+You don't need to solder to get started, and you don't need to write any code.
 
 ## Where to next
 
@@ -51,4 +54,4 @@ No soldering is required to get started, and no programming at all.
 	<LinkCard title="Build a show" description="Sequences, triggers, schedules and the yard map." href="/propmesh/show/sequences/" />
 </CardGrid>
 
-PropMesh is free and open source, made for the home-haunt and holiday-display community. [Come help.](/propmesh/contribute/)
+PropMesh is free and open source, made by and for the home haunt and holiday display community. It is in beta, so leave yourself time to test. If something goes wrong or a page here is unclear, [open an issue](https://github.com/mrwillson2u/propmesh/issues) or [come help](/propmesh/contribute/).
