@@ -1,0 +1,38 @@
+name: Board request
+description: Ask for PropMesh to support a board it doesn't run on yet.
+title: "Board request: "
+labels: ["board request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! A board needs a *profile* — a short file saying what each pin can do — before PropMesh can run on it. The more of this you can fill in, the sooner it can happen.
+  - type: input
+    id: board
+    attributes:
+      label: Board name
+      description: As the seller lists it.
+      placeholder: e.g. Seeed XIAO ESP32-S3
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Where to buy it, or the maker's page
+      description: A link to a pinout diagram is especially helpful.
+  - type: input
+    id: chip
+    attributes:
+      label: Chip, if you know it
+      placeholder: e.g. ESP32-S3, ESP32-C3, ESP32 (WROOM-32)
+  - type: textarea
+    id: why
+    attributes:
+      label: What would you use it for?
+      description: Tiny prop, battery prop, lots of servos… This helps decide which boards come first.
+  - type: checkboxes
+    id: own
+    attributes:
+      label: Can you help test?
+      options:
+        - label: I have this board and can try a test build.

@@ -8,6 +8,10 @@ import Flasher from '../../../components/Flasher.astro';
 
 Every board needs the PropMesh firmware once. After that, updates go out over the air from the console.
 
+<Aside type="note" title="Beta firmware">
+PropMesh is in active development, so this is beta firmware: it's what the project runs, but [your mileage may vary](/propmesh/start/what-is-propmesh/#its-in-beta). Installing it replaces whatever the board was running before.
+</Aside>
+
 <Flasher />
 
 When you press **Install PropMesh**, the browser asks which USB device to use — pick the one that appears when you plug the board in (often named **CP210x**, **CH340** or **USB JTAG/serial**). Installing takes about a minute. Then [connect to it from the console](/propmesh/start/first-scare/#3-connect-the-console).

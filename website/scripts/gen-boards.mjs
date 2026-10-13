@@ -119,7 +119,8 @@ function indexPage() {
   for (const b of boards) L.push(`| [${b.name}](/propmesh/boards/${b.id}/) | ${esc(b.mcu)} | ${b.ledc_channels} | ${b.rmt_tx_channels} | ${b.battery ? "built in" : "external"} | ${why[b.id] ?? ""} |`);
   L.push("", "**Not sure? Get an ESP32 DevKit V1.** It's the board everything is tested on first.", "",
     "One board in every show is the **bridge**: it stays plugged into your computer or on WiFi and connects the console to all the others. Any board can be the bridge — it's a switch in the console.", "",
-    "Using a board that isn't listed? It needs a profile — a short file describing what each pin can do. See [Contributing](/propmesh/contribute/).");
+    "## More boards are coming", "",
+    "This list will grow. Want a board that isn't here? [Request it on GitHub](https://github.com/mrwillson2u/propmesh/issues/new?template=board-request.yml) — say which board and what you'd use it for, and it helps decide what comes next. Comfortable describing its pins yourself? A board only needs a *profile*, a short file saying what each pin can do — see [Contributing](/propmesh/contribute/).");
   return L.join("\n");
 }
 
