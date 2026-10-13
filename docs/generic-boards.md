@@ -368,7 +368,7 @@ name lights, test colors (sent to every sender), forget a light. Saving
 writes the same key and the same `BLE_LIGHT` channels (index = light
 number) to every ticked board and strips them from unticked ones. A
 board's own page no longer shows its flood lights, only a pointer to the
-tab. In Cues the floods are one pseudo-node, **Floods**: `loadShow`
+tab. In Sequences the floods are one pseudo-node, **Floods**: `loadShow`
 collapses each sender's copy of a flood step to one and hides the boards'
 `BLE_LIGHT` channels; `saveSequence` writes a flood step into every
 sender's part; live sliders fan out to every sender. If two boards hold
@@ -539,7 +539,7 @@ with it. The zoom is remembered per browser (Fit until you zoom);
 another sequence opens at its start, same zoom. Not yet: bezier handles
 (easing presets only), audio tracks.
 
-**Console → Cues.** Sequences list; step editor (time, board, output,
+**Console → Sequences** (the "Cues" view until 2026-10-12). Sequences list; step editor (time, board, output,
 value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, color for
 strips — and a *Test* button per step; with *Live preview* on (default)
 dragging a servo, LED or strip value moves the real output, coalesced
@@ -777,7 +777,7 @@ schedule` / `waiting for the clock`), `clock`, `scheduled`, `utc_s`,
 change. Sequences gain `ambient` and `loop_ms` (the console sends one
 show-wide period to every part).
 
-**Console → Cues:** header shows the mode (ARMED / AMBIENT / OFF /
+**Console → Show:** header shows the mode (ARMED / AMBIENT / OFF /
 MIXED) with why and the next change ("next: Ambient at 21:30 · sunset
 18:28"); Off / Ambient / Armed buttons; **Schedule…** opens the editor
 (location typed or *Use this device's location*, today's sunrise/
@@ -793,7 +793,7 @@ their clocks). Sequence editor: *Ambient loop* toggle + "every N s".
 **Bench test (Stage 3b)** — two boards on the shelf, one sequence
 marked Ambient loop (an LED on, 5 s loop), one PIR trigger:
 1. Flash both (frame format changed — every node must match).
-2. Console → Cues → Schedule…: your location; set row 1 to start
+2. Console → Show → Schedule…: your location; set row 1 to start
    2 minutes from now; Save. Header: OFF, "next: Armed at …".
 3. At that minute both go ARMED, the LED loop starts on both boards
    together, the PIR fires its sequence.
