@@ -12,7 +12,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'PropMesh',
-			description: 'Wireless control for Halloween and holiday props — cheap ESP32 boards, one show, no wires between them.',
+			description: 'Wireless control for Halloween and holiday props. Inexpensive ESP32 boards, one show, no wires between them.',
 			logo: { src: './src/assets/logo.svg' },
 			favicon: '/favicon.svg',
 			customCss: ['./src/styles/theme.css'],

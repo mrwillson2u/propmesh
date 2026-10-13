@@ -1,47 +1,47 @@
 ---
 title: Triggers
-description: Wire sensors to sequences — delays, cooldowns, random picks and chains, on a graph or as a list.
+description: Wire sensors to sequences, with delays, cooldowns, random picks and chains, on a graph or as a list.
 sidebar:
   order: 2
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Triggers decide **when** sequences play: *when the gate sensor sees someone, wait half a second, play the skeleton.* You build them in **Show**, as a graph of blocks wired left to right — or, if you prefer, as a plain list.
+Triggers decide **when** sequences play: *when the gate sensor sees someone, wait half a second, then play the skeleton.* You build them in **Show** as a graph of blocks wired left to right, or as a plain list if you prefer.
 
 ## The blocks
 
 | Block | What it does |
 |---|---|
 | **⊙ Sensor** | starts the chain when a sensor **becomes active** (or **becomes clear**) |
-| **≡ After a sequence** | starts the chain when another sequence **starts** or **ends** — for chains of scares |
+| **≡ After a sequence** | starts the chain when another sequence **starts** or **ends**, for chaining scares together |
 | **⏱ Delay** | waits before what follows |
-| **❄ Cooldown** | after firing, ignores the trigger for a while — so one visitor doesn't set it off ten times |
-| **⛔ Lockout** | at most N times per M minutes — a scare that can't run all night |
-| **⚄ Random pick** | plays *one* of the sequences wired after it, at random |
+| **❄ Cooldown** | after firing, ignores the trigger for a while, so one visitor doesn't set it off ten times |
+| **⛔ Lockout** | at most N times per M minutes, for a scare that shouldn't run all night |
+| **⚄ Random pick** | plays *one* of the sequences wired after it, chosen at random |
 | **⚡ Play sequence** | plays a sequence |
 
 ## Building a chain
 
-Drag blocks from the palette onto the canvas (or click them). Drag from the dot on a block's right side to the dot on the next block's left. A chain starts with a trigger (**Sensor** or **After a sequence**), may pass through any logic blocks, and ends in one or more **Play sequence** blocks.
+Drag blocks from the palette onto the canvas, or click them. Then drag from the dot on a block's right side to the dot on the next block's left side. A chain starts with a trigger (**Sensor** or **After a sequence**), can pass through any of the logic blocks, and ends in one or more **Play sequence** blocks.
 
-A block that isn't part of a complete chain shows **UNWIRED** — it won't do anything until it's connected.
+A block that isn't part of a complete chain shows **UNWIRED**. It does nothing until it is connected.
 
-Press **Save triggers** to send them to the boards.
+Press **Save triggers** to send the chains to the boards.
 
-### Ideas
+### Some patterns
 
 - **Fan out**: one sensor wired to three **Play sequence** blocks plays all three together.
 - **Keep it fresh**: sensor → **Random pick** → three different scares.
-- **Chain scares**: an **After a sequence** block on "Skeleton pops up", set to **ends**, → "Floods flash red".
-- **Be kind to neighbors**: a **Lockout** of 20 per 60 minutes on the loudest scare.
+- **Chain scares**: an **After a sequence** block on "Skeleton pops up", set to **ends**, wired to "Floods flash red".
+- **Spare the neighbors**: a **Lockout** of 20 per 60 minutes on the loudest scare.
 
 ## Testing without walking outside
 
-Every trigger block has **▶ sim**: it runs the chain right now as if the sensor fired — delays, random pick and the sequences all play for real. (Cooldown and lockout aren't enforced while simulating, so you can press it again and again.) Blocks light up **FIRED** and **PLAYING** as it goes.
+Every trigger block has **▶ sim**. It runs the chain right now as if the sensor had fired. Delays, random picks and the sequences all play for real. Cooldown and lockout aren't enforced while simulating, so you can press it again and again. Blocks light up **FIRED** and **PLAYING** as the chain runs.
 
 <Aside title="The list view">
-**Graph | List** switches to a list of sentences — *"When gate becomes active, wait 0.5 s, then play Skeleton…"* — which is quicker for checking a big show at a glance and for turning single triggers on and off. Both are views of the same triggers.
+**Graph | List** switches to a list of sentences, such as *"When gate becomes active, wait 0.5 s, then play Skeleton…"*. The list is quicker for checking a big show at a glance and for turning single triggers on and off. Both are views of the same triggers.
 </Aside>
 
-Sensors only set off scares when the show is **Armed** — see [Running the show](/propmesh/show/running/).
+Sensors only set off scares when the show is **Armed**. See [Running the show](/propmesh/show/running/).

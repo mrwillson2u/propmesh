@@ -1,32 +1,32 @@
 ---
 title: Updating your boards
-description: New firmware goes out over the air — no unplugging props from the yard.
+description: New firmware goes out over the air, so there is no need to unplug props from the yard.
 sidebar:
   order: 1
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-Once a board runs PropMesh, you never need to plug it in again: updates travel over the mesh from the console.
+Once a board runs PropMesh, updates reach it over the mesh from the console. You shouldn't need to plug it in again.
 
 <Steps>
 
-1. **Get the update file** for your board type: on [Install the firmware](/propmesh/start/flash/), pick your board and download the **update file** (`propmesh-<board>-update.bin`).
+1. **Get the update file** for your board type. On [Install the firmware](/propmesh/start/flash/), pick your board and download the **update file** (`propmesh-<board>-update.bin`).
 
 2. In **Nodes & Channels**, open the **↑ Firmware** chip and choose **Over the mesh**.
 
 3. Press **from file** and pick the file you downloaded. The console shows **✓ image build …** when it has read it.
 
-4. Press **Update all mesh boards**, or **Update** on one board. Each board takes about six minutes; the table shows how far along it is.
+4. Press **Update all mesh boards**, or **Update** on one board. Each board takes a few minutes, and the table shows how far along it is.
 
-5. Update the bridge — the board your console is connected to — **last**, with **Update (last)**.
+5. Update the bridge, which is the board your console is connected to, **last**, with **Update (last)**.
 
 </Steps>
 
 <Aside title="Safe to interrupt">
-If an update stops partway (a board loses power, you close the laptop), it shows **paused** — **Update** resumes it. A board that can't start the new firmware rolls back to the old one on its own.
+If an update stops partway because a board loses power or you close the laptop, the board shows **paused**, and **Update** resumes it. A board that can't start the new firmware rolls back to the old one on its own.
 </Aside>
 
-Mixing board types? Each board needs the file for its own type — update the DevKits with the DevKit file, then the Feathers with the Feather file.
+Mixing board types? Each board needs the file for its own type. Update the DevKits with the DevKit file, then the Feathers with the Feather file.
 
-**Over WiFi** is the faster option when your boards are in range of your home WiFi: each board joins it and downloads the update itself. It needs the update file served from your computer — see the project's developer notes.
+**Over WiFi** is the faster option when your boards are in range of your home WiFi. Each board joins the network and downloads the update itself. It needs the update file served from your computer, which is covered in the project's developer notes.

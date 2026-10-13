@@ -1,34 +1,38 @@
 ---
 title: Battery props
-description: Props with no power cable — sleeping when the show is off, waking for a sensor or the next show.
+description: Props with no power cable. The board sleeps when the show is off and wakes for a sensor or the next show.
 sidebar:
   order: 6
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-A prop in the middle of the lawn with no extension cord: a board on a battery can do that. It sleeps when the show is off and wakes when it's needed.
+A prop in the middle of the lawn with no extension cord is possible with a board on a battery. The board sleeps when the show is off and wakes when it is needed.
 
 ## The board
 
-The **[Adafruit HUZZAH32 Feather](/propmesh/boards/esp32-huzzah32/)** has a LiPo battery connector and charger built in, and reports its battery voltage. The **[ESP32-C6 SuperMini](/propmesh/boards/esp32-c6-supermini/)** sleeps on very little power but needs an external charger and regulator.
+The **[Adafruit HUZZAH32 Feather](/propmesh/boards/esp32-huzzah32/)** has a LiPo battery connector and charger built in, and it reports its battery voltage. The **[ESP32-C6 SuperMini](/propmesh/boards/esp32-c6-supermini/)** sleeps on very little power but needs an external charger and regulator.
+
+<Aside type="note" title="How far this has been tested">
+Battery sleep has run on the project's Feather on the bench: deep sleep, timer wake, and cues reaching a board that listens in windows. A full night in the yard on a battery hasn't happened yet, and the C6 SuperMini hasn't been flashed at all. Expect to tune the numbers below.
+</Aside>
 
 ## Turning it on
 
-Open the board in **Nodes & Channels**, switch on **On battery**, and save. Then the board:
+Open the board in **Nodes & Channels**, switch on **On battery**, and save. From then on the board:
 
-- **becomes a leaf** — it never passes messages along for other boards (they can't count on it being awake);
-- **listens in short windows while the show runs** — by default 100 ms of every second, so a cue reaches it within about a second;
-- **deep-sleeps when the show is off**, checking in every few minutes, and wakes on its own for the next schedule window.
+- **becomes a leaf.** It never passes messages along for other boards, because they can't count on it being awake.
+- **listens in short windows while the show runs.** By default it listens for 100 ms out of every second. The other boards know this and send cues early enough to land in a window, so a battery board fires together with everyone else.
+- **deep-sleeps when the show is off.** It checks in every five minutes by default, and wakes on its own in time for the next schedule window.
 
-The **SLEEP** settings on the board's page change those numbers and show the average current each choice costs.
+The **SLEEP** settings on the board's page let you change those numbers, and show roughly what each choice costs in average current.
 
 ## Sensors on a battery board
 
-A sleeping board wakes the moment its sensor fires — but only from certain pins. The board pages mark them (**wakes from sleep**), and the console warns you if a sensor is on a pin that can't wake the board.
+A sleeping board wakes the moment its own sensor fires, but only from certain pins. The board pages mark them as **wakes from sleep**, and the console warns you if a sensor is on a pin that can't wake the board.
 
 <Aside type="caution" title="What a battery board is bad at">
-Anything that needs it awake: it reacts to cues up to a second late while the show runs, and not at all while asleep. Use it for props that do their own thing (a sensor and a light on the same board), and keep timing-critical props on mains power.
+Anything that needs it awake. While the show runs, a scare that involves a battery board starts about a second after the sensor fires instead of almost at once, because the cue has to wait for the board's next listen window. While the show is off, it only wakes for its own sensor. Use it for props that do their own thing, such as a sensor and a light on the same board, and keep props with tight timing on mains power.
 </Aside>
 
-In the Yard, a sleeping board shows **☾ asleep** and its battery voltage — amber when it's getting low (under 3.5 V).
+In the Yard, a sleeping board shows **☾ asleep** and its battery voltage. The voltage turns amber when it is getting low (under 3.5 V).
