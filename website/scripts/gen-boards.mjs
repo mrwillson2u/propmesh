@@ -128,6 +128,11 @@ function indexPage() {
   L.push("", "**Not sure? Get an ESP32 DevKit V1.** It's the board everything is tested on first.", "",
     "**Status** is honest about where each board stands: *tested* boards run the project's own yard; *partly tested* ones work, with some features still waiting for a bench test; *not yet tried* means the firmware is built but nobody has run it on that board yet — early adopters welcome.", "",
     "One board in every show is the **bridge**: it stays plugged into your computer or on WiFi and connects the console to all the others. Any board can be the bridge — it's a switch in the console.", "",
+    "## Coming later: PropMesh's own boards", "",
+    "Dev boards on a breadboard work — this year's show runs on them — but they were never meant to live in a wet yard. Two purpose-built PropMesh boards are being designed, aiming for the 2027 season:", "",
+    "- **PropMesh Pro** — the big one for a prop that does everything: runs from a 12–30 V supply, screw terminals for field wiring, sockets for stepper drivers, plenty of servo and LED outputs, relays, sound, and the level shifting and protection already on the board.",
+    "- **PropMesh Mini** — small and battery-powered, for a prop with no cable: sleeps between shows, stores its own sounds, and fits inside the prop.", "",
+    "Both run the same firmware and console as the boards above, so a show you build now carries over. Designs are open (CERN-OHL-S) and in the [repository](https://github.com/mrwillson2u/propmesh/tree/dev/hardware); the details will land here when the first boards have been built and tested.", "",
     "## More boards are coming", "",
     "This list will grow. Want a board that isn't here? [Request it on GitHub](https://github.com/mrwillson2u/propmesh/issues/new?template=board-request.yml) — say which board and what you'd use it for, and it helps decide what comes next. Comfortable describing its pins yourself? A board only needs a *profile*, a short file saying what each pin can do — see [Contributing](/propmesh/contribute/).");
   return L.join("\n");
