@@ -1,0 +1,159 @@
+# Sheet 06 — Motors (stepper sockets + DC drivers)
+
+**Everything needed to draw this sheet is in this file.** Fully sourced
+2026-09-04; both open items closed against primary sources. Drawing
+guide: `06-motors.diagram.html`; checker:
+
+```
+python3 tools/checknet.py hardware/pro/sheets/06-motors.net.yaml
+```
+
+**Nets on this sheet** (all global, checker-enforced):
+`STEPPER_1_STEP` (13), `STEPPER_1_DIR` (14), `STEPPER_2_STEP` (21),
+`STEPPER_2_DIR` (47), `TMC_UART_TX` (17), `TMC_UART_RX` (18),
+`STEPPER_1_DIAG` (42), `STEPPER_2_DIAG` (43), `MOTOR_A_IN1` (44),
+`MOTOR_A_IN2` (48), **`MOTOR_B_IN1` (35), `MOTOR_B_IN2` (36)** — moved
+from the nonexistent 33/34 — plus `STEPPER_EN_RAW` (sheet 03),
+`VIN_PROT`, `+3V3`, `GND`.
+
+## ✅ Open item #3 CLOSED — socket geometry (Pololu md09b, 2026-09-04)
+
+**Two 1×8 rows at 2.54 mm pitch, row centres exactly 12.70 mm apart**,
+end pins 1.27 mm in from the module edges. Verified from Pololu's own
+dimension drawing, the de-facto StepStick standard.
+
+| Logic row (J_SxL) 1→8 | Power row (J_SxR) 1→8 |
+|---|---|
+| EN, MS1, MS2, MS3, RST, SLP, STEP, DIR | VMOT, GND, 2B, 2A, 1A, 1B, VDD, GND |
+
+**The ecosystem trick that makes one socket serve every driver:**
+positions 5+6 (RST/SLP) are **hardwired together** on the board. An
+A4988 requires them tied to run at all; the TMC2209 family places its
+single-wire **PDN_UART on those same two pins**. So the tied pair *is*
+the UART bus — no vendor-specific routing. `TMC_UART_TX` reaches the
+bus through **1 kΩ** (half-duplex guard); `TMC_UART_RX` joins directly
+(the bus net carries that name).
+
+**MS1–MS3 → 3-pin straps** (pin 1 = +3V3, pin 2 = the socket's MSx,
+pin 3 = GND; a shunt ties the middle pin to one end). **Which strap is
+which — they interleave by MS number, not by socket** (verified from
+the board 2026-09-08):
+
+| Strap | Net | Socket |
+|---|---|---|
+| `J29` | `S1_MS1` | 1 |
+| `J30` | `S2_MS1` | 2 |
+| `J31` | `S1_MS2` | 1 |
+| `J32` | `S2_MS2` | 2 |
+| `J33` | `S1_MS3` | 1 |
+| `J34` | `S2_MS3` | 2 |
+
+**What the three pins do** depends on the module in the socket:
+
+| Socket pin | TMC2209 (SilentStepStick / BTT) | A4988 / DRV8825 | MP6603 (DC mode) |
+|---|---|---|---|
+| MS1 | **AD0** — UART address bit 0 | microstep bit 1 | **M2** mode bit |
+| MS2 | **AD1** — UART address bit 1 | microstep bit 2 | **M1** mode bit |
+| MS3 | **SPREAD** — GND = stealthChop (silent), 3V3 = spreadCycle (more torque, audible) | microstep bit 3 | **IN_SEL** — GND = PWM/DC mode |
+
+**Default positions to silkscreen (decided 2026-09-08).** Both sockets
+share one UART line, so their addresses *must differ* — this is the
+whole reason MS1/MS2 are strapped rather than tied:
+
+| | `J29`/`J30` (MS1) | `J31`/`J32` (MS2) | `J33`/`J34` (MS3) |
+|---|---|---|---|
+| **Socket 1** | **GND** | **GND** | **GND** |
+| **Socket 2** | **3V3** | **GND** | **GND** |
+
+That is **UART address 0 for socket 1, address 1 for socket 2**, both in
+**stealthChop** — the quiet mode, for the same reason motor PWM is
+20–25 kHz (a whining motor telegraphs the scare). In standalone (no
+UART) those same positions give 1/8 microstep on socket 1 and 1/32 on
+socket 2; firmware sets microstepping over UART anyway.
+
+Silk beside each strap: `3V3` at pin 1, `GND` at pin 3, the net name,
+and a dot or `◄ DEF` at the default end from the table above.
+
+**DIAG is NOT in the 2×8** — vendors break it out in different places
+(BTT: extra top-edge pins). Each socket gets a **2-pin aux header**
+(signal + GND) the user jumper-wires to their module's DIAG, behind a
+**bridged solder jumper** (JP_D1/JP_D2) that, when cut, frees the GPIO
+for expansion. **GPIO 43 additionally gets 1 kΩ series** — it is U0TXD
+and the ROM boot log drives it at every reset (spec §2.5).
+
+**Shared EN inverter** (spec §2.5): `STEPPER_EN_RAW` (PCA9685 ch 15) →
+AO3400A gate; drain = both sockets' EN with 10 k to +3V3. Drivers
+default **disabled** from power-on until firmware raises ch 15.
+
+## ✅ ILIM resolved — TI datasheet, not the guess
+
+**ITRIP = 64 000 / R_ILIM** (TI's own example: 32 k → 2 A; minimum
+legal 15 k). **R_ILIM = 30 kΩ (`C22984`, Basic) → 2.13 A per channel**,
+matching the power budget's 2 A with the DRV8871's 3.6 A peak above it.
+
+## Parts
+
+| Ref | Part | LCSC | Note |
+|---|---|---|---|
+| J_S1L/R, J_S2L/R | 1×8 female header ×4 | **`C42431840`** — $0.11, THT gold | **Rows 12.70 mm apart in layout, pin 1 to pin 1.** |
+| JP11–13, JP21–23 | 1×3 header ×6 + shunts | `C124376` + **`C100114`** shunts | strap fields. |
+| Q_EN + R_ENP | AO3400A + 10 k | `C20917`, `C25804` | EN inverter. |
+| R_UTX, R_DG2 | 1 kΩ ×2 | **`C21190`** Basic | UART TX leg; GPIO43 series. |
+| JP_D1, JP_D2 | solder jumper, bridged | copper only | `Jumper:SolderJumper_2_Bridged`. |
+| J_DIAG1/2 | 1×2 header | `C124375` | DIAG jumper-wire targets. |
+| XH1, XH2 | **JST XH-4A** | **`C37815`** — $0.017, 428 k stock | NEMA17 pigtails plug straight in; pin order 2B 2A 1A 1B follows the power row. Stock KiCad `JST_XH_B4B-XH-A` footprint. |
+| C_BS1/2, C_MA1, C_MB1 | 100 µF/63 V ×4 | `C7471890` | bulk at VMOT: per socket + per DC driver. 63 V clears the 50 V floor. |
+| U_MA, U_MB | **DRV8871DDAR** ×2 | **`C75864`** — $2.51/1, $1.84/100 | genuine TI. Import inspected, pins OK; **footprint forked to `SO-8EP_DRV8871DDAR`** after the import nearly overwrote the AP64350's same-named generic (import lie #6). Internal input pulldowns → outputs off at boot. ⚠ layout: check EP paste vs TI's 2.29×3.05 drawing. |
+| R_ILA/B | 30 kΩ ×2 | `C22984` Basic | 2.13 A trip, formula above. |
+| C_MA2, C_MB2 | 100 nF ×2 | `C14663` | at each VM. |
+| J_MA, J_MB | DG128-5.0-02P ×2 | `C711349` | motor terminals. |
+
+## KiCad symbols to place
+
+| Ref(s) | Symbol (`A` key) |
+|---|---|
+| J_S1L, J_S1R, J_S2L, J_S2R | `Connector_Generic:Conn_01x08` |
+| JP11–23 | `Connector_Generic:Conn_01x03` |
+| J_DIAG1/2 | `Connector_Generic:Conn_01x02` |
+| XH1/2 | `Connector_Generic:Conn_01x04` |
+| JP_D1/2 | `Jumper:SolderJumper_2_Bridged` |
+| Q_EN | `Transistor_FET:AO3400A` |
+| U_MA/B | `propmesh:DRV8871DDAR` |
+| C_BSx/C_Mx1 | `Device:C_Polarized` |
+| R, C | `Device:R`, `Device:C` |
+| J_MA/B | `Connector:Screw_Terminal_01x02` |
+
+Rails: `VIN_PROT` global label, `+3V3`/`GND` power symbols.
+
+## Footprints
+
+Every footprint is assigned and machine-verified — `checknet.py` reports
+any that is wrong or missing, so the authority is the `footprint:` field
+in `06-motors.net.yaml`, not a table here.
+
+**Reference designators:** the schematic uses standard sequential
+designators (`R22`, `J19`, `U7`…), assigned 2026-09-06; this doc and the
+yaml keep descriptive spec names (`R_ILA`, `J_S1L`, `U_MA`) because they
+say what a part *is*. The checker pairs the two by Value and prints both
+— a finding reads `R22 (R_ILA)` — so you never have to translate by hand.
+
+## Checklist
+
+- [ ] Socket rows 12.70 mm apart noted for layout; pins 5+6 tied = UART bus
+- [ ] EN inverter present, pull-up to +3V3; TX through 1 k, RX direct
+- [ ] MS straps ×6 with +3V3/GND rails; silk TMC defaults
+- [ ] DIAG aux headers + bridged SJs; 1 k on GPIO43 only
+- [ ] ILIM 30 k both drivers; bulk 100 µF at both sockets and both VMs
+- [ ] checknet green, then ERC
+
+## Sourcing status
+
+**Complete.** 32 parts, rollup (§2.4): **$6.89 @1, $4.75 @100** — the
+DRV8871s are two-thirds of it; genuine TI runs double the old estimate.
+Dual-mode note (spec §2.4, verified 2026-09-07 against the MP6603
+datasheet and Pololu's md51a drawing): a Pololu **MP6603** carrier in the
+same socket gives 2 brushed channels on the coil XH — channel B (2A/2B)
+bidirectional via locked-antiphase PWM on DIR, channel A (1A/1B) one
+direction via PWM on STEP, because our RST/SLP tie is the MP6603's
+SLEEP + channel-A direction. Straps for DC mode: MS1→3V3, MS2→GND,
+MS3→GND. The mapping table and the TMC-UART caveat are in the spec.

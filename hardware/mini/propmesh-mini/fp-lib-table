@@ -1,0 +1,4 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "propmesh") (type "KiCad") (uri "${KIPRJMOD}/../../lib/propmesh.pretty") (options "") (descr "PropMesh shared footprints (hardware/lib)"))
+)

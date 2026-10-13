@@ -1,0 +1,191 @@
+# PropMesh protocol — SINGLE SOURCE OF TRUTH for mesh messages
+#
+# Edit this file, then run:  python3 tools/genmsg.py
+# Generates: firmware/common/propmesh/src/proto_gen.h   (C, packed structs)
+#            console/src/lib/proto_gen.ts               (TS, types + codecs)
+# Never hand-edit the generated files. CI runs genmsg.py --check.
+#
+# Wire format: little-endian, packed. Frame = pm_frame_header_t + payload.
+# App payload budget is PM_MAX_PAYLOAD (fits classic 250-byte ESP-NOW
+# with header + auth; ESP-NOW v2 large frames are an optimization, never
+# a dependency). See docs/software-plan.md §3.
+
+version: 0
+
+constants:
+  PM_MAGIC: 0x504D            # "PM"
+  PM_PROTO_VERSION: 0
+  PM_MAX_PAYLOAD: 200
+  PM_DEFAULT_TTL: 4
+  PM_HEARTBEAT_PERIOD_MS: 5000
+  PM_DEDUP_WINDOW: 32
+  PM_MAX_NEIGHBORS: 8
+  PM_BROADCAST_GROUP: 0xFFFF
+  PM_API_CHUNK: 180           # JSON bytes per API frame (header + 9 + 180 <= 250)
+
+enums:
+  MsgType:
+    HEARTBEAT: 1
+    TIME: 2
+    CUE: 3
+    STATE: 4
+    CONFIG: 5
+    OTA_ANNOUNCE: 6
+    OTA_CHUNK: 7
+    OTA_NAK: 8
+    API_REQ: 9                # console request carried over the mesh (chunked JSON)
+    API_RESP: 10              # the target node's reply, back to the requester
+
+  BoardType:
+    DEVKIT: 0
+    PRO: 1
+    MINI: 2
+    HUZZAH32: 3               # Adafruit ESP32 Feather — LiPo input, stands in for the Mini's battery story
+    C6_SUPERMINI: 4           # ESP32-C6 SuperMini — tiny RISC-V board, native USB, LP pins 0-7
+
+  # Bit flags — a node may hold several roles.
+  NodeRole:
+    LEAF: 0                   # never relays (battery Minis)
+    RELAY: 1                  # powered node, rebroadcasts floods
+    CONDUCTOR: 2              # mesh time authority
+    BRIDGE: 4                 # WiFi + console + sACN ingress
+
+  StateKind:
+    SENSOR_TRIGGER: 1
+    SENSOR_CLEAR: 2
+    SEQUENCE_STARTED: 3
+    SEQUENCE_ENDED: 4
+    FAULT: 5
+
+  # What a logical channel is. A channel is addressed as (kind, index) —
+  # SERVO_2 is (SERVO, 2) — never as a GPIO number. On Pro/Mini the
+  # channels come from pinmap.yaml; on generic boards the user creates
+  # them by assigning pins (boards/*.yaml, docs/generic-boards.md).
+  ChannelKind:
+    RELAY: 1                  # on/off output
+    LED: 2                    # PWM-dimmed DC output
+    SERVO: 3
+    MOTOR: 4                  # brushed DC, two inputs, signed speed
+    LED_STRIP: 5              # addressable pixels
+    DIGITAL_IN: 6             # PIR, button, beam — debounced
+    BLE_LIGHT: 7              # BRMesh BLE flood light — no pin; the node broadcasts its color over Bluetooth
+    SPI_STRIP: 8              # clocked addressable pixels (SK9822 / APA102): DATA + CLOCK, bit-banged
+
+# Reusable structs (must be defined before the messages that use them)
+structs:
+  Neighbor:
+    - {name: node_id, type: u32}
+    - {name: rssi, type: i8, note: "dBm, from esp-now rx_ctrl"}
+
+  # Every frame starts with this. auth_tag is a truncated AES-CMAC over
+  # header+payload with the network key — zero and unverified in proto v0.
+  FrameHeader:
+    - {name: magic, type: u16}
+    - {name: proto_version, type: u8}
+    - {name: net_id, type: u16, note: "derived from network key"}
+    - {name: src_id, type: u32, note: "last 4 bytes of efuse MAC"}
+    - {name: seq, type: u16}
+    - {name: boot_id, type: u16, note: "random per boot, never 0: a changed boot_id tells receivers the sender restarted and its seq began again (2026-10-05 — without it a rebooted bridge was ignored until its seq passed the old one)"}
+    - {name: ttl, type: u8}
+    - {name: msg_type, type: u8, note: "MsgType"}
+    - {name: flags, type: u8}
+    - {name: auth_tag, type: u32, note: "truncated CMAC; 0 in v0"}
+
+messages:
+  Heartbeat:
+    type: HEARTBEAT
+    fields:
+      - {name: uptime_s, type: u32}
+      - {name: battery_mv, type: u16, note: "0 = mains powered"}
+      - {name: board, type: u8, note: "BoardType"}
+      - {name: role, type: u8, note: "NodeRole flags"}
+      - {name: fw_version, type: u16}
+      - {name: free_heap_kb, type: u16}
+      - {name: neighbor_count, type: u8}
+      - {name: neighbors, type: "Neighbor[8]", note: "first neighbor_count valid"}
+      - {name: channel, type: u8, note: "WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's."}
+      - {name: listen_ms, type: u16, note: "a battery board in its show tier listens a window every listen_ms; senders repeat into it. 0 = always listening"}
+
+  Time:
+    type: TIME
+    fields:
+      - {name: mesh_time_us, type: u64, note: "conductor clock at send"}
+      - {name: hop, type: u8, note: "incremented per relay for latency comp"}
+      - {name: conductor_id, type: u32}
+      - {name: priority, type: u8, note: "1 = bridge. Election ranks (priority, conductor_id): a bridge beats any plain node, whatever its id (decided 2026-10-05)"}
+      - {name: wall_ms, type: u64, note: "UTC ms since 1970 at send (relays re-stamp); valid if wall_flags bit 0. Show schedule, software-plan §4.1 (2026-10-09). Beacons before this are 14 bytes and still read"}
+      - {name: wall_flags, type: u8, note: "bit 0 = wall_ms valid, bit 1 = the tz_* fields valid"}
+      - {name: tz_offset_min, type: i16, note: "local − UTC now, minutes (−240 = EDT)"}
+      - {name: tz_next_change_s, type: u32, note: "UTC s of the next UTC-offset change (DST); 0 = none known"}
+      - {name: tz_next_offset_min, type: i16, note: "the offset from then on"}
+      # The show follows the conductor (docs/generic-boards.md §6k, 2026-10-12):
+      # every mesh-wide document carries the UTC second it was edited, the
+      # conductor beacons those stamps, and a board that is behind pulls the
+      # newer copy from it. A board that joins, wakes or was out of range
+      # catches up by itself; nothing has to be online when the console saves.
+      - {name: mode_manual, type: u8, note: "a mode set by hand (STOP ALL, Off/Ambient/Armed) the conductor is holding: PmMode, 0xFF = none. Followers apply the newest (mode_at), so STOP ALL reaches a board that missed it"}
+      - {name: mode_at, type: u32, note: "UTC s that mode was set (the console's clock); 0 = none ever"}
+      - {name: mode_until, type: u32, note: "UTC s the hold ends; 0 = not worked out yet"}
+      - {name: sched_at, type: u32, note: "UTC s the schedule was last edited; a follower with an older one pulls it (pull_schedule)"}
+      - {name: show_at, type: u32, note: "UTC s of the newest sequence/trigger edit the conductor holds for ANY board; a follower that hasn't synced since pulls its own part (pull_index / pull_seq / pull_rules)"}
+      - {name: floods_at, type: u32, note: "UTC s the floods key / light list last changed; a sending board (holds a key) with an older copy pulls it (pull_floods)"}
+
+  Cue:
+    type: CUE
+    fields:
+      - {name: cue_id, type: u16}
+      - {name: sequence_id, type: u16}
+      - {name: target_group, type: u16, note: "PM_BROADCAST_GROUP = all"}
+      - {name: fire_at_us, type: u64, note: "mesh time; future T absorbs hop jitter"}
+      - {name: start_offset_ms, type: u32, note: "play the sequence from this far into itself — the console's play-from-cursor (decided 2026-09-05); 0 = from the top"}
+      - {name: flags, type: u8}
+
+  State:
+    type: STATE
+    fields:
+      - {name: kind, type: u8, note: "StateKind"}
+      - {name: source_channel, type: u8, note: "logical channel index"}
+      - {name: value, type: i32}
+      - {name: at_us, type: u64, note: "mesh time of the event"}
+
+  OtaAnnounce:
+    type: OTA_ANNOUNCE
+    fields:
+      - {name: image_size, type: u32}
+      - {name: image_crc, type: u32}
+      - {name: fw_version, type: u16}
+      - {name: board, type: u8, note: "BoardType target"}
+      - {name: chunk_size, type: u16}
+
+  # The console API (docs/generic-boards.md §6) over the mesh: the USB /
+  # bridge node forwards a request addressed to another node as JSON
+  # text split into chunks; the target answers the same way. This is
+  # the request/response wrapper software-plan §5.1 reserved. Frames
+  # are flooded like everything else; `dst` picks the one node that
+  # acts. Only the first `len` bytes of `data` are sent.
+  ApiRequest:
+    type: API_REQ
+    fields:
+      - {name: dst, type: u32, note: "target node id"}
+      - {name: req_id, type: u16, note: "per requester; a retry reuses it"}
+      - {name: chunk, type: u8}
+      - {name: chunks, type: u8}
+      - {name: len, type: u8, note: "valid bytes in data"}
+      - {name: data, type: "u8[180]"}
+
+  ApiResponse:
+    type: API_RESP
+    fields:
+      - {name: dst, type: u32, note: "the requester"}
+      - {name: req_id, type: u16, note: "echoes the request"}
+      - {name: chunk, type: u8}
+      - {name: chunks, type: u8}
+      - {name: len, type: u8}
+      - {name: data, type: "u8[180]"}
+
+  OtaNak:
+    type: OTA_NAK
+    fields:
+      - {name: fw_version, type: u16}
+      - {name: first_missing_chunk, type: u16}
+      - {name: missing_count, type: u16}

@@ -1,0 +1,42 @@
+---
+title: Troubleshooting
+description: The common problems, and what fixes them.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Connecting
+
+**"USB needs Web Serial"** — the console reaches boards over USB through a browser feature only **Chrome** and **Edge** on desktop have. Safari, Firefox and phones can use the console over WiFi, or the simulator.
+
+**The board isn't in the USB list.** Try another cable (many only carry power), install the CP210x or CH340 driver (see [Install the firmware](/propmesh/start/flash/#it-didnt-work)), and close anything else using the board — only one program can hold its port.
+
+**Connecting over WiFi fails.** The bridge has to be set up for your WiFi first, over USB: open it, and under **HOME WIFI** press **Set up home WiFi…**, enter your network (2.4 GHz — ESP32 boards can't use 5 GHz) and **Save to node**. Its row then shows the address to use. On most home networks `propmesh.local` works too.
+
+## Boards
+
+**"No other nodes heard yet."** Is the second board flashed and powered? Boards report in every few seconds; give it ten. Try moving it closer.
+
+**A board turns red.** The console hasn't heard from it for about 16 seconds: unplugged, out of range, or (on battery) asleep — a sleeping board shows **☾ asleep** instead.
+
+**A board restarts when a servo or strip moves.** Its power is dipping. Give servos and strips their own supply, and join the grounds — see [Servos](/propmesh/props/servos/) and [LED strips](/propmesh/props/led-strips/).
+
+**A relay clicks or a motor jumps when the board powers on.** It's on a pin that wiggles at start-up. Move it to a pin marked ★ for relays on the [board's page](/propmesh/boards/).
+
+**The board won't start after wiring something.** Some pins must be at a particular level when the board starts (they're marked "STRAPPING" on the board pages). A module that pulls one of them the wrong way stops the board from booting. Unplug the module, check the pin's note, and move it.
+
+## The show
+
+**▶ Play says the show is off.** Switch the show to **Ambient** or **Armed** in **Show** first.
+
+**A sensor shows ● ACTIVE but nothing happens.** The show must be **Armed**, the trigger saved with **Save triggers**, and the chain complete (no **UNWIRED** blocks). Check for a **Cooldown** or **Lockout** that's holding it back.
+
+**The show didn't come on at dusk.** Check **Schedule…** — the **TODAY** column says when each window runs today — and that the boards have power. Boards learn the time of day from the console when it connects, or from the internet when the bridge is on WiFi, and share it over the mesh. After a power cut with no WiFi bridge, connect the console once so they know the time again.
+
+**The flood lights don't respond.** Lights only hear the boards ticked under **SENDING BOARDS**, and only when one is within range. They never reply, so the console can't tell whether a light heard — move a sending board closer.
+
+<Aside title="Still stuck?">
+Ask on [GitHub](https://github.com/mrwillson2u/propmesh/issues) — say which boards you have, what you expected and what happened. A screenshot of the console helps a lot.
+</Aside>

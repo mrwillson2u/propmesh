@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#0b0d10;font-family:system-ui,sans-serif}a{color:#ff8a4d}a:hover{color:#ffa470}@keyframes pmblink{0%{opacity:.9}100%{opacity:.05}}@keyframes livedot{0%,100%{opacity:1}50%{opacity:.3}}</style></helmet>
+<div data-screen-label="Survey Prototype" style="display:flex;height:100vh;background:#0b0d10;color:#e6e9ed;overflow:hidden">
+<div style="width:176px;flex:none;background:#101318;border-right:1px solid #262b33;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:9px;padding:14px 14px 12px;border-bottom:1px solid #20242b">
+<svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div><div style="font:700 12px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;color:#e6e9ed">PROPMESH</div><div style="font:500 9.5px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873;margin-top:3px">bridge v0.9.4</div></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:2px;padding:10px 8px;flex:1;min-height:0;overflow-y:auto">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;background:#1c1109;border:1px solid #3a2211;font:600 12.5px system-ui;color:#ff8a4d;flex:none"><span style="font-size:13px">◎</span>Survey</div>
+<div title="Mockup in the canvas file" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">☰</span>Nodes &amp; Channels</div>
+<div title="Mockup in the canvas file" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">▸</span>Cues</div>
+<div title="Mockup in the canvas file" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">▱</span>Blueprint</div>
+<div title="Mockup in the canvas file" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">⬡</span>Show Graph</div>
+</div>
+<div style="flex:none;padding:10px 12px;border-top:1px solid #20242b;display:flex;flex-direction:column;gap:7px;font:600 10.5px 'IBM Plex Mono',ui-monospace,monospace">
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">BRIDGE</span><span style="color:#3fb950">● LINKED</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">SYNC</span><span style="color:#3fb950">{{ syncLabel }}</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">NODES</span><span><span style="color:#3fb950">{{ nOnline }}</span><span style="color:#8b93a1"> / {{ nAsleep }}</span><span style="color:#f4483a"> / {{ nMissing }}</span></span></div>
+</div>
+<button onMouseDown="{{ stopDown }}" onMouseUp="{{ stopUp }}" onMouseLeave="{{ stopUp }}" onTouchStart="{{ stopDown }}" onTouchEnd="{{ stopUp }}" style="position:relative;overflow:hidden;margin:10px;height:52px;display:flex;align-items:center;justify-content:center;gap:9px;background:{{ stopBg }};border:1.5px solid #ff6b2c;border-radius:8px;color:{{ stopFg }};font:700 13px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.1em;cursor:pointer">
+<div style="position:absolute;left:0;top:0;bottom:0;background:rgba(255,107,44,.35);width:{{ stopPctW }}"></div>
+<svg style="position:relative" width="16" height="16" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="currentColor" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="currentColor"></rect></svg>
+<span style="position:relative">{{ stopLabel }}</span>
+</button>
+</div>
+<div style="flex:1;min-width:0;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px">
+<sc-if value="{{ stopped }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:12px;padding:11px 16px;background:#2a1108;border-bottom:1px solid #ff6b2c">
+<span style="font:800 12.5px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.1em;color:#ff8a4d">⬣ ALL OUTPUTS STOPPED</span>
+<span style="font:500 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#c7cdd6">every motor, relay, LED and audio killed · cues suppressed</span>
+<div style="flex:1"></div>
+<button onClick="{{ rearm }}" style="height:32px;padding:0 16px;background:#ff6b2c;border:none;border-radius:6px;color:#1a0d05;font:800 12px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em;cursor:pointer">RE-ARM SHOW</button>
+</div>
+</sc-if>
+<div style="position:absolute;top:{{ headerTop }};left:0;right:0;z-index:4;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0));pointer-events:none">
+<span style="font:700 13px system-ui;color:#e6e9ed">Survey</span>
+<span style="padding:3px 9px;border-radius:4px;background:{{ healthBg }};border:1px solid {{ healthBorder }};font:700 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:{{ healthFg }}">{{ healthLabel }}</span>
+<span style="font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873">{{ healthDetail }}</span>
+<div style="flex:1"></div>
+<span style="display:flex;align-items:center;gap:6px;font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873"><span style="width:6px;height:6px;border-radius:50%;background:#3fb950;animation:livedot 2s infinite"></span>live · updated {{ agoLabel }}</span>
+</div>
+<svg width="100%" height="100%" viewBox="0 0 1080 700" style="display:block">
+<sc-for list="{{ links }}" as="l" hint-placeholder-count="7">
+<line x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}" stroke="{{ l.color }}" stroke-width="{{ l.w }}" stroke-dasharray="{{ l.dash }}" opacity=".75"></line>
+</sc-for>
+<sc-for list="{{ nodes }}" as="n" hint-placeholder-count="8">
+<g onClick="{{ n.select }}" style="cursor:pointer">
+<sc-if value="{{ n.selected }}" hint-placeholder-val="{{ false }}"><circle cx="{{ n.x }}" cy="{{ n.y }}" r="31" fill="none" stroke="#ff6b2c" stroke-width="2" stroke-dasharray="4 4"></circle></sc-if>
+<sc-if value="{{ n.blinking }}" hint-placeholder-val="{{ false }}"><circle cx="{{ n.x }}" cy="{{ n.y }}" r="25" fill="none" stroke="#ff8a4d" stroke-width="3" style="animation:pmblink .8s ease-out infinite alternate"></circle></sc-if>
+<sc-if value="{{ n.isPro }}" hint-placeholder-val="{{ true }}"><rect x="{{ n.rx }}" y="{{ n.ry }}" width="52" height="40" rx="8" fill="#1a1e24" stroke="{{ n.stroke }}" stroke-width="2" stroke-dasharray="{{ n.dash }}"></rect></sc-if>
+<sc-if value="{{ n.isMini }}" hint-placeholder-val="{{ false }}"><circle cx="{{ n.x }}" cy="{{ n.y }}" r="15" fill="#1a1e24" stroke="{{ n.stroke }}" stroke-width="2" stroke-dasharray="{{ n.dash }}"></circle></sc-if>
+</g>
+</sc-for>
+{{ svgLabels }}
+</svg>
+<div style="position:absolute;left:14px;bottom:14px;display:flex;gap:12px;padding:8px 12px;background:rgba(11,13,16,.9);border:1px solid #262b33;border-radius:6px;font:500 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1"><span><span style="color:#3fb950">━</span> strong ≥−60</span><span><span style="color:#6b7684">━</span> ok</span><span><span style="color:#e0a52a">╌</span> weak ≤−75</span><span><span style="color:#f4483a">╌</span> lost</span></div>
+</div>
+<sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+<div style="width:330px;flex:none;border-left:1px solid #262b33;background:#101318;display:flex;flex-direction:column;overflow-y:auto">
+<div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #20242b">
+<span style="font:700 13px system-ui;color:#e6e9ed;flex:1">{{ sel.name }}</span>
+<span style="padding:2px 8px;border-radius:99px;background:{{ sel.pillBg }};border:1px solid {{ sel.pillBorder }};font:700 10px 'IBM Plex Mono',ui-monospace,monospace;color:{{ sel.pillFg }};letter-spacing:.06em">{{ sel.pillLabel }}</span>
+<span onClick="{{ deselect }}" style="color:#5f6873;font-size:13px;cursor:pointer;padding:2px 4px">✕</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#20242b;border-bottom:1px solid #20242b">
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">UPTIME</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#e6e9ed;margin-top:3px">{{ sel.up }}</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">FIRMWARE</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#e6e9ed;margin-top:3px">{{ sel.fw }}</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">FREE MEMORY</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#e6e9ed;margin-top:3px">{{ sel.mem }}</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">ROUTE</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#e6e9ed;margin-top:3px">{{ sel.route }}</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">POWER</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:{{ sel.battFg }};margin-top:3px">{{ sel.power }}</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">BOARD</div><div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#e6e9ed;margin-top:3px">{{ sel.board }}</div></div>
+</div>
+<div style="padding:12px 14px;border-bottom:1px solid #20242b">
+<div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:8px">NEIGHBORS</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ selNeighbors }}" as="nb" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:500 12px system-ui;color:#c7cdd6;flex:1">{{ nb.name }}</span><span style="padding:2px 7px;border-radius:4px;background:#191d23;font:600 11px 'IBM Plex Mono',ui-monospace,monospace;color:{{ nb.color }}">{{ nb.label }}</span></div>
+</sc-for>
+</div></div>
+<div style="padding:12px 14px;flex:1">
+<div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:8px">RECENT EVENTS</div>
+<div style="display:flex;flex-direction:column;gap:5px;font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1">
+<sc-for list="{{ selEvents }}" as="ev" hint-placeholder-count="4">
+<div><span style="color:{{ ev.tc }}">{{ ev.t }}</span> {{ ev.s }}</div>
+</sc-for>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-top:1px solid #20242b">
+<div style="display:flex;gap:8px">
+<button onClick="{{ locate }}" style="flex:1;height:34px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui;cursor:pointer">{{ locateLabel }}</button>
+<button style="flex:1;height:34px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui;cursor:pointer">↻ Reboot</button>
+</div>
+<button onClick="{{ enterPlacement }}" style="height:38px;background:#2a1108;border:1px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:700 12px system-ui;cursor:pointer">⇱ Placement mode — watch signal live</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ placement }}" hint-placeholder-val="{{ false }}">
+<div style="position:fixed;inset:0;z-index:20;background:rgba(8,9,12,.94);display:flex;align-items:center;justify-content:center">
+<div style="width:min(400px,92vw);background:#101318;border:1px solid #3a2211;border-radius:12px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;background:#1c1109;border-bottom:1px solid #3a2211">
+<span style="font:800 10.5px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.14em;color:#ff8a4d">PLACEMENT MODE</span>
+<span style="font:500 11px system-ui;color:#8b93a1;flex:1">readings every 1 s</span>
+<button onClick="{{ exitPlacement }}" style="height:32px;padding:0 12px;background:none;border:1px solid #333a45;border-radius:6px;color:#9aa3af;font:600 11.5px system-ui;cursor:pointer">Exit</button>
+</div>
+<div style="padding:18px 16px 10px;text-align:center">
+<div style="font:700 17px system-ui;color:#e6e9ed">{{ sel.name }}</div>
+<div style="font:500 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1;margin-top:4px">{{ pmVia }}</div>
+<div style="font:800 68px/1 'IBM Plex Mono',ui-monospace,monospace;color:{{ pmColor }};margin-top:16px;letter-spacing:-.02em">{{ pmRssi }}<span style="font-size:22px;color:#8b93a1;font-weight:600"> dBm</span></div>
+<div style="display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:6px 14px;border-radius:99px;background:{{ pmQualBg }};border:1px solid {{ pmQualBorder }}"><span style="font:800 12px 'IBM Plex Mono',ui-monospace,monospace;color:{{ pmColor }};letter-spacing:.1em">{{ pmQuality }}</span><span style="font:500 11.5px system-ui;color:#9aa3af">{{ pmTrend }}</span></div>
+<div style="display:flex;align-items:flex-end;gap:4px;justify-content:center;height:60px;margin:18px 0 6px">
+{{ pmBarEls }}
+</div>
+<div style="font:500 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873">last 14 s</div>
+<div style="font:400 12px/1.5 system-ui;color:#8b93a1;margin:12px 0 4px">{{ pmHint }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;padding:6px 16px 16px">
+<button onClick="{{ locate }}" style="height:52px;background:#191d23;border:1px solid #333a45;border-radius:8px;color:#e6e9ed;font:700 14px system-ui;cursor:pointer">{{ locateLabel }}</button>
+<button onClick="{{ exitPlacement }}" style="height:52px;background:#ff6b2c;border:none;border-radius:8px;color:#1a0d05;font:800 14px system-ui;cursor:pointer">Mark placed — done</button>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;simulate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo&quot;},&quot;degraded&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo&quot;}}">
+class Component extends DCLogic {
+  state = { sel: 'graveyard', stopped: false, holding: false, stopPct: 0, placement: false, blink: null, jit: {}, hist: [], ago: 1 };
+  BASE_NODES = [
+    { id: 'bridge', name: 'Bridge (garage)', x: 520, y: 110, pro: 1, status: 'online', hop: 0, fw: 'v0.9.4', mem: 141, up: '6d 02h', route: '\u2014 (root)', power: '\u26a1 wall', icon: '\u2302' },
+    { id: 'pir', name: 'Driveway PIR', x: 180, y: 140, pro: 0, status: 'missing', hop: 1, fw: 'v0.9.4', mem: null, up: '\u2014', route: 'was H1 via Bridge', batt: 3.71, icon: '\u2715' },
+    { id: 'skeleton', name: 'Front Porch Skeleton', x: 270, y: 300, pro: 1, status: 'online', hop: 1, fw: 'v0.9.3', mem: 104, up: '2d 14h', route: 'H1 via Bridge', power: '\u26a1 wall', icon: '' },
+    { id: 'fog', name: 'Fog Chiller', x: 740, y: 260, pro: 1, status: 'online', hop: 1, fw: 'v0.9.4', mem: 96, up: '2d 14h', route: 'H1 via Bridge', power: '\u26a1 wall', icon: '' },
+    { id: 'graveyard', name: 'Graveyard Servo Rig', x: 820, y: 470, pro: 1, status: 'online', hop: 2, fw: 'v0.9.3', mem: 118, up: '2d 14h', route: 'H2 via Fog Chiller', power: '\u26a1 wall', icon: '' },
+    { id: 'l1', name: 'Lantern 1', x: 150, y: 470, pro: 0, status: 'asleep', hop: 2, fw: 'v0.9.4', mem: 38, up: '11h 20m', route: 'H2 via Skeleton', batt: 3.92, icon: '\u263e' },
+    { id: 'l2', name: 'Lantern 2', x: 400, y: 520, pro: 0, status: 'online', hop: 2, fw: 'v0.9.4', mem: 41, up: '11h 20m', route: 'H2 via Skeleton', batt: 3.41, icon: '' },
+    { id: 'l3', name: 'Lantern 3', x: 610, y: 600, pro: 0, status: 'low', hop: 3, fw: 'v0.9.4', mem: 39, up: '11h 19m', route: 'H3 via Graveyard Rig', batt: 3.18, icon: '' }
+  ];
+  BASE_LINKS = [
+    { k: 'b-sk', a: 'bridge', b: 'skeleton', rssi: -52 },
+    { k: 'b-fg', a: 'bridge', b: 'fog', rssi: -48 },
+    { k: 'b-pir', a: 'bridge', b: 'pir', rssi: -79, lost: true },
+    { k: 'sk-l1', a: 'skeleton', b: 'l1', rssi: -71 },
+    { k: 'sk-l2', a: 'skeleton', b: 'l2', rssi: -68 },
+    { k: 'fg-gr', a: 'fog', b: 'graveyard', rssi: -61 },
+    { k: 'gr-l3', a: 'graveyard', b: 'l3', rssi: -83 }
+  ];
+  PARENT = { skeleton: 'b-sk', fog: 'b-fg', pir: 'b-pir', l1: 'sk-l1', l2: 'sk-l2', graveyard: 'fg-gr', l3: 'gr-l3' };
+  EVENTS = {
+    bridge: [{ t: '20:44:02', s: 'cue Ambient Fog dispatched' }, { t: '20:43:30', s: 'sACN stream idle' }, { t: '20:42:11', s: 'cue Driveway Scare \u2192 lockout' }, { t: '20:02:33', s: 'lost Driveway PIR', warn: 1 }],
+    pir: [{ t: '20:02:33', s: 'link lost (last \u221279 dBm)', warn: 1 }, { t: '20:01:50', s: 'battery 3.71 V reported' }, { t: '19:58:12', s: 'motion CLEAR' }, { t: '19:57:44', s: 'motion DETECT \u2192 cue fired' }],
+    skeleton: [{ t: '20:42:11', s: 'fired SERVO_1 coffin lid' }, { t: '20:42:11', s: 'fired LED_STRIP_1 eye glow' }, { t: '20:31:02', s: 'PIR_1 motion \u2192 cue matched' }, { t: '19:02:10', s: 'firmware check: v0.9.4 available' }],
+    fog: [{ t: '20:44:02', s: 'RELAY_1 fog machine ON (8 s)' }, { t: '20:39:00', s: 'fog burst complete' }, { t: '20:38:41', s: 'TEMP_1 12.4 \u00b0C' }],
+    graveyard: [{ t: '20:42:11', s: 'fired SERVO_1 coffin lid' }, { t: '20:42:11', s: 'cue Graveyard Rustle matched' }, { t: '20:38:54', s: 'route change \u2192 Fog Chiller' }, { t: '20:14:47', s: 'link Lantern 3 weak (\u221283)', warn: 1 }],
+    l1: [{ t: '20:30:00', s: 'deep sleep until :00/:30' }, { t: '20:29:58', s: 'battery 3.92 V' }],
+    l2: [{ t: '20:44:00', s: 'flicker pattern running' }, { t: '20:29:58', s: 'battery 3.41 V' }],
+    l3: [{ t: '20:44:00', s: 'flicker pattern running' }, { t: '20:29:58', s: 'battery 3.18 V LOW', warn: 1 }, { t: '20:14:47', s: 'parent link weak \u221283 dBm', warn: 1 }]
+  };
+  componentDidMount() {
+    this.iv = setInterval(() => {
+      if (!(this.props.simulate ?? true)) return;
+      this.setState(s => {
+        const jit = { ...s.jit };
+        this.BASE_LINKS.forEach(l => {
+          const d = (jit[l.k] || 0) + (Math.random() - 0.5) * 2.4;
+          jit[l.k] = Math.max(-4, Math.min(4, d));
+        });
+        let hist = s.hist;
+        if (s.placement && s.sel) {
+          const pk = this.PARENT[s.sel];
+          const base = this.BASE_LINKS.find(l => l.k === pk);
+          if (base) hist = [...hist.slice(-13), Math.round(base.rssi + (jit[pk] || 0))];
+        }
+        return { jit, hist, ago: 1, tick: (s.tick || 0) + 1 };
+      });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this.iv); clearInterval(this.holdIv); }
+  linkStyle(rssi, lost) {
+    if (lost) return { color: '#f4483a', w: 1.4, dash: '4 5' };
+    if (rssi >= -60) return { color: '#3fb950', w: 2.5, dash: '' };
+    if (rssi >= -75) return { color: '#6b7684', w: 1.8, dash: '' };
+    return { color: '#e0a52a', w: 1.3, dash: '6 4' };
+  }
+  rssiOf(k) { const b = this.BASE_LINKS.find(l => l.k === k); return Math.round(b.rssi + (this.state.jit[k] || 0)); }
+  renderVals() {
+    const S = this.state, deg = this.props.degraded ?? true;
+    const pos = {}; this.BASE_NODES.forEach(n => pos[n.id] = n);
+    const nodeState = id => {
+      const n = pos[id];
+      if (!deg) { if (id === 'pir') return 'online'; if (id === 'l3') return 'online'; }
+      return n.status;
+    };
+    const battOf = id => (!deg && id === 'l3') ? 3.87 : pos[id].batt;
+    const strokeFor = st => st === 'online' ? '#3fb950' : st === 'asleep' ? '#8b93a1' : st === 'low' ? '#e0a52a' : '#f4483a';
+    const links = this.BASE_LINKS.map(l => {
+      const lost = deg && l.lost;
+      let rssi = this.rssiOf(l.k);
+      if (!deg && l.k === 'gr-l3') rssi = Math.min(-71, rssi + 12);
+      if (!deg && l.k === 'b-pir') rssi = Math.max(rssi, -64);
+      const st = this.linkStyle(rssi, lost);
+      const A = pos[l.a], B = pos[l.b];
+      return { x1: A.x, y1: A.y, x2: B.x, y2: B.y, color: st.color, w: st.w, dash: st.dash, lx: (A.x + B.x) / 2, ly: (A.y + B.y) / 2 - 6, label: lost ? 'LOST 42m' : String(rssi), rssi, lost, k: l.k, a: l.a, b: l.b };
+    });
+    const counts = { online: 0, asleep: 0, missing: 0 };
+    const nodes = this.BASE_NODES.map(n => {
+      const st = nodeState(n.id);
+      counts[st === 'low' ? 'online' : st]++;
+      const stroke = strokeFor(st);
+      const batt = battOf(n.id);
+      const sub = n.pro ? ('PRO \u00b7 H' + n.hop) : st === 'missing' ? 'MINI \u00b7 missing' : (batt.toFixed(2) + ' V' + (st === 'low' ? ' LOW' : '') + ' \u00b7 H' + n.hop + (st === 'asleep' ? ' \u00b7 asleep' : ''));
+      return {
+        ...n, isPro: !!n.pro, isMini: !n.pro, stroke, dash: st === 'missing' ? '3 3' : '',
+        rx: n.x - 26, ry: n.y - 20, iy: n.y + 5, ny: n.y + (n.pro ? 41 : 36), sy: n.y + (n.pro ? 56 : 51),
+        icon: n.id === 'bridge' ? '\u2302' : st === 'asleep' ? '\u263e' : st === 'missing' ? '\u2715' : '',
+        iconFill: n.id === 'bridge' ? '#ff8a4d' : stroke, iconSize: n.id === 'bridge' ? 15 : 11,
+        nameFill: st === 'missing' ? '#f4483a' : S.sel === n.id ? '#ff8a4d' : st === 'asleep' ? '#9aa3af' : '#e6e9ed',
+        subFill: st === 'low' ? '#e0a52a' : '#8b93a1', sub,
+        selected: S.sel === n.id, blinking: S.blink === n.id,
+        select: () => this.setState({ sel: n.id, hist: [] }), status: st, batt
+      };
+    });
+    const selN = nodes.find(n => n.id === S.sel) || null;
+    const pill = st => st === 'online' ? ['#0f2416', '#1f4a2c', '#3fb950', 'ONLINE'] : st === 'asleep' ? ['#191d23', '#333a45', '#8b93a1', '\u263e ASLEEP'] : st === 'low' ? ['#2b2110', '#4a3a14', '#e0a52a', 'LOW BATT'] : ['#2a1210', '#4a1f1a', '#f4483a', '\u2715 MISSING'];
+    let sel = null, selNeighbors = [], selEvents = [];
+    if (selN) {
+      const p = pill(selN.status);
+      sel = {
+        name: selN.name, up: selN.up, fw: selN.fw + (selN.fw === 'v0.9.3' ? ' \u2191 0.9.4' : ''),
+        mem: selN.mem ? selN.mem + ' KB' : '\u2014', route: selN.route, board: selN.isPro ? 'PRO (ESP32-S3)' : 'MINI (ESP32-C3)',
+        power: selN.isPro ? '\u26a1 wall' : (selN.status === 'missing' ? 'was ' + selN.batt.toFixed(2) + ' V' : selN.batt.toFixed(2) + ' V \u00b7 ' + Math.max(2, Math.round((selN.batt - 3.0) / 0.012)) + '%'),
+        battFg: selN.status === 'low' ? '#e0a52a' : '#e6e9ed',
+        pillBg: p[0], pillBorder: p[1], pillFg: p[2], pillLabel: p[3]
+      };
+      selNeighbors = links.filter(l => l.a === S.sel || l.b === S.sel).map(l => {
+        const other = nodes.find(n => n.id === (l.a === S.sel ? l.b : l.a));
+        return { name: other.name, label: l.lost ? 'lost' : l.rssi + ' dBm', color: l.color === '#6b7684' ? '#9aa3af' : l.color };
+      });
+      selEvents = (this.EVENTS[S.sel] || []).map(e => ({ t: e.t, s: e.s, tc: e.warn ? '#e0a52a' : '#5f6873' }));
+    }
+    // placement values
+    const pk = this.PARENT[S.sel], pmLink = pk && links.find(l => l.k === pk);
+    const pmR = pmLink ? pmLink.rssi : -50;
+    const pmLost = pmLink && pmLink.lost;
+    const qual = pmLost ? ['LOST', '#f4483a', '#2a1210', '#4a1f1a'] : pmR >= -60 ? ['STRONG', '#3fb950', '#0f2416', '#1f4a2c'] : pmR >= -75 ? ['OK', '#c7cdd6', '#191d23', '#333a45'] : ['WEAK', '#e0a52a', '#2b2110', '#4a3a14'];
+    const hist = S.hist.length ? S.hist : [pmR];
+    const trend = hist.length > 3 ? (hist[hist.length - 1] > hist[0] ? 'trending better \u2197' : hist[hist.length - 1] < hist[0] ? 'trending worse \u2198' : 'holding steady \u2192') : 'reading\u2026';
+    const pmBars = hist.slice(-14).map((v, i, arr) => {
+      const h = Math.max(6, Math.min(56, (v + 95) * 1.7));
+      const c = i === arr.length - 1 ? qual[1] : 'rgba(139,147,161,.28)';
+      return { h: Math.round(h), c };
+    });
+    const pmBarEls = pmBars.map((b, i) => React.createElement('div', { key: 'pb' + i, style: { width: 14, borderRadius: 2, flex: 'none', height: b.h, background: b.c } }));
+    const parentName = pmLink ? (nodes.find(n => n.id === (pmLink.b === S.sel ? pmLink.a : pmLink.b)) || {}).name : 'bridge';
+    const MONO = "'IBM Plex Mono',ui-monospace,monospace";
+    const T = (props, str) => React.createElement('text', props, str);
+    const svgLabels = React.createElement('g', { style: { pointerEvents: 'none' } },
+      links.map(l => T({ key: 'll' + l.k, x: l.lx, y: l.ly, fontFamily: MONO, fontSize: 10.5, fontWeight: 600, textAnchor: 'middle', fill: l.color, style: { paintOrder: 'stroke', stroke: '#0b0d10', strokeWidth: '6px' } }, l.label))
+        .concat(nodes.flatMap(n => [
+          n.icon ? T({ key: 'i' + n.id, x: n.x, y: n.iy, fontSize: n.iconSize, textAnchor: 'middle', fill: n.iconFill, fontWeight: 700 }, n.icon) : null,
+          T({ key: 'n' + n.id, x: n.x, y: n.ny, fontSize: 12.5, fontWeight: 600, textAnchor: 'middle', fill: n.nameFill, fontFamily: 'system-ui' }, n.name),
+          T({ key: 's' + n.id, x: n.x, y: n.sy, fontSize: 10.5, textAnchor: 'middle', fill: n.subFill, fontFamily: MONO }, n.sub)
+        ])));
+    // stop control
+    const stopped = S.stopped;
+    return {
+      nodes, links, svgLabels, hasSel: !!sel && !S.placement, sel: sel || {}, selNeighbors, selEvents,
+      deselect: () => this.setState({ sel: null }),
+      nOnline: counts.online, nAsleep: counts.asleep, nMissing: counts.missing,
+      syncLabel: '\u00b1' + (2.1 + ((S.tick || 0) % 3) * 0.1).toFixed(1) + ' ms',
+      agoLabel: (this.props.simulate ?? true) ? '1 s ago' : 'paused',
+      healthLabel: deg ? 'DEGRADED' : 'HEALTHY',
+      healthBg: deg ? '#2b2110' : '#0f2416', healthBorder: deg ? '#4a3a14' : '#1f4a2c', healthFg: deg ? '#e0a52a' : '#3fb950',
+      healthDetail: deg ? '\u2715 Driveway PIR \u00b7 \u26a0 Lantern 3 batt \u00b7 \u26a0 link \u221283' : '8 nodes \u00b7 3 hops \u00b7 all links ok',
+      headerTop: stopped ? '46px' : '0px',
+      stopped, rearm: () => this.setState({ stopped: false }),
+      stopDown: () => {
+        if (S.stopped) return;
+        clearInterval(this.holdIv);
+        this.holdIv = setInterval(() => this.setState(s => {
+          const p = s.stopPct + 0.06;
+          if (p >= 1) { clearInterval(this.holdIv); return { stopped: true, holding: false, stopPct: 0 }; }
+          return { stopPct: p, holding: true };
+        }), 80);
+      },
+      stopUp: () => { clearInterval(this.holdIv); if (!this.state.stopped) this.setState({ holding: false, stopPct: 0 }); },
+      stopBg: stopped ? '#ff6b2c' : '#2a1108', stopFg: stopped ? '#1a0d05' : '#ff8a4d',
+      stopPctW: Math.round(S.stopPct * 100) + '%',
+      stopLabel: stopped ? 'STOPPED' : S.holding ? 'HOLD\u2026' : 'STOP ALL',
+      placement: S.placement && !!selN,
+      enterPlacement: () => this.setState({ placement: true, hist: [] }),
+      exitPlacement: () => this.setState({ placement: false }),
+      pmVia: (selN ? (selN.isPro ? 'PRO' : 'MINI') : '') + ' \u00b7 via ' + parentName + (selN ? ' \u00b7 hop ' + selN.hop : ''),
+      pmBarEls, pmRssi: pmLost ? '\u2715' : String(pmR), pmColor: qual[1], pmQuality: qual[0], pmQualBg: qual[2], pmQualBorder: qual[3], pmTrend: trend,
+      pmHint: pmLost ? 'No signal \u2014 walk back toward the yard until the node reappears.' : pmR < -75 ? 'Move toward ' + parentName + ' or raise the node off the ground \u2014 damp grass eats 2.4 GHz. \ud83c\udf83 The spirits prefer line of sight.' : 'Good spot. Stake it down before the spirits move it.',
+      locate: () => {
+        const id = this.state.sel;
+        this.setState({ blink: id });
+        clearTimeout(this.blinkT);
+        this.blinkT = setTimeout(() => this.setState({ blink: null }), 4000);
+      },
+      locateLabel: S.blink === S.sel && S.sel ? '\u25c9 Blinking\u2026' : '\u25c9 Blink LED'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html><meta charset="utf-8"><title>03-outputs wiring</title>
+<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
+<h1>03-outputs — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it.</p>
+<h2>I²C + PCA9685 core (U_PCA, servos/relays, 0x40)</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_I2C_SDA([&quot;I2C_SDA&quot;]):::net
+  P_U_PCA[&quot;&lt;b&gt;U_PCA&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  P_U_PCA --&quot;SDA&quot;--&gt; N_I2C_SDA
+  P_U_PCA2[&quot;&lt;b&gt;U_PCA2&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  N_I2C_SDA --&quot;SDA&quot;--&gt; P_U_PCA2
+  P_R_SDA[&quot;&lt;b&gt;R_SDA&lt;/b&gt;&lt;br/&gt;4.7k&quot;]:::part
+  N_I2C_SDA --&quot;1&quot;--&gt; P_R_SDA
+  N_I2C_SCL([&quot;I2C_SCL&quot;]):::net
+  P_U_PCA --&quot;SCL&quot;--&gt; N_I2C_SCL
+  P_U_PCA2 --&quot;SCL&quot;--&gt; N_I2C_SCL
+  P_R_SCL[&quot;&lt;b&gt;R_SCL&lt;/b&gt;&lt;br/&gt;4.7k&quot;]:::part
+  N_I2C_SCL --&quot;1&quot;--&gt; P_R_SCL
+  N__3V3([&quot;+3V3&quot;]):::rail
+  P_U_PCA --&quot;VDD&quot;--&gt; N__3V3
+  P_R_SDA --&quot;2&quot;--&gt; N__3V3
+  P_R_SCL --&quot;2&quot;--&gt; N__3V3
+  P_C_P1[&quot;&lt;b&gt;C_P1&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_P1
+  P_C_P2[&quot;&lt;b&gt;C_P2&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_P2
+  P_U_PCA2 --&quot;VDD&quot;--&gt; N__3V3
+  P_C_P3[&quot;&lt;b&gt;C_P3&lt;/b&gt;&lt;br/&gt;100nF&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_P3
+  P_C_P4[&quot;&lt;b&gt;C_P4&lt;/b&gt;&lt;br/&gt;10uF/16V&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N__3V3 --&quot;1&quot;--&gt; P_C_P4
+  P_R_B0[&quot;&lt;b&gt;R_B0&lt;/b&gt;&lt;br/&gt;10k&quot;]:::part
+  N__3V3 --&quot;2&quot;--&gt; P_R_B0
+  P_R_OE[&quot;&lt;b&gt;R_OE&lt;/b&gt;&lt;br/&gt;10k&quot;]:::part
+  N__3V3 --&quot;2&quot;--&gt; P_R_OE
+  N_PCA_OE([&quot;PCA_OE&quot;]):::net
+  P_U_PCA --&quot;~{OE}&quot;--&gt; N_PCA_OE
+  P_U_PCA2 --&quot;~{OE}&quot;--&gt; N_PCA_OE
+  P_R_OE --&quot;1&quot;--&gt; N_PCA_OE
+  N_A0_STRAP([&quot;A0_STRAP&quot;]):::net
+  P_U_PCA --&quot;A0&quot;--&gt; N_A0_STRAP
+  P_R_A0[&quot;&lt;b&gt;R_A0&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A0_STRAP --&quot;1&quot;--&gt; P_R_A0
+  N_A1_STRAP([&quot;A1_STRAP&quot;]):::net
+  P_U_PCA --&quot;A1&quot;--&gt; N_A1_STRAP
+  P_R_A1[&quot;&lt;b&gt;R_A1&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A1_STRAP --&quot;1&quot;--&gt; P_R_A1
+  N_A2_STRAP([&quot;A2_STRAP&quot;]):::net
+  P_U_PCA --&quot;A2&quot;--&gt; N_A2_STRAP
+  P_R_A2[&quot;&lt;b&gt;R_A2&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A2_STRAP --&quot;1&quot;--&gt; P_R_A2
+  N_A3_STRAP([&quot;A3_STRAP&quot;]):::net
+  P_U_PCA --&quot;A3&quot;--&gt; N_A3_STRAP
+  P_R_A3[&quot;&lt;b&gt;R_A3&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A3_STRAP --&quot;1&quot;--&gt; P_R_A3
+  N_A4_STRAP([&quot;A4_STRAP&quot;]):::net
+  P_U_PCA --&quot;A4&quot;--&gt; N_A4_STRAP
+  P_R_A4[&quot;&lt;b&gt;R_A4&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A4_STRAP --&quot;1&quot;--&gt; P_R_A4
+  N_A5_STRAP([&quot;A5_STRAP&quot;]):::net
+  P_U_PCA --&quot;A5&quot;--&gt; N_A5_STRAP
+  P_R_A5[&quot;&lt;b&gt;R_A5&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_A5_STRAP --&quot;1&quot;--&gt; P_R_A5
+  N_STEPPER_EN_RAW([&quot;STEPPER_EN_RAW&quot;]):::net
+  P_U_PCA --&quot;LED15&quot;--&gt; N_STEPPER_EN_RAW</pre>
+<h2>Second PCA9685 (U_PCA2, DC dimming, 0x41)</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_B0_STRAP([&quot;B0_STRAP&quot;]):::net
+  P_U_PCA2[&quot;&lt;b&gt;U_PCA2&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  P_U_PCA2 --&quot;A0&quot;--&gt; N_B0_STRAP
+  P_R_B0[&quot;&lt;b&gt;R_B0&lt;/b&gt;&lt;br/&gt;10k&quot;]:::part
+  N_B0_STRAP --&quot;1&quot;--&gt; P_R_B0
+  N_B1_STRAP([&quot;B1_STRAP&quot;]):::net
+  P_U_PCA2 --&quot;A1&quot;--&gt; N_B1_STRAP
+  P_R_B1[&quot;&lt;b&gt;R_B1&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_B1_STRAP --&quot;1&quot;--&gt; P_R_B1
+  N_B2_STRAP([&quot;B2_STRAP&quot;]):::net
+  P_U_PCA2 --&quot;A2&quot;--&gt; N_B2_STRAP
+  P_R_B2[&quot;&lt;b&gt;R_B2&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_B2_STRAP --&quot;1&quot;--&gt; P_R_B2
+  N_B3_STRAP([&quot;B3_STRAP&quot;]):::net
+  P_U_PCA2 --&quot;A3&quot;--&gt; N_B3_STRAP
+  P_R_B3[&quot;&lt;b&gt;R_B3&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_B3_STRAP --&quot;1&quot;--&gt; P_R_B3
+  N_B4_STRAP([&quot;B4_STRAP&quot;]):::net
+  P_U_PCA2 --&quot;A4&quot;--&gt; N_B4_STRAP
+  P_R_B4[&quot;&lt;b&gt;R_B4&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_B4_STRAP --&quot;1&quot;--&gt; P_R_B4
+  N_B5_STRAP([&quot;B5_STRAP&quot;]):::net
+  P_U_PCA2 --&quot;A5&quot;--&gt; N_B5_STRAP
+  P_R_B5[&quot;&lt;b&gt;R_B5&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_B5_STRAP --&quot;1&quot;--&gt; P_R_B5</pre>
+<h2>Relay channels ×3</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_RELAY_1([&quot;RELAY_1&quot;]):::net
+  P_U_PCA[&quot;&lt;b&gt;U_PCA&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  P_U_PCA --&quot;LED12&quot;--&gt; N_RELAY_1
+  P_U_REL[&quot;&lt;b&gt;U_REL&lt;/b&gt;&lt;br/&gt;ULN2003A&lt;br/&gt;&lt;i&gt;pin COM → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin GND → GND&lt;/i&gt;&quot;]:::part
+  N_RELAY_1 --&quot;I1&quot;--&gt; P_U_REL
+  N_REL1_COIL([&quot;REL1_COIL&quot;]):::net
+  P_U_REL --&quot;O1&quot;--&gt; N_REL1_COIL
+  P_K1[&quot;&lt;b&gt;K1&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  N_REL1_COIL --&quot;3&quot;--&gt; P_K1
+  N_REL1_NO([&quot;REL1_NO&quot;]):::net
+  P_K1 --&quot;1&quot;--&gt; N_REL1_NO
+  P_J_REL1[&quot;&lt;b&gt;J_REL1&lt;/b&gt;&lt;br/&gt;RELAY_OUT&quot;]:::part
+  N_REL1_NO --&quot;1&quot;--&gt; P_J_REL1
+  N_REL1_COM([&quot;REL1_COM&quot;]):::net
+  P_K1 --&quot;5&quot;--&gt; N_REL1_COM
+  P_K1 --&quot;6&quot;--&gt; N_REL1_COM
+  P_J_REL1 --&quot;2&quot;--&gt; N_REL1_COM
+  N_REL1_NC([&quot;REL1_NC&quot;]):::net
+  P_K1 --&quot;2&quot;--&gt; N_REL1_NC
+  P_J_REL1 --&quot;3&quot;--&gt; N_REL1_NC
+  N_RELAY_2([&quot;RELAY_2&quot;]):::net
+  P_U_PCA --&quot;LED13&quot;--&gt; N_RELAY_2
+  P_U_REL --&quot;I2&quot;--&gt; N_RELAY_2
+  N_REL2_COIL([&quot;REL2_COIL&quot;]):::net
+  P_U_REL --&quot;O2&quot;--&gt; N_REL2_COIL
+  P_K2[&quot;&lt;b&gt;K2&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  N_REL2_COIL --&quot;3&quot;--&gt; P_K2
+  N_REL2_NO([&quot;REL2_NO&quot;]):::net
+  P_K2 --&quot;1&quot;--&gt; N_REL2_NO
+  P_J_REL2[&quot;&lt;b&gt;J_REL2&lt;/b&gt;&lt;br/&gt;RELAY_OUT&quot;]:::part
+  N_REL2_NO --&quot;1&quot;--&gt; P_J_REL2
+  N_REL2_COM([&quot;REL2_COM&quot;]):::net
+  P_K2 --&quot;5&quot;--&gt; N_REL2_COM
+  P_K2 --&quot;6&quot;--&gt; N_REL2_COM
+  P_J_REL2 --&quot;2&quot;--&gt; N_REL2_COM
+  N_REL2_NC([&quot;REL2_NC&quot;]):::net
+  P_K2 --&quot;2&quot;--&gt; N_REL2_NC
+  P_J_REL2 --&quot;3&quot;--&gt; N_REL2_NC
+  N_RELAY_3([&quot;RELAY_3&quot;]):::net
+  P_U_PCA --&quot;LED14&quot;--&gt; N_RELAY_3
+  P_U_REL --&quot;I3&quot;--&gt; N_RELAY_3
+  N_REL3_COIL([&quot;REL3_COIL&quot;]):::net
+  P_U_REL --&quot;O3&quot;--&gt; N_REL3_COIL
+  P_K3[&quot;&lt;b&gt;K3&lt;/b&gt;&lt;br/&gt;HK4100F-DC5V-SHG&lt;br/&gt;&lt;i&gt;pin 4 → +5V&lt;/i&gt;&quot;]:::part
+  N_REL3_COIL --&quot;3&quot;--&gt; P_K3
+  N_REL3_NO([&quot;REL3_NO&quot;]):::net
+  P_K3 --&quot;1&quot;--&gt; N_REL3_NO
+  P_J_REL3[&quot;&lt;b&gt;J_REL3&lt;/b&gt;&lt;br/&gt;RELAY_OUT&quot;]:::part
+  N_REL3_NO --&quot;1&quot;--&gt; P_J_REL3
+  N_REL3_COM([&quot;REL3_COM&quot;]):::net
+  P_K3 --&quot;5&quot;--&gt; N_REL3_COM
+  P_K3 --&quot;6&quot;--&gt; N_REL3_COM
+  P_J_REL3 --&quot;2&quot;--&gt; N_REL3_COM
+  N_REL3_NC([&quot;REL3_NC&quot;]):::net
+  P_K3 --&quot;2&quot;--&gt; N_REL3_NC
+  P_J_REL3 --&quot;3&quot;--&gt; N_REL3_NC</pre>
+<h2>DC switch/dim channels ×6 (SI2356DS low-side, supply-voltage loads)</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_LED_1([&quot;LED_1&quot;]):::net
+  P_U_PCA2[&quot;&lt;b&gt;U_PCA2&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  P_U_PCA2 --&quot;LED0&quot;--&gt; N_LED_1
+  P_Q_LED1[&quot;&lt;b&gt;Q_LED1&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_1 --&quot;G&quot;--&gt; P_Q_LED1
+  N_LED1_K([&quot;LED1_K&quot;]):::net
+  P_Q_LED1 --&quot;D&quot;--&gt; N_LED1_K
+  P_J_LED1[&quot;&lt;b&gt;J_LED1&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED1_K --&quot;2&quot;--&gt; P_J_LED1
+  P_D_FB1[&quot;&lt;b&gt;D_FB1&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED1_K --&quot;A&quot;--&gt; P_D_FB1
+  N_LED_2([&quot;LED_2&quot;]):::net
+  P_U_PCA2 --&quot;LED1&quot;--&gt; N_LED_2
+  P_Q_LED2[&quot;&lt;b&gt;Q_LED2&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_2 --&quot;G&quot;--&gt; P_Q_LED2
+  N_LED2_K([&quot;LED2_K&quot;]):::net
+  P_Q_LED2 --&quot;D&quot;--&gt; N_LED2_K
+  P_J_LED2[&quot;&lt;b&gt;J_LED2&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED2_K --&quot;2&quot;--&gt; P_J_LED2
+  P_D_FB2[&quot;&lt;b&gt;D_FB2&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED2_K --&quot;A&quot;--&gt; P_D_FB2
+  N_LED_3([&quot;LED_3&quot;]):::net
+  P_U_PCA2 --&quot;LED2&quot;--&gt; N_LED_3
+  P_Q_LED3[&quot;&lt;b&gt;Q_LED3&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_3 --&quot;G&quot;--&gt; P_Q_LED3
+  N_LED3_K([&quot;LED3_K&quot;]):::net
+  P_Q_LED3 --&quot;D&quot;--&gt; N_LED3_K
+  P_J_LED3[&quot;&lt;b&gt;J_LED3&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED3_K --&quot;2&quot;--&gt; P_J_LED3
+  P_D_FB3[&quot;&lt;b&gt;D_FB3&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED3_K --&quot;A&quot;--&gt; P_D_FB3
+  N_LED_4([&quot;LED_4&quot;]):::net
+  P_U_PCA2 --&quot;LED3&quot;--&gt; N_LED_4
+  P_Q_LED4[&quot;&lt;b&gt;Q_LED4&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_4 --&quot;G&quot;--&gt; P_Q_LED4
+  N_LED4_K([&quot;LED4_K&quot;]):::net
+  P_Q_LED4 --&quot;D&quot;--&gt; N_LED4_K
+  P_J_LED4[&quot;&lt;b&gt;J_LED4&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED4_K --&quot;2&quot;--&gt; P_J_LED4
+  P_D_FB4[&quot;&lt;b&gt;D_FB4&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED4_K --&quot;A&quot;--&gt; P_D_FB4
+  N_LED_5([&quot;LED_5&quot;]):::net
+  P_U_PCA2 --&quot;LED4&quot;--&gt; N_LED_5
+  P_Q_LED5[&quot;&lt;b&gt;Q_LED5&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_5 --&quot;G&quot;--&gt; P_Q_LED5
+  N_LED5_K([&quot;LED5_K&quot;]):::net
+  P_Q_LED5 --&quot;D&quot;--&gt; N_LED5_K
+  P_J_LED5[&quot;&lt;b&gt;J_LED5&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED5_K --&quot;2&quot;--&gt; P_J_LED5
+  P_D_FB5[&quot;&lt;b&gt;D_FB5&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED5_K --&quot;A&quot;--&gt; P_D_FB5
+  N_LED_6([&quot;LED_6&quot;]):::net
+  P_U_PCA2 --&quot;LED5&quot;--&gt; N_LED_6
+  P_Q_LED6[&quot;&lt;b&gt;Q_LED6&lt;/b&gt;&lt;br/&gt;SI2356DS&lt;br/&gt;&lt;i&gt;pin S → GND&lt;/i&gt;&quot;]:::part
+  N_LED_6 --&quot;G&quot;--&gt; P_Q_LED6
+  N_LED6_K([&quot;LED6_K&quot;]):::net
+  P_Q_LED6 --&quot;D&quot;--&gt; N_LED6_K
+  P_J_LED6[&quot;&lt;b&gt;J_LED6&lt;/b&gt;&lt;br/&gt;LED_OUT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED6_K --&quot;2&quot;--&gt; P_J_LED6
+  P_D_FB6[&quot;&lt;b&gt;D_FB6&lt;/b&gt;&lt;br/&gt;SS34&lt;br/&gt;&lt;i&gt;pin K → VIN_PROT&lt;/i&gt;&quot;]:::part
+  N_LED6_K --&quot;A&quot;--&gt; P_D_FB6</pre>
+<h2>Servo headers ×6</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_SERVO_1([&quot;SERVO_1&quot;]):::net
+  P_U_PCA[&quot;&lt;b&gt;U_PCA&lt;/b&gt;&lt;br/&gt;PCA9685PW&lt;br/&gt;&lt;i&gt;pin VSS → GND&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin EXTCLK → GND&lt;/i&gt;&quot;]:::part
+  P_U_PCA --&quot;LED0&quot;--&gt; N_SERVO_1
+  P_J_SRV1[&quot;&lt;b&gt;J_SRV1&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_1 --&quot;3&quot;--&gt; P_J_SRV1
+  N_SERVO_2([&quot;SERVO_2&quot;]):::net
+  P_U_PCA --&quot;LED1&quot;--&gt; N_SERVO_2
+  P_J_SRV2[&quot;&lt;b&gt;J_SRV2&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_2 --&quot;3&quot;--&gt; P_J_SRV2
+  N_SERVO_3([&quot;SERVO_3&quot;]):::net
+  P_U_PCA --&quot;LED2&quot;--&gt; N_SERVO_3
+  P_J_SRV3[&quot;&lt;b&gt;J_SRV3&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_3 --&quot;3&quot;--&gt; P_J_SRV3
+  N_SERVO_4([&quot;SERVO_4&quot;]):::net
+  P_U_PCA --&quot;LED3&quot;--&gt; N_SERVO_4
+  P_J_SRV4[&quot;&lt;b&gt;J_SRV4&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_4 --&quot;3&quot;--&gt; P_J_SRV4
+  N_SERVO_5([&quot;SERVO_5&quot;]):::net
+  P_U_PCA --&quot;LED4&quot;--&gt; N_SERVO_5
+  P_J_SRV5[&quot;&lt;b&gt;J_SRV5&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_5 --&quot;3&quot;--&gt; P_J_SRV5
+  N_SERVO_6([&quot;SERVO_6&quot;]):::net
+  P_U_PCA --&quot;LED5&quot;--&gt; N_SERVO_6
+  P_J_SRV6[&quot;&lt;b&gt;J_SRV6&lt;/b&gt;&lt;br/&gt;SERVO&lt;br/&gt;&lt;i&gt;pin 2 → +5V&lt;/i&gt;&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  N_SERVO_6 --&quot;3&quot;--&gt; P_J_SRV6</pre>
+<h2>GND</h2><p><code>U_PCA.VSS</code>, <code>U_PCA.EXTCLK</code>, <code>U_REL.GND</code>, <code>R_A0.2</code>, <code>R_A1.2</code>, <code>R_A2.2</code>, <code>R_A3.2</code>, <code>R_A4.2</code>, <code>R_A5.2</code>, <code>C_P1.2</code>, <code>C_P2.2</code>, <code>U_PCA2.VSS</code>, <code>U_PCA2.EXTCLK</code>, <code>R_B1.2</code>, <code>R_B2.2</code>, <code>R_B3.2</code>, <code>R_B4.2</code>, <code>R_B5.2</code>, <code>C_P3.2</code>, <code>C_P4.2</code>, <code>Q_LED1.S</code>, <code>Q_LED2.S</code>, <code>Q_LED3.S</code>, <code>Q_LED4.S</code>, <code>Q_LED5.S</code>, <code>Q_LED6.S</code>, <code>J_SRV1.1</code>, <code>J_SRV2.1</code>, <code>J_SRV3.1</code>, <code>J_SRV4.1</code>, <code>J_SRV5.1</code>, <code>J_SRV6.1</code></p>
+<h2>+5V</h2><p><code>K1.4</code>, <code>K2.4</code>, <code>K3.4</code>, <code>U_REL.COM</code>, <code>J_SRV1.2</code>, <code>J_SRV2.2</code>, <code>J_SRV3.2</code>, <code>J_SRV4.2</code>, <code>J_SRV5.2</code>, <code>J_SRV6.2</code></p>
+<h2>VIN_PROT</h2><p><code>J_LED1.1</code>, <code>J_LED2.1</code>, <code>J_LED3.1</code>, <code>J_LED4.1</code>, <code>J_LED5.1</code>, <code>J_LED6.1</code>, <code>D_FB1.K</code>, <code>D_FB2.K</code>, <code>D_FB3.K</code>, <code>D_FB4.K</code>, <code>D_FB5.K</code>, <code>D_FB6.K</code></p>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>

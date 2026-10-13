@@ -1,0 +1,817 @@
+// Pin editor for one generic-board node (MeshPanel picks which): assign
+// each pin a function, save, test-fire. One row per board pin, in header
+// order, so the screen reads like the board in your hand.
+// docs/generic-boards.md.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { C } from "../../lib/tokens";
+import { ColorPicker, Confirm, Spinner, Toggle, mono, sys } from "../../ui";
+import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
+import {
+  EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
+  type ColorOrder, type FireCfg, type StripEffect,
+  type ChannelCfg, type NodeConfig, type Pull,
+} from "../../lib/nodeConfig";
+import { issueText, validate, type Issue } from "../../lib/pinRules";
+import { SHORT, isBest, isGood, tips } from "../../lib/pinAdvice";
+import PinGuide from "./PinGuide";
+import Pinout from "./Pinout";
+import type { NodeHello, NodeTarget } from "../../lib/transport";
+import { useConnection, type LocalMesh } from "../../lib/connection";
+
+// Fixed tracks for the short columns; options and test share what is
+// left, so a narrow window squeezes them instead of clipping the test
+// controls off the right edge.
+const ROW = "64px minmax(150px, 200px) 92px minmax(100px, 150px) minmax(150px, 1fr) minmax(170px, 1fr)";
+// Kinds a pin can be given. BLE lights use no pin — they get their own
+// section below the pins.
+const KINDS = (Object.keys(FUNCTIONS) as ChannelKindName[]).filter((k) => FUNCTIONS[k].pins.length > 0);
+
+const field: React.CSSProperties = {
+  height: 28, padding: "0 8px", background: C.card, border: `1px solid ${C.b2}`,
+  borderRadius: 5, outline: "none", ...sys(500, 12, C.t1),
+};
+const btn = (primary = false, disabled = false): React.CSSProperties => ({
+  height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.45 : 1,
+  background: primary ? C.emberBg : C.raised,
+  border: `1px solid ${primary ? C.ember : C.b3}`,
+  ...sys(600, 11.5, primary ? C.emberT : C.t2),
+});
+
+const canDo = (pin: BoardPin, kind: ChannelKindName, role = 0) => {
+  const need = FUNCTIONS[kind].pins[role].need;
+  return pin.tier !== "reserved" && (pin.caps & need) === need;
+};
+
+const hex = (v: number) => "#" + (v & 0xffffff).toString(16).padStart(6, "0");
+
+export interface EditorProps {
+  node: NodeTarget; // requests go to this node, over the mesh if remote
+  hello: NodeHello;
+  board: Board;
+  where: string; // "USB" / "WIFI" (the bridge itself) / "mesh · 1 hop · −54 dBm" — shown in the header
+  // Subscribe to this node's input events; returns the unsubscribe.
+  onInput: (cb: (kind: string, index: number, value: number) => void) => () => void;
+  // The node's name or bridge flag changed on save — the roster shows them.
+  onSaved: (cfg: NodeConfig) => void;
+}
+
+// Editor for one generic-board node: name, bridge mode, pin
+// assignments, save, test fire.
+export default function PinEditor({ node, hello, board, where, onInput, onSaved }: EditorProps) {
+  const conn = useConnection();
+  const [applied, setApplied] = useState<NodeConfig>(EMPTY_CONFIG); // what the node is running
+  const [draft, setDraft] = useState<NodeConfig>(EMPTY_CONFIG);
+  const [values, setValues] = useState<Record<string, number>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nodeIssues, setNodeIssues] = useState<Issue[] | null>(null); // the node's verdict on the last save
+  const [askBattery, setAskBattery] = useState(false); // "this board sends to the floods" check
+
+  const issues = useMemo(() => validate(board, draft), [board, draft]);
+  const hasErrors = issues.some((i) => i.error);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(applied);
+
+  // ---- load -----------------------------------------------------------
+
+  const load = async () => {
+    setError(null);
+    try {
+      const cfg = await node.request("get_config");
+      const st = await node.request("state");
+      if (!cfg.ok) throw new Error(cfg.error ?? "get_config failed");
+      const config = { ...EMPTY_CONFIG, ...(cfg.config as NodeConfig) };
+      setApplied(config);
+      setDraft(config);
+      setValues(toValues(st.channels));
+      setNodeIssues(null);
+      setLoaded(true);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, [hello.node]);
+
+  useEffect(() => onInput((kind, index, value) =>
+    setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
+
+  // ---- save -----------------------------------------------------------
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await node.request("set_config", { config: draft });
+      setNodeIssues((r.issues as Issue[]) ?? null);
+      if (!r.ok) {
+        setError(`Node refused the config: ${r.error}`);
+        return;
+      }
+      setApplied(draft);
+      setCal(null); // the node re-applied its pins: the servo is limp again
+      onSaved(draft);
+      const st = await node.request("state");
+      setValues(toValues(st.channels));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ---- test fire ------------------------------------------------------
+  // One request in flight per channel; a slider drag sends the newest
+  // value as soon as the previous one is acknowledged, never a backlog.
+
+  const inFlight = useRef<Record<string, boolean>>({});
+  const queued = useRef<Record<string, { value: number; us?: number } | undefined>>({});
+
+  // ---- servo calibration -------------------------------------------------
+  // The test slider only spans min..max, so it can't reach a new, wider
+  // end. Calibrate swaps it for the raw pulse (400-2600 µs) and offers
+  // "Set as min / max". It works with unsaved edits — it drives the
+  // servo the node already has — so both ends can be set, then saved.
+  const [cal, setCal] = useState<{ code: string; us: number } | null>(null);
+  const canCalibrate = (c: ChannelCfg) =>
+    applied.channels.some((a) => a.kind === c.kind && a.index === c.index && a.pins[0] === c.pins[0]);
+  const startCal = (c: ChannelCfg) => {
+    const run = applied.channels.find((a) => a.kind === c.kind && a.index === c.index) ?? c;
+    const lo = run.min_us ?? 500, hi = run.max_us ?? 2500;
+    const v = values[channelCode(c)];
+    const us = v === undefined || v < 0 ? 1500 : Math.round(lo + ((hi - lo) * v) / 1000);
+    setCal({ code: channelCode(c), us });
+    fire(c, 0, us);
+  };
+
+  // `us` drives a servo's raw pulse width (calibration) instead of a
+  // value between its end stops.
+  const fire = (c: ChannelCfg, value: number, us?: number) => {
+    const key = channelCode(c);
+    if (us === undefined) setValues((v) => ({ ...v, [key]: value }));
+    if (inFlight.current[key]) {
+      queued.current[key] = { value, us };
+      return;
+    }
+    inFlight.current[key] = true;
+    node.request("set", us === undefined ? { kind: c.kind, index: c.index, value } : { kind: c.kind, index: c.index, us })
+      .then((r) => { if (!r.ok) setError(`${key}: ${r.error}`); })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => {
+        inFlight.current[key] = false;
+        const next = queued.current[key];
+        queued.current[key] = undefined;
+        if (next !== undefined) fire(c, next.value, next.us);
+      });
+  };
+
+  const allOff = async () => {
+    try {
+      await node.request("all_off");
+      const st = await node.request("state");
+      setValues(toValues(st.channels));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  // Bridge mode drives no pins: turning it on clears the assignments
+  // in the draft (Revert brings them back).
+  const setBridge = (on: boolean) =>
+    setDraft((d) => ({ ...d, bridge: on, channels: on ? [] : d.channels }));
+
+  // ---- editing --------------------------------------------------------
+
+  const patch = (i: number, p: Partial<ChannelCfg>) =>
+    setDraft((d) => ({ ...d, channels: d.channels.map((c, j) => (j === i ? { ...c, ...p } : c)) }));
+
+  const assign = (gpio: number, kind: ChannelKindName | "") =>
+    setDraft((d) => {
+      const channels = d.channels.filter((c) => c.pins[0] !== gpio);
+      const next = { ...d, channels };
+      if (kind) next.channels = [...channels, newChannel(next, kind, gpio)];
+      return next;
+    });
+
+  // ---- render ---------------------------------------------------------
+
+  const advice = tips(board, draft);
+  const shown = [...issues, ...(nodeIssues ?? []).filter((n) => !issues.some((i) => i.code === n.code && i.channel === n.channel && i.gpio === n.gpio))];
+  const freePins = (c: ChannelCfg, role: number) =>
+    board.pins.filter((p) => canDo(p, c.kind, role) && (c.pins[role] === p.gpio || !draft.channels.some((o) => o.pins.includes(p.gpio))));
+
+  return (
+    <div style={{ background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
+        <input value={draft.name} maxLength={NAME_MAX} placeholder="Name this node"
+          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+          style={{ ...field, width: 200, ...sys(700, 13, C.t1) }} />
+        <span style={mono(600, 11, C.t4)}>{hello.node} · {board.name} · fw {hello.fw} · {where}</span>
+        <label title="A bridge drives no pins. It is the console's way into the mesh and keeps the mesh clock."
+          style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.bridge ? C.emberT : C.t3) }}>
+          <Toggle small on={!!draft.bridge} onClick={() => setBridge(!draft.bridge)} /> Bridge
+        </label>
+        {!draft.bridge && (
+          <label title="On a battery this board is a leaf: it never relays for others, so losing it costs the mesh nothing. (Sleeping between triggers comes next.)"
+            style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.power === "battery" ? C.amber : C.t3) }}>
+            <Toggle small on={draft.power === "battery"} onClick={() => {
+              // Going on battery on a flood sender: say what it costs first.
+              if (draft.power !== "battery" && draft.brmesh_key && hello.ble !== false) setAskBattery(true);
+              else setDraft((d) => ({ ...d, power: d.power === "battery" ? "mains" : "battery" }));
+            }} /> On battery
+          </label>
+        )}
+        <div style={{ flex: 1 }} />
+        {dirty && <span style={mono(600, 11, C.amber)}>unsaved changes</span>}
+        {busy && <Spinner color={C.emberT} />}
+        <button disabled={!dirty || busy} onClick={() => { setDraft(applied); setNodeIssues(null); }} style={btn(false, !dirty || busy)}>Revert</button>
+        <button disabled={!dirty || hasErrors || busy || !loaded} onClick={save} style={btn(true, !dirty || hasErrors || busy || !loaded)}>
+          {busy ? "Saving…" : "Save to node"}
+        </button>
+        {!applied.bridge && <button onClick={allOff} style={btn()}>All off</button>}
+      </div>
+
+      <Health hello={hello} />
+      {askBattery && (
+        <Confirm title="This board sends to the floods" okLabel="Put it on battery" onCancel={() => setAskBattery(false)}
+          onOk={() => { setAskBattery(false); setDraft((d) => ({ ...d, power: "battery" })); }}>
+          On battery it still sends, but only while awake: during the show it hears commands in short listen windows, so a
+          flood change can reach the lights up to one listen interval late (about {((draft.sleep?.interval_ms ?? 1000) / 1000).toFixed(1)} s with
+          the current settings), and while the show is off it is in deep sleep and sends nothing.
+          {" "}Keep a mains-powered board ticked in the Floods tab so the lights change on time.
+        </Confirm>
+      )}
+      {(error || shown.length > 0 || advice.length > 0) && (
+        <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 4 }}>
+          {error && <div style={mono(600, 11.5, C.red)}>✕ {error}</div>}
+          {shown.map((it, i) => (
+            <div key={i} style={mono(500, 11.5, it.error ? C.red : C.amber)}>
+              {it.error ? "✕" : "⚠"} {issueText(board, draft, it)}
+            </div>
+          ))}
+          {advice.map((t, i) => (
+            <div key={"tip" + i} style={mono(500, 11.5, C.t3)}>ⓘ {t.text}</div>
+          ))}
+        </div>
+      )}
+
+      {!loaded && !error && (
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "14px 16px", ...mono(500, 11.5, C.t4) }}>
+          <Spinner /> Reading pin assignments from {hello.name || hello.node}{where.startsWith("mesh") ? " over the mesh" : ""}…
+        </div>
+      )}
+      {!loaded && error && (
+        <div style={{ padding: "6px 16px 14px" }}>
+          <button onClick={() => void load()} style={btn()}>Try again</button>
+        </div>
+      )}
+      {loaded && draft.bridge && (
+        <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ ...sys(500, 12, C.t3), lineHeight: 1.5 }}>
+            <b style={{ color: C.t1 }}>Bridge.</b> This board drives no pins. It passes the console's
+            requests to the other nodes over the mesh, reports what it hears back, and keeps the mesh
+            clock — every node syncs to it.
+          </div>
+          <BridgeWifi draft={draft} applied={applied} setDraft={setDraft} isLink={!!conn && conn.hello.node === hello.node} local={conn?.local} />
+        </div>
+      )}
+      {loaded && !draft.bridge && draft.power === "battery" && (
+        hello.sleeps === false
+          ? <div style={{ padding: "0 16px 12px", ...sys(500, 12, C.amber) }}>This board's firmware can't deep-sleep (a build from before 2026-10-11, when DevKit images left sleep out): on battery it stops relaying for others, but it won't sleep. Update it and it will.</div>
+          : <SleepSettings draft={draft} setDraft={setDraft} />
+      )}
+      {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
+        <Pinout board={board} cfg={draft} />
+        <PinGuide board={board} cfg={draft} />
+        <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
+          <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>
+        </div>
+        {board.pins.map((pin) => {
+          const ci = draft.channels.findIndex((c) => c.pins.includes(pin.gpio));
+          const c = ci >= 0 ? draft.channels[ci] : undefined;
+          const owner = c && c.pins[0] === pin.gpio;
+          const mine = issues.filter((i) => i.channel === ci && ci >= 0 && (i.gpio === undefined || i.gpio === pin.gpio));
+          const bad = mine.some((i) => i.error);
+          const warn = !bad && (mine.length > 0 || (c && pin.tier === "caution"));
+          // Recommended uses first (★ best, · also good), then the rest.
+          const kinds = KINDS.filter((k) => canDo(pin, k))
+            .sort((a, b) => Number(isBest(pin, b)) - Number(isBest(pin, a)) || Number(isGood(pin, b)) - Number(isGood(pin, a)));
+          return (
+            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note}
+              style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22", opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
+              <span style={{ display: "flex", flexDirection: "column" }}>
+                <span style={mono(700, 12, bad ? C.red : warn ? C.amber : c ? C.t1 : C.t3)}>{pin.label}</span>
+                <span style={mono(500, 10, C.t5)}>GPIO {pin.gpio}{pin.tier === "caution" ? " ⚠" : ""}</span>
+              </span>
+
+              {pin.tier === "reserved" ? (
+                <span style={{ gridColumn: "2 / -1", ...sys(500, 11.5, C.t5) }}>reserved — {pin.note}</span>
+              ) : c && !owner ? (
+                <>
+                  <span style={sys(500, 12, C.t3)}>{FUNCTIONS[c.kind].label}</span>
+                  <span style={mono(600, 11.5, C.t3)}>{channelCode(c)}</span>
+                  <span style={{ gridColumn: "4 / -1", ...mono(500, 11, C.t5) }}>{pinRole(c, pin.gpio)} pin — set on {board.pins.find((p) => p.gpio === c.pins[0])?.label}</span>
+                </>
+              ) : (
+                <>
+                  <select value={c?.kind ?? ""} onChange={(e) => assign(pin.gpio, e.target.value as ChannelKindName | "")}
+                    style={{ ...field, color: c ? C.t1 : C.t5 }}>
+                    <option value="">— unused —</option>
+                    {kinds.map((k) => <option key={k} value={k}>{isBest(pin, k) ? "★ " : isGood(pin, k) ? "· " : "   "}{FUNCTIONS[k].label}</option>)}
+                  </select>
+                  {c ? (
+                    <>
+                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
+                        onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
+                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
+                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
+                        cal={c.kind !== "SERVO" ? undefined : {
+                          on: cal?.code === channelCode(c),
+                          us: cal?.code === channelCode(c) ? cal.us : 0,
+                          can: canCalibrate(c),
+                          start: () => startCal(c),
+                          stop: () => setCal(null),
+                          pulse: (us) => { setCal({ code: channelCode(c), us }); fire(c, 0, us); },
+                          setMin: (us) => patch(ci, { min_us: us }),
+                          setMax: (us) => patch(ci, { max_us: us }),
+                        }} />
+                    </>
+                  ) : (
+                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                      {pin.best && (
+                        <span style={{ ...sys(500, 11, C.t4), flex: "none" }}>
+                          ★ best for {SHORT[pin.best]}
+                          {pin.also?.length ? <span style={{ color: C.t5 }}> · also {pin.also.map((a) => SHORT[a]).join(", ")}</span> : null}
+                        </span>
+                      )}
+                      <span style={sys(400, 11, C.t6)}>{pin.note ?? ""}</span>
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+        {draft.channels.some((c) => c.kind === "BLE_LIGHT") && (
+          <div style={{ ...sys(400, 11.5, C.t4), padding: "10px 0 0" }}>
+            This board also sends to {draft.channels.filter((c) => c.kind === "BLE_LIGHT").length} flood light(s) — managed in the <b>Floods</b> tab, where they belong to the whole mesh.
+          </div>
+        )}
+      </div>}
+    </div>
+  );
+}
+
+
+// The bridge's home WiFi. Once it's set up, the board keeps the password
+// and never tells the console, so a password box always looks empty — it
+// read as "fill me in again" every time (2026-10-08). So: a status line
+// and Change…; the fields only while changing.
+function BridgeWifi({ draft, applied, setDraft, isLink, local }: {
+  draft: NodeConfig; applied: NodeConfig;
+  setDraft: React.Dispatch<React.SetStateAction<NodeConfig>>;
+  isLink: boolean; // this bridge is the one the console is connected through (so its live status is known)
+  local?: LocalMesh;
+}) {
+  const [editing, setEditing] = useState(false);
+  const set = !!applied.wifi?.ssid;
+  const changed = JSON.stringify(draft.wifi ?? null) !== JSON.stringify(applied.wifi ?? null);
+  // After a save the board's config comes back: close the form.
+  useEffect(() => { if (!changed) setEditing(false); }, [changed, applied]);
+  const label = <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>HOME WIFI</span>;
+
+  if (!editing && !changed) {
+    const status = !set ? null
+      : !isLink ? <span style={mono(500, 11.5, C.t4)}>status shows on the bridge you're connected through</span>
+      : local?.ip ? <span style={mono(600, 11.5, C.green)}>● connected · {local.ip} · channel {local.channel}</span>
+      : local?.wifi_reason ? <span style={mono(600, 11.5, C.amber)}>○ not connected — {local.wifi_reason}</span>
+      : <span style={mono(600, 11.5, C.amber)}>○ connecting…</span>;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {label}
+        {set
+          ? <><span style={sys(600, 12.5, C.t1)}>{applied.wifi!.ssid}</span>{status}
+              <button onClick={() => setEditing(true)} style={btn()}>Change…</button></>
+          : <><span style={sys(400, 12, C.t4)}>not set up — the console reaches this bridge by cable only</span>
+              <button onClick={() => setEditing(true)} style={btn()}>Set up home WiFi…</button></>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {label}
+      <input value={draft.wifi?.ssid ?? ""} placeholder="network name (2.4 GHz)" maxLength={32} autoFocus
+        onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), ssid: e.target.value } }))}
+        style={{ ...field, width: 200 }} />
+      <input value={draft.wifi?.pass ?? ""} type="password" autoComplete="off" maxLength={64}
+        placeholder={applied.wifi?.pass_set && draft.wifi?.ssid === applied.wifi?.ssid ? "unchanged — type a new one to replace it" : "password"}
+        onChange={(e) => setDraft((d) => ({ ...d, wifi: { ...(d.wifi ?? { ssid: "" }), pass: e.target.value } }))}
+        style={{ ...field, width: 260 }} />
+      {set && <button onClick={() => setDraft((d) => ({ ...d, wifi: undefined }))} style={btn()} title="Take the bridge off WiFi (Save to node to apply)">Forget network</button>}
+      <button onClick={() => { setDraft((d) => ({ ...d, wifi: applied.wifi })); setEditing(false); }} style={btn()}>Cancel</button>
+      <span style={sys(400, 11.5, C.t4)}>
+        Then <b>Save to node</b>. The password stays on the board; the console never sees it again.
+      </span>
+    </div>
+  );
+}
+
+// Sleep on battery (docs §6f). Two tiers: while the show runs the radio
+// listens a window of every interval (modem sleep between); when the
+// schedule says off the board deep-sleeps and checks in every few minutes
+// (its sensor pins wake it at once either way).
+function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React.Dispatch<React.SetStateAction<NodeConfig>> }) {
+  const sl = draft.sleep ?? { interval_ms: 1000, window_ms: 100, checkin_ms: 300000 };
+  const set = (p: Partial<typeof sl>) => setDraft((d) => ({ ...d, sleep: { ...sl, ...p } }));
+  const num = (v: number, on: (n: number) => void, w = 64) => (
+    <input type="number" value={v} onChange={(e) => on(Number(e.target.value))} style={{ ...field, width: w, textAlign: "right" }} />
+  );
+  const dutyMa = Math.round(100 * sl.window_ms / sl.interval_ms + 25);
+  return (
+    <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+        <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SLEEP</span>
+        <span>While the show runs, listen for</span>{num(sl.window_ms, (n) => set({ window_ms: Math.max(30, n) }))}<span>ms of every</span>
+        {num(sl.interval_ms, (n) => set({ interval_ms: Math.max(200, n) }))}<span>ms</span>
+        <span style={mono(500, 11, C.t4)}>— a cue reaches it within {(sl.interval_ms / 1000).toFixed(1)} s; about {dutyMa} mA on average</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+        <span style={{ width: 44 }} />
+        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_ms, (n) => set({ checkin_ms: Math.max(30000, n) }), 88)}<span>ms</span>
+        <span style={mono(500, 11, C.t4)}>({(sl.checkin_ms / 60000).toFixed(1)} min) — its sensor pins wake it at once; it also wakes for the next schedule window</span>
+      </div>
+    </div>
+  );
+}
+
+// Find + pair BRMesh lights from this board (firmware pm_ble_tx). Every
+// light heard is listed: unpaired ("found"), holding another controller's
+// key ("other" — pairing it is a take-over), or already on this board's
+// key ("paired" — adopted on the spot). The board makes its own key on
+// the first pairing, saves it, and adds each paired light as a BLE_LIGHT.
+interface FoundLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; acked?: boolean }
+
+export function BleFinder({ node, onPaired }: { node: NodeTarget; onPaired: () => Promise<void> }) {
+  const [mode, setMode] = useState<"idle" | "scanning" | "pairing">("idle");
+  const [lights, setLights] = useState<FoundLight[]>([]);
+  const [left, setLeft] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+
+  // Poll until the board says it's idle. A request can miss while the
+  // board's radio is busy listening — the next poll catches up.
+  const poll = async () => {
+    for (let i = 0; i < 60 && alive.current; i++) {
+      await new Promise((r) => setTimeout(r, 700));
+      try {
+        const r = await node.request("ble_found");
+        if (!r.ok) continue;
+        setLights(r.lights as FoundLight[]);
+        setLeft(r.remaining_ms as number);
+        setMode(r.mode as "idle");
+        if (r.mode === "idle") return r.lights as FoundLight[];
+      } catch { /* try again */ }
+    }
+    return [];
+  };
+
+  const search = async () => {
+    setError(null);
+    setSearched(true);
+    try {
+      const r = await node.request("ble_scan", { ms: 8000 });
+      if (!r.ok) { setError(r.error ?? "couldn't start the search"); return; }
+      setMode("scanning");
+      const after = await poll();
+      // A light already on this board's key is adopted during the search.
+      if (after.some((l) => l.state === "paired")) await onPaired();
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const pair = async (l: FoundLight) => {
+    setError(null);
+    try {
+      const r = await node.request("ble_pair", { addr: l.addr });
+      if (!r.ok) { setError(r.error ?? "couldn't pair"); return; }
+      setMode("pairing");
+      const after = await poll();
+      const me = after.find((x) => x.addr === l.addr);
+      if (me?.state === "paired") await onPaired();
+      else setError(`${l.type} light ${l.addr}: the pairing didn't go out — search again and retry`);
+    } catch (e) { setError((e as Error).message); }
+  };
+
+  const busy = mode !== "idle";
+  return (
+    <div style={{ margin: "8px 0", padding: 12, border: `1px solid ${C.b2}`, borderRadius: 8, background: C.card }}>
+      <div style={{ ...sys(400, 12, C.t3), lineHeight: 1.55 }}>
+        <b style={{ color: C.t1 }}>1.</b> Put the floods near this board and switch them <b>off</b>.{" "}
+        <b style={{ color: C.t1 }}>2.</b> Click <b>Search</b>, then switch them <b>on</b> — a light only announces
+        itself for a short while after power-up. Lights paired to the BRMesh app or another board show as
+        <b> paired elsewhere</b>: <b>Take over</b> moves them to this board, and the app loses them.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+        <button onClick={() => void search()} disabled={busy} style={btn(true, busy)}>Search (8 s)</button>
+        {busy && <><Spinner /><span style={mono(500, 11, C.t4)}>{mode === "scanning" ? `listening… ${Math.ceil(left / 1000)} s` : "pairing…"}</span></>}
+        {error && <span style={mono(500, 11, C.red)}>✕ {error}</span>}
+      </div>
+      {lights.map((l) => (
+        <div key={l.addr} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0", borderTop: "1px solid #181c22", marginTop: 6 }}>
+          <span style={sys(600, 12, C.t1)}>{l.type} light</span>
+          <span style={mono(500, 11, C.t4)}>{l.addr} · {l.rssi} dBm</span>
+          <div style={{ flex: 1 }} />
+          {l.state === "paired"
+            ? <span style={mono(700, 11, C.green)} title={l.acked ? "the light confirmed the new key" : "lights don't usually answer — check it with a test color below"}>
+                ✓ paired as light #{l.number}{l.acked ? "" : " — try its color below"}
+              </span>
+            : l.state === "pairing"
+              ? <span style={mono(600, 11, C.t4)}>pairing as #{l.number}…</span>
+              : <>
+                  {l.state === "failed" && <span style={mono(600, 11, C.amber)}>didn't confirm</span>}
+                  {l.state === "other" && <span style={mono(600, 11, C.amber)} title={`holds key ${l.key}`}>paired elsewhere{l.number ? ` as #${l.number}` : ""}</span>}
+                  <button onClick={() => void pair(l)} disabled={busy} style={btn(true, busy)}>
+                    {l.state === "failed" ? "Retry" : l.state === "other" ? "Take over" : "Pair"}
+                  </button>
+                </>}
+        </div>
+      ))}
+      {searched && !busy && lights.length === 0 && !error && (
+        <div style={{ ...sys(400, 11.5, C.t5), marginTop: 8 }}>
+          No lights answered. They only announce themselves just after power-up: switch them off, start a
+          search, then switch them on close to this board.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toValues(channels: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const c of (channels as { kind: string; index: number; value: number }[]) ?? [])
+    out[`${c.kind}_${c.index}`] = c.value;
+  return out;
+}
+
+const optLabel: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, ...sys(500, 11, C.t4) };
+const num: React.CSSProperties = { ...field, width: 64, ...mono(500, 11.5, C.t1) };
+
+function Options({ c, pin, in2, onChange }: {
+  c: ChannelCfg; pin: BoardPin; in2: BoardPin[]; onChange: (p: Partial<ChannelCfg>) => void;
+}) {
+  const int = (s: string) => Math.max(0, parseInt(s, 10) || 0);
+  const activeLow = (text: string, hint?: string) => (
+    <label style={optLabel} title={hint}>
+      <input type="checkbox" checked={!!c.active_low} onChange={(e) => onChange({ active_low: e.target.checked })} />
+      {text}
+    </label>
+  );
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 12px", flexWrap: "wrap", minWidth: 0 }}>
+      {c.kind === "RELAY" && activeLow("on = LOW", "Most relay modules switch on when their input is pulled LOW")}
+      {c.kind === "DIGITAL_IN" && (
+        <>
+          <label style={optLabel}>pull
+            <select value={c.pull ?? "none"} onChange={(e) => onChange({ pull: e.target.value as Pull })} style={field}>
+              <option value="none">none</option>
+              <option value="up" disabled={!(pin.caps & Cap.PULLUP)}>up</option>
+              <option value="down" disabled={!(pin.caps & Cap.PULLDOWN)}>down</option>
+            </select>
+          </label>
+          {activeLow("active = LOW")}
+        </>
+      )}
+      {c.kind === "SERVO" && (
+        <>
+          <label style={optLabel} title="Pulse width at 0 %">min <input type="number" step={10} value={c.min_us ?? 500} onChange={(e) => onChange({ min_us: int(e.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Pulse width at 100 %">max <input type="number" step={10} value={c.max_us ?? 2500} onChange={(e) => onChange({ max_us: int(e.target.value) })} style={num} /> µs</label>
+          {/* Reverse = the two ends swapped; stored as min above max. */}
+          <label style={optLabel} title="Swap the ends: 0 % moves to where 100 % was">
+            <input type="checkbox" checked={(c.min_us ?? 500) > (c.max_us ?? 2500)}
+              onChange={() => onChange({ min_us: c.max_us ?? 2500, max_us: c.min_us ?? 500 })} />
+            reverse
+          </label>
+          <Smoothing c={c} onChange={onChange} />
+        </>
+      )}
+      {isStrip(c.kind) && (
+        <>
+          {c.kind === "SPI_STRIP" && (
+            <label style={optLabel} title={`DATA is ${pin.label}`}>clock
+              <select value={c.pins[1] ?? ""} style={field}
+                onChange={(e) => onChange({ pins: e.target.value === "" ? [c.pins[0]] : [c.pins[0], Number(e.target.value)] })}>
+                <option value="">— choose —</option>
+                {in2.filter((p) => p.gpio !== c.pins[0]).map((p) => <option key={p.gpio} value={p.gpio}>{p.label}{p.tier === "caution" ? " ⚠" : ""}</option>)}
+              </select>
+            </label>
+          )}
+          <label style={optLabel}>pixels <input type="number" min={1} value={c.pixels ?? 30} onChange={(e) => onChange({ pixels: int(e.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Color order on the wire — WS2812 is usually GRB, SK9822 / APA102 BGR. Wrong order = wrong colors, nothing worse.">order
+            <select value={c.order ?? (c.kind === "SPI_STRIP" ? "bgr" : "grb")} onChange={(e) => onChange({ order: e.target.value as ColorOrder })} style={field}>
+              <option value="grb">GRB</option><option value="rgb">RGB</option><option value="bgr">BGR</option>
+            </select>
+          </label>
+          <label style={optLabel} title="Solid: the strip shows the color it is set to. Fire: a flame effect runs on the strip; a cue or test color only switches it on (any color) or off (0).">effect
+            <select value={c.effect ?? "solid"} style={field}
+              onChange={(e) => {
+                const effect = e.target.value as StripEffect;
+                // First time: the lantern's 2×4 if the count fits, else one column.
+                const n = c.pixels ?? 30;
+                const fire = c.fire ?? (n === 8 ? { ...FIRE_DEFAULTS } : { ...FIRE_DEFAULTS, w: 1, h: n, zigzag: false });
+                onChange({ effect, fire });
+              }}>
+              <option value="solid">solid color</option><option value="fire">fire</option>
+            </select>
+          </label>
+          {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
+        </>
+      )}
+      {c.kind === "MOTOR" && (
+        <label style={optLabel} title={`IN1 is ${pin.label}`}>IN2
+          <select value={c.pins[1] ?? ""} style={field}
+            onChange={(e) => onChange({ pins: e.target.value === "" ? [c.pins[0]] : [c.pins[0], Number(e.target.value)] })}>
+            <option value="">— choose —</option>
+            {in2.filter((p) => p.gpio !== c.pins[0]).map((p) => <option key={p.gpio} value={p.gpio}>{p.label}{p.tier === "caution" ? " ⚠" : ""}</option>)}
+          </select>
+        </label>
+      )}
+    </span>
+  );
+}
+
+// Servo smoothing: a preset, or Custom with the two numbers.
+function Smoothing({ c, onChange }: { c: ChannelCfg; onChange: (p: Partial<ChannelCfg>) => void }) {
+  const t = c.travel_ms ?? 0, e = c.ease_ms ?? 0;
+  const preset = SMOOTHING.find((p) => p.travel_ms === t && p.ease_ms === e);
+  const [custom, setCustom] = useState(!preset);
+  const showNums = custom || !preset;
+  const int = (s: string) => Math.max(0, parseInt(s, 10) || 0);
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+      title="How the servo gets to a new position. Off snaps at the servo's own speed; the presets accelerate, cruise and slow to a stop.">
+      <label style={optLabel}>smoothing
+        <select value={showNums ? "custom" : preset!.id} style={field}
+          onChange={(ev) => {
+            const p = SMOOTHING.find((x) => x.id === ev.target.value);
+            if (p) { setCustom(false); onChange({ travel_ms: p.travel_ms, ease_ms: p.ease_ms }); }
+            else setCustom(true);
+          }}>
+          {SMOOTHING.map((p) => (
+            <option key={p.id} value={p.id}>{p.label}{p.travel_ms ? ` · ${p.travel_ms} ms` : ""}</option>
+          ))}
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      {showNums && (
+        <>
+          <label style={optLabel} title="Time for a full 0–100 % sweep at cruise speed (0 = snap)">sweep
+            <input type="number" step={50} min={0} value={t} onChange={(ev) => onChange({ travel_ms: int(ev.target.value) })} style={num} /></label>
+          <label style={optLabel} title="Time to speed up from rest (and to slow down before stopping)">ease
+            <input type="number" step={20} min={0} value={e} onChange={(ev) => onChange({ ease_ms: int(ev.target.value) })} style={num} /> ms</label>
+        </>
+      )}
+    </span>
+  );
+}
+
+interface Cal {
+  on: boolean; // this servo is in calibrate mode
+  us: number; // the raw pulse it is being driven with
+  can: boolean; // the node already runs this servo (saved)
+  start: () => void;
+  stop: () => void;
+  pulse: (us: number) => void;
+  setMin: (us: number) => void;
+  setMax: (us: number) => void;
+}
+
+// Why the board last restarted, and what it saved to flash before that
+// (pm_lastwords). Shown only when there is something worth reading: a
+// plain power-on with nothing saved says nothing.
+const dur = (s: number) => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min` : `${s} s`;
+function Health({ hello }: { hello: NodeHello }) {
+  const odd = hello.reset && !["power on", "software (update or restart)", "deep sleep", "reset pin"].includes(hello.reset);
+  if (!odd && !hello.last) return null;
+  const when = hello.last?.utc_s ? new Date(hello.last.utc_s * 1000).toLocaleString() : hello.last?.up_s !== undefined ? `after ${dur(hello.last.up_s)} running` : "";
+  return (
+    <div style={{ padding: "6px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", gap: 14, flexWrap: "wrap", ...sys(400, 11.5, C.t3) }}>
+      {hello.reset && <span>Last restart: <b style={{ color: odd ? C.amber : C.t2 }}>{hello.reset}</b>{hello.up_s !== undefined ? ` · up ${dur(hello.up_s)}` : ""}</span>}
+      {hello.last && <span title="Saved to the board's flash when it happened, so a restart doesn't erase it">
+        Before that: <b style={{ color: C.amber }}>{hello.last.what}</b>{hello.last.detail ? ` — ${hello.last.detail}` : ""}{when ? ` (${when})` : ""}
+      </span>}
+    </div>
+  );
+}
+
+// Fire2023's knobs (firmware pm_fire.h). Titles say which way each one
+// pushes the look; the defaults are Colin's lantern.
+function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCfg>) => void }) {
+  const u8 = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10) || 0));
+  const small: React.CSSProperties = { ...num, width: 50 };
+  const field = (key: keyof FireCfg, label: string, title: string, max = 255) => (
+    <label style={optLabel} title={title}>{label}
+      <input type="number" min={0} max={max} value={f[key] as number} onChange={(e) => onChange({ [key]: Math.min(max, u8(e.target.value)) })} style={small} />
+    </label>
+  );
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+      <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FIRE</span>
+      {field("w", "columns", "Columns of pixels, side by side around the prop. columns × height = pixel count.", 60)}
+      {field("h", "height", "Pixels per column, bottom to top. The flame is seeded at the bottom.", 255)}
+      <label style={optLabel} title="Serpentine wiring: the first column runs bottom to top, the next top to bottom, and so on (the lantern). Off: every column starts at the bottom.">
+        <input type="checkbox" checked={f.zigzag} onChange={(e) => onChange({ zigzag: e.target.checked })} /> zigzag
+      </label>
+      {field("brightness", "brightness", "Overall level, 0–255.")}
+      {field("speed", "speed", "How fast the flames move. Small matrices want small values (the lantern: 2).")}
+      <label style={optLabel} title="Flame height — higher values cool the heat less, so flames climb further up the column (the lantern: 3.0).">flame
+        <input type="number" min={0.1} max={25} step={0.1} value={(f.flame10 / 10).toFixed(1)}
+          onChange={(e) => onChange({ flame10: Math.max(1, Math.min(255, Math.round((parseFloat(e.target.value) || 0) * 10))) })} style={small} />
+      </label>
+      {field("noise", "noise", "Flame noise scale: 0 = one smooth flame across the columns, bigger = each column flickers on its own.")}
+      {field("smoke_speed", "smoke speed", "How fast the smoke layer drifts — a little faster than the flames reads best (the lantern: 25).")}
+      {field("smoke_dim", "smoke", "Smoke thickness: lower = brighter, more visible flames; higher = more cut off by smoke (the lantern: 250).")}
+      {field("smoke_scale", "smoke scale", "Smoke noise scale: small = soft veils, big = blinky (the lantern: 125).")}
+    </span>
+  );
+}
+
+function Test({ c, value, disabled, onFire, cal }: {
+  c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void; cal?: Cal;
+}) {
+  const f = FUNCTIONS[c.kind];
+  const v = value ?? 0;
+  const dim: React.CSSProperties = disabled ? { opacity: 0.35, pointerEvents: "none" } : {};
+  const readout = (text: string) => <span style={{ ...mono(600, 11, C.t3), width: 52, textAlign: "right" }}>{text}</span>;
+
+  if (c.kind === "DIGITAL_IN")
+    return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;
+  if (c.kind === "RELAY")
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>
+        <button onClick={() => onFire(v ? 0 : 1)} style={{ ...btn(!!v), width: 104, flex: "none" }}>{v ? "⏻ TURN OFF" : "⏻ TURN ON"}</button>
+        <span style={mono(700, 11, v ? C.green : C.t5)}>{v ? "● ON" : "○ OFF"}</span>
+      </span>
+    );
+  // A fire strip has no color to pick: it burns or it doesn't.
+  if (isStrip(c.kind) && c.effect === "fire")
+    return (
+      <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <button disabled={disabled} onClick={() => onFire(0xff5500)} style={btn(true, disabled)}>Burn</button>
+        <button disabled={disabled} onClick={() => onFire(0)} style={btn(false, disabled)}>Out</button>
+        {value !== undefined && <span style={mono(500, 11, value ? C.amber : C.t5)}>{value ? "burning" : "out"}</span>}
+      </span>
+    );
+  if (isColor(c.kind))
+    return (
+      <span style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 10, ...dim }}>
+        <ColorPicker value={v} onChange={onFire} white={c.kind === "BLE_LIGHT"} />
+        <button onClick={() => onFire(0)} style={btn()}>Off</button>
+        {readout(hex(v))}
+      </span>
+    );
+  if (cal?.on) {
+    const small: React.CSSProperties = { ...btn(), height: 26, padding: "0 8px", flex: "none" };
+    return (
+      <span style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="range" min={SERVO_MIN_US} max={SERVO_MAX_US} step={5} value={cal.us}
+            onChange={(e) => cal.pulse(Number(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: C.amber }} />
+          {readout(`${cal.us} µs`)}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={() => cal.setMin(cal.us)} style={small} title="This position becomes 0 %">Set as min</button>
+          <button onClick={() => cal.setMax(cal.us)} style={small} title="This position becomes 100 %">Set as max</button>
+          <button onClick={cal.stop} style={{ ...small, ...sys(600, 11.5, C.t4) }}>Done</button>
+        </span>
+      </span>
+    );
+  }
+
+  // LED, SERVO, MOTOR: a slider over the function's value range.
+  const limp = c.kind === "SERVO" && v < 0;
+  const calBtn = cal && (
+    <button onClick={cal.start} disabled={!cal.can}
+      title={cal.can ? "Drive the raw pulse width to find the ends of travel" : "Save this servo to the node first"}
+      style={{ ...btn(false, !cal.can), height: 26, padding: "0 8px", flex: "none", pointerEvents: "auto", opacity: cal.can ? 1 : 0.45 }}>
+      Calibrate
+    </button>
+  );
+  if (cal && disabled) {
+    // Unsaved edits: the % slider would drive the old end stops, so only
+    // calibration (raw pulse) is offered.
+    return <span style={{ display: "flex", alignItems: "center", gap: 8 }}>{calBtn}<span style={mono(500, 10.5, C.t5)}>save to use the % slider</span></span>;
+  }
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, ...dim }}>
+      <input type="range" min={f.min} max={f.max} step={10} value={limp ? 500 : v}
+        onChange={(e) => onFire(Number(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: C.ember }} />
+      {c.kind === "MOTOR" && <button onClick={() => onFire(0)} style={btn()}>Stop</button>}
+      {calBtn}
+      {readout(limp ? "limp" : c.kind === "MOTOR" ? `${v > 0 ? "+" : ""}${Math.round(v / 10)}%` : `${Math.round(v / 10)}%`)}
+    </span>
+  );
+}

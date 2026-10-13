@@ -1,1 +1,237 @@
-# KiCad project — see ../../docs/hardware-spec.md
+# PropMesh Pro — start here
+
+KiCad project: `propmesh/`. This file is the **map** — if you ever need
+two documents open at once to do one task, that's a bug in the docs;
+fix the doc, don't cross-reference.
+
+## The four layers
+
+| Layer | Lives in | Open it when |
+|---|---|---|
+| **WHY** — decisions, costs, schedule | `docs/hardware-spec.md` | you're questioning a choice or pricing something. Its BOM tables are **cost rollups, not orderable specs.** |
+| **WHAT** — every pin and net name | `pinmap.yaml` (repo root) | never during capture — each sheet file below already quotes its nets. Edit it only to *change* an assignment (then regenerate + update spec, same commit). |
+| **HOW (layout)** — placing and routing the board | **`layout.md`** | laying out the PCB as one numbered procedure (Part A: Board Setup, outline, holes, every connector's Position X/Y, block regions, per-part placement tables, zones, routing, silk, DRC, export) with a "where you are" line at the top; Part B is the reference behind it. `tools/checksetup.py` verifies the setup steps from the saved files. |
+| **HOW** — drawing each schematic sheet | **`sheets/NN-*.md`** | drawing that sheet. Each is self-contained: parts, selection criteria, supporting passives, exact net names, a done-checklist. |
+| **PROCESS** — review, libraries, git | `CLAUDE.md` (review order), `hardware/README.md` (libraries, easyeda2kicad, what's committed) | reviewing, importing a part, committing. |
+| **AUDIT** — the last full review | **`review-2026-09-08.md`** | before routing, and before ordering. One pre-route audit of schematic + placement + every datasheet: what must be fixed first, what was verified correct, and what to check at bring-up. |
+
+**The standing rule:** anything learned during capture — a criteria
+gotcha, a stock problem, a changed value — goes into the relevant
+`sheets/` file the same day. Chat sessions and heads are not storage.
+
+**Connections live in `NN-name.net.yaml`, one line per net — never in
+prose or markdown tables — and are DRAWN, not described.**
+`tools/checknet.py NN.net.yaml --mermaid` renders it to
+`NN.diagram.html` (open in any browser) and `NN.diagram.md`: one
+left-to-right wiring diagram per circuit block, every part's GND pin
+written in its box, plus a per-net roll-call table. That is the drawing
+guide Colin works from — visual, not prose. **A multi-unit symbol (quad
+gate, dual op-amp) must carry `units: {A: [pins], …}` in its yaml** so
+the diagram draws one box per unit, matching the separate symbols KiCad
+places — sheet 05's 74AHCT125 rendered as one 14-pin box first, and
+was undrawable from (2026-09-05). The markdown says *why*; the
+yaml says *what wires to what*, and it is machine-checked:
+
+```
+python3 tools/checknet.py hardware/pro/sheets/01-power.net.yaml
+```
+
+diffs the spec against `kicad-cli`'s netlist export of the real
+schematic **and writes `NN.check.html` — the same diagram coloured by
+result** (green ok, red wrong net with a note saying where the pin
+actually is, orange wrong value, dashed not placed). Open it in a
+browser, not the editor; all green = sheet done. Parts match by
+**Value**, and each spec part is paired with one specific KiCad part
+(same-value parts are paired by best fit, so a finding names the
+actual resistor; boxes show `C_bulk = C11`). A part still carrying its
+symbol's default Value is matched by symbol and flagged. Nets match by
+membership (internal nodes need no labels), and the named rails are
+checked for their label. This closes the "schematic disagrees with the design" bug
+class CLAUDE.md ranks first. The markdown keeps only a **designator
+cross-reference** where the sheet's names differ from the datasheet
+figure's. Sheet 01 is the worked example; **all seven `.net.yaml`s are
+written** (05/07 landed 2026-09-04).
+
+**Every part gets a TABLE ROW, never only prose.** A part described in
+a sentence ("plus a 10 kΩ pull-up", "gate network: a zener and 100 kΩ")
+is invisible when you work down the table sourcing parts — it was a real
+miss on sheet 01's gate clamp. Each sheet ends with a **Complete parts
+list**: one row per reference designator, and if it is not in that table
+it does not exist.
+
+**One list, not three.** Parts are itemised in **the sheet's
+per-section tables and nowhere else** — that is the single source. The
+spec's §2.4 carries only a **rolled-up cost** per block and points at
+the sheet; a sheet's "Sourcing status" tracks only what is still
+*missing*, never a second copy of what is found. This was learned the
+hard way: the same 28 parts briefly existed in three places, guaranteed
+to drift. **When a sheet is finished, update its §2.4 rollup total and
+re-run the cost cascade** — one number to sync, not thirty rows.
+
+## Sheet status
+
+| Sheet | Doc | Drawn | Open ⚠ items in doc |
+|---|---|---|---|
+| 01 Power | `sheets/01-power.md` — **done: every part has a verified LCSC number, tier and price** | **☑ DONE 2026-09-03** — checknet all green incl. J2, ERC clean, all 5 imported land patterns datasheet-verified, C4 DNP set; **staged-power link headers J48/J49/J50 added 2026-09-07** (spec §2.6), checker green, ERC clean | for LAYOUT: J1 pad ring ≥2.8 mm; silkscreen `ONE SUPPLY ONLY` / `+ TIP`; measure a real F1 holder at bring-up |
+| 02 MCU + USB | `sheets/02-mcu-usb.md` — **fully sourced** | **☑ DONE 2026-09-04** — checknet all nets + footprints green; ERC clean bar the 32 expected one-sided labels | for LAYOUT: USB-C needs its shield vias; TP37 silkscreen |
+| 03 Slow outputs | `sheets/03-outputs.md` — **fully sourced**, 6 supply-voltage switch/dim channels + flybacks | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: relay NO/NC continuity beep; `C723982` stock thin (82); silk: NO\|COM\|NC, 30V warning, V+/SW, `V+ = SUPPLY VOLTAGE` |
+| 04 Audio + SD | `sheets/04-audio.md` — **fully sourced**, GAIN/SD_MODE datasheet-exact, line-out via PCM5102A | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for BRING-UP: meter the jack tip/ring/sleeve (three numbering schemes collided — see doc); `C723982` shared stock pool |
+| 05 Addressable LED | `sheets/05-led.md` — **fully sourced**; both strips 3/4-wire through **one octal SN74AHCT541DWR `C2682058`** (3 spare 5 V outputs), 2× DG128-02P per strip, no mode jumpers, status pixel import verified | **☑ DONE 2026-09-06** — checknet all green, ERC clean (whole project: 0 violations) | for LAYOUT: silk 5 V-injection note at strip terminals; 02P pairs butt together as one 4-pole; only remaining Economic-PCBA risk part is the status pixel (check in JLC order UI before a PCBA run) |
+| 06 Motors | `sheets/06-motors.md` — **fully sourced**, row spacing 12.70 mm (Pololu-verified), ILIM = 2.13 A, RST/SLP-tie = UART bus | **☑ DONE 2026-09-04** — checknet all green, ERC clean | for LAYOUT: socket rows exactly 12.70 mm, DRV8871 EP paste vs TI drawing, silk TMC strap defaults |
+| 07 Sensors + expansion | `sheets/07-sensors-expansion.md` — **fully sourced**: Qwiic = SH-1.0 clone `C7430446` (genuine JST dead). **IR receiver dropped 2026-09-05** (hidden board → plug-in on a DIGITAL_IN) | **☑ DONE 2026-09-06** — IR block deleted, checknet all green, ERC clean | ⚠ layout: measure Qwiic clone vs JST-SH footprint; silk KEEP LOW AT RESET at exp pins 4/5, 5V\|GND\|SIG at all six sensor headers |
+| 08 Test points | `sheets/08-testpoints.md` — 33 GPIO pads + 6 rail pads + DNP strap pad, spec §2.6 | **☑ DONE 2026-09-07** — labels generated from the yaml, checknet green, ERC clean | pads go beside each net's owner, silk = net name |
+
+> **Superseded on 2026-09-08 by `review-2026-09-08.md`:** ERC is **not** 0 —
+> `C1` (the EN reset cap) came unwired in the uncommitted MCU-sheet edit, and
+> sheet 06 carries the label `MA_ILIM` twice so both DRV8871 ILIM pins share one
+> net. Both are blockers; the review lists them with everything else found.
+
+**All eight sheets captured; ERC 0; board synced 239/239 footprints; Board Setup, outline, origin, holes done and every part placed by `tools/placeboard.py` (2026-09-07, DRC clean for placement — `layout-placement.png`).** Schematic work is done unless layout turns something up. Layout per `layout.md` Part A — the ⚠ column above and its step A19 are the layout to-do list.
+
+## Rules that apply to every sheet
+
+- **The schematic uses STANDARD sequential designators; the yaml uses
+  descriptive spec names.** Settled 2026-09-06, when the whole board was
+  renumbered to `R1…R52`, `C1…C47`, `J1…J47` (prefix taken from each
+  symbol's own library default, numbered per sheet in KiCad's sheet
+  order). Standard refs are what assembly houses, BOM/CPL exports and
+  every other contributor expect, and KiCad's annotation tools work
+  *with* them — hand-written refs cost three separate debugging
+  sessions (a `C_A1` collision across two sheets, refs ending in letters
+  blocking annotation, a triple-duplicated connector). Nothing is lost:
+  the yaml keeps `R_ILA`/`C_B1`-style names because they say what a part
+  is, and **`checknet.py` pairs the two by Value and prints both**
+  (`R22 (R_ILA)`). Spec names must still be unique across sheets, since
+  a duplicate there confuses the pairing.
+  *To find a part during layout, cross-probe* — click it in the
+  schematic and it highlights in the PCB editor; footprints also import
+  grouped by sheet. That is the job descriptive refs were doing.
+- **Net names = pinmap signal names, exactly.** That's what lets the
+  netlist be checked against `pinmap.yaml` mechanically.
+- **Power rails cross sheets by NAME — one canonical name each.** KiCad
+  power symbols are global, so `+5V` on one sheet is `+5V` on all of
+  them. The board's rails are exactly: **`GND`, `+5V`, `+3V3`,
+  `VIN_RAW`, `VIN_PROT`** (all created on sheet 01). A second name for
+  the same rail silently produces a second, unpowered net — sheet 06
+  briefly called `VIN_PROT` "VMOT" (the stepper-datasheet name) and
+  would have left the motor drivers dead. **If a datasheet names a pin
+  differently, that goes in a note, never on the label.**
+- **Passives: one package — 0603.** Resistors: **1 % thick film,
+  1/10 W default** (Basic 1 % 0603 coverage is deep; 5 % saves
+  nothing). Caps: **X7R only — never Y5V/Z5U**, whose capacitance
+  collapses with temperature and bias; this board lives outdoors in
+  late October. **Check DC-bias derating on every MLCC ≥1 µF** (a
+  10 µF/16 V part at 12 V is ~3 µF).
+- **Screw terminals: one family for the whole board — DEGSON, decided
+  2026-09-03.** Every field-wiring terminal on every sheet comes from
+  this list; do not browse the category again.
+
+  | Use | Pitch | Part | LCSC |
+  |---|---|---|---|
+  | DC in (J1), DC motor ×2, **LED strip halves ×4** | 5.0 | DG128-5.0-**02P**-14-00A(H) | `C711349` |
+  | Relay ×3 | 5.0 | DG128-5.0-**03P**-14-00A(H) | `C691861` |
+  | LED strips ×2 | 5.0 | ~~DG128-5.0-04P~~ **stock-dead 2026-09-04 → 2× 02P per strip** (5V/GND + DATA/CLK); both strips 3/4-wire since 2026-09-05 | `C711349` ×4 |
+  | Speaker, LED outputs | 3.5 | DG381S-3.5-**02P**-14-00A(H) | `C723982` |
+
+  All are **fixed, side-entry, THT, 300 V** — 5.0 mm pitch is
+  interchangeable with 5.08 at these pin counts. The 3.5 mm family is
+  for low-current outputs that take thin wire; consolidating them onto
+  5.08 would drop a part family (§4.3) at ~9 mm of board edge — a v0.2
+  call.
+
+  **Barrier blocks (Mean Well style) considered 2026-09-03 and
+  rejected.** Every 7.62 mm barrier block in the category (KF7.62,
+  DBT10/30/50) takes the same **12–22 AWG / 2.5 mm²** as the DG128 —
+  the bigger M3 screw does not mean bigger wire. And it terminates
+  *worse* for this audience: flat screw heads want crimped fork lugs
+  (that is how a Mean Well's own manual wires them), while bare
+  stranded wire splays and creeps loose under them; the DG128's rising
+  cage clamps bare wire properly, which is what users actually bring.
+  Barrier screws also face up, fighting the side-entry gland enclosure.
+  The system's lug-friendly barrier block already exists — on the
+  Mean Well itself.
+
+  **Pluggable (2EDG) was considered and deferred.** DEGSON's
+  2EDGR header (`C699495`, 02P, ~$0.05) + 2EDGK plug is roughly
+  cost-neutral and lets a user unplug a whole prop — genuinely better
+  for seasonal re-wiring. It was *not* chosen for v0.1 because the
+  plugs are friction-fit and the locked decision picked screw terminals
+  precisely for cables that get yanked in a yard; a snagged cable can
+  unplug a 2EDG. Revisit after a season with the box, with the flanged
+  2EDGKM variants in mind if yank-resistance is the only objection.
+- **Connector orientation is a decision, not a default.** The enclosure
+  (spec §2.3, decided 2026-09-06: Multilink RNI-1500, the CG-1500
+  successor the pixel community standardised on) takes wires through
+  self-sealing ports along its **bottom** edge, so field-wiring
+  connectors sit on the bottom edge and the two short edges (the full
+  run is ~250 mm; one edge was never possible) and service items (USB,
+  SD, antenna, button) on the top edge — pick vertical vs
+  right-angle entry per connector *before* layout, because the
+  footprints differ and rework means desoldering.
+- **You are committing to FOOTPRINTS, not part numbers.** Production is
+  a year out; no stock level survives that, and a sourcing pass before
+  v0.2 is happening regardless. So judge a part by *what a future
+  substitution costs*:
+  - **Free swap** (standard land pattern, many vendors): all 0603/0805
+    R and C, SOD-123/SMA diodes, SOT-23 / TO-252 semis, EIA-size MLCCs.
+    Thin stock here is not worth worrying about — take what is
+    available and move on.
+  - **Costs a layout change**: **inductors** (molded footprints vary by
+    family — the single most under-appreciated respin risk), fuse
+    holders, connectors, and anything with a vendor-specific land
+    pattern. **Spend the verification effort here**, and prefer a part
+    whose footprint matches a family with several members.
+- **Part picking order: JLC Basic → in stock in quantity → package.**
+  Price is a tiebreaker, not a criterion — an Extended part costs $3/run
+  in feeder fees before its unit price matters.
+- **Brand tier: generic for commodity, premium only where it earns it.**
+  Samsung / Yageo / Fenghua / Uniroyal MLCCs and resistors are 2–3×
+  cheaper than Murata / TDK and entirely adequate for decoupling and
+  bulk. Pay up only where a spec actually depends on it (tight-tolerance
+  feedback dividers, a timing part, low-ESR at high ripple). A Murata
+  10 µF is $0.27; the generic equivalent is ~$0.10 and does the same job
+  here.
+- **Voltage rating is a hard limit, not a derating knob.** Check the
+  part's rating against the **maximum** rail it sees (30 V input here,
+  not 12 V nominal) before looking at anything else — then apply DC-bias
+  derating on top, which is a separate, additional loss of capacitance.
+- **LCSC filters: filter on primaries, SORT on secondaries.** Primary
+  attributes (value, voltage, package, dielectric, type) are populated
+  reliably. Secondary ones (Isat, DCR, ESR, ripple current) are often
+  blank or wrong — and **filtering on a blank field silently drops the
+  part**, which is why stacking every requirement as a filter returns
+  junk or nothing. Filter the primaries, sort by the secondary, read the
+  column, then **verify the final 2–3 candidates on the manufacturer
+  datasheet**. The distributor table builds a shortlist; it is not the
+  source of truth for a spec the design depends on.
+- **Check the value actually exists in the family before specifying
+  it.** Power inductors ladder on **E6** (1.0/1.5/2.2/3.3/4.7/6.8/10),
+  not E12 — a datasheet's "5.5 µH" has no stocked neighbour at 5.6 µH.
+  Same trap for electrolytic values and 1 % resistors: pick from what
+  the category filter actually returns, then re-run the math on that
+  value rather than the ideal one.
+- **LCSC navigation, as it actually is** (verified 2026-09-02): there
+  is no "Power Inductors" category — inductors are all under
+  **Passives → Inductors, Coils, Chokes → Fixed Inductors**, narrowed
+  by sortable columns. Two of those columns are **"Current Rating"**
+  (thermal/RMS) and **"Current - Saturation (Isat)"** — *different
+  numbers*; margin is computed against Isat. Filtering the wrong
+  column is how an 0805 110 mA part survives a search for a 3 A buck.
+  Generally: **the spec that matters is often a distinct column from
+  the one named in the part title.**
+- **The MPN suffix IS the package** (AP64350**SP** = SO-8EP,
+  PCA9685**PW** = TSSOP-28). For ICs there is no footprint "choice" —
+  ordering the part decides it. Choices exist only for generics.
+- **Hot air is available** at this bench — TQFN/SOT-563 are buildable.
+  Prefer bigger packages anyway when free: v0.1 wants probe access and
+  reworkability more than area.
+- After every schematic session: **F8** (Update PCB from Schematic),
+  save, commit.
+
+**`checknet.py` assertions** (each was added after a bug got past it):
+symbol pin numbers ⊆ footprint pad numbers (sheet 01's FET, 2026-09-06);
+per-unit diagram boxes for multi-unit symbols (2026-09-05); and
+**distinct spec nets must resolve to distinct schematic nets** — two
+spec nets collapsing into one means the schematic shorts them, and each
+still scores clean on its own (`MA_ILIM`/`MB_ILIM`, found by an external
+audit 2026-09-08, not by the checker).

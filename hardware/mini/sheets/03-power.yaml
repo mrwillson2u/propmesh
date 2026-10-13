@@ -1,0 +1,249 @@
+sheet: 03-power
+title: Battery charging and power domains
+parts:
+  J2:
+    symbol: Connector:Screw_Terminal_01x02
+    value: PROTECTED_1S_PACK
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': BAT_FUSED_IN
+      '2': GND
+  F1:
+    symbol: Device:Fuse
+    value: 3A battery fuse
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: Select exact fuse and land pattern before layout; pack protection also required.
+    pins:
+      '1': BAT_FUSED_IN
+      '2': VBAT
+  J3:
+    symbol: Connector:Screw_Terminal_01x02
+    value: SOLAR_6V_NOM
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': SOLAR_IN
+      '2': GND
+  D1:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_IN
+      '2': VBUS
+  D2:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_IN
+      '2': SOLAR_IN
+  U3:
+    symbol: mini:BQ25185DLH
+    value: BQ25185DLHR
+    footprint: Package_DFN_QFN:Texas_DLH0010A_WSON-10-1EP_2.2x2mm_P0.4mm_EP0.9x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '10': CHG_IN
+      '1': SYS
+      '2': VBAT
+      '4': GND
+      '5': GND
+      '11': GND
+      '6': BAT_NTC
+      '7': CHG_LIMIT
+      '8': CHG_ISET
+  R11:
+    symbol: Device:R
+    value: 24k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_LIMIT
+      '2': GND
+  R12:
+    symbol: Device:R
+    value: 1k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C21190
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_ISET
+      '2': GND
+  R13:
+    symbol: Device:R
+    value: 72k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': CHG_LIMIT
+      '2': LIMIT_LINK
+  JP1:
+    symbol: Jumper:SolderJumper_2_Open
+    value: 500mA input option
+    footprint: Jumper:SolderJumper-2_P1.3mm_Open_Pad1.0x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': LIMIT_LINK
+      '2': GND
+  J4:
+    symbol: Connector:Screw_Terminal_01x02
+    value: CELL_NTC_10k_B3435
+    footprint: propmesh:CONN-TH_DG381S-3.5-02P-14-00A-H
+    lcsc: C723982
+    dnp: false
+    note: ''
+    pins:
+      '1': BAT_NTC
+      '2': GND
+  C9:
+    symbol: Device:C
+    value: 10uF/25V
+    footprint: Capacitor_SMD:C_1206_3216Metric
+    lcsc: null
+    dnp: false
+    note: Choose X7R/X5R MPN with >=1uF effective at maximum panel Voc; input rated
+      <=12V for this design.
+    pins:
+      '1': CHG_IN
+      '2': GND
+  C10:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': SYS
+      '2': GND
+  C11:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': VBAT
+      '2': GND
+  U4:
+    symbol: mini:TPS63802DLA
+    value: TPS63802DLAR
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: 'Nonstandard DLA0010A lead geometry: do not substitute generic DFN-10.'
+    pins:
+      '10': SYS
+      '1': SYS
+      '2': GND
+      '3': GND
+      '8': GND
+      '9': BB_L1
+      '7': BB_L2
+      '6': 3V3_AON
+      '4': BB_FB
+      '5': MCU_EN
+  L1:
+    symbol: Device:L
+    value: 0.47uH XFL4015-471ME
+    footprint: ''
+    lcsc: null
+    dnp: false
+    note: TI reference inductor; verify vendor footprint before layout.
+    pins:
+      '1': BB_L1
+      '2': BB_L2
+  R14:
+    symbol: Device:R
+    value: 511k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+      '2': BB_FB
+  R15:
+    symbol: Device:R
+    value: 91k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': BB_FB
+      '2': GND
+  C12:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': SYS
+      '2': GND
+  C13:
+    symbol: Device:C
+    value: 22uF/10V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: null
+    dnp: false
+    note: Select >=11uF effective at 3.3V, including tolerance and DC bias.
+    pins:
+      '1': 3V3_AON
+      '2': GND
+  R16:
+    symbol: Device:R
+    value: 1M
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': VBAT
+      '2': BATTERY_SENSE
+  R17:
+    symbol: Device:R
+    value: 1M
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': BATTERY_SENSE
+      '2': GND
+  C14:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': BATTERY_SENSE
+      '2': GND

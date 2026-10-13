@@ -1,0 +1,14 @@
+ref,x,y,rot,note
+# MCU + USB (sheet 02): USB-C left of the module so the D+/D- pair runs 12 mm on the top layer
+# straight into the module's left-side USB pins (13/14). Apply with tools/setpos.py after placement-power.csv.
+J1,17,4.8,180,USB-C at the top edge; opening across the edge; 0.5 mm overhang is normal
+U2,36,11,0,ESP32-S3 module; U.FL end at the top edge; left-side pins at x 27.25
+U1,22.5,14.5,0,USBLC6 ESD between J1 and the module USB pins; flow-through (1/6 D- and 3/4 D+)
+C2,24.5,3.7,0,100 nF at module pin 2 (3V3) - nearest
+C3,24.5,6.2,0,10 uF at module pin 2 (3V3)
+R3,24.5,8.7,0,EN pull-up at module pin 3
+C1,24.5,10.7,0,EN cap at module pin 3
+D1,16,12.5,0,SS34 VBUS -> +5V under the connector
+R1,13.5,16.5,0,CC1 5.1k pulldown
+R2,17,16.5,0,CC2 5.1k pulldown
+R4,76,9.5,0,BOOT pull-up beside SW2 (was under the module after the move)

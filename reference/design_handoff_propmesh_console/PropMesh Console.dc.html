@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"><style>body{margin:0;background:#08090c;font-family:system-ui,sans-serif}a{color:#ff8a4d}a:hover{color:#ffa470}.dv-turn{padding:40px 44px 32px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#ff6b2c;color:#14100c;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#e6e9ed}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:#232833;color:#e6e9ed;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 system-ui,sans-serif;color:#8b93a1}.dv-card{max-width:100%;background:#0b0d10;border:1px solid #262b33;border-radius:10px;box-shadow:0 2px 16px rgba(0,0,0,.5);overflow:hidden}.dv-opt:target .dv-oid{background:#ff6b2c;color:#14100c}.dv-next{margin:26px 0 0;font:12px/1.5 system-ui,sans-serif;color:#5f6873}</style></helmet>
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Shell &amp; layout options — Survey view, IBM Plex Mono as the one webfont. Pick one and I'll build the working Survey prototype on it.</span></div>
+<div class="dv-opts">
+
+<!-- 2a TAB DESK -->
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Tab desk — top tabs, hybrid type (mono for data, system for names). Closest to turn 1, most conventional.</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.1em;color:#e6e9ed">PROPMESH<span style="color:#5f6873"> CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px 'IBM Plex Mono',ui-monospace,monospace;color:#c7cdd6">BRIDGE</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px 'IBM Plex Mono',ui-monospace,monospace"><span style="color:#8b93a1">SYNC</span><span style="color:#3fb950">±2.1ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px 'IBM Plex Mono',ui-monospace,monospace"><span style="color:#3fb950">●6</span><span style="color:#8b93a1">☾1</span><span style="color:#f4483a">✕1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:700 12.5px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;height:470px">
+<div style="flex:1;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px">
+<svg width="100%" height="100%" viewBox="0 0 1090 470" style="display:block">
+<line x1="520" y1="90" x2="270" y2="240" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="520" y1="90" x2="730" y2="210" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="520" y1="90" x2="190" y2="100" stroke="#f4483a" stroke-width="1.4" stroke-dasharray="4 5" opacity=".7"></line>
+<line x1="270" y1="240" x2="400" y2="380" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="730" y1="210" x2="810" y2="370" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="810" y1="370" x2="590" y2="420" stroke="#e0a52a" stroke-width="1.3" stroke-dasharray="6 4"></line>
+<g font-family="'IBM Plex Mono',ui-monospace,monospace" font-size="10.5" font-weight="600" text-anchor="middle">
+<text x="390" y="163" fill="#3fb950">−52</text><text x="632" y="146" fill="#3fb950">−48</text><text x="350" y="88" fill="#f4483a">LOST 42m</text><text x="330" y="318" fill="#9aa3af">−68</text><text x="778" y="292" fill="#9aa3af">−61</text><text x="700" y="408" fill="#e0a52a">−83</text></g>
+<g text-anchor="middle" font-family="system-ui">
+<rect x="494" y="70" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="520" y="95" font-size="14" fill="#ff8a4d" font-weight="700">⌂</text><text x="520" y="130" font-size="12" font-weight="600" fill="#e6e9ed">Bridge (garage)</text>
+<rect x="244" y="220" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="270" y="283" font-size="12" font-weight="600" fill="#e6e9ed">Front Porch Skeleton</text>
+<rect x="704" y="190" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="730" y="253" font-size="12" font-weight="600" fill="#e6e9ed">Fog Chiller</text>
+<rect x="784" y="350" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="810" y="413" font-size="12" font-weight="600" fill="#ff8a4d">Graveyard Servo Rig</text>
+<circle cx="400" cy="380" r="14" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="400" y="414" font-size="11.5" font-weight="600" fill="#e6e9ed">Lantern 2</text>
+<circle cx="590" cy="420" r="14" fill="#1a1e24" stroke="#e0a52a" stroke-width="2"></circle><text x="590" y="452" font-size="11.5" font-weight="600" fill="#e0a52a">Lantern 3 · 3.18V</text>
+<circle cx="190" cy="100" r="14" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="190" y="105" font-size="10" fill="#f4483a" font-weight="700">✕</text><text x="190" y="134" font-size="11.5" font-weight="600" fill="#f4483a">Driveway PIR</text>
+</g>
+</svg>
+<div style="position:absolute;top:10px;left:12px;display:flex;gap:8px">
+<span style="padding:4px 10px;border-radius:4px;background:#2b2110;border:1px solid #4a3a14;font:700 11px 'IBM Plex Mono',ui-monospace,monospace;color:#e0a52a">MESH DEGRADED</span>
+<span style="padding:4px 10px;border-radius:4px;background:rgba(25,29,35,.9);font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1">8 nodes · 3 hops · 1s ago</span>
+</div>
+</div>
+<div style="width:300px;border-left:1px solid #262b33;background:#101318;padding:12px 14px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Graveyard Servo Rig</span><span style="padding:2px 8px;border-radius:99px;background:#0f2416;border:1px solid #1f4a2c;font:700 10px 'IBM Plex Mono',ui-monospace,monospace;color:#3fb950">ONLINE</span></div>
+<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1">
+<div style="display:flex;justify-content:space-between"><span>uptime</span><span style="color:#e6e9ed">2d 14h</span></div>
+<div style="display:flex;justify-content:space-between"><span>firmware</span><span style="color:#ff8a4d">v0.9.3 ↑</span></div>
+<div style="display:flex;justify-content:space-between"><span>free mem</span><span style="color:#e6e9ed">118 KB</span></div>
+<div style="display:flex;justify-content:space-between"><span>route</span><span style="color:#e6e9ed">H2 · Fog Chiller</span></div>
+</div>
+</div>
+</div>
+</div></div>
+
+<!-- 2b LEFT RAIL -->
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Left rail — icon nav column, STOP ALL anchored at rail bottom, full-bleed canvas. Most room for graph work; nav scales to more views.</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;height:540px">
+<div style="width:176px;background:#101318;border-right:1px solid #262b33;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:9px;padding:14px 14px 12px;border-bottom:1px solid #20242b">
+<svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div><div style="font:700 12px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;color:#e6e9ed">PROPMESH</div><div style="font:500 9.5px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873;margin-top:3px">bridge v0.9.4</div></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:2px;padding:10px 8px">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;background:#1c1109;border:1px solid #3a2211;font:600 12.5px system-ui;color:#ff8a4d"><span style="font-size:13px">◎</span>Survey</div>
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">☰</span>Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">▸</span>Cues</div>
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">▱</span>Blueprint</div>
+<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:6px;font:500 12.5px system-ui;color:#9aa3af"><span style="font-size:13px">⬡</span>Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="padding:10px 12px;border-top:1px solid #20242b;display:flex;flex-direction:column;gap:7px;font:600 10.5px 'IBM Plex Mono',ui-monospace,monospace">
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">BRIDGE</span><span style="color:#3fb950">● LINKED</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">SYNC</span><span style="color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;justify-content:space-between"><span style="color:#5f6873">NODES</span><span><span style="color:#3fb950">6</span><span style="color:#8b93a1"> / 1</span><span style="color:#f4483a"> / 1</span></span></div>
+</div>
+<button style="margin:10px;height:52px;display:flex;align-items:center;justify-content:center;gap:9px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:8px;color:#ff8a4d;font:700 13px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.1em;cursor:pointer"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="flex:1;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px">
+<div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0))">
+<span style="font:700 13px system-ui;color:#e6e9ed">Survey</span>
+<span style="padding:3px 9px;border-radius:4px;background:#2b2110;border:1px solid #4a3a14;font:700 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#e0a52a">DEGRADED</span>
+<span style="font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873">✕ Driveway PIR · ⚠ Lantern 3 batt · ⚠ link −83</span>
+<div style="flex:1"></div>
+<span style="font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#5f6873">updated 1 s ago</span>
+</div>
+<svg width="100%" height="100%" viewBox="0 0 1264 540" style="display:block">
+<line x1="600" y1="130" x2="330" y2="290" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="600" y1="130" x2="850" y2="250" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="600" y1="130" x2="240" y2="130" stroke="#f4483a" stroke-width="1.4" stroke-dasharray="4 5" opacity=".7"></line>
+<line x1="330" y1="290" x2="480" y2="430" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="850" y1="250" x2="940" y2="420" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="940" y1="420" x2="700" y2="470" stroke="#e0a52a" stroke-width="1.3" stroke-dasharray="6 4"></line>
+<g font-family="'IBM Plex Mono',ui-monospace,monospace" font-size="10.5" font-weight="600" text-anchor="middle">
+<text x="460" y="205" fill="#3fb950">−52</text><text x="730" y="184" fill="#3fb950">−48</text><text x="420" y="118" fill="#f4483a">LOST 42m</text><text x="412" y="358" fill="#9aa3af">−68</text><text x="908" y="332" fill="#9aa3af">−61</text><text x="820" y="458" fill="#e0a52a">−83</text></g>
+<g text-anchor="middle" font-family="system-ui">
+<rect x="574" y="110" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="600" y="135" font-size="14" fill="#ff8a4d" font-weight="700">⌂</text><text x="600" y="170" font-size="12" font-weight="600" fill="#e6e9ed">Bridge (garage)</text>
+<rect x="304" y="270" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="330" y="333" font-size="12" font-weight="600" fill="#e6e9ed">Front Porch Skeleton</text>
+<rect x="824" y="230" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="850" y="293" font-size="12" font-weight="600" fill="#e6e9ed">Fog Chiller</text>
+<rect x="914" y="400" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="940" y="463" font-size="12" font-weight="600" fill="#e6e9ed">Graveyard Servo Rig</text>
+<circle cx="480" cy="430" r="14" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="480" y="464" font-size="11.5" font-weight="600" fill="#e6e9ed">Lantern 2</text>
+<circle cx="700" cy="470" r="14" fill="#1a1e24" stroke="#e0a52a" stroke-width="2"></circle><text x="700" y="502" font-size="11.5" font-weight="600" fill="#e0a52a">Lantern 3 · 3.18V</text>
+<circle cx="240" cy="130" r="14" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="240" y="135" font-size="10" fill="#f4483a" font-weight="700">✕</text><text x="240" y="164" font-size="11.5" font-weight="600" fill="#f4483a">Driveway PIR</text>
+</g>
+</svg>
+</div>
+</div>
+</div></div>
+
+<!-- 2c COMMAND DECK -->
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Command deck — full-mono type, slim top strip, bottom command bar with centered STOP ALL. Lighting-desk feel; controls at thumb height on touch screens.</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;flex-direction:column;height:540px">
+<div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 14px;background:#101318;border-bottom:1px solid #20242b;font:600 11px 'IBM Plex Mono',ui-monospace,monospace">
+<span style="color:#ff8a4d;letter-spacing:.1em">▲ PROPMESH</span>
+<span style="color:#3f4652">|</span>
+<span style="color:#3fb950">● BRIDGE LINKED</span>
+<span style="color:#8b93a1">SYNC <span style="color:#3fb950">±2.1ms</span></span>
+<span><span style="color:#3fb950">●6</span><span style="color:#8b93a1"> ☾1</span><span style="color:#f4483a"> ✕1</span></span>
+<div style="flex:1"></div>
+<span style="color:#e0a52a">⚠ MESH DEGRADED — PIR missing · L3 battery · link −83</span>
+<span style="color:#5f6873">20:44:12</span>
+</div>
+<div style="flex:1;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px">
+<svg width="100%" height="100%" viewBox="0 0 1440 436" style="display:block">
+<line x1="700" y1="90" x2="420" y2="230" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="700" y1="90" x2="960" y2="200" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="700" y1="90" x2="330" y2="90" stroke="#f4483a" stroke-width="1.4" stroke-dasharray="4 5" opacity=".7"></line>
+<line x1="420" y1="230" x2="570" y2="350" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="960" y1="200" x2="1050" y2="340" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="1050" y1="340" x2="810" y2="380" stroke="#e0a52a" stroke-width="1.3" stroke-dasharray="6 4"></line>
+<g font-family="'IBM Plex Mono',ui-monospace,monospace" font-size="10.5" font-weight="600" text-anchor="middle">
+<text x="555" y="158" fill="#3fb950">−52</text><text x="836" y="140" fill="#3fb950">−48</text><text x="515" y="78" fill="#f4483a">LOST 42m</text><text x="502" y="288" fill="#9aa3af">−68</text><text x="1018" y="268" fill="#9aa3af">−61</text><text x="930" y="372" fill="#e0a52a">−83</text></g>
+<g text-anchor="middle" font-family="'IBM Plex Mono',ui-monospace,monospace">
+<rect x="674" y="70" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="700" y="95" font-size="14" fill="#ff8a4d" font-weight="700">⌂</text><text x="700" y="130" font-size="11.5" font-weight="600" fill="#e6e9ed">BRIDGE.GARAGE</text>
+<rect x="394" y="210" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="420" y="273" font-size="11.5" font-weight="600" fill="#e6e9ed">PORCH.SKELETON</text>
+<rect x="934" y="180" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="960" y="243" font-size="11.5" font-weight="600" fill="#e6e9ed">FOG.CHILLER</text>
+<rect x="1024" y="320" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="1050" y="383" font-size="11.5" font-weight="600" fill="#e6e9ed">GRAVEYARD.RIG</text>
+<circle cx="570" cy="350" r="14" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="570" y="384" font-size="11" font-weight="600" fill="#e6e9ed">LANTERN.2</text>
+<circle cx="810" cy="380" r="14" fill="#1a1e24" stroke="#e0a52a" stroke-width="2"></circle><text x="810" y="412" font-size="11" font-weight="600" fill="#e0a52a">LANTERN.3 3.18V</text>
+<circle cx="330" cy="90" r="14" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="330" y="95" font-size="10" fill="#f4483a" font-weight="700">✕</text><text x="330" y="124" font-size="11" font-weight="600" fill="#f4483a">DRIVEWAY.PIR</text>
+</g>
+</svg>
+</div>
+<div style="display:flex;align-items:center;gap:6px;height:64px;padding:0 14px;background:#14171c;border-top:1px solid #262b33">
+<div style="display:flex;gap:4px;padding:5px;background:#0e1014;border:1px solid #20242b;border-radius:8px">
+<div style="padding:9px 16px;border-radius:5px;background:#2a1108;border:1px solid #6b3a1a;font:700 12px 'IBM Plex Mono',ui-monospace,monospace;color:#ff8a4d">SURVEY</div>
+<div style="padding:9px 16px;border-radius:5px;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#9aa3af">NODES</div>
+<div style="padding:9px 16px;border-radius:5px;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#9aa3af">CUES</div>
+<div style="padding:9px 16px;border-radius:5px;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#9aa3af">BLUEPRINT</div>
+<div style="padding:9px 16px;border-radius:5px;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#9aa3af">GRAPH</div>
+</div>
+<div style="flex:1"></div>
+<button style="display:flex;align-items:center;gap:10px;padding:0 26px;height:46px;background:#2a1108;border:2px solid #ff6b2c;border-radius:8px;color:#ff8a4d;font:700 14px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.12em;cursor:pointer;box-shadow:0 0 16px rgba(255,107,44,.15)"><svg width="17" height="17" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+<div style="flex:1"></div>
+<div style="display:flex;gap:14px;font:600 11px 'IBM Plex Mono',ui-monospace,monospace;color:#8b93a1"><span>ARMED <span style="color:#ff8a4d">●</span></span><span>14 FIRES</span><span>LAST 20:42:11</span></div>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Pick a shell — "build the Survey prototype on <a class="dv-oid" href="#2b">2b</a>" · "2a but with 2c's bottom STOP ALL" · full content for each view stays as in turn 1 below.</p>
+</section>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">PropMesh Console — dark mission-control, ember accent · five views + phone layouts + component sheet</span></div>
+<div class="dv-opts">
+
+<!-- ============ 1a SURVEY DESKTOP ============ -->
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Survey — live mesh topology · desktop 1440 · Graveyard Servo Rig selected, degraded states visible</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 system-ui;letter-spacing:.12em;color:#e6e9ed">PROPMESH <span style="color:#5f6873;font-weight:500">CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#c7cdd6">BRIDGE LINKED</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">SYNC</span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px ui-monospace,Menlo,monospace"><span style="color:#3fb950">● 6</span><span style="color:#8b93a1">☾ 1</span><span style="color:#f4483a">✕ 1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:#101318;border-bottom:1px solid #20242b">
+<span style="font:700 10.5px system-ui;letter-spacing:.1em;color:#5f6873">MESH HEALTH</span>
+<span style="padding:3px 9px;border-radius:4px;background:#2b2110;border:1px solid #4a3a14;font:700 11px ui-monospace,Menlo,monospace;color:#e0a52a">DEGRADED</span>
+<span style="display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;background:#191d23;font:500 11px ui-monospace,Menlo,monospace;color:#f4483a">✕ Driveway PIR missing 42 min</span>
+<span style="display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;background:#191d23;font:500 11px ui-monospace,Menlo,monospace;color:#e0a52a">⚠ Lantern 3 battery 3.18 V</span>
+<span style="display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:4px;background:#191d23;font:500 11px ui-monospace,Menlo,monospace;color:#e0a52a">⚠ weak link −83 dBm</span>
+<div style="flex:1"></div>
+<span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">8 nodes · 3 hops · updated 1 s ago</span>
+</div>
+<div style="display:flex;height:700px">
+<div style="flex:1;position:relative;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px;background-color:#0b0d10">
+<svg width="100%" height="100%" viewBox="0 0 1080 700" style="display:block">
+<line x1="520" y1="100" x2="270" y2="300" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="520" y1="100" x2="740" y2="260" stroke="#3fb950" stroke-width="2.5" opacity=".7"></line>
+<line x1="520" y1="100" x2="180" y2="120" stroke="#f4483a" stroke-width="1.4" stroke-dasharray="4 5" opacity=".7"></line>
+<line x1="270" y1="300" x2="140" y2="450" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="270" y1="300" x2="400" y2="510" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="740" y1="260" x2="820" y2="470" stroke="#6b7684" stroke-width="1.8" opacity=".8"></line>
+<line x1="820" y1="470" x2="600" y2="590" stroke="#e0a52a" stroke-width="1.3" stroke-dasharray="6 4"></line>
+<g font-family="ui-monospace,Menlo,monospace" font-size="10.5" font-weight="600" text-anchor="middle">
+<rect x="367" y="192" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="390" y="204" fill="#3fb950">−52</text>
+<rect x="607" y="171" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="630" y="183" fill="#3fb950">−48</text>
+<rect x="312" y="101" width="76" height="17" rx="3" fill="#0b0d10"></rect><text x="350" y="113" fill="#f4483a">LOST 42m</text>
+<rect x="182" y="366" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="205" y="378" fill="#9aa3af">−71</text>
+<rect x="312" y="396" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="335" y="408" fill="#9aa3af">−68</text>
+<rect x="757" y="356" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="780" y="368" fill="#9aa3af">−61</text>
+<rect x="687" y="521" width="46" height="17" rx="3" fill="#0b0d10"></rect><text x="710" y="533" fill="#e0a52a">−83</text>
+</g>
+<g text-anchor="middle">
+<rect x="494" y="80" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="520" y="105" font-size="15" fill="#ff8a4d" font-weight="700" font-family="system-ui">⌂</text>
+<text x="520" y="141" font-size="12.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Bridge (garage)</text><text x="520" y="156" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">PRO · H0</text>
+<rect x="244" y="280" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="270" y="345" font-size="12.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Front Porch Skeleton</text><text x="270" y="360" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">PRO · H1</text>
+<rect x="714" y="240" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="740" y="305" font-size="12.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Fog Chiller</text><text x="740" y="320" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">PRO · H1</text>
+<rect x="788" y="444" width="64" height="52" rx="10" fill="none" stroke="#ff6b2c" stroke-width="2" stroke-dasharray="3 3"></rect>
+<rect x="794" y="450" width="52" height="40" rx="8" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></rect><text x="820" y="521" font-size="12.5" font-weight="600" fill="#ff8a4d" font-family="system-ui">Graveyard Servo Rig</text><text x="820" y="536" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">PRO · H2</text>
+<circle cx="140" cy="450" r="15" fill="#1a1e24" stroke="#8b93a1" stroke-width="2"></circle><text x="140" y="455" font-size="11" fill="#8b93a1">☾</text><text x="140" y="486" font-size="12.5" font-weight="600" fill="#9aa3af" font-family="system-ui">Lantern 1</text><text x="140" y="501" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">3.92 V · asleep</text>
+<circle cx="400" cy="510" r="15" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="400" y="546" font-size="12.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Lantern 2</text><text x="400" y="561" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">3.41 V · H2</text>
+<circle cx="600" cy="590" r="15" fill="#1a1e24" stroke="#e0a52a" stroke-width="2"></circle><text x="600" y="626" font-size="12.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Lantern 3</text><text x="600" y="641" font-size="10.5" fill="#e0a52a" font-family="ui-monospace,Menlo,monospace">3.18 V LOW · H3</text>
+<circle cx="180" cy="120" r="15" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="180" y="125" font-size="11" fill="#f4483a" font-weight="700">✕</text><text x="180" y="156" font-size="12.5" font-weight="600" fill="#f4483a" font-family="system-ui">Driveway PIR</text><text x="180" y="171" font-size="10.5" fill="#8b93a1" font-family="ui-monospace,Menlo,monospace">MINI · missing</text>
+</g>
+</svg>
+<div style="position:absolute;left:14px;bottom:14px;display:flex;gap:12px;padding:8px 12px;background:rgba(11,13,16,.9);border:1px solid #262b33;border-radius:6px;font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1"><span><span style="color:#3fb950">━</span> strong ≥−60</span><span><span style="color:#6b7684">━</span> ok</span><span><span style="color:#e0a52a">╌</span> weak ≤−75</span><span><span style="color:#f4483a">╌</span> lost</span></div>
+</div>
+<div style="width:330px;border-left:1px solid #262b33;background:#101318;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #20242b">
+<span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Graveyard Servo Rig</span>
+<span style="padding:2px 8px;border-radius:99px;background:#0f2416;border:1px solid #1f4a2c;font:700 10px ui-monospace,Menlo,monospace;color:#3fb950;letter-spacing:.06em">ONLINE</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#20242b;border-bottom:1px solid #20242b">
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">UPTIME</div><div style="font:600 13px ui-monospace,Menlo,monospace;color:#e6e9ed;margin-top:3px">2d 14h 06m</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">FIRMWARE</div><div style="font:600 13px ui-monospace,Menlo,monospace;color:#e6e9ed;margin-top:3px">v0.9.3 <span style="color:#ff8a4d;font-size:10.5px">↑ 0.9.4</span></div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">FREE MEMORY</div><div style="font:600 13px ui-monospace,Menlo,monospace;color:#e6e9ed;margin-top:3px">118 KB</div></div>
+<div style="background:#101318;padding:10px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">ROUTE</div><div style="font:600 13px ui-monospace,Menlo,monospace;color:#e6e9ed;margin-top:3px">H2 via Fog Chiller</div></div>
+</div>
+<div style="padding:12px 14px;border-bottom:1px solid #20242b">
+<div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:8px">NEIGHBORS</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:500 12px system-ui;color:#c7cdd6;flex:1">Fog Chiller</span><span style="padding:2px 7px;border-radius:4px;background:#191d23;font:600 11px ui-monospace,Menlo,monospace;color:#9aa3af">−61 dBm</span></div>
+<div style="display:flex;align-items:center;gap:8px"><span style="font:500 12px system-ui;color:#c7cdd6;flex:1">Lantern 3</span><span style="padding:2px 7px;border-radius:4px;background:#2b2110;font:600 11px ui-monospace,Menlo,monospace;color:#e0a52a">−83 dBm</span></div>
+</div></div>
+<div style="padding:12px 14px;flex:1">
+<div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:8px">RECENT EVENTS</div>
+<div style="display:flex;flex-direction:column;gap:5px;font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">
+<div><span style="color:#5f6873">20:42:11</span> fired SERVO_1 <span style="color:#c7cdd6">coffin lid</span></div>
+<div><span style="color:#5f6873">20:42:11</span> cue <span style="color:#c7cdd6">Graveyard Rustle</span> matched</div>
+<div><span style="color:#5f6873">20:38:54</span> route change → Fog Chiller</div>
+<div><span style="color:#5f6873">20:31:02</span> fired SERVO_2 <span style="color:#c7cdd6">headstone tilt</span></div>
+<div><span style="color:#e0a52a">20:14:47</span> link Lantern 3 weak (−83)</div>
+</div></div>
+<div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid #20242b">
+<button style="flex:1;height:34px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui;cursor:pointer">◉ Locate (blink)</button>
+<button style="flex:1;height:34px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui;cursor:pointer">↻ Reboot</button>
+</div>
+</div>
+</div>
+</div></div>
+
+<!-- ============ 1b SURVEY PHONE PLACEMENT ============ -->
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Survey — placement mode · phone 390 · repositioning Lantern 3, live signal watch</div>
+<div class="dv-card" style="width:390px">
+<div style="display:flex;align-items:center;gap:10px;height:52px;padding:0 12px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="flex:1"><div style="font:700 12px/1 system-ui;letter-spacing:.1em;color:#e6e9ed">PROPMESH</div><div style="display:flex;align-items:center;gap:5px;margin-top:3px"><span style="width:6px;height:6px;border-radius:50%;background:#3fb950"></span><span style="font:500 10px ui-monospace,Menlo,monospace;color:#8b93a1">bridge · ±2.1 ms · 6/1/1</span></div></div>
+<button style="display:flex;align-items:center;gap:6px;padding:0 14px;height:40px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 11.5px system-ui;letter-spacing:.08em">⬣ STOP ALL</button>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1c1109;border-bottom:1px solid #3a2211">
+<span style="font:800 10.5px system-ui;letter-spacing:.14em;color:#ff8a4d">PLACEMENT MODE</span>
+<span style="font:500 11px system-ui;color:#8b93a1;flex:1">readings every 1 s</span>
+<button style="height:32px;padding:0 12px;background:none;border:1px solid #333a45;border-radius:6px;color:#9aa3af;font:600 11.5px system-ui">Exit</button>
+</div>
+<div style="padding:18px 16px 8px;text-align:center;background:#0b0d10">
+<div style="font:700 17px system-ui;color:#e6e9ed">Lantern 3</div>
+<div style="font:500 11.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:4px">MINI · via Graveyard Servo Rig · hop 3</div>
+<div style="font:800 76px/1 ui-monospace,Menlo,monospace;color:#e0a52a;margin-top:18px;letter-spacing:-.02em">−83<span style="font-size:24px;color:#8b93a1;font-weight:600"> dBm</span></div>
+<div style="display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:6px 14px;border-radius:99px;background:#2b2110;border:1px solid #4a3a14"><span style="font:800 12px ui-monospace,Menlo,monospace;color:#e0a52a;letter-spacing:.1em">WEAK</span><span style="font:500 11.5px system-ui;color:#9aa3af">trending better ↗</span></div>
+<div style="display:flex;align-items:flex-end;gap:4px;justify-content:center;height:64px;margin:20px 0 6px">
+<div style="width:16px;height:22px;background:#3a2211;border-radius:2px"></div><div style="width:16px;height:20px;background:#3a2211;border-radius:2px"></div><div style="width:16px;height:26px;background:#4a3a14;border-radius:2px"></div><div style="width:16px;height:24px;background:#4a3a14;border-radius:2px"></div><div style="width:16px;height:30px;background:#4a3a14;border-radius:2px"></div><div style="width:16px;height:34px;background:#6b5518;border-radius:2px"></div><div style="width:16px;height:32px;background:#6b5518;border-radius:2px"></div><div style="width:16px;height:38px;background:#8a6d1c;border-radius:2px"></div><div style="width:16px;height:44px;background:#a8851f;border-radius:2px"></div><div style="width:16px;height:42px;background:#a8851f;border-radius:2px"></div><div style="width:16px;height:50px;background:#c99e24;border-radius:2px"></div><div style="width:16px;height:56px;background:#e0a52a;border-radius:2px;box-shadow:0 0 8px rgba(224,165,42,.4)"></div>
+</div>
+<div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#5f6873">last 12 s</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#20242b;border-top:1px solid #20242b;border-bottom:1px solid #20242b;margin-top:14px">
+<div style="background:#101318;padding:12px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">BATTERY</div><div style="font:700 15px ui-monospace,Menlo,monospace;color:#e0a52a;margin-top:3px">3.18 V · 18%</div></div>
+<div style="background:#101318;padding:12px 14px"><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873">PARENT LINK</div><div style="font:700 15px ui-monospace,Menlo,monospace;color:#e6e9ed;margin-top:3px">Graveyard Rig</div></div>
+</div>
+<div style="padding:12px 16px;font:400 12.5px/1.5 system-ui;color:#8b93a1;background:#0b0d10">Move toward the servo rig or raise the lantern off the ground — damp grass eats 2.4 GHz. 🎃 The spirits prefer line of sight.</div>
+<div style="display:flex;flex-direction:column;gap:10px;padding:4px 16px 18px;background:#0b0d10">
+<button style="height:56px;background:#191d23;border:1px solid #333a45;border-radius:8px;color:#e6e9ed;font:700 14px system-ui">◉ Blink this node's LED</button>
+<button style="height:56px;background:#ff6b2c;border:none;border-radius:8px;color:#1a0d05;font:800 14px system-ui;letter-spacing:.02em">Mark placed — watch next node</button>
+</div>
+</div></div>
+
+<!-- ============ 1c NODES & CHANNELS ============ -->
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Nodes &amp; Channels — fleet manager · desktop 1440 · fault surface, test-fire, live sensors</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 system-ui;letter-spacing:.12em;color:#e6e9ed">PROPMESH <span style="color:#5f6873;font-weight:500">CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#c7cdd6">BRIDGE LINKED</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">SYNC</span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px ui-monospace,Menlo,monospace"><span style="color:#3fb950">● 6</span><span style="color:#8b93a1">☾ 1</span><span style="color:#f4483a">✕ 1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;gap:10px;padding:12px 16px;background:#101318;border-bottom:1px solid #20242b">
+<div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1e0d0b;border:1px solid #4a1f1a;border-radius:7px">
+<span style="font:800 14px ui-monospace,Menlo,monospace;color:#f4483a">✕</span>
+<div style="flex:1"><div style="font:700 12.5px system-ui;color:#f4483a">Driveway PIR — missing 42 min</div><div style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:2px">last seen 20:02 · last RSSI −79 · battery was 3.71 V · 1 cue depends on it</div></div>
+<button style="height:30px;padding:0 12px;background:#191d23;border:1px solid #333a45;border-radius:5px;color:#c7cdd6;font:600 11.5px system-ui">Show on Blueprint</button>
+<button style="height:30px;padding:0 12px;background:#191d23;border:1px solid #333a45;border-radius:5px;color:#c7cdd6;font:600 11.5px system-ui">Mute 1 h</button>
+</div>
+<div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#211a09;border:1px solid #4a3a14;border-radius:7px">
+<span style="font:800 14px ui-monospace,Menlo,monospace;color:#e0a52a">⚠</span>
+<div style="flex:1"><div style="font:700 12.5px system-ui;color:#e0a52a">Lantern 3 — battery low · 3.18 V (18%)</div><div style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:2px">~1 h 40 m at current draw · will deep-sleep at 3.05 V</div></div>
+<button style="height:30px;padding:0 12px;background:#191d23;border:1px solid #333a45;border-radius:5px;color:#c7cdd6;font:600 11.5px system-ui">Sleep now</button>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #20242b;background:#0b0d10">
+<div style="display:flex;align-items:center;gap:8px;width:260px;height:32px;padding:0 10px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="color:#5f6873;font-size:12px">⌕</span><span style="font:400 12px system-ui;color:#5f6873">Filter nodes and channels…</span></div>
+<span style="padding:5px 11px;border-radius:99px;background:#232833;font:600 11.5px system-ui;color:#e6e9ed">All 8</span>
+<span style="padding:5px 11px;border-radius:99px;background:#14171c;border:1px solid #262b33;font:500 11.5px system-ui;color:#9aa3af">Pro 4</span>
+<span style="padding:5px 11px;border-radius:99px;background:#14171c;border:1px solid #262b33;font:500 11.5px system-ui;color:#9aa3af">Mini 4</span>
+<span style="padding:5px 11px;border-radius:99px;background:#14171c;border:1px solid #262b33;font:500 11.5px system-ui;color:#e0a52a">Needs attention 2</span>
+<div style="flex:1"></div>
+<button style="height:32px;padding:0 14px;background:#2a1108;border:1px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:600 12px system-ui">↑ Update firmware on 2 nodes (v0.9.4)</button>
+</div>
+<div style="background:#0b0d10;padding:0 16px 16px">
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;gap:0;padding:9px 12px;font:700 10px system-ui;letter-spacing:.09em;color:#5f6873;border-bottom:1px solid #20242b"><span>NODE</span><span>BOARD</span><span>POWER</span><span>FIRMWARE</span><span>CHANNELS / SENSORS</span><span></span></div>
+<!-- expanded node -->
+<div style="border:1px solid #262b33;border-radius:8px;margin-top:10px;background:#101318;overflow:hidden">
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border-bottom:1px solid #20242b">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed">Front Porch Skeleton</span><span style="color:#5f6873;font-size:11px">✎</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">PRO</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#8b93a1">⚡ wall power</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#ff8a4d">v0.9.3 ↑</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">4 outputs · 1 sensor · hop 1 · −52 dBm</span>
+<span style="color:#9aa3af;text-align:center">▾</span>
+</div>
+<div style="display:flex;flex-direction:column">
+<div style="display:grid;grid-template-columns:130px 220px 120px 1fr 110px;align-items:center;gap:10px;padding:9px 14px 9px 29px;border-bottom:1px solid #181c22">
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">SERVO_1</span><span style="font:500 12.5px system-ui;color:#e6e9ed">coffin lid ✎</span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">idle · 0°</span><span></span>
+<button style="height:30px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;letter-spacing:.05em">⚡ TEST FIRE</button></div>
+<div style="display:grid;grid-template-columns:130px 220px 120px 1fr 110px;align-items:center;gap:10px;padding:9px 14px 9px 29px;border-bottom:1px solid #181c22">
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">SERVO_2</span><span style="font:500 12.5px system-ui;color:#e6e9ed">jaw snap ✎</span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">idle · 12°</span><span></span>
+<button style="height:30px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;letter-spacing:.05em">⚡ TEST FIRE</button></div>
+<div style="display:grid;grid-template-columns:130px 220px 120px 1fr 110px;align-items:center;gap:10px;padding:9px 14px 9px 29px;border-bottom:1px solid #181c22;background:#12161c">
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">RELAY_1</span><span style="font:500 12.5px system-ui;color:#e6e9ed">porch spot light ✎</span><span style="font:700 11px ui-monospace,Menlo,monospace;color:#3fb950">● ON</span><span></span>
+<button style="height:30px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:700 11px system-ui;letter-spacing:.05em">⏻ TURN OFF</button></div>
+<div style="display:grid;grid-template-columns:130px 220px 120px 1fr 110px;align-items:center;gap:10px;padding:9px 14px 9px 29px;border-bottom:1px solid #181c22">
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">LED_STRIP_1</span><span style="font:500 12.5px system-ui;color:#e6e9ed">eye glow ✎</span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">off · 30 px</span><span></span>
+<button style="height:30px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;letter-spacing:.05em">⚡ TEST FIRE</button></div>
+<div style="display:grid;grid-template-columns:130px 220px 120px 1fr 110px;align-items:center;gap:10px;padding:9px 14px 9px 29px">
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#7d87b8">PIR_1 ⊙</span><span style="font:500 12.5px system-ui;color:#e6e9ed">porch sensor ✎</span><span style="font:700 11px ui-monospace,Menlo,monospace;color:#3fb950">CLEAR</span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">last motion 20:42:09 · 3 fires tonight</span><span style="font:500 10.5px system-ui;color:#5f6873;text-align:center">input</span></div>
+</div>
+</div>
+<!-- collapsed rows -->
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #20242b;border-radius:8px;margin-top:8px;background:#101318">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed">Bridge (garage)</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">PRO</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#8b93a1">⚡ wall power</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">2 outputs · audio out · sACN in · hop 0</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #20242b;border-radius:8px;margin-top:8px;background:#101318">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed">Fog Chiller</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">PRO</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#8b93a1">⚡ wall power</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">RELAY_1 fog machine · MOTOR_A chiller fan · TEMP_1 <span style="color:#c7cdd6;font-family:ui-monospace,Menlo,monospace">12.4 °C</span></span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #20242b;border-radius:8px;margin-top:8px;background:#101318">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed">Graveyard Servo Rig</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">PRO</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#8b93a1">⚡ wall power</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#ff8a4d">v0.9.3 ↑</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">SERVO_1–3 · MOTOR_A · 1 sensor · hop 2</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #20242b;border-radius:8px;margin-top:8px;background:#101318">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#8b93a1"></span><span style="font:700 13px system-ui;color:#9aa3af">Lantern 1</span><span style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1">☾ asleep · wakes :00/:30</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">MINI</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#3fb950">▮▮▮▮ 3.92 V</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">LED_STRIP_1 flicker candle</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #20242b;border-radius:8px;margin-top:8px;background:#101318">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed">Lantern 2</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">MINI</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">▮▮▮▯ 3.41 V</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">LED_STRIP_1 flicker candle</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #4a3a14;border-radius:8px;margin-top:8px;background:#15120c">
+<span style="display:flex;align-items:center;gap:9px"><span style="width:8px;height:8px;border-radius:50%;background:#e0a52a"></span><span style="font:700 13px system-ui;color:#e6e9ed">Lantern 3</span><span style="padding:2px 7px;border-radius:99px;background:#2b2110;border:1px solid #4a3a14;font:700 9.5px ui-monospace,Menlo,monospace;color:#e0a52a;letter-spacing:.06em">LOW BATT</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">MINI</span>
+<span style="font:700 11.5px ui-monospace,Menlo,monospace;color:#e0a52a">▮▯▯▯ 3.18 V</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#9aa3af">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">LED_STRIP_1 flicker candle · weak link −83</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+<div style="display:grid;grid-template-columns:280px 90px 130px 120px 1fr 40px;align-items:center;padding:12px;border:1px solid #4a1f1a;border-radius:8px;margin-top:8px;background:#140e0d">
+<span style="display:flex;align-items:center;gap:9px"><span style="font:800 12px ui-monospace,Menlo,monospace;color:#f4483a">✕</span><span style="font:700 13px system-ui;color:#f4483a">Driveway PIR</span><span style="padding:2px 7px;border-radius:99px;background:#2a1210;border:1px solid #4a1f1a;font:700 9.5px ui-monospace,Menlo,monospace;color:#f4483a;letter-spacing:.06em">MISSING 42m</span></span>
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 7px;width:fit-content">MINI</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#5f6873">was 3.71 V</span>
+<span style="font:600 11.5px ui-monospace,Menlo,monospace;color:#5f6873">v0.9.4</span>
+<span style="font:500 11.5px system-ui;color:#8b93a1">PIR_1 driveway sensor · used by cue “Driveway Scare”</span>
+<span style="color:#5f6873;text-align:center">▸</span></div>
+</div>
+</div></div>
+
+<!-- ============ 1d CUES ============ -->
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Cues — show programming · desktop 1440 · armed show, rule editor, degraded trigger warning</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 system-ui;letter-spacing:.12em;color:#e6e9ed">PROPMESH <span style="color:#5f6873;font-weight:500">CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#c7cdd6">BRIDGE LINKED</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">SYNC</span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px ui-monospace,Menlo,monospace"><span style="color:#3fb950">● 6</span><span style="color:#8b93a1">☾ 1</span><span style="color:#f4483a">✕ 1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:11px 16px;background:#1c1109;border-bottom:1px solid #3a2211">
+<div style="display:flex;align-items:center;gap:10px">
+<div style="width:44px;height:24px;border-radius:99px;background:#ff6b2c;position:relative;box-shadow:0 0 10px rgba(255,107,44,.35)"><div style="position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#1a0d05"></div></div>
+<span style="font:800 13px system-ui;letter-spacing:.12em;color:#ff8a4d">SHOW ARMED</span>
+</div>
+<span style="font:500 11.5px ui-monospace,Menlo,monospace;color:#8b93a1">armed 18:55 · 3 of 4 cues enabled · 14 fires tonight · last 20:42:11</span>
+<div style="flex:1"></div>
+<span style="display:flex;align-items:center;gap:6px;font:600 11.5px ui-monospace,Menlo,monospace;color:#e0a52a">⚠ 1 cue has an offline trigger</span>
+<button style="height:32px;padding:0 14px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui">+ New cue</button>
+</div>
+<div style="display:flex;height:640px">
+<div style="flex:1;padding:14px 16px;background:#0b0d10;overflow:hidden">
+<!-- rule row: selected -->
+<div style="border:1px solid #ff6b2c;border-radius:8px;background:#12100d;padding:12px 14px;display:flex;align-items:center;gap:14px">
+<div style="width:40px;height:22px;border-radius:99px;background:#ff6b2c;position:relative;flex:none"><div style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#1a0d05"></div></div>
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:center;gap:9px"><span style="font:700 13.5px system-ui;color:#e6e9ed">Driveway Scare</span><span style="padding:2px 7px;border-radius:99px;background:#2a1210;border:1px solid #4a1f1a;font:700 9.5px ui-monospace,Menlo,monospace;color:#f4483a;letter-spacing:.05em">TRIGGER OFFLINE</span></div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:6px;font:500 11.5px ui-monospace,Menlo,monospace;color:#9aa3af;flex-wrap:wrap"><span style="color:#f4483a">Driveway PIR</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Skeleton Lunge (6.2 s)</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Front Porch group (3)</span><span style="color:#5f6873">·</span><span>delay 0.5 s</span><span style="color:#5f6873">·</span><span>cooldown 45 s</span><span style="color:#5f6873">·</span><span>lockout 11 min / 10 fires</span></div>
+</div>
+<div style="text-align:right;flex:none"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#8b93a1">fired 10× · 20:42:11</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#e0a52a;margin-top:2px">lockout: 8 min left</div></div>
+<button style="height:30px;padding:0 13px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;flex:none">▶ TEST</button>
+</div>
+<div style="border:1px solid #20242b;border-radius:8px;background:#101318;padding:12px 14px;display:flex;align-items:center;gap:14px;margin-top:8px">
+<div style="width:40px;height:22px;border-radius:99px;background:#ff6b2c;position:relative;flex:none"><div style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#1a0d05"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font:700 13.5px system-ui;color:#e6e9ed">Ambient Fog</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:6px;font:500 11.5px ui-monospace,Menlo,monospace;color:#9aa3af;flex-wrap:wrap"><span style="color:#c7cdd6">Every 6 min (19:00–23:00)</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Fog Burst (8 s)</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Fog Chiller</span><span style="color:#5f6873">·</span><span>skip if TEMP_1 &gt; 18 °C</span></div>
+</div>
+<div style="text-align:right;flex:none"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#8b93a1">fired 19× · 20:39:00</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#5f6873;margin-top:2px">next 20:45:00</div></div>
+<button style="height:30px;padding:0 13px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;flex:none">▶ TEST</button>
+</div>
+<div style="border:1px solid #20242b;border-radius:8px;background:#101318;padding:12px 14px;display:flex;align-items:center;gap:14px;margin-top:8px">
+<div style="width:40px;height:22px;border-radius:99px;background:#ff6b2c;position:relative;flex:none"><div style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#1a0d05"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font:700 13.5px system-ui;color:#e6e9ed">Graveyard Rustle</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:6px;font:500 11.5px ui-monospace,Menlo,monospace;color:#9aa3af;flex-wrap:wrap"><span style="color:#c7cdd6">Porch PIR_1</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Random 2 of 4 sequences</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Graveyard group (4)</span><span style="color:#5f6873">·</span><span>cooldown 90 s</span></div>
+</div>
+<div style="text-align:right;flex:none"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#8b93a1">fired 3× · 20:42:11</div></div>
+<button style="height:30px;padding:0 13px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;flex:none">▶ TEST</button>
+</div>
+<div style="border:1px solid #20242b;border-radius:8px;background:#0d0f13;padding:12px 14px;display:flex;align-items:center;gap:14px;margin-top:8px;opacity:.65">
+<div style="width:40px;height:22px;border-radius:99px;background:#232833;position:relative;flex:none"><div style="position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#5f6873"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font:700 13.5px system-ui;color:#9aa3af">Big Finale</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:6px;font:500 11.5px ui-monospace,Menlo,monospace;color:#8b93a1;flex-wrap:wrap"><span>Manual button</span><span style="color:#5f6873">→</span><span>Full Yard Finale (48 s) + finale.wav</span><span style="color:#5f6873">→</span><span>All nodes</span></div>
+</div>
+<div style="text-align:right;flex:none"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#5f6873">never fired</div></div>
+<button style="height:30px;padding:0 13px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#9aa3af;font:700 11px system-ui;flex:none">▶ TEST</button>
+</div>
+<div style="margin-top:16px;padding:12px 14px;border:1px dashed #262b33;border-radius:8px;font:400 12px/1.5 system-ui;color:#5f6873">Cues cover trigger → sequence rules. For branching, random chains and audio sync, open the <a href="#1g" style="font-weight:600">Show Graph</a>.</div>
+</div>
+<div style="width:400px;border-left:1px solid #262b33;background:#101318;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #20242b"><span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Edit cue — Driveway Scare</span><span style="font:500 11px system-ui;color:#5f6873">unsaved</span></div>
+<div style="padding:14px 16px;display:flex;flex-direction:column;gap:14px;flex:1">
+<div><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:6px">TRIGGER</div>
+<div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:#14171c;border:1px solid #4a1f1a;border-radius:6px"><span style="font:600 12.5px system-ui;color:#f4483a">Driveway PIR · PIR_1</span><span style="flex:1"></span><span style="font:700 9.5px ui-monospace,Menlo,monospace;color:#f4483a">OFFLINE</span><span style="color:#5f6873">▾</span></div>
+<div style="font:400 11px/1.45 system-ui;color:#e0a52a;margin-top:5px">⚠ This node is missing — the cue is armed but cannot fire.</div></div>
+<div><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:6px">SEQUENCE</div>
+<div style="border:1px solid #262b33;border-radius:6px;overflow:hidden">
+<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#1c1109"><span style="font:600 12.5px system-ui;color:#ff8a4d">Skeleton Lunge</span><span style="flex:1"></span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">6.2 s · 4 ch</span></div>
+<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #20242b"><span style="font:500 12.5px system-ui;color:#9aa3af">Slow Rise + Creak</span><span style="flex:1"></span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">9.0 s · 2 ch</span></div>
+<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid #20242b"><span style="font:500 12.5px system-ui;color:#9aa3af">Eye Flicker Only</span><span style="flex:1"></span><span style="font:500 11px ui-monospace,Menlo,monospace;color:#5f6873">3.1 s · 1 ch</span></div>
+</div></div>
+<div><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:6px">TARGETS</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<span style="padding:6px 10px;border-radius:99px;background:#2a1108;border:1px solid #6b3a1a;font:600 11.5px system-ui;color:#ff8a4d">Front Porch group · 3 ✕</span>
+<span style="padding:6px 10px;border-radius:99px;background:#14171c;border:1px solid #262b33;font:500 11.5px system-ui;color:#9aa3af">+ add node or group</span>
+</div></div>
+<div><div style="font:600 10px system-ui;letter-spacing:.08em;color:#5f6873;margin-bottom:6px">TIMING</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div style="height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="font:500 11px system-ui;color:#8b93a1">delay</span><span style="font:600 12.5px ui-monospace,Menlo,monospace;color:#e6e9ed">0.5 s</span></div>
+<div style="height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="font:500 11px system-ui;color:#8b93a1">cooldown</span><span style="font:600 12.5px ui-monospace,Menlo,monospace;color:#e6e9ed">45 s</span></div>
+<div style="height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="font:500 11px system-ui;color:#8b93a1">lockout after</span><span style="font:600 12.5px ui-monospace,Menlo,monospace;color:#e6e9ed">10 fires</span></div>
+<div style="height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="font:500 11px system-ui;color:#8b93a1">lockout for</span><span style="font:600 12.5px ui-monospace,Menlo,monospace;color:#e6e9ed">11 min</span></div>
+</div></div>
+</div>
+<div style="display:flex;gap:8px;padding:14px 16px;border-top:1px solid #20242b">
+<button style="flex:1;height:38px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12.5px system-ui">▶ Simulate (dry run)</button>
+<button style="flex:1;height:38px;background:#ff6b2c;border:none;border-radius:6px;color:#1a0d05;font:800 12.5px system-ui">Save cue</button>
+</div>
+</div>
+</div>
+</div></div>
+
+<!-- ============ 1e BLUEPRINT DESKTOP ============ -->
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Blueprint — spatial view · desktop 1440 · draw tools, live status, mesh-link overlay on</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 system-ui;letter-spacing:.12em;color:#e6e9ed">PROPMESH <span style="color:#5f6873;font-weight:500">CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#c7cdd6">BRIDGE LINKED</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">SYNC</span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px ui-monospace,Menlo,monospace"><span style="color:#3fb950">● 6</span><span style="color:#8b93a1">☾ 1</span><span style="color:#f4483a">✕ 1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;height:700px">
+<div style="width:52px;background:#101318;border-right:1px solid #262b33;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px">
+<div style="width:38px;height:38px;border-radius:7px;background:#2a1108;border:1px solid #6b3a1a;display:flex;align-items:center;justify-content:center;color:#ff8a4d;font-size:15px">➤</div>
+<div style="width:38px;height:38px;border-radius:7px;background:#14171c;border:1px solid #262b33;display:flex;align-items:center;justify-content:center;color:#9aa3af;font-size:14px">▱</div>
+<div style="width:38px;height:38px;border-radius:7px;background:#14171c;border:1px solid #262b33;display:flex;align-items:center;justify-content:center;color:#9aa3af;font-size:14px">╱</div>
+<div style="width:38px;height:38px;border-radius:7px;background:#14171c;border:1px solid #262b33;display:flex;align-items:center;justify-content:center;color:#9aa3af;font-size:14px">◎</div>
+<div style="width:38px;height:38px;border-radius:7px;background:#14171c;border:1px solid #262b33;display:flex;align-items:center;justify-content:center;color:#9aa3af;font-size:14px">⌫</div>
+<div style="flex:1"></div>
+<div style="width:38px;height:38px;border-radius:7px;background:#14171c;border:1px solid #262b33;display:flex;align-items:center;justify-content:center;color:#9aa3af;font-size:13px;margin-bottom:10px">?</div>
+</div>
+<div style="flex:1;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:24px 24px">
+<svg width="100%" height="100%" viewBox="0 0 1140 700" style="display:block">
+<rect x="60" y="50" width="1020" height="600" fill="none" stroke="#20242b" stroke-width="1.5" stroke-dasharray="8 6"></rect>
+<polygon points="330,120 700,120 700,340 560,340 560,400 330,400" fill="#14171c" stroke="#3a4150" stroke-width="2"></polygon>
+<rect x="700" y="160" width="150" height="180" fill="#111419" stroke="#3a4150" stroke-width="2"></rect>
+<text x="500" y="240" font-size="12" fill="#3f4652" font-family="ui-monospace,Menlo,monospace" text-anchor="middle">HOUSE</text>
+<text x="775" y="255" font-size="11" fill="#3f4652" font-family="ui-monospace,Menlo,monospace" text-anchor="middle">GARAGE</text>
+<path d="M775 340 L775 650" stroke="#2b313b" stroke-width="34" opacity=".55"></path>
+<text x="805" y="560" font-size="10.5" fill="#3f4652" font-family="ui-monospace,Menlo,monospace">driveway</text>
+<line x1="60" y1="620" x2="1080" y2="620" stroke="#2b313b" stroke-width="10" opacity=".5"></line>
+<text x="95" y="608" font-size="10.5" fill="#3f4652" font-family="ui-monospace,Menlo,monospace">sidewalk</text>
+<line x1="775" y1="250" x2="445" y2="430" stroke="#3fb950" stroke-width="2.2" opacity=".55"></line>
+<line x1="775" y1="250" x2="640" y2="130" stroke="#3fb950" stroke-width="2.2" opacity=".55"></line>
+<line x1="775" y1="250" x2="880" y2="480" stroke="#f4483a" stroke-width="1.3" stroke-dasharray="4 5" opacity=".6"></line>
+<line x1="445" y1="430" x2="230" y2="500" stroke="#6b7684" stroke-width="1.6" opacity=".6"></line>
+<line x1="445" y1="430" x2="360" y2="560" stroke="#6b7684" stroke-width="1.6" opacity=".6"></line>
+<line x1="640" y1="130" x2="880" y2="480" stroke="#6b7684" stroke-width="0" opacity="0"></line>
+<line x1="230" y1="500" x2="150" y2="560" stroke="#6b7684" stroke-width="1.6" opacity=".6"></line>
+<line x1="230" y1="500" x2="360" y2="560" stroke="#e0a52a" stroke-width="1.2" stroke-dasharray="6 4" opacity=".8"></line>
+<g text-anchor="middle">
+<circle cx="775" cy="250" r="17" fill="#1a1e24" stroke="#3fb950" stroke-width="2.5"></circle><text x="775" y="255" font-size="12" fill="#ff8a4d" font-weight="700">⌂</text><text x="775" y="288" font-size="11.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Bridge</text>
+<circle cx="445" cy="430" r="15" fill="#1a1e24" stroke="#3fb950" stroke-width="2.5"></circle><text x="445" y="464" font-size="11.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Porch Skeleton</text>
+<circle cx="640" cy="130" r="15" fill="#1a1e24" stroke="#3fb950" stroke-width="2.5"></circle><text x="640" y="108" font-size="11.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Fog Chiller</text>
+<circle cx="230" cy="500" r="15" fill="#1a1e24" stroke="#3fb950" stroke-width="2.5"></circle><text x="230" y="534" font-size="11.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">Graveyard Rig</text>
+<circle cx="150" cy="560" r="11" fill="#1a1e24" stroke="#8b93a1" stroke-width="2"></circle><text x="150" y="565" font-size="9" fill="#8b93a1">☾</text><text x="150" y="588" font-size="10.5" font-weight="600" fill="#9aa3af" font-family="system-ui">L1</text>
+<circle cx="290" cy="565" r="11" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="290" y="592" font-size="10.5" font-weight="600" fill="#e6e9ed" font-family="system-ui">L2</text>
+<circle cx="360" cy="560" r="11" fill="#1a1e24" stroke="#e0a52a" stroke-width="2"></circle><text x="360" y="588" font-size="10.5" font-weight="600" fill="#e0a52a" font-family="system-ui">L3 · 3.18V</text>
+<circle cx="880" cy="480" r="11" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="880" y="485" font-size="9" fill="#f4483a" font-weight="700">✕</text><text x="880" y="508" font-size="10.5" font-weight="600" fill="#f4483a" font-family="system-ui">Driveway PIR</text>
+</g>
+</svg>
+<div style="position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(16,19,24,.92);border:1px solid #262b33;border-radius:7px">
+<span style="font:600 11.5px system-ui;color:#c7cdd6">Mesh links</span>
+<div style="width:36px;height:20px;border-radius:99px;background:#ff6b2c;position:relative"><div style="position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#1a0d05"></div></div>
+<span style="font:500 10.5px ui-monospace,Menlo,monospace;color:#5f6873">|</span>
+<span style="font:600 11.5px system-ui;color:#9aa3af">Signal heat</span>
+<div style="width:36px;height:20px;border-radius:99px;background:#232833;position:relative"><div style="position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#5f6873"></div></div>
+</div>
+<div style="position:absolute;right:12px;bottom:12px;padding:8px 12px;background:rgba(16,19,24,.92);border:1px solid #262b33;border-radius:7px;font:500 10.5px ui-monospace,Menlo,monospace;color:#5f6873">scale ≈ 5 ft / square · drag nodes to move</div>
+</div>
+</div>
+</div></div>
+
+<!-- ============ 1f BLUEPRINT PHONE ============ -->
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Blueprint — phone 390 · view-and-check, tap a node for status sheet</div>
+<div class="dv-card" style="width:390px">
+<div style="display:flex;align-items:center;gap:10px;height:52px;padding:0 12px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="flex:1"><div style="font:700 12px/1 system-ui;letter-spacing:.1em;color:#e6e9ed">BLUEPRINT</div><div style="display:flex;align-items:center;gap:5px;margin-top:3px"><span style="width:6px;height:6px;border-radius:50%;background:#3fb950"></span><span style="font:500 10px ui-monospace,Menlo,monospace;color:#8b93a1">bridge · ±2.1 ms · 6/1/1</span></div></div>
+<button style="display:flex;align-items:center;gap:6px;padding:0 14px;height:40px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 11.5px system-ui;letter-spacing:.08em">⬣ STOP ALL</button>
+</div>
+<div style="position:relative;height:430px;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:20px 20px">
+<svg width="100%" height="100%" viewBox="0 0 390 430" style="display:block">
+<polygon points="110,60 250,60 250,150 200,150 200,175 110,175" fill="#14171c" stroke="#3a4150" stroke-width="1.5"></polygon>
+<rect x="250" y="75" width="55" height="75" fill="#111419" stroke="#3a4150" stroke-width="1.5"></rect>
+<path d="M278 150 L278 400" stroke="#2b313b" stroke-width="16" opacity=".55"></path>
+<line x1="20" y1="385" x2="370" y2="385" stroke="#2b313b" stroke-width="6" opacity=".5"></line>
+<line x1="278" y1="112" x2="160" y2="192" stroke="#3fb950" stroke-width="1.8" opacity=".55"></line>
+<line x1="278" y1="112" x2="228" y2="52" stroke="#3fb950" stroke-width="1.8" opacity=".55"></line>
+<line x1="160" y1="192" x2="85" y2="230" stroke="#6b7684" stroke-width="1.3" opacity=".6"></line>
+<line x1="160" y1="192" x2="128" y2="290" stroke="#6b7684" stroke-width="1.3" opacity=".6"></line>
+<line x1="85" y1="230" x2="55" y2="300" stroke="#6b7684" stroke-width="1.3" opacity=".6"></line>
+<line x1="85" y1="230" x2="128" y2="290" stroke="#e0a52a" stroke-width="1.1" stroke-dasharray="5 4" opacity=".8"></line>
+<line x1="278" y1="112" x2="318" y2="330" stroke="#f4483a" stroke-width="1.1" stroke-dasharray="4 4" opacity=".6"></line>
+<g text-anchor="middle">
+<circle cx="278" cy="112" r="12" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle><text x="278" y="117" font-size="9" fill="#ff8a4d" font-weight="700">⌂</text>
+<circle cx="228" cy="52" r="11" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle>
+<circle cx="160" cy="192" r="11" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle>
+<circle cx="85" cy="230" r="11" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle>
+<circle cx="55" cy="300" r="9" fill="#1a1e24" stroke="#8b93a1" stroke-width="2"></circle><text x="55" y="304" font-size="8" fill="#8b93a1">☾</text>
+<circle cx="100" cy="315" r="9" fill="#1a1e24" stroke="#3fb950" stroke-width="2"></circle>
+<circle cx="128" cy="290" r="12" fill="#1a1e24" stroke="#e0a52a" stroke-width="2.5"></circle>
+<circle cx="128" cy="290" r="18" fill="none" stroke="#ff6b2c" stroke-width="1.5" stroke-dasharray="3 3"></circle>
+<circle cx="318" cy="330" r="9" fill="#1a1e24" stroke="#f4483a" stroke-width="2" stroke-dasharray="3 3"></circle><text x="318" y="334" font-size="8" fill="#f4483a" font-weight="700">✕</text>
+</g>
+</svg>
+<div style="position:absolute;top:10px;right:10px;padding:6px 10px;background:rgba(16,19,24,.92);border:1px solid #262b33;border-radius:6px;font:600 10.5px ui-monospace,Menlo,monospace;color:#8b93a1">view only · links ON</div>
+</div>
+<div style="background:#14171c;border-top:1px solid #333a45;border-radius:14px 14px 0 0;margin-top:-14px;position:relative;padding:10px 16px 16px">
+<div style="width:36px;height:4px;border-radius:2px;background:#333a45;margin:0 auto 12px"></div>
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:700 15px system-ui;color:#e6e9ed;flex:1">Lantern 3</span>
+<span style="padding:3px 9px;border-radius:99px;background:#2b2110;border:1px solid #4a3a14;font:700 10px ui-monospace,Menlo,monospace;color:#e0a52a">LOW BATT</span>
+<span style="padding:3px 9px;border-radius:99px;background:#0f2416;border:1px solid #1f4a2c;font:700 10px ui-monospace,Menlo,monospace;color:#3fb950">ONLINE</span>
+</div>
+<div style="display:flex;gap:14px;margin-top:8px;font:500 12px ui-monospace,Menlo,monospace;color:#8b93a1"><span>3.18 V · 18%</span><span>−83 dBm</span><span>hop 3</span><span>LED_STRIP_1 candle</span></div>
+<div style="display:flex;gap:10px;margin-top:14px">
+<button style="flex:1;height:48px;background:#191d23;border:1px solid #333a45;border-radius:8px;color:#e6e9ed;font:700 13px system-ui">◉ Blink LED</button>
+<button style="flex:1;height:48px;background:#191d23;border:1px solid #333a45;border-radius:8px;color:#e6e9ed;font:700 13px system-ui">Open in Survey</button>
+</div>
+</div>
+</div></div>
+
+<!-- ============ 1g SHOW GRAPH ============ -->
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>Show Graph — node-graph programming · desktop 1440 · live run highlighting the fog path</div>
+<div class="dv-card" style="width:1440px">
+<div style="display:flex;align-items:center;gap:14px;height:52px;padding:0 14px;background:#14171c;border-bottom:1px solid #262b33">
+<svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5L5 17h14z" stroke="#ff6b2c" stroke-width="1.4" fill="none" opacity=".5"></path><circle cx="12" cy="5" r="2.6" fill="#ff6b2c"></circle><circle cx="5" cy="17" r="2.6" fill="#ff6b2c"></circle><circle cx="19" cy="17" r="2.6" fill="#ff6b2c"></circle></svg>
+<div style="font:700 13px/1 system-ui;letter-spacing:.12em;color:#e6e9ed">PROPMESH <span style="color:#5f6873;font-weight:500">CONSOLE</span></div>
+<div style="display:flex;margin-left:10px;height:52px">
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Survey</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Nodes &amp; Channels</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Cues</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:500 12.5px system-ui;color:#9aa3af">Blueprint</div>
+<div style="display:flex;align-items:center;padding:0 13px;font:600 12.5px system-ui;color:#fff;box-shadow:inset 0 -2px 0 #ff6b2c">Show Graph</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="width:7px;height:7px;border-radius:50%;background:#3fb950;box-shadow:0 0 5px #3fb950"></span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#c7cdd6">BRIDGE LINKED</span></div>
+<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px"><span style="font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1">SYNC</span><span style="font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">±2.1 ms</span></div>
+<div style="display:flex;align-items:center;gap:9px;padding:5px 10px;background:#191d23;border:1px solid #262b33;border-radius:5px;font:600 11px ui-monospace,Menlo,monospace"><span style="color:#3fb950">● 6</span><span style="color:#8b93a1">☾ 1</span><span style="color:#f4483a">✕ 1</span></div>
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em;cursor:pointer"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+</div>
+<div style="display:flex;height:700px">
+<div style="width:200px;background:#101318;border-right:1px solid #262b33;padding:12px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 9px;background:#14171c;border:1px solid #262b33;border-radius:6px"><span style="color:#5f6873;font-size:11px">⌕</span><span style="font:400 11.5px system-ui;color:#5f6873">Search blocks…</span></div>
+<div><div style="font:700 9.5px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:7px">TRIGGERS</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">⊙ Sensor</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">◷ Time / schedule</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">⇊ sACN / E1.31</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">◉ Manual button</div>
+</div></div>
+<div><div style="font:700 9.5px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:7px">LOGIC</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">⏱ Delay</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">⚄ Random pick</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">≡ Sequence</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">▦ Group</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">❄ Cooldown</div>
+</div></div>
+<div><div style="font:700 9.5px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:7px">OUTPUTS</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">⚡ Prop sequence</div>
+<div style="padding:8px 10px;background:#14171c;border:1px solid #262b33;border-radius:6px;font:600 11.5px system-ui;color:#c7cdd6">♪ Audio</div>
+</div></div>
+<div style="flex:1"></div>
+<div style="font:400 10.5px/1.5 system-ui;color:#3f4652">Drag a block onto the canvas. Wires carry fire events left → right.</div>
+</div>
+<div style="flex:1;position:relative;background-color:#0b0d10;background-image:radial-gradient(#161a20 1px,transparent 1px);background-size:22px 22px">
+<svg style="position:absolute;inset:0" width="100%" height="100%" viewBox="0 0 1188 700" preserveAspectRatio="none">
+<path d="M244 160 C 290 160, 290 168, 336 168" stroke="#3a4150" stroke-width="2" fill="none"></path>
+<path d="M520 168 C 566 168, 566 160, 612 160" stroke="#3a4150" stroke-width="2" fill="none"></path>
+<path d="M796 160 C 850 160, 850 150, 904 150" stroke="#3a4150" stroke-width="2" fill="none"></path>
+<path d="M796 176 C 860 176, 850 292, 904 292" stroke="#3a4150" stroke-width="2" fill="none"></path>
+<path d="M244 480 C 320 480, 310 470, 386 470" stroke="#ff6b2c" stroke-width="2.5" fill="none"></path>
+<path d="M570 470 C 660 470, 650 478, 740 478" stroke="#ff6b2c" stroke-width="2.5" fill="none"></path>
+<circle cx="320" cy="477" r="4" fill="#ff6b2c"></circle>
+<circle cx="660" cy="473" r="4" fill="#ff6b2c"></circle>
+</svg>
+<!-- row 1: driveway chain -->
+<div style="position:absolute;left:64px;top:120px;width:180px;background:#14171c;border:1px solid #4a1f1a;border-radius:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">TRIGGER</span><span style="flex:1"></span><span style="font:700 9px ui-monospace,Menlo,monospace;color:#f4483a">OFFLINE</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#f4483a">⊙ Driveway PIR</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#5f6873;margin-top:3px">PIR_1 · motion</div></div>
+<div style="position:absolute;right:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:336px;top:130px;width:184px;background:#14171c;border:1px solid #262b33;border-radius:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">LOGIC</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">❄ Cooldown</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">45 s · lockout 10× / 11 min</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+<div style="position:absolute;right:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:612px;top:122px;width:184px;background:#14171c;border:1px solid #262b33;border-radius:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">LOGIC</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">≡ Sequence</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">Skeleton Lunge · 6.2 s</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+<div style="position:absolute;right:-5px;top:30px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+<div style="position:absolute;right:-5px;top:48px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:904px;top:112px;width:190px;background:#14171c;border:1px solid #262b33;border-radius:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">OUTPUT</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">▦ Front Porch group</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">3 nodes · 6 channels</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:904px;top:254px;width:190px;background:#14171c;border:1px solid #262b33;border-radius:8px">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">OUTPUT</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">♪ Audio</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">scream01.wav · porch spkr</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#3a4150;border:2px solid #0b0d10"></div>
+</div>
+<!-- row 2: fog chain, active -->
+<div style="position:absolute;left:64px;top:440px;width:180px;background:#14171c;border:1px solid #ff6b2c;border-radius:8px;box-shadow:0 0 18px rgba(255,107,44,.18)">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">TRIGGER</span><span style="flex:1"></span><span style="font:700 9px ui-monospace,Menlo,monospace;color:#ff8a4d">RUNNING</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">◷ Every 6 min</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">19:00–23:00 · next 20:45</div></div>
+<div style="position:absolute;right:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#ff6b2c;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:386px;top:432px;width:184px;background:#14171c;border:1px solid #ff6b2c;border-radius:8px;box-shadow:0 0 18px rgba(255,107,44,.18)">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">LOGIC</span><span style="flex:1"></span><span style="font:700 9px ui-monospace,Menlo,monospace;color:#ff8a4d">3.2 s left</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">≡ Sequence</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">Fog Burst · 8.0 s</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#ff6b2c;border:2px solid #0b0d10"></div>
+<div style="position:absolute;right:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#ff6b2c;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;left:740px;top:440px;width:200px;background:#14171c;border:1px solid #ff6b2c;border-radius:8px;box-shadow:0 0 18px rgba(255,107,44,.18)">
+<div style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-bottom:1px solid #20242b"><span style="font:700 9px ui-monospace,Menlo,monospace;color:#5f6873;letter-spacing:.08em">OUTPUT</span><span style="flex:1"></span><span style="font:700 9px ui-monospace,Menlo,monospace;color:#ff8a4d">FIRING</span></div>
+<div style="padding:9px 11px"><div style="font:700 12.5px system-ui;color:#e6e9ed">⚡ Fog Chiller</div><div style="font:500 10.5px ui-monospace,Menlo,monospace;color:#8b93a1;margin-top:3px">RELAY_1 fog machine · ON</div></div>
+<div style="position:absolute;left:-5px;top:36px;width:9px;height:9px;border-radius:50%;background:#ff6b2c;border:2px solid #0b0d10"></div>
+</div>
+<div style="position:absolute;top:12px;right:12px;display:flex;gap:8px">
+<span style="display:flex;align-items:center;gap:7px;padding:7px 12px;background:rgba(28,17,9,.95);border:1px solid #6b3a1a;border-radius:6px;font:700 11px ui-monospace,Menlo,monospace;color:#ff8a4d"><span style="width:7px;height:7px;border-radius:50%;background:#ff6b2c;box-shadow:0 0 6px #ff6b2c"></span>RUN 20:44:02 · Ambient Fog</span>
+<button style="height:32px;padding:0 13px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui">▶ Simulate</button>
+<button style="height:32px;padding:0 13px;background:#191d23;border:1px solid #333a45;border-radius:6px;color:#c7cdd6;font:600 12px system-ui">Deploy to bridge</button>
+</div>
+<div style="position:absolute;left:12px;bottom:12px;display:flex;flex-direction:column;gap:6px">
+<div style="width:30px;height:30px;border-radius:6px;background:#191d23;border:1px solid #333a45;display:flex;align-items:center;justify-content:center;color:#c7cdd6;font:600 15px system-ui">+</div>
+<div style="width:30px;height:30px;border-radius:6px;background:#191d23;border:1px solid #333a45;display:flex;align-items:center;justify-content:center;color:#c7cdd6;font:600 15px system-ui">−</div>
+<div style="width:30px;height:30px;border-radius:6px;background:#191d23;border:1px solid #333a45;display:flex;align-items:center;justify-content:center;color:#c7cdd6;font:600 10px ui-monospace,Menlo,monospace">1:1</div>
+</div>
+<div style="position:absolute;right:12px;bottom:12px;width:150px;height:92px;background:rgba(16,19,24,.94);border:1px solid #262b33;border-radius:6px;padding:6px">
+<div style="position:relative;width:100%;height:100%">
+<div style="position:absolute;left:6%;top:14%;width:16px;height:8px;background:#3a4150;border-radius:2px"></div>
+<div style="position:absolute;left:30%;top:16%;width:16px;height:8px;background:#3a4150;border-radius:2px"></div>
+<div style="position:absolute;left:54%;top:12%;width:16px;height:8px;background:#3a4150;border-radius:2px"></div>
+<div style="position:absolute;left:80%;top:10%;width:16px;height:8px;background:#3a4150;border-radius:2px"></div>
+<div style="position:absolute;left:80%;top:34%;width:16px;height:8px;background:#3a4150;border-radius:2px"></div>
+<div style="position:absolute;left:6%;top:62%;width:16px;height:8px;background:#ff6b2c;border-radius:2px"></div>
+<div style="position:absolute;left:34%;top:60%;width:16px;height:8px;background:#ff6b2c;border-radius:2px"></div>
+<div style="position:absolute;left:64%;top:62%;width:16px;height:8px;background:#ff6b2c;border-radius:2px"></div>
+<div style="position:absolute;inset:0;border:1px solid #ff6b2c;opacity:.35;border-radius:3px"></div>
+</div>
+</div>
+</div>
+</div>
+</div></div>
+
+<!-- ============ 1h COMPONENT SHEET ============ -->
+<div class="dv-opt" id="1h"><div class="dv-olabel"><a class="dv-oid" href="#1h">1h</a>Component sheet — core parts, all states</div>
+<div class="dv-card" style="width:1150px;padding:24px;display:flex;flex-direction:column;gap:26px;background:#0b0d10">
+<div style="display:flex;gap:40px;flex-wrap:wrap">
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">NODE CARD — PRO / MINI / DEGRADED</div>
+<div style="display:flex;gap:12px">
+<div style="width:230px;background:#101318;border:1px solid #262b33;border-radius:8px;padding:12px">
+<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Fog Chiller</span><span style="font:600 10px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 6px">PRO</span></div>
+<div style="display:flex;gap:10px;margin-top:9px;font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1"><span>H1</span><span>−48 dBm</span><span>⚡ wall</span><span>v0.9.4</span></div>
+</div>
+<div style="width:230px;background:#101318;border:1px solid #262b33;border-radius:8px;padding:12px">
+<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#3fb950"></span><span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Lantern 2</span><span style="font:600 10px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 6px">MINI</span></div>
+<div style="display:flex;gap:10px;margin-top:9px;font:500 11px ui-monospace,Menlo,monospace;color:#8b93a1"><span>H2</span><span>−68 dBm</span><span style="color:#9aa3af">▮▮▮▯ 3.41 V</span></div>
+</div>
+<div style="width:230px;background:#140e0d;border:1px solid #4a1f1a;border-radius:8px;padding:12px">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:800 11px ui-monospace,Menlo,monospace;color:#f4483a">✕</span><span style="font:700 13px system-ui;color:#f4483a;flex:1">Driveway PIR</span><span style="font:600 10px ui-monospace,Menlo,monospace;color:#9aa3af;background:#191d23;border-radius:4px;padding:2px 6px">MINI</span></div>
+<div style="display:flex;gap:10px;margin-top:9px;font:500 11px ui-monospace,Menlo,monospace;color:#5f6873"><span>missing 42 min</span><span>last −79 dBm</span></div>
+</div>
+</div></div>
+</div>
+<div style="display:flex;gap:40px;flex-wrap:wrap">
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">STATUS PILLS</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<span style="padding:3px 9px;border-radius:99px;background:#0f2416;border:1px solid #1f4a2c;font:700 10px ui-monospace,Menlo,monospace;color:#3fb950;letter-spacing:.06em">ONLINE</span>
+<span style="padding:3px 9px;border-radius:99px;background:#191d23;border:1px solid #333a45;font:700 10px ui-monospace,Menlo,monospace;color:#8b93a1;letter-spacing:.06em">☾ ASLEEP</span>
+<span style="padding:3px 9px;border-radius:99px;background:#2a1210;border:1px solid #4a1f1a;font:700 10px ui-monospace,Menlo,monospace;color:#f4483a;letter-spacing:.06em">✕ MISSING</span>
+<span style="padding:3px 9px;border-radius:99px;background:#2b2110;border:1px solid #4a3a14;font:700 10px ui-monospace,Menlo,monospace;color:#e0a52a;letter-spacing:.06em">LOW BATT</span>
+<span style="padding:3px 9px;border-radius:99px;background:#2b2110;border:1px solid #4a3a14;font:700 10px ui-monospace,Menlo,monospace;color:#e0a52a;letter-spacing:.06em">⚠ FAULT</span>
+<span style="padding:3px 9px;border-radius:99px;background:#2a1108;border:1px solid #6b3a1a;font:700 10px ui-monospace,Menlo,monospace;color:#ff8a4d;letter-spacing:.06em">ARMED</span>
+</div></div>
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">RSSI BADGES</div>
+<div style="display:flex;gap:8px">
+<span style="padding:2px 8px;border-radius:4px;background:#0f2416;font:600 11px ui-monospace,Menlo,monospace;color:#3fb950">−48 dBm</span>
+<span style="padding:2px 8px;border-radius:4px;background:#191d23;font:600 11px ui-monospace,Menlo,monospace;color:#9aa3af">−68 dBm</span>
+<span style="padding:2px 8px;border-radius:4px;background:#2b2110;font:600 11px ui-monospace,Menlo,monospace;color:#e0a52a">−83 dBm</span>
+<span style="padding:2px 8px;border-radius:4px;background:#2a1210;font:600 11px ui-monospace,Menlo,monospace;color:#f4483a">lost</span>
+</div></div>
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">BATTERY</div>
+<div style="display:flex;gap:14px;font:600 11.5px ui-monospace,Menlo,monospace">
+<span style="color:#3fb950">▮▮▮▮ 3.92 V</span>
+<span style="color:#9aa3af">▮▮▮▯ 3.41 V</span>
+<span style="color:#e0a52a">▮▯▯▯ 3.18 V</span>
+<span style="color:#8b93a1">☾ sleeping</span>
+</div></div>
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">TEST-FIRE BUTTON</div>
+<div style="display:flex;gap:8px">
+<button style="flex:none;white-space:nowrap;height:30px;padding:0 13px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui;letter-spacing:.05em">⚡ TEST FIRE</button>
+<button style="flex:none;white-space:nowrap;height:30px;padding:0 13px;background:#ff6b2c;border:1px solid #ff6b2c;border-radius:6px;color:#1a0d05;font:700 11px system-ui;letter-spacing:.05em">FIRING · 2.1 s</button>
+<button style="flex:none;white-space:nowrap;height:30px;padding:0 13px;background:#14171c;border:1px solid #262b33;border-radius:6px;color:#3f4652;font:700 11px system-ui;letter-spacing:.05em">⚡ TEST FIRE</button>
+</div>
+<div style="font:400 10.5px system-ui;color:#5f6873;margin-top:6px">idle · firing (tap again to stop) · disabled while armed</div></div>
+</div>
+<div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start">
+<div style="flex:1;min-width:520px"><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">RULE ROW</div>
+<div style="border:1px solid #20242b;border-radius:8px;background:#101318;padding:12px 14px;display:flex;align-items:center;gap:14px">
+<div style="width:40px;height:22px;border-radius:99px;background:#ff6b2c;position:relative;flex:none"><div style="position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#1a0d05"></div></div>
+<div style="flex:1"><div style="font:700 13px system-ui;color:#e6e9ed">Ambient Fog</div>
+<div style="display:flex;gap:7px;margin-top:5px;font:500 11.5px ui-monospace,Menlo,monospace;color:#9aa3af"><span style="color:#c7cdd6">Every 6 min</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Fog Burst</span><span style="color:#5f6873">→</span><span style="color:#c7cdd6">Fog Chiller</span></div></div>
+<span style="font:600 11px ui-monospace,Menlo,monospace;color:#8b93a1">20:39:00</span>
+<button style="height:30px;padding:0 13px;background:#1c1109;border:1px solid #6b3a1a;border-radius:6px;color:#ff8a4d;font:700 11px system-ui">▶ TEST</button>
+</div></div>
+<div style="width:330px"><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">PANEL HEADER</div>
+<div style="border:1px solid #262b33;border-radius:8px 8px 0 0;background:#101318;display:flex;align-items:center;gap:8px;padding:12px 14px">
+<span style="font:700 13px system-ui;color:#e6e9ed;flex:1">Fog Chiller</span>
+<span style="padding:2px 8px;border-radius:99px;background:#0f2416;border:1px solid #1f4a2c;font:700 10px ui-monospace,Menlo,monospace;color:#3fb950">ONLINE</span>
+<span style="color:#5f6873;font-size:13px">✕</span>
+</div></div>
+</div>
+<div><div style="font:700 10px system-ui;letter-spacing:.1em;color:#5f6873;margin-bottom:10px">STOP ALL — IDLE / CONFIRMING (HOLD)</div>
+<div style="display:flex;gap:16px;align-items:center">
+<button style="display:flex;align-items:center;gap:8px;padding:0 16px;height:36px;background:#2a1108;border:1.5px solid #ff6b2c;border-radius:6px;color:#ff8a4d;font:800 12.5px system-ui;letter-spacing:.1em"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#ff8a4d" stroke-width="1.5"></path><rect x="5" y="7" width="6" height="2" fill="#ff8a4d"></rect></svg>STOP ALL</button>
+<div style="position:relative;display:flex;align-items:center;gap:10px;padding:0 18px;height:44px;background:#ff6b2c;border-radius:6px;overflow:hidden;box-shadow:0 0 24px rgba(255,107,44,.35)">
+<div style="position:absolute;left:0;top:0;bottom:0;width:62%;background:rgba(0,0,0,.25)"></div>
+<svg style="position:relative" width="17" height="17" viewBox="0 0 16 16"><path d="M5 1.5h6L15 5v6l-4 3.5H5L1 11V5z" fill="none" stroke="#1a0d05" stroke-width="1.6"></path><rect x="5" y="7" width="6" height="2" fill="#1a0d05"></rect></svg>
+<span style="position:relative;font:800 13px system-ui;letter-spacing:.08em;color:#1a0d05">HOLD… STOPPING ALL OUTPUTS</span>
+<span style="position:relative;font:700 11px ui-monospace,Menlo,monospace;color:#1a0d05">1.2 s</span>
+</div>
+<div style="font:400 11px/1.5 system-ui;color:#5f6873;max-width:230px">Hold 2 s (or double-tap on phone). Kills every motor, relay, LED and audio; cues stay armed but suppressed until re-enabled.</div>
+</div></div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "make <a class="dv-oid" href="#1a">1a</a> interactive" · "riff on the placement mode <a class="dv-oid" href="#1b">1b</a>" · "lighter-density variant of <a class="dv-oid" href="#1c">1c</a>"</p>
+</section>
+</x-dc>
+</body>
+</html>

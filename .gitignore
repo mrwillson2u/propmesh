@@ -1,10 +1,17 @@
 # KiCad
 *-backups/
+_autosave-*
 *.kicad_prl
 fp-info-cache
 *.net
 ~*
 *.bak
+
+# KiCad 10 Local History (File > Local History). Useful — keep it on
+# disk, never commit it: it is a nested git repo, and git would store it
+# as a broken submodule reference. Same for restore-point copies.
+.history/
+_restore_backup_*/
 
 # Build
 .pio/
@@ -12,9 +19,27 @@ build/
 __pycache__/
 *.pyc
 
+# checknet.py's coloured audit of a sheet — a snapshot of today's schematic, not a design file
+*.check.html
+
 # Fabrication output — regenerate, don't commit
 gerbers/
 *.zip
+# kicad-jlcpcb-tools: local parts cache and generated fab files
+jlcpcb/
+production_files/
+
+# Raw import of pre-PropMesh prototypes — contains live credentials and
+# ~400MB of .pio build artifacts. NEVER commit. Scrubbed, tracked copies
+# live in reference/<project>/.
+reference/old_files/
 
 # OS
 .DS_Store
+
+# Node / console
+node_modules/
+console/dist/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

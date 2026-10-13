@@ -1,0 +1,273 @@
+sheet: 01-mcu
+title: MCU, reset and optional RTC crystal
+parts:
+  U1:
+    symbol: RF_Module:ESP32-S3-WROOM-1
+    value: ESP32-S3-WROOM-1U-N16R2
+    footprint: RF_Module:ESP32-S3-WROOM-1U
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '2': 3V3_AON
+      '3': MCU_EN
+      '41': GND
+      '27': BOOT_BUTTON
+      '39': ANALOG_IN_1
+      '38': BATTERY_SENSE
+      '4': DIGITAL_IN_1
+      '5': DIGITAL_IN_2
+      '6': RAIL_5V_ENABLE
+      '7': I2S_BCLK
+      '12': I2C_SDA
+      '17': I2C_SCL
+      '18': I2S_LRCLK
+      '19': I2S_DOUT
+      '20': AUDIO_ENABLE
+      '21': SERVO_1
+      '22': SERVO_2
+      '10': SERVO_3
+      '11': RELAY_1
+      '13': USB_DM
+      '14': USB_DP
+      '23': LED_STRIP_1_DATA
+      '28': LED_1
+      '29': LED_2
+      '30': LED_3
+      '31': LED_4
+      '32': STATUS_LED
+      '15': STRAP3
+      '26': STRAP45
+      '16': STRAP46
+      '8': XTAL32_P
+      '9': XTAL32_N
+      '1': GND
+      '24': SPARE_IO47
+      '25': SPARE_IO48
+      '33': SPARE_IO40
+      '34': SPARE_IO41
+      '35': SPARE_IO42
+      '36': SPARE_RXD0
+      '37': SPARE_TXD0
+      '40': GND
+  R1:
+    symbol: Device:R
+    value: 10k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25804
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+      '2': MCU_EN
+  C1:
+    symbol: Device:C
+    value: 1uF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C15849
+    dnp: false
+    note: ''
+    pins:
+      '1': MCU_EN
+      '2': GND
+  SW1:
+    symbol: Switch:SW_Push
+    value: TS-1187A
+    footprint: Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A
+    lcsc: C318884
+    dnp: false
+    note: ''
+    pins:
+      '1': MCU_EN
+      '2': GND
+  R2:
+    symbol: Device:R
+    value: 10k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25804
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+      '2': BOOT_BUTTON
+  SW2:
+    symbol: Switch:SW_Push
+    value: TS-1187A
+    footprint: Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A
+    lcsc: C318884
+    dnp: false
+    note: ''
+    pins:
+      '1': BOOT_BUTTON
+      '2': GND
+  C2:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+      '2': GND
+  C3:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+      '2': GND
+  R3:
+    symbol: Device:R
+    value: 10k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25804
+    dnp: false
+    note: ''
+    pins:
+      '1': STRAP3
+      '2': GND
+  R4:
+    symbol: Device:R
+    value: 10k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25804
+    dnp: false
+    note: ''
+    pins:
+      '1': STRAP45
+      '2': GND
+  R5:
+    symbol: Device:R
+    value: 10k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25804
+    dnp: false
+    note: ''
+    pins:
+      '1': STRAP46
+      '2': GND
+  Y1:
+    symbol: Device:Crystal
+    value: 32.768kHz DNP
+    footprint: Crystal:Crystal_SMD_3215-2Pin_3.2x1.5mm
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': XTAL32_P
+      '2': XTAL32_N
+  C4:
+    symbol: Device:C
+    value: DNP load
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': XTAL32_P
+      '2': GND
+  C5:
+    symbol: Device:C
+    value: DNP load
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': XTAL32_N
+      '2': GND
+  R6:
+    symbol: Device:R
+    value: 10M
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: null
+    dnp: true
+    note: ''
+    pins:
+      '1': XTAL32_P
+      '2': XTAL32_N
+  TP1:
+    symbol: Connector:TestPoint
+    value: 3V3_AON
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': 3V3_AON
+  TP2:
+    symbol: Connector:TestPoint
+    value: MCU_EN
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': MCU_EN
+  TP3:
+    symbol: Connector:TestPoint
+    value: SPARE_IO47
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_IO47
+  TP4:
+    symbol: Connector:TestPoint
+    value: SPARE_IO48
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_IO48
+  TP5:
+    symbol: Connector:TestPoint
+    value: SPARE_IO40
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_IO40
+  TP6:
+    symbol: Connector:TestPoint
+    value: SPARE_IO41
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_IO41
+  TP7:
+    symbol: Connector:TestPoint
+    value: SPARE_IO42
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_IO42
+  TP8:
+    symbol: Connector:TestPoint
+    value: SPARE_RXD0
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_RXD0
+  TP9:
+    symbol: Connector:TestPoint
+    value: SPARE_TXD0
+    footprint: TestPoint:TestPoint_Pad_1.5x1.5mm
+    lcsc: null
+    dnp: false
+    note: ''
+    pins:
+      '1': SPARE_TXD0

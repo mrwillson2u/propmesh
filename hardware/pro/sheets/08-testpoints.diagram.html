@@ -1,0 +1,133 @@
+<!doctype html><meta charset="utf-8"><title>08-testpoints wiring</title>
+<style>body{font:14px system-ui;margin:24px;background:#fff;color:#111}h2{margin:32px 0 8px}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}pre.report{background:#f7f7f7;padding:12px;font-size:13px}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.3/mermaid.min.js"></script>
+<h1>08-testpoints — wiring</h1><p>Read each diagram left to right along the signal path. <b>Boxes are parts, rounded nodes are nets, the label on a line is the pin.</b> A part's power-rail pins are written inside its box. A multi-unit chip (a quad gate) appears once per unit — one box per triangle, exactly as KiCad places it.</p>
+<h2>GPIO test points</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  N_BOOT_BUTTON([&quot;BOOT_BUTTON&quot;]):::net
+  P_TP_BOOT[&quot;&lt;b&gt;TP_BOOT&lt;/b&gt;&lt;br/&gt;BOOT_BUTTON&quot;]:::part
+  P_TP_BOOT --&quot;1&quot;--&gt; N_BOOT_BUTTON
+  N_ANALOG_IN_1([&quot;ANALOG_IN_1&quot;]):::net
+  P_TP_AN1[&quot;&lt;b&gt;TP_AN1&lt;/b&gt;&lt;br/&gt;ANALOG_IN_1&quot;]:::part
+  N_ANALOG_IN_1 --&quot;1&quot;--&gt; P_TP_AN1
+  N_ANALOG_IN_2([&quot;ANALOG_IN_2&quot;]):::net
+  P_TP_AN2[&quot;&lt;b&gt;TP_AN2&lt;/b&gt;&lt;br/&gt;ANALOG_IN_2&quot;]:::part
+  N_ANALOG_IN_2 --&quot;1&quot;--&gt; P_TP_AN2
+  N_LED_STRIP_1_CLK([&quot;LED_STRIP_1_CLK&quot;]):::net
+  P_TP_L1C[&quot;&lt;b&gt;TP_L1C&lt;/b&gt;&lt;br/&gt;LED_STRIP_1_CLK&quot;]:::part
+  N_LED_STRIP_1_CLK --&quot;1&quot;--&gt; P_TP_L1C
+  P_R_STRAP3[&quot;&lt;b&gt;R_STRAP3&lt;/b&gt;&lt;br/&gt;10k&lt;br/&gt;&lt;i&gt;pin 2 → GND&lt;/i&gt;&quot;]:::part
+  N_LED_STRIP_1_CLK --&quot;1&quot;--&gt; P_R_STRAP3
+  N_LED_STRIP_1_DATA([&quot;LED_STRIP_1_DATA&quot;]):::net
+  P_TP_L1D[&quot;&lt;b&gt;TP_L1D&lt;/b&gt;&lt;br/&gt;LED_STRIP_1_DATA&quot;]:::part
+  N_LED_STRIP_1_DATA --&quot;1&quot;--&gt; P_TP_L1D
+  N_LED_STRIP_2_DATA([&quot;LED_STRIP_2_DATA&quot;]):::net
+  P_TP_L2D[&quot;&lt;b&gt;TP_L2D&lt;/b&gt;&lt;br/&gt;LED_STRIP_2_DATA&quot;]:::part
+  N_LED_STRIP_2_DATA --&quot;1&quot;--&gt; P_TP_L2D
+  N_LED_STRIP_2_CLK([&quot;LED_STRIP_2_CLK&quot;]):::net
+  P_TP_L2C[&quot;&lt;b&gt;TP_L2C&lt;/b&gt;&lt;br/&gt;LED_STRIP_2_CLK&quot;]:::part
+  N_LED_STRIP_2_CLK --&quot;1&quot;--&gt; P_TP_L2C
+  N_I2S_BCLK([&quot;I2S_BCLK&quot;]):::net
+  P_TP_BCLK[&quot;&lt;b&gt;TP_BCLK&lt;/b&gt;&lt;br/&gt;I2S_BCLK&quot;]:::part
+  N_I2S_BCLK --&quot;1&quot;--&gt; P_TP_BCLK
+  N_I2C_SDA([&quot;I2C_SDA&quot;]):::net
+  P_TP_SDA[&quot;&lt;b&gt;TP_SDA&lt;/b&gt;&lt;br/&gt;I2C_SDA&quot;]:::part
+  N_I2C_SDA --&quot;1&quot;--&gt; P_TP_SDA
+  N_I2C_SCL([&quot;I2C_SCL&quot;]):::net
+  P_TP_SCL[&quot;&lt;b&gt;TP_SCL&lt;/b&gt;&lt;br/&gt;I2C_SCL&quot;]:::part
+  N_I2C_SCL --&quot;1&quot;--&gt; P_TP_SCL
+  N_DIGITAL_IN_1([&quot;DIGITAL_IN_1&quot;]):::net
+  P_TP_DI1[&quot;&lt;b&gt;TP_DI1&lt;/b&gt;&lt;br/&gt;DIGITAL_IN_1&quot;]:::part
+  N_DIGITAL_IN_1 --&quot;1&quot;--&gt; P_TP_DI1
+  N_DIGITAL_IN_2([&quot;DIGITAL_IN_2&quot;]):::net
+  P_TP_DI2[&quot;&lt;b&gt;TP_DI2&lt;/b&gt;&lt;br/&gt;DIGITAL_IN_2&quot;]:::part
+  N_DIGITAL_IN_2 --&quot;1&quot;--&gt; P_TP_DI2
+  N_DIGITAL_IN_3([&quot;DIGITAL_IN_3&quot;]):::net
+  P_TP_DI3[&quot;&lt;b&gt;TP_DI3&lt;/b&gt;&lt;br/&gt;DIGITAL_IN_3&quot;]:::part
+  N_DIGITAL_IN_3 --&quot;1&quot;--&gt; P_TP_DI3
+  N_STEPPER_1_STEP([&quot;STEPPER_1_STEP&quot;]):::net
+  P_TP_S1S[&quot;&lt;b&gt;TP_S1S&lt;/b&gt;&lt;br/&gt;STEPPER_1_STEP&quot;]:::part
+  N_STEPPER_1_STEP --&quot;1&quot;--&gt; P_TP_S1S
+  N_STEPPER_1_DIR([&quot;STEPPER_1_DIR&quot;]):::net
+  P_TP_S1D[&quot;&lt;b&gt;TP_S1D&lt;/b&gt;&lt;br/&gt;STEPPER_1_DIR&quot;]:::part
+  N_STEPPER_1_DIR --&quot;1&quot;--&gt; P_TP_S1D
+  N_I2S_LRCLK([&quot;I2S_LRCLK&quot;]):::net
+  P_TP_LRCLK[&quot;&lt;b&gt;TP_LRCLK&lt;/b&gt;&lt;br/&gt;I2S_LRCLK&quot;]:::part
+  N_I2S_LRCLK --&quot;1&quot;--&gt; P_TP_LRCLK
+  N_I2S_DOUT([&quot;I2S_DOUT&quot;]):::net
+  P_TP_DOUT[&quot;&lt;b&gt;TP_DOUT&lt;/b&gt;&lt;br/&gt;I2S_DOUT&quot;]:::part
+  N_I2S_DOUT --&quot;1&quot;--&gt; P_TP_DOUT
+  N_TMC_UART_TX([&quot;TMC_UART_TX&quot;]):::net
+  P_TP_UTX[&quot;&lt;b&gt;TP_UTX&lt;/b&gt;&lt;br/&gt;TMC_UART_TX&quot;]:::part
+  N_TMC_UART_TX --&quot;1&quot;--&gt; P_TP_UTX
+  N_TMC_UART_RX([&quot;TMC_UART_RX&quot;]):::net
+  P_TP_URX[&quot;&lt;b&gt;TP_URX&lt;/b&gt;&lt;br/&gt;TMC_UART_RX&quot;]:::part
+  N_TMC_UART_RX --&quot;1&quot;--&gt; P_TP_URX
+  N_STEPPER_2_STEP([&quot;STEPPER_2_STEP&quot;]):::net
+  P_TP_S2S[&quot;&lt;b&gt;TP_S2S&lt;/b&gt;&lt;br/&gt;STEPPER_2_STEP&quot;]:::part
+  N_STEPPER_2_STEP --&quot;1&quot;--&gt; P_TP_S2S
+  N_MOTOR_B_IN1([&quot;MOTOR_B_IN1&quot;]):::net
+  P_TP_MB1[&quot;&lt;b&gt;TP_MB1&lt;/b&gt;&lt;br/&gt;MOTOR_B_IN1&quot;]:::part
+  N_MOTOR_B_IN1 --&quot;1&quot;--&gt; P_TP_MB1
+  N_MOTOR_B_IN2([&quot;MOTOR_B_IN2&quot;]):::net
+  P_TP_MB2[&quot;&lt;b&gt;TP_MB2&lt;/b&gt;&lt;br/&gt;MOTOR_B_IN2&quot;]:::part
+  N_MOTOR_B_IN2 --&quot;1&quot;--&gt; P_TP_MB2
+  N_STATUS_LED([&quot;STATUS_LED&quot;]):::net
+  P_TP_STAT[&quot;&lt;b&gt;TP_STAT&lt;/b&gt;&lt;br/&gt;STATUS_LED&quot;]:::part
+  N_STATUS_LED --&quot;1&quot;--&gt; P_TP_STAT
+  N_SD_CLK([&quot;SD_CLK&quot;]):::net
+  P_TP_SDCLK[&quot;&lt;b&gt;TP_SDCLK&lt;/b&gt;&lt;br/&gt;SD_CLK&quot;]:::part
+  N_SD_CLK --&quot;1&quot;--&gt; P_TP_SDCLK
+  N_SD_CMD([&quot;SD_CMD&quot;]):::net
+  P_TP_SDCMD[&quot;&lt;b&gt;TP_SDCMD&lt;/b&gt;&lt;br/&gt;SD_CMD&quot;]:::part
+  N_SD_CMD --&quot;1&quot;--&gt; P_TP_SDCMD
+  N_SD_D0([&quot;SD_D0&quot;]):::net
+  P_TP_SDD0[&quot;&lt;b&gt;TP_SDD0&lt;/b&gt;&lt;br/&gt;SD_D0&quot;]:::part
+  N_SD_D0 --&quot;1&quot;--&gt; P_TP_SDD0
+  N_STEPPER_1_DIAG([&quot;STEPPER_1_DIAG&quot;]):::net
+  P_TP_DG1[&quot;&lt;b&gt;TP_DG1&lt;/b&gt;&lt;br/&gt;STEPPER_1_DIAG&quot;]:::part
+  N_STEPPER_1_DIAG --&quot;1&quot;--&gt; P_TP_DG1
+  N_STEPPER_2_DIAG([&quot;STEPPER_2_DIAG&quot;]):::net
+  P_TP_DG2[&quot;&lt;b&gt;TP_DG2&lt;/b&gt;&lt;br/&gt;STEPPER_2_DIAG&quot;]:::part
+  N_STEPPER_2_DIAG --&quot;1&quot;--&gt; P_TP_DG2
+  N_MOTOR_A_IN1([&quot;MOTOR_A_IN1&quot;]):::net
+  P_TP_MA1[&quot;&lt;b&gt;TP_MA1&lt;/b&gt;&lt;br/&gt;MOTOR_A_IN1&quot;]:::part
+  N_MOTOR_A_IN1 --&quot;1&quot;--&gt; P_TP_MA1
+  N_EXPANSION_1([&quot;EXPANSION_1&quot;]):::net
+  P_TP_EXP1[&quot;&lt;b&gt;TP_EXP1&lt;/b&gt;&lt;br/&gt;EXPANSION_1&quot;]:::part
+  N_EXPANSION_1 --&quot;1&quot;--&gt; P_TP_EXP1
+  N_EXPANSION_2([&quot;EXPANSION_2&quot;]):::net
+  P_TP_EXP2[&quot;&lt;b&gt;TP_EXP2&lt;/b&gt;&lt;br/&gt;EXPANSION_2&quot;]:::part
+  N_EXPANSION_2 --&quot;1&quot;--&gt; P_TP_EXP2
+  N_STEPPER_2_DIR([&quot;STEPPER_2_DIR&quot;]):::net
+  P_TP_S2D[&quot;&lt;b&gt;TP_S2D&lt;/b&gt;&lt;br/&gt;STEPPER_2_DIR&quot;]:::part
+  N_STEPPER_2_DIR --&quot;1&quot;--&gt; P_TP_S2D
+  N_MOTOR_A_IN2([&quot;MOTOR_A_IN2&quot;]):::net
+  P_TP_MA2[&quot;&lt;b&gt;TP_MA2&lt;/b&gt;&lt;br/&gt;MOTOR_A_IN2&quot;]:::part
+  N_MOTOR_A_IN2 --&quot;1&quot;--&gt; P_TP_MA2</pre>
+<h2>Rail-only parts ×6 — decoupling; wire each pin to its rail symbol, place beside its chip</h2><pre class='mermaid'>graph LR
+  classDef part fill:#eef3ff,stroke:#2b5fd9,stroke-width:1.5px,color:#111
+  classDef net fill:#fff8e1,stroke:#b7791f,color:#111
+  classDef rail fill:#ffe0b2,stroke:#e65100,stroke-width:3px,color:#111,font-weight:bold
+  classDef badnet fill:#ffe0e0,stroke:#c00,stroke-width:3px,color:#111,font-weight:bold
+  classDef absent fill:#fff,stroke:#c00,stroke-width:2px,stroke-dasharray:6 4,color:#c00
+  classDef extra fill:#ffecec,stroke:#c00,stroke-width:2px,color:#111
+  classDef dnp fill:#f5f5f5,stroke:#999,stroke-dasharray:3 3,color:#666
+  P_TP_VRAW[&quot;&lt;b&gt;TP_VRAW&lt;/b&gt;&lt;br/&gt;TP_VIN_RAW&lt;br/&gt;&lt;i&gt;pin 1 → VIN_RAW&lt;/i&gt;&quot;]:::part
+  P_TP_VPROT[&quot;&lt;b&gt;TP_VPROT&lt;/b&gt;&lt;br/&gt;TP_VIN_PROT&lt;br/&gt;&lt;i&gt;pin 1 → VIN_PROT&lt;/i&gt;&quot;]:::part
+  P_TP_5V[&quot;&lt;b&gt;TP_5V&lt;/b&gt;&lt;br/&gt;TP_5V&lt;br/&gt;&lt;i&gt;pin 1 → +5V&lt;/i&gt;&quot;]:::part
+  P_TP_3V3[&quot;&lt;b&gt;TP_3V3&lt;/b&gt;&lt;br/&gt;TP_3V3&lt;br/&gt;&lt;i&gt;pin 1 → +3V3&lt;/i&gt;&quot;]:::part
+  P_TP_GNDA[&quot;&lt;b&gt;TP_GNDA&lt;/b&gt;&lt;br/&gt;TP_GND_A&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part
+  P_TP_GNDB[&quot;&lt;b&gt;TP_GNDB&lt;/b&gt;&lt;br/&gt;TP_GND_B&lt;br/&gt;&lt;i&gt;pin 1 → GND&lt;/i&gt;&quot;]:::part</pre>
+<h2>GND</h2><p><code>TP_GNDA.1</code>, <code>TP_GNDB.1</code>, <code>R_STRAP3.2</code></p>
+<h2>+5V</h2><p><code>TP_5V.1</code></p>
+<h2>+3V3</h2><p><code>TP_3V3.1</code></p>
+<h2>VIN_RAW</h2><p><code>TP_VRAW.1</code></p>
+<h2>VIN_PROT</h2><p><code>TP_VPROT.1</code></p>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{useMaxWidth:false,nodeSpacing:22,rankSpacing:50,htmlLabels:true}});</script>

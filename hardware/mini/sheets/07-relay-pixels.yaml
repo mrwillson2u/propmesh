@@ -1,0 +1,121 @@
+sheet: 07-relay-pixels
+title: Relay and addressable pixels
+parts:
+  Q5:
+    symbol: Transistor_FET:AO3400A
+    value: SI2356DS
+    footprint: Package_TO_SOT_SMD:SOT-23
+    lcsc: C74127
+    dnp: false
+    note: ''
+    pins:
+      '1': RELAY_GATE
+      '2': GND
+      '3': RELAY_COIL
+  R46:
+    symbol: Device:R
+    value: 100R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C22775
+    dnp: false
+    note: ''
+    pins:
+      '1': RELAY_1
+      '2': RELAY_GATE
+  R47:
+    symbol: Device:R
+    value: 100k
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C25803
+    dnp: false
+    note: ''
+    pins:
+      '1': RELAY_GATE
+      '2': GND
+  D7:
+    symbol: Device:D_Schottky
+    value: SS34
+    footprint: Diode_SMD:D_SMA
+    lcsc: C8678
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': RELAY_COIL
+  K1:
+    symbol: propmesh:HK4100F-DC5V-SHG
+    value: HK4100F-DC5V-SHG
+    footprint: propmesh:RELAY-TH_HK4100F-DC5V-SHG
+    lcsc: C12072
+    dnp: false
+    note: ''
+    pins:
+      '1': RELAY_A
+      '2': RELAY_B
+      '3': RELAY_COIL
+      '4': 5V_EFFECTS
+      '5': RELAY_COM
+      '6': RELAY_COM
+  J13:
+    symbol: Connector:Screw_Terminal_01x03
+    value: RELAY_OUT
+    footprint: propmesh:CONN-TH_DG128-5.0-03P-14-00A-H
+    lcsc: C691861
+    dnp: false
+    note: ''
+    pins:
+      '1': RELAY_A
+      '2': RELAY_COM
+      '3': RELAY_B
+  R48:
+    symbol: Device:R
+    value: 330R
+    footprint: Resistor_SMD:R_0603_1608Metric
+    lcsc: C23138
+    dnp: false
+    note: ''
+    pins:
+      '1': LED_STRIP_1_DATA_5V
+      '2': STRIP_DATA_OUT
+  J14:
+    symbol: Connector:Screw_Terminal_01x03
+    value: WS2812_STRIP
+    footprint: propmesh:CONN-TH_DG128-5.0-03P-14-00A-H
+    lcsc: C691861
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+      '3': STRIP_DATA_OUT
+  D8:
+    symbol: propmesh:WS2812B-MINI-X1
+    value: WS2812B-MINI-X2
+    footprint: propmesh:LED-SMD_4P-L3.5-W3.5-TL_WS2812B-1
+    lcsc: C4154873
+    dnp: false
+    note: ''
+    pins:
+      '1': STATUS_LED_5V
+      '2': 5V_EFFECTS
+      '4': GND
+  C21:
+    symbol: Device:C
+    value: 100nF
+    footprint: Capacitor_SMD:C_0603_1608Metric
+    lcsc: C14663
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND
+  C22:
+    symbol: Device:C
+    value: 10uF/16V
+    footprint: Capacitor_SMD:C_0805_2012Metric
+    lcsc: C95841
+    dnp: false
+    note: ''
+    pins:
+      '1': 5V_EFFECTS
+      '2': GND

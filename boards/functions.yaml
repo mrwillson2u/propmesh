@@ -1,0 +1,55 @@
+# What a pin can be assigned to on a generic board — SINGLE SOURCE OF
+# TRUTH for the function table shared by firmware and console.
+#
+# Edit, then run:  python3 tools/genboards.py
+#
+# Keys must match ChannelKind in schema/messages.yaml (genboards checks).
+# `pins`: one entry per GPIO the function takes; `need` is the pin
+# capability it requires (see boards/<board>.yaml `caps`). An empty
+# list is a virtual output that uses no pin (BLE_LIGHT).
+# `ble`: the node's Bluetooth radio is used.
+# `ledc`: LEDC channels consumed per instance (counts against the
+# board's ledc_channels). `rmt`: RMT TX channels consumed.
+# Value range is what `set` accepts for a channel of this kind.
+
+functions:
+  RELAY:
+    label: Relay / on-off output
+    pins: [{role: OUT, need: out}]
+    value: {min: 0, max: 1}
+  LED:
+    label: LED dimmer (PWM)
+    pins: [{role: OUT, need: out}]
+    ledc: 1
+    pwm_hz: 1000              # LED_PWM_HZ in pinmap.yaml
+    value: {min: 0, max: 1000}
+  SERVO:
+    label: Servo
+    pins: [{role: SIGNAL, need: out}]
+    ledc: 1
+    pwm_hz: 50                # SERVO_PWM_HZ
+    value: {min: 0, max: 1000}
+  MOTOR:
+    label: DC motor (H-bridge IN1/IN2)
+    pins: [{role: IN1, need: out}, {role: IN2, need: out}]
+    ledc: 2
+    pwm_hz: 25000             # MOTOR_PWM_HZ — never below 20 kHz, audible
+    value: {min: -1000, max: 1000}
+  LED_STRIP:
+    label: LED strip (WS2812)
+    pins: [{role: DATA, need: out}]
+    rmt: 1
+    value: {min: 0, max: 16777215}   # 0xRRGGBB, whole strip
+  SPI_STRIP:
+    label: LED strip (SK9822 / APA102, clocked)
+    pins: [{role: DATA, need: out}, {role: CLOCK, need: out}]
+    value: {min: 0, max: 16777215}   # 0xRRGGBB, whole strip — a fire strip: 0 off, else burning
+  DIGITAL_IN:
+    label: Sensor / button input
+    pins: [{role: IN, need: in}]
+    value: {min: 0, max: 1}
+  BLE_LIGHT:
+    label: BLE flood light (BRMesh)
+    pins: []
+    ble: true
+    value: {min: 0, max: 2147483647}   # 0xWWRRGGBB, W (white) 0–127; 0 = off

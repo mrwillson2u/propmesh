@@ -1,0 +1,123 @@
+# Sheet 07 — Sensors, Qwiic, expansion: connection spec. ONE LINE PER NET.
+#
+# Drawing guide: open 07-sensors-expansion.diagram.html.  Checker:
+#   python3 tools/checknet.py hardware/pro/sheets/07-sensors-expansion.net.yaml
+#
+# DIGITAL INPUTS x3 (sensor -> pin): XH 5V|GND|SIG -> BAT54S clamp ->
+# 1 k series -> GPIO, 10 k pull-up to 3V3 on the GPIO side. BAT54S
+# ORIENTATION (the S = series pair): pin 1 = anode of lower diode ->
+# GND, pin 2 = cathode of upper -> +3V3, pin 3 = common junction ->
+# the signal. Survives 5 V sensor outputs (HC-SR501) and miswires.
+#
+# ANALOG x2: XH 5V|GND|SIG -> 100 k / 100 k halver -> tap = GPIO
+# (5 V full-scale lands at 2.5 V, inside ADC cal range), 100 nF tap->GND.
+#
+# NO ONBOARD IR RECEIVER (dropped 2026-09-05): the board lives hidden
+# inside a prop, where a receiver can't see a remote. Plug-in IR = a
+# TSOP module on a pigtail into any DIGITAL_IN (5 V on the XH, output
+# clamped by the BAT54S; firmware runs RMT receive on that pin). GPIO 3
+# became LED_STRIP_1_CLK (sheet 05).
+#
+# QWIIC: genuine SM04B-SRSS-TB is stock-dead at JLC -> ZX-SH1.0-4PWT
+# clone (C7430446, $0.065, 130 k stock), on KiCad's official JST-SH
+# footprint. VERIFY AT LAYOUT: clone drawing vs footprint (import-lie
+# doctrine — measure, don't trust). Pin order per Qwiic spec:
+# 1=GND 2=3V3 3=SDA 4=SCL. I2C pull-ups live on sheet 03 — NONE here.
+#
+# EXPANSION 2x5: GPIO45/46 are STRAPPING (45 = VDD_SPI select, 46 =
+# boot mode) — 10 k pulldown sits on the MCU side of the 100 R series,
+# so the pin is LOW at reset even with the header floating, and the
+# 100 R limits a miswire. Silk "KEEP LOW AT RESET" at pins 4/5.
+# Pins 8/9 ride the stepper DIAG nets from sheet 06; pin 9 joins
+# D2_MID (the far side of GPIO43's 1 k — U0TXD boot-log protection
+# works for the header too). D2_MID is a GLOBAL label on both sheets.
+#
+# PIR: J_PIR is a 2.54 mm header PARALLEL to digital input 1, same
+# 5V|GND|SIG order, for jumper-wiring an HC-SR501 without an XH pigtail.
+
+sheet: 07-sensors-expansion
+
+_fp: &fp
+  r0603: &r0603 "Resistor_SMD:R_0603_1608Metric"
+  c0603: &c0603 "Capacitor_SMD:C_0603_1608Metric"
+  r1206: &r1206 "Resistor_SMD:R_1206_3216Metric"
+  xh3:   &xh3   "Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical"
+  sot:   &sot   "Package_TO_SOT_SMD:SOT-23"
+  hdr3:  &hdr3  "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
+
+parts:
+  # digital inputs
+  J_DI1: {value: DIG_IN, lcsc: C2316, symbol: "Connector_Generic:Conn_01x03", footprint: *xh3, note: "1=5V 2=GND 3=SIG on all five sensor XHs"}
+  J_DI2: {value: DIG_IN, lcsc: C2316, symbol: "Connector_Generic:Conn_01x03", footprint: *xh3}
+  J_DI3: {value: DIG_IN, lcsc: C2316, symbol: "Connector_Generic:Conn_01x03", footprint: *xh3}
+  J_PIR: {value: PIR_HDR, lcsc: C124376, symbol: "Connector_Generic:Conn_01x03", footprint: *hdr3, note: "2.54 header in parallel with input 1 — HC-SR501 via dupont wires"}
+  D_C1:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot, note: "pin1->GND, pin2->+3V3, pin3->signal"}
+  D_C2:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot}
+  D_C3:  {value: BAT54S, lcsc: C8592, symbol: "Diode:BAT54S", footprint: *sot}
+  R_D1:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206, note: "2.2 k 1206 since 2026-09-16 (datasheet review decision 2A): a 24 V miswire is 9 mA / 0.19 W — inside a 1206 0.25 W rating. Was 1 k 0603 = 0.42 W"}
+  R_D2:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206}
+  R_D3:  {value: 2.2k, lcsc: C17948, symbol: "Device:R", footprint: *r1206}
+  R_P1:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "pull-up on the GPIO side"}
+  R_P2:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  R_P3:  {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+  # analog inputs
+  J_AN1: {value: ANA_IN, lcsc: C2316, symbol: "Connector_Generic:Conn_01x03", footprint: *xh3}
+  J_AN2: {value: ANA_IN, lcsc: C2316, symbol: "Connector_Generic:Conn_01x03", footprint: *xh3}
+  R_A1T: {value: 100k, lcsc: C25803, symbol: "Device:R", footprint: *r0603, note: "divider top; C25803 Basic, already on the BOM"}
+  R_A1B: {value: 100k, lcsc: C25803, symbol: "Device:R", footprint: *r0603}
+  R_A2T: {value: 100k, lcsc: C25803, symbol: "Device:R", footprint: *r0603}
+  R_A2B: {value: 100k, lcsc: C25803, symbol: "Device:R", footprint: *r0603}
+  C_AN1:  {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603, note: "tap->GND, quiets the ADC"}
+  C_AN2:  {value: 100nF, lcsc: C14663, symbol: "Device:C", footprint: *c0603}
+  # Qwiic + expansion
+  J_QW:  {value: QWIIC, lcsc: C7430446, symbol: "Connector_Generic:Conn_01x04", footprint: "Connector_JST:JST_SH_SM04B-SRSS-TB_1x04-1MP_P1.00mm_Horizontal", note: "SH-1.0 clone on the official JST footprint — measure clone DS vs pattern at layout"}
+  J_EXP: {value: EXPANSION, lcsc: C42431818, symbol: "Connector_Generic:Conn_02x05_Odd_Even", footprint: "Connector_PinHeader_2.54mm:PinHeader_2x05_P2.54mm_Vertical", note: "silk KEEP LOW AT RESET at pins 4/5"}
+  R_E1S: {value: 100R, lcsc: C22775, symbol: "Device:R", footprint: *r0603}
+  R_E2S: {value: 100R, lcsc: C22775, symbol: "Device:R", footprint: *r0603}
+  R_E1P: {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603, note: "strap pulldown, MCU side of the series R"}
+  R_E2P: {value: 10k, lcsc: C25804, symbol: "Device:R", footprint: *r0603}
+
+blocks:
+  "Digital in 1 (+ PIR header)": [DI1_RAW, DIGITAL_IN_1]
+  "Digital in 2":                [DI2_RAW, DIGITAL_IN_2]
+  "Digital in 3":                [DI3_RAW, DIGITAL_IN_3]
+  "Analog in 1":                 [AN1_RAW, ANALOG_IN_1]
+  "Analog in 2":                 [AN2_RAW, ANALOG_IN_2]
+  "Qwiic + expansion header":    [I2C_SDA, I2C_SCL, EXPANSION_1, EXP1_HDR,
+                                  EXPANSION_2, EXP2_HDR, STEPPER_1_DIAG, D2_MID]
+
+named: [DIGITAL_IN_1, DIGITAL_IN_2, DIGITAL_IN_3, ANALOG_IN_1, ANALOG_IN_2,
+        EXPANSION_1, EXPANSION_2, I2C_SDA, I2C_SCL,
+        STEPPER_1_DIAG, D2_MID]
+
+nets:
+  # --- digital inputs -------------------------------------------------
+  DI1_RAW: [J_DI1.3, J_PIR.3, R_D1.1]                 # clamp NO LONGER here (2026-09-08)
+  DIGITAL_IN_1: [R_D1.2, D_C1.COM, R_P1.1]            # series R first, THEN the clamp
+  DI2_RAW: [J_DI2.3, R_D2.1]
+  DIGITAL_IN_2: [R_D2.2, D_C2.COM, R_P2.1]
+  DI3_RAW: [J_DI3.3, R_D3.1]
+  DIGITAL_IN_3: [R_D3.2, D_C3.COM, R_P3.1]
+
+  # --- analog inputs --------------------------------------------------
+  AN1_RAW: [J_AN1.3, R_A1T.1]
+  ANALOG_IN_1: [R_A1T.2, R_A1B.1, C_AN1.1]
+  AN2_RAW: [J_AN2.3, R_A2T.1]
+  ANALOG_IN_2: [R_A2T.2, R_A2B.1, C_AN2.1]
+
+  # --- Qwiic + expansion ---------------------------------------------
+  I2C_SDA: [J_QW.3, J_EXP.6]
+  I2C_SCL: [J_QW.4, J_EXP.7]
+  EXPANSION_1: [R_E1S.1, R_E1P.1]
+  EXP1_HDR:    [R_E1S.2, J_EXP.4]
+  EXPANSION_2: [R_E2S.1, R_E2P.1]
+  EXP2_HDR:    [R_E2S.2, J_EXP.5]
+  STEPPER_1_DIAG: [J_EXP.8]
+  D2_MID:         [J_EXP.9]
+
+  # --- rails ----------------------------------------------------------
+  +5V:  [J_DI1.1, J_DI2.1, J_DI3.1, J_PIR.1, J_AN1.1, J_AN2.1, J_EXP.2]
+  +3V3: [D_C1.K, D_C2.K, D_C3.K, R_P1.2, R_P2.2, R_P3.2, J_QW.2, J_EXP.1]
+  GND:  [J_DI1.2, J_DI2.2, J_DI3.2, J_PIR.2, J_AN1.2, J_AN2.2,
+         D_C1.A, D_C2.A, D_C3.A, R_A1B.2, R_A2B.2, C_AN1.2, C_AN2.2,
+         J_QW.1, J_EXP.3, J_EXP.10, R_E1P.2, R_E2P.2]

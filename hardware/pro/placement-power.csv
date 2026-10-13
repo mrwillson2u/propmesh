@@ -1,0 +1,47 @@
+ref,x,y,rot,note
+# Power block (sheet 01) laid out for the two buck loops and the 10 A input path.
+# Board coordinates (mm from the top-left corner, layout.md A3). Apply with tools/setpos.py.
+# Servo row moved up 3.5 mm and C43 nudged right to give the block its room.
+# --- input chain: J17/J18 (bottom edge) -> F1 -> Q7 -> D9/C11 (VIN_PROT) -> J48 -> U5
+F1,28.5,83,90,fuse holder horizontal just above J17/J18; pin 1 VIN_RAW toward J17
+Q7,25,74.5,0,P-FET: tab (drain) toward F1 pin 2; source pin 3 feeds VIN_PROT
+D8,33.5,73,0,zener gate clamp beside Q7
+R13,34,76,0,gate resistor beside Q7
+D9,33,66,90,TVS on VIN_PROT right after Q7 - short loop to GND pour
+C11,24.5,66,0,100 uF bulk on VIN_PROT
+J48,21,52,0,link VIN_PROT -> VIN_BUCK
+# --- 5 V buck loop: C7/C12 at U5 VIN (pins 2-3) ; L1 at SW (pin 8) ; C9/C10 at L1 pin 2
+U5,42,57,0,AP64350: VIN pins 2-3 at the bottom edge (y 60) SW pin 8 top-left (y 54)
+C7,41,63,0,10 uF at U5 VIN - 2 mm below pins 2-3
+C12,46,62.5,0,10 uF at U5 VIN
+L1,33,50,180,pin 1 (SW) at the right end next to U5 pin 8
+C10,33,58,0,22 uF at L1 output
+C9,28,58,0,22 uF at L1 output
+C6,37,61,90,bootstrap cap between BST (pin 1) and SW
+R15,46.5,55,90,FB divider lower at FB pin 5
+R14,46.5,59,90,FB divider upper
+J49,46.5,48.5,0,link 5V_BUCK -> +5V
+R16,20.5,44,0,RT (freq) resistor - small-signal corner
+R17,23.5,44,0,COMP network
+C13,20.5,46.5,0,COMP network
+C14,23.5,46.5,0,COMP network
+C8,26.5,44,0,DNP FB feed-forward pad
+# --- 3.3 V buck (TLV62569) above C43, right of D9
+U6,40,67,0,SOT-23-5: pin 1 VIN(+5V) / 2 GND / 3 SW
+C15,39.5,72,90,10 uF at U6 VIN
+L2,46.5,68.5,0,2.2 uH at U6 SW
+C16,37,72,90,22 uF at L2 output
+J50,53,67,0,link 3V3_BUCK -> +3V3
+R19,56.5,66,0,U6 FB divider
+R21,56.5,63.5,0,U6 FB divider
+C17,56.5,68.5,0,U6 feed-forward cap
+# --- neighbours that had to move to make room
+C42,56.5,71.2,0,U11 VCC decoupling at pin 20 (top-right corner of U11)
+C43,41,80,0,strip 1 bulk 1000 uF (origin = pin 1; body spans x 38-49) clear of U11 at x 49
+J2,36.5,38,0,servo row up 3.5 mm
+J3,40.5,38,0,servo row
+J4,44.5,38,0,servo row
+J5,48.5,38,0,servo row
+J6,52.5,38,0,servo row
+J7,56.5,38,0,servo row
+R53,59,88,0,DNP strap pad on LED_STRIP_1_CLK beside the strip 1 series resistors

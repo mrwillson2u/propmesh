@@ -1,0 +1,41 @@
+---
+title: Bluetooth flood lights
+description: Pair inexpensive BRMesh color flood lights and make them part of the show — no app, no wires.
+sidebar:
+  order: 5
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Cheap color flood lights that are normally controlled by the **BRMesh** phone app can join your show. Your prop boards talk to them over Bluetooth, so the floods wash the house in orange at dusk and flash red when a scare goes off.
+
+## Pairing lights
+
+<Steps>
+
+1. In **Nodes & Channels**, open the **✺ Floods** chip.
+
+2. Under **SENDING BOARDS**, tick the boards that should talk to the lights — the ones closest to them, and preferably more than one: every ticked board sends, so losing one board loses no lights. (The bridge never drives lights.) Press **Save to boards**.
+
+3. Put the floods near one of the ticked boards and switch them **off**.
+
+4. Press **Find lights…**, then **Search (8 s)**, then switch the floods **on**. They only announce themselves just after power-up.
+
+5. Press **Pair** beside each light that appears. You'll see **✓ paired as light #1**, #2 and so on.
+
+</Steps>
+
+No app or key needed: the first pairing creates the key and the boards keep it. A light that already belongs to the BRMesh app shows **paired elsewhere** — **Take over** moves it to PropMesh (and out of the app).
+
+## Using them
+
+Each light gets a row with a name, a color picker, a warm-white slider and **Off**. In [sequences](/propmesh/show/sequences/), a flood is a track like any other output, so a scare can turn the porch red for three seconds and back.
+
+<Aside title="The lights never answer">
+BRMesh only goes one way: the boards send, the lights don't reply. The colors the console shows are what the boards **last sent**. If a light misses a message (out of range, unplugged), the console can't tell — keep a sending board within a few meters.
+</Aside>
+
+## Limits
+
+- Up to 255 lights; up to 16 per sending board.
+- A board on **battery** sleeps between messages, so it reacts late and sends nothing while asleep. Prefer mains-powered boards as senders; the console asks before you tick a battery board.
