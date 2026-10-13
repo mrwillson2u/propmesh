@@ -11,7 +11,7 @@ const boards = readdirSync(join(root, "boards"))
   .filter((f) => f.endsWith(".yaml") && f !== "functions.yaml")
   .map((f) => parse(readFileSync(join(root, "boards", f), "utf8")))
   .sort((a, b) => a.name.localeCompare(b.name))
-  .map((b) => ({ id: b.id, name: b.name, built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
+  .map((b) => ({ id: b.id, name: b.name + (b.status === "untested" ? " (not yet tried)" : b.status === "partial" ? " (partly tested)" : ""), built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const first = boards.find((b) => b.id === "esp32-devkit-v1") ?? boards[0];
 const anyBuilt = boards.some((b) => b.built);

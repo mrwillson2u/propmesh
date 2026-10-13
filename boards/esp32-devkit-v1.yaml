@@ -24,6 +24,10 @@ id: esp32-devkit-v1
 name: ESP32 DevKit V1 (30-pin)
 mcu: ESP32-WROOM-32
 board_type: DEVKIT            # BoardType in schema/messages.yaml
+# How far this board has been tried on real hardware — shown on the docs
+# site's board pages (tested / partial / untested). Update it after a bench test.
+status: tested
+status_note: "Runs the project's own yard: bridge and prop boards, the mesh, sequences, triggers, schedule, floods and over-the-air updates."
 ledc_channels: 16
 rmt_tx_channels: 8
 pinout_url: https://randomnerdtutorials.com/esp32-pinout-reference-gpios/

@@ -27,6 +27,10 @@ id: esp32-c6-supermini
 name: ESP32-C6 SuperMini
 mcu: ESP32-C6FH4
 board_type: C6_SUPERMINI      # BoardType in schema/messages.yaml
+# How far this board has been tried on real hardware — shown on the docs
+# site's board pages (tested / partial / untested). Update it after a bench test.
+status: untested
+status_note: "Profile and firmware are built (Bluetooth floods through NimBLE, deep sleep) but it has not been flashed onto a real board yet. Expect surprises, and please report them."
 pinout_url: https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-datasheet-schema-and-specs/
 # No `header`: SuperMini vendors order the pins differently, so the console
 # shows this board as a list of GPIO numbers, not a drawing.
