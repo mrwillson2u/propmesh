@@ -1,0 +1,31 @@
+/* PropMesh colors: the console's ember orange on a dark, slightly warm
+   ground. Starlight reads these custom properties for both themes. */
+:root {
+	--sl-color-accent-low: #3a1a0c;
+	--sl-color-accent: #ff6b2c;
+	--sl-color-accent-high: #ffc7a8;
+	--sl-color-white: #f2f3f5;
+	--sl-color-gray-1: #e2e4e8;
+	--sl-color-gray-2: #b9bec7;
+	--sl-color-gray-3: #8b93a1;
+	--sl-color-gray-4: #555c68;
+	--sl-color-gray-5: #333842;
+	--sl-color-gray-6: #1d2026;
+	--sl-color-black: #121418;
+}
+:root[data-theme='light'] {
+	--sl-color-accent-low: #ffe2d3;
+	--sl-color-accent: #c84a14;
+	--sl-color-accent-high: #6b2508;
+	--sl-color-white: #15171b;
+	--sl-color-gray-1: #24272d;
+	--sl-color-gray-2: #3a3f48;
+	--sl-color-gray-3: #5b6270;
+	--sl-color-gray-4: #8b93a1;
+	--sl-color-gray-5: #c9cdd4;
+	--sl-color-gray-6: #eef0f3;
+	--sl-color-gray-7: #f7f8fa;
+	--sl-color-black: #ffffff;
+}
+/* Board pages: pinout drawings scale down on phones. */
+.sl-markdown-content img[src$='.svg'] { max-width: 100%; height: auto; }

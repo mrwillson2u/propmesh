@@ -5,7 +5,7 @@ import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
 import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection } from "./lib/connection";
-import { reconnectLast } from "./lib/transport";
+import { connectSim, reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
 import { MODE_LABEL, hhmm } from "./lib/schedule";
 import Yard, { type YardLayout } from "./views/Yard";
@@ -58,7 +58,9 @@ export default function App() {
     if (autoTried || demo || getConnection()) return;
     autoTried = true;
     setAutoState("trying");
-    reconnectLast().then((r) => {
+    // ?sim=1 (the docs site's "try it" link): the simulated mesh, no hardware.
+    const way = q().get("sim") ? connectSim() : reconnectLast();
+    way.then((r) => {
       if (r && !getConnection()) openConnection(r.link, r.hello);
       else void r?.link.close();
       setAutoState("idle");

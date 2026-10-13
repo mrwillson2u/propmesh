@@ -431,6 +431,40 @@ serves the bundle once per browser; live data over one WebSocket.
 schema version — a LittleFS web partition (UI updates without a
 reflash) is a later option. Bundle size is checked in CI.
 
+**Where the console runs — one codebase, three shells (decided
+2026-10-12).** Asked: drop the bridge-served UI for a hosted web app
+(and, later, native apps) so the UI needn't fit in flash? The browser
+rule that decides it: **a page served over HTTPS may not open
+`ws://192.168.x.x`** (mixed content; Chrome's Private Network Access
+on top), and a LAN device can't get a public certificate. So a
+hosted-only console works over USB (Web Serial is allowed from HTTPS)
+but **not over WiFi from a phone in the yard**, and a cloud relay would
+break mesh-first and offline yards. Decision: keep one React console
+and the transport layer that already separates UI from protocol, and
+ship it three ways:
+
+| Shell | Reaches the mesh by | For |
+|---|---|---|
+| **Bridge-served** (this section's budget) | WebSocket on the LAN; works with no internet | show night, any phone, zero install — the offline safety net |
+| **Hosted site** (GitHub Pages, `website/`) | Web Serial to a USB bridge (Chrome / Edge desktop) · the simulator | docs, browser flasher, "try it" demo, desktop setup |
+| **Native app** *(after Halloween 2026)* | plain `ws://` on the LAN — native apps aren't bound by mixed-content rules (iOS asks for local-network permission) | phones and tablets; same React code wrapped with Capacitor |
+
+Consequences:
+- **The protocol is the product.** A native app — ours or anyone's —
+  is "speak the protocol". The console's JSON API (today: generic-boards
+  §6 and the commands since) gets a **versioned, written spec** the way
+  `schema/messages.yaml` covers the mesh. Winter work, before the app.
+- **Size is a partition problem, not a UI problem.** The build is
+  ~200 KB gzipped; the node image's `min_spiffs.csv` leaves 192 KB of
+  filesystem, so the console doesn't fit *there*. But only the bridge
+  serves it: **recommend an ESP32-S3 with 16 MB flash as the bridge**
+  (a few dollars) with its own partition table, and prop nodes keep
+  theirs. The 600 KB budget above still stands for the bridge shell.
+- The console builds with relative asset paths (`base: "./"`) so the
+  same `dist/` serves from the bridge's root, from Pages under
+  `/propmesh/console/`, or from inside a native shell. `?sim=1` opens it
+  connected to the simulator (the docs site's "try it" link).
+
 **Views, in build order:**
 
 1. **Yard** *(build first — it's also the bring-up and yard-debug

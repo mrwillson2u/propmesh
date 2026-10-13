@@ -6,6 +6,12 @@ Networked actuator boards you stake around a yard. Each drives relays,
 servos, motors, addressable LED strips, and audio, synchronized over an
 ESP-NOW mesh and triggerable from local sensors or from any other node.
 
+**Using PropMesh?** Start at the docs site —
+**[mrwillson2u.github.io/propmesh](https://mrwillson2u.github.io/propmesh/)** —
+for guides, a page per supported board, the browser firmware installer
+and a console you can try with no hardware. This README and `docs/` are
+the design notes for working on PropMesh itself.
+
 ## Boards
 
 | | **PropMesh Pro** | **PropMesh Mini** |
