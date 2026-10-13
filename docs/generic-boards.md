@@ -368,7 +368,7 @@ name lights, test colors (sent to every sender), forget a light. Saving
 writes the same key and the same `BLE_LIGHT` channels (index = light
 number) to every ticked board and strips them from unticked ones. A
 board's own page no longer shows its flood lights, only a pointer to the
-tab. In Cues the floods are one pseudo-node, **Floods**: `loadShow`
+tab. In Sequences the floods are one pseudo-node, **Floods**: `loadShow`
 collapses each sender's copy of a flood step to one and hides the boards'
 `BLE_LIGHT` channels; `saveSequence` writes a flood step into every
 sender's part; live sliders fan out to every sender. If two boards hold
@@ -455,8 +455,10 @@ under the mesh key → doc. Group addressing later.
 of timed steps `[t_ms, kind, index, value]` on any node's outputs. Each
 node stores only **its own part** of each sequence, plus the
 *triggers* on **its own sensors**, in `/show.json` — so the show runs
-with no laptop and no bridge. A trigger: "when `DIGITAL_IN_n` becomes
-active (or clear), play sequence N; then ignore this trigger for
+with no laptop and no bridge. A trigger (the 2026-10-05 form; v2 below
+adds delay, lockout, fan-out, random and chaining): "when
+`DIGITAL_IN_n` becomes active (or clear), play sequence N; then ignore
+this trigger for
 `cooldown_ms`".
 
 **Ramps** (2026-10-05 — the Timeline's line between keyframes;
@@ -493,6 +495,34 @@ rejoined with a different clock) plays now. Servo steps glide with the
 servo's smoothing setting. Up to 4 sequences play at once per node;
 re-firing a playing sequence restarts it.
 
+**Rules, v2 (2026-10-12 — software-plan "Console sections").** A
+trigger rule is *trigger → logic → actions*, all evaluated on the board
+that holds it, which then broadcasts the cues (so the execution model
+is unchanged: no bridge at show time).
+- **Trigger:** a sensor edge on this board (`sensor`: `input`, `on`), or
+  **a sequence starting anywhere** (`after`: its CUE heard, or fired
+  here). Any board may hold an `after` rule — pick one that's always
+  powered. Sensor rules fire only while armed; `after` rules in ambient
+  too (a chain off an ambient loop is the point).
+- **Logic:** `delay_ms` before the actions — "when X ends" is simply
+  `after: X` with `delay_ms` = X's show-wide length, which the console
+  sets; `cooldown_ms`; **lockout** `limit: {fires, window_min}` — at
+  most N fires per window (0 = no limit).
+- **Actions:** `seqs[]` (1–4): `pick: "all"` fires every one (fan-out),
+  `"random"` one of them. Several rules may share a trigger — each that
+  passes fires.
+- A rule that restarts its own trigger sequence needs delay + cooldown
+  ≥ 1 s (refused otherwise): a zero-delay self-loop would run as fast
+  as the mesh carries cues.
+- Firmware: `PmTriggers` arms a rule (cooldown, lockout), `due()` hands
+  back rules whose delay ran out, `pick()` the sequences; host-tested
+  (`test_show`: delay + fan-out, random + lockout, chaining). Console:
+  the **Show** section's rows read as the sentence *When [sensor
+  becomes active | sequence X starts/ends] (+ wait) play [all of | one
+  of] [seqs] · wait N s · at most N times per M min [· on board]*; the
+  **Show Graph** (Graph / List toggle, software-plan "Console sections")
+  edits the same rules as chains of blocks.
+
 **Arming.** Disarmed nodes ignore triggers and cues and stop playing.
 Nodes **boot armed** (a power cut never leaves the show dead). STOP ALL
 disarms every node, then turns every output off; RE-ARM SHOW arms them.
@@ -510,7 +540,8 @@ reports the problem and the console shows ⚠.
 | `get_sequence` | `seq` | `sequence` (`id`, `name`, `steps[]` as `[t_ms, "KIND", index, value]` or `[…, dur_ms, "ease"]`) |
 | `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
 | `delete_sequence` | `seq` | — |
-| `set_rules` | `rules[]` of `{input, on: "active"\|"clear", seq, cooldown_ms, enabled}` | — (replaces all this node's triggers) |
+| `set_rules` | `rules[]` of `{trigger: "sensor"\|"after", input, on: "active"\|"clear", after, delay_ms, cooldown_ms, limit: {fires, window_min}?, pick: "all"\|"random", seqs[], enabled}` (the 2026-10-05 form `{input, on, seq, cooldown_ms, enabled}` still reads) | — (replaces all this node's triggers) |
+| `get_yard` / `set_yard` | `yard: {v: 1, at, scale_ft, shapes[], pos{}}`, `at` | the Yard's map document (console `lib/yardMap.ts`), stored opaque in `/yard.json` on the board the console talks to; an older `at` is ignored (`stale`) |
 | `cue` | `seq`, `offset_ms?` | — (fires show-wide from this node; refused while disarmed) |
 | `arm` | `on` | `armed` |
 
@@ -539,7 +570,7 @@ with it. The zoom is remembered per browser (Fit until you zoom);
 another sequence opens at its start, same zoom. Not yet: bezier handles
 (easing presets only), audio tracks.
 
-**Console → Cues.** Sequences list; step editor (time, board, output,
+**Console → Sequences** (the "Cues" view until 2026-10-12). Sequences list; step editor (time, board, output,
 value, *get there over* + easing for rampable kinds — sliders for servos/LEDs/motors, on/off for relays, color for
 strips — and a *Test* button per step; with *Live preview* on (default)
 dragging a servo, LED or strip value moves the real output, coalesced
@@ -607,7 +638,7 @@ bonus for when the laptop's network happens to reach.
 - **Simulated mesh:** `ota` "downloads" for 6 s; the node then reports the
   build named by the URL's last path segment.
 
-## 6d. WiFi bridge — decided 2026-10-07, not yet built
+## 6d. WiFi bridge — decided 2026-10-07, built (stage A) 2026-10-07
 
 The bridge joins Colin's home WiFi so the console reaches it over the
 network (and, later, is served by it — software-plan §5). ESP-NOW shares
@@ -777,7 +808,7 @@ schedule` / `waiting for the clock`), `clock`, `scheduled`, `utc_s`,
 change. Sequences gain `ambient` and `loop_ms` (the console sends one
 show-wide period to every part).
 
-**Console → Cues:** header shows the mode (ARMED / AMBIENT / OFF /
+**Console → Show:** header shows the mode (ARMED / AMBIENT / OFF /
 MIXED) with why and the next change ("next: Ambient at 21:30 · sunset
 18:28"); Off / Ambient / Armed buttons; **Schedule…** opens the editor
 (location typed or *Use this device's location*, today's sunrise/
@@ -793,7 +824,7 @@ their clocks). Sequence editor: *Ambient loop* toggle + "every N s".
 **Bench test (Stage 3b)** — two boards on the shelf, one sequence
 marked Ambient loop (an LED on, 5 s loop), one PIR trigger:
 1. Flash both (frame format changed — every node must match).
-2. Console → Cues → Schedule…: your location; set row 1 to start
+2. Console → Show → Schedule…: your location; set row 1 to start
    2 minutes from now; Save. Header: OFF, "next: Armed at …".
 3. At that minute both go ARMED, the LED loop starts on both boards
    together, the PIR fires its sequence.

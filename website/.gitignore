@@ -1,0 +1,10 @@
+# build output
+dist/
+.astro/
+node_modules/
+# generated from boards/*.yaml and CI builds — never edit, never commit
+src/content/docs/boards/
+public/boards/
+public/firmware/
+public/console/
+.DS_Store

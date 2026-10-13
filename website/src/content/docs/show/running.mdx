@@ -1,0 +1,52 @@
+---
+title: Running the show
+description: Off, Ambient and Armed; a schedule tied to sunset; and the STOP ALL button.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Three modes
+
+At the top of **Show**:
+
+| Mode | What happens |
+|---|---|
+| **Off** | nothing plays; every output off |
+| **Ambient** | [ambient loops](/propmesh/show/sequences/#ambient-loops) run (lights, fog) — sensors don't scare |
+| **Armed** | ambient loops run **and** sensors fire their sequences |
+
+Pressing a mode holds it until the schedule's next change.
+
+## The schedule
+
+Press **Schedule…** to set when the show runs on its own.
+
+1. Under **LOCATION**, press **Use this device's location** (or type latitude and longitude — west is negative). Now the console knows your sunrise and sunset.
+2. Add windows with **+ Add window**. Each has **DAYS**, **DATES**, **FROM**, **TO** and the **MODE** to be in.
+3. **Save to boards.**
+
+**FROM** and **TO** take a clock time (`21:30`) or the sun: `sunset`, `sunrise`, `dusk`, `dawn`, with an offset in minutes — `sunset-60` is an hour before sunset, `dusk+15` is fifteen minutes after dusk. **DATES** limit a window to part of the year (month and day), so October can be scarier than December.
+
+A typical Halloween schedule:
+
+| DAYS | DATES | FROM | TO | MODE |
+|---|---|---|---|---|
+| every day | Oct 1 – Oct 31 | `sunset-30` | `22:00` | Ambient |
+| Fri, Sat | Oct 1 – Oct 31 | `dusk` | `22:00` | Armed |
+| every day | Oct 31 | `sunset-60` | `23:00` | Armed |
+
+Later rows win where windows overlap, and outside every window the show is **Off**. The **TODAY** column shows exactly when each window runs today.
+
+<Aside title="Quiet hours">
+If you press **Armed** by hand during quiet hours (outside every window), it lasts at most an hour — so a test at midnight doesn't leave the yard screaming until morning.
+</Aside>
+
+## STOP ALL
+
+The big button at the bottom left. **Press and hold** it for about a second and a half: every board disarms and every output turns off — strips, servos, relays and flood lights. A banner says **ALL OUTPUTS STOPPED**, and names any board that didn't confirm.
+
+**RE-ARM SHOW** in that banner turns triggers back on.
+
+<Aside type="caution">STOP ALL needs the console connected to the bridge. For a prop that could hurt someone (a fast pneumatic, anything near a walkway), build in a physical stop as well.</Aside>

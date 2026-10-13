@@ -246,6 +246,13 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
     onSelect(r.uid);
   };
   const free = outputs.filter((o) => !trs.some((tr) => tr.node === o.node && tr.kind === o.kind && tr.index === o.index));
+  const addTrackSelect = (
+    <select value="" onChange={(e) => addTrack(e.target.value)} disabled={!free.length}
+      style={{ height: trs.length ? 26 : 32, padding: "0 10px", background: trs.length ? C.raised : C.emberBg, border: `1px solid ${trs.length ? C.b3 : C.ember}`, borderRadius: 5, ...sys(600, trs.length ? 11.5 : 12.5, trs.length ? C.t2 : C.emberT) }}>
+      <option value="">{trs.length ? "+ Add track…" : "+ Add first track…"}</option>
+      {free.map((o) => <option key={`${o.node}/${o.kind}_${o.index}`} value={`${o.node}/${o.kind}_${o.index}`}>{nameOf(o.node)} · {o.kind}_{o.index}{o.label ? ` (${o.label})` : ""}</option>)}
+    </select>
+  );
 
   // ---- ruler ------------------------------------------------------------
 
@@ -260,7 +267,16 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
 
   return (
     <div ref={wrap} tabIndex={0} onKeyDown={onKey} style={{ outline: "none", borderRadius: 8, border: `1px solid ${C.b2}`, background: C.card, overflow: "hidden" }}>
-      <svg ref={svg} width={width} height={height} style={{ display: "block", userSelect: "none", touchAction: "none", cursor: drag ? ("scrub" in drag ? "ew-resize" : "grabbing") : "default" }}
+      {trs.length === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "34px 16px" }}>
+          <div style={sys(600, 13, C.t1)}>No tracks yet</div>
+          <div style={{ ...sys(400, 12, C.t3), textAlign: "center", maxWidth: 440, lineHeight: 1.5 }}>
+            A track is one output on one board — a servo, a relay, a light. Pick the first one; it starts with a keyframe at 0 s.
+          </div>
+          {addTrackSelect}
+        </div>
+      )}
+      {trs.length > 0 && <svg ref={svg} width={width} height={height} style={{ display: "block", userSelect: "none", touchAction: "none", cursor: drag ? ("scrub" in drag ? "ew-resize" : "grabbing") : "default" }}
         onPointerMove={onMove} onPointerUp={endDrag} onPointerLeave={endDrag} onDoubleClick={onDoubleClick}>
         {/* ruler */}
         <rect x={0} y={0} width={width} height={RULER_H} fill={C.panel} />
@@ -414,7 +430,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
             Add a track below — then double-click it to place keyframes.
           </text>
         )}
-      </svg>
+      </svg>}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderTop: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -423,11 +439,7 @@ export default function Timeline({ seq, onChange, selected, onSelect, nameOf, ou
           <button onClick={() => { setZoom(null); setFitSpan(fitSpanFor(length)); setScrollMs(0); }} title="Fit the whole sequence" style={{ ...zbtn, width: "auto", padding: "0 8px", opacity: zoom === null && fitSpan === fitSpanFor(length) ? 0.5 : 1 }}>Fit</button>
           <span style={{ ...mono(500, 10.5, C.t5), marginLeft: 4 }}>{fmtT(Math.round(scroll / 10) * 10)} – {fmtT(Math.round((scroll + visibleMs) / 10) * 10)}</span>
         </span>
-        <select value="" onChange={(e) => addTrack(e.target.value)} disabled={!free.length}
-          style={{ height: 26, padding: "0 8px", background: C.raised, border: `1px solid ${C.b3}`, borderRadius: 5, ...sys(600, 11.5, C.t2) }}>
-          <option value="">+ Add track…</option>
-          {free.map((o) => <option key={`${o.node}/${o.kind}_${o.index}`} value={`${o.node}/${o.kind}_${o.index}`}>{nameOf(o.node)} · {o.kind}_{o.index}{o.label ? ` (${o.label})` : ""}</option>)}
-        </select>
+        {trs.length > 0 && addTrackSelect}
         <span style={mono(500, 10.5, C.t5)}>
           double-click: add keyframe · drag: move · R: ramp ⇄ jump · Delete: remove · scroll sideways / shift+scroll: pan · snaps 50 ms / 1 %
         </span>

@@ -1,0 +1,40 @@
+---
+title: Servos
+description: Jaws, heads and arms — wiring a hobby servo, setting its end stops, and smoothing its movement.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A hobby servo turns to an angle and holds it — the classic skull jaw, a turning head, a lid that lifts.
+
+## Wiring
+
+A servo has three wires:
+
+| Servo wire | Goes to |
+|---|---|
+| **brown / black** (ground) | the servo supply's GND **and** a board GND |
+| **red** (power) | a separate **5–6 V supply** |
+| **orange / yellow / white** (signal) | a board pin |
+
+<Aside type="caution" title="Give servos their own power">
+Don't power a servo from the board's VIN or 3V3 pins. A servo starting to move pulls a big burst of current, the board's voltage dips, and the board restarts — usually mid-scare. A 5 V supply of 2 A or more, with its ground joined to the board's, is the fix.
+</Aside>
+
+**Which pin?** The board pages mark the best servo pins with ★ — pins that stay quiet while the board starts up, so the prop doesn't twitch every time it powers on.
+
+## Setting it up in the console
+
+Assign the pin to **Servo**. Its options:
+
+- **min** / **max (µs)** — the pulse lengths at each end of travel (defaults 500 and 2500). Most props only want part of the servo's range: a jaw might only need to open a little.
+- **reverse** — swap the direction.
+- **smoothing** — how it gets from one position to the next: **Off — snap**, **Snappy · 250 ms**, **Smooth · 600 ms**, **Gentle · 1000 ms**, **Slow · 1500 ms**, or **Custom…**.
+
+### Finding the end stops
+
+After **Save to node**, press **Calibrate** in the TEST column. Move the slider until the jaw is just closed and press **Set as min**; move it until it's open as far as it should go and press **Set as max**; then **Done** and save. From now on 0 % and 100 % mean exactly "closed" and "open".
+
+<Aside type="tip">Start calibrating from the middle and move toward each end slowly. A servo pushed past the prop's real limit buzzes and gets hot.</Aside>

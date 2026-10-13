@@ -99,13 +99,47 @@ export interface Sequence {
 
 export type Edge = "active" | "clear";
 
+// A trigger rule (firmware PmRule, software-plan "Console sections"):
+// trigger → logic → actions, evaluated on the board that holds it. The
+// Show section's rows and the Show Graph edit the same thing.
 export interface Rule {
-  node: string; // the sensor's node — where the trigger is stored
-  input: number; // DIGITAL_IN index
-  on: Edge;
-  seq: number;
-  cooldown_ms: number;
+  node: string; // the board the rule is stored on: the sensor's, or (for "after") any board — it hears every cue
+  trigger: "sensor" | "after";
+  input: number; // sensor: DIGITAL_IN index
+  on: Edge; // sensor: fire when it becomes active / clear
+  after: number; // after: the sequence whose start triggers this
+  delay_ms: number; // wait before the actions ("when X ends" = X's length)
+  cooldown_ms: number; // ignore triggers this long after firing
+  limit?: { fires: number; window_min: number }; // at most `fires` per window; absent = no limit
+  pick: "all" | "random"; // every sequence in seqs, or one at random
+  seqs: number[]; // 1–4 sequence ids
   enabled: boolean;
+}
+export const RULE_MAX_SEQS = 4;
+
+// A rule as a board (or the old simulator) reports it: the full form, or
+// the one-sequence form from before 2026-10-12 (input / on / seq).
+export function normalizeRule(node: string, raw: Record<string, unknown>): Rule {
+  const seqs = Array.isArray(raw.seqs) && raw.seqs.length ? (raw.seqs as number[]) : raw.seq ? [raw.seq as number] : [];
+  const lim = raw.limit as { fires?: number; window_min?: number } | undefined;
+  return {
+    node,
+    trigger: raw.trigger === "after" ? "after" : "sensor",
+    input: (raw.input as number) ?? 0,
+    on: raw.on === "clear" ? "clear" : "active",
+    after: (raw.after as number) ?? 0,
+    delay_ms: (raw.delay_ms as number) ?? 0,
+    cooldown_ms: (raw.cooldown_ms as number) ?? 0,
+    limit: lim?.fires && lim.window_min ? { fires: lim.fires, window_min: lim.window_min } : undefined,
+    pick: raw.pick === "random" ? "random" : "all",
+    seqs,
+    enabled: raw.enabled !== false,
+  };
+}
+// What goes to the board: the rule without its node, limit only when set.
+export function ruleWire(r: Rule): Record<string, unknown> {
+  const { node: _n, limit, ...rest } = r;
+  return limit ? { ...rest, limit } : rest;
 }
 
 export interface Show {
@@ -161,7 +195,7 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
       if (r.ok && r.sequence) addPart(node, r.sequence as Parameters<typeof addPart>[1]);
     }
     const rules = await link.request("pull_rules", { for: node });
-    if (rules.ok) for (const r of (rules.rules as Omit<Rule, "node">[]) ?? []) show.rules.push({ ...r, node });
+    if (rules.ok) for (const r of (rules.rules as Record<string, unknown>[]) ?? []) show.rules.push(normalizeRule(node, r));
     return true;
   };
   await Promise.all(entries.map(async (en) => {
@@ -174,7 +208,7 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
       // Firmware before the schedule (2026-10-09) reports only armed.
       show.modes[en.node] = sh.mode ? (sh as unknown as ModeStatus)
         : { mode: sh.armed ? "armed" : "off", reason: "old firmware", clock: false, scheduled: false };
-      for (const r of (sh.rules as Omit<Rule, "node">[]) ?? []) show.rules.push({ ...r, node: en.node });
+      for (const r of (sh.rules as Record<string, unknown>[]) ?? []) show.rules.push(normalizeRule(en.node, r));
       // Parts one at a time: each can be up to ~4 kB over the mesh.
       for (const sum of (sh.sequences as { id: number; name: string; problem?: string }[]) ?? []) {
         const part = await ask(link, en, "get_sequence", { seq: sum.id });
@@ -286,7 +320,7 @@ export async function saveRules(link: NodeLink, entries: Record<string, Entry>, 
     if (!en && !viaBridge) { failed.push({ node, error: "not on the mesh right now" }); return; }
     const to = en ?? ({ node, usb: false } as Entry);
     const away = (error: string) => { if (viaBridge && isAway(error)) queued.push(node); else failed.push({ node, error }); };
-    const mine = rules.filter((r) => r.node === node).map(({ node: _n, ...r }) => r);
+    const mine = rules.filter((r) => r.node === node).map(ruleWire);
     try {
       const r = await ask(link, to, "set_rules", { rules: mine, at });
       if (!r.ok) away(r.error ?? "refused");

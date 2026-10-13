@@ -1,0 +1,46 @@
+---
+title: The yard map
+description: See every board, its radio links and its health — on a drawing of your actual yard.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The **Yard** section shows every board PropMesh can hear, two ways — switch with **Topology | Map**.
+
+## Topology: is my mesh healthy?
+
+Boards are arranged by how many hops they are from the bridge, with every radio link labeled by its signal strength:
+
+| Line | Signal |
+|---|---|
+| green | strong (−60 dBm or better) |
+| gray | ok |
+| amber, dashed | weak (−75 dBm or worse) |
+| red | lost |
+
+The badge at the top sums it up: **HEALTHY**, **WEAK LINK** or **DEGRADED**. Click a board for its details: what it hears, its uptime, memory, battery and firmware.
+
+## Map: where is everything?
+
+The map is a drawing of your yard with each board placed where it really is. A weak link suddenly makes sense when you can see it crosses the house.
+
+**Draw the yard** with the tools on the left:
+
+| Tool | For |
+|---|---|
+| **Area** | the house, garage, beds, lawn — click each corner, click the first corner again to close |
+| **Walkway** | paths and driveways — click along it, double-click to finish |
+| **Border** | the property line, a fence |
+| **Prop** | clip art — tombstones, skeletons, spiders, pumpkins — to mark where things stand |
+| **Select** | move things; drag an edge to push it out; double-click an edge to add a corner, double-click a corner to remove it |
+| **Erase** | click something to remove it |
+
+Pick a shape with **Select** to label it and change its color. Scroll to zoom, drag empty ground to pan, and **⛶** fits everything in view.
+
+**Place your boards** by dragging them from the **Not on the map yet** bar onto the map. Click a placed board and pick a picture under **DRAWN AS** — the board then shows on the map as a skeleton, a ghost, a cauldron…
+
+<Aside title="Saved on the bridge">
+The map is stored on the board the console is connected to, so your laptop and your phone see the same drawing.
+</Aside>

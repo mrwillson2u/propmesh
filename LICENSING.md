@@ -10,10 +10,10 @@ Copyright © 2024–2026 Colin Willson.
 
 | What | Where | License | File |
 |---|---|---|---|
-| Firmware, tools, board profiles, protocol schema — everything not listed below | `firmware/`, `tools/`, `boards/`, `schema/`, `pinmap.yaml`, `reference/` | **GPL-3.0-or-later** | [`LICENSE`](LICENSE) |
+| Firmware, tools, board profiles, protocol schema, the docs site's code — everything not listed below | `firmware/`, `tools/`, `boards/`, `schema/`, `pinmap.yaml`, `reference/`, `website/` (except its pages) | **GPL-3.0-or-later** | [`LICENSE`](LICENSE) |
 | Control console (web app) | `console/` | **AGPL-3.0-or-later** | [`console/LICENSE`](console/LICENSE) |
 | Board designs (KiCad sources, fabrication notes) | `hardware/` | **CERN-OHL-S-2.0** | [`hardware/LICENSE`](hardware/LICENSE) |
-| Documentation | `docs/`, the Markdown in the repository root | **CC BY-SA 4.0** | [`docs/LICENSE`](docs/LICENSE) |
+| Documentation | `docs/`, the Markdown in the repository root, the docs site's pages (`website/src/content/`) | **CC BY-SA 4.0** | [`docs/LICENSE`](docs/LICENSE) |
 
 ## What that means in practice
 

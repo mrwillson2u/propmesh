@@ -1,0 +1,73 @@
+---
+// The browser flasher: pick a board, plug it in, press Install. ESP Web
+// Tools (Apache-2.0) does the flashing over Web Serial from the manifests
+// that scripts/stage-firmware.mjs writes into public/firmware/.
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { parse } from "yaml";
+
+const root = join(process.cwd(), "..");
+const boards = readdirSync(join(root, "boards"))
+  .filter((f) => f.endsWith(".yaml") && f !== "functions.yaml")
+  .map((f) => parse(readFileSync(join(root, "boards", f), "utf8")))
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((b) => ({ id: b.id, name: b.name, built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const first = boards.find((b) => b.id === "esp32-devkit-v1") ?? boards[0];
+const anyBuilt = boards.some((b) => b.built);
+---
+
+<div class="flasher not-content">
+  <label class="pick">
+    <span>1. Your board</span>
+    <select id="pm-board">
+      {boards.map((b) => <option value={b.id} selected={b.id === first.id} data-built={b.built ? "1" : ""}>{b.name}</option>)}
+    </select>
+  </label>
+  <div class="step">2. Plug it into this computer with a USB cable that carries data (not a charge-only one).</div>
+  <div class="go">
+    <span>3.</span>
+    <esp-web-install-button id="pm-install" manifest={`${base}/firmware/${first.id}/manifest.json`}>
+      <button slot="activate" class="install">Install PropMesh</button>
+      <span slot="unsupported" class="warn">This browser can't talk to USB devices. Use <b>Chrome</b> or <b>Edge</b> on a computer.</span>
+      <span slot="not-allowed" class="warn">The flasher needs a secure page (https).</span>
+    </esp-web-install-button>
+  </div>
+  <p id="pm-update" class="small" hidden={!first.built}>
+    Already running PropMesh? Download the <a id="pm-update-link" href={`${base}/firmware/${first.id}/propmesh-${first.id}-update.bin`} download>update file</a> instead and <a href={`${base}/help/updating/`}>send it over the air</a>.
+  </p>
+  <p id="pm-missing" class="warn" hidden={first.built}>
+    {anyBuilt ? "There's no firmware for this board on the site yet." : "Firmware files are added when the site is published — this local preview has none."}
+  </p>
+</div>
+
+<script is:inline type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<script is:inline define:vars={{ base }}>
+  const sel = document.getElementById("pm-board");
+  const btn = document.getElementById("pm-install");
+  const missing = document.getElementById("pm-missing");
+  const update = () => {
+    const o = sel.selectedOptions[0];
+    btn.setAttribute("manifest", `${base}/firmware/${sel.value}/manifest.json`);
+    missing.hidden = !!o.dataset.built;
+    document.getElementById("pm-update").hidden = !o.dataset.built;
+    document.getElementById("pm-update-link").setAttribute("href", `${base}/firmware/${sel.value}/propmesh-${sel.value}-update.bin`);
+    btn.style.display = o.dataset.built ? "" : "none";
+  };
+  // ?board=<id> preselects (the board pages link here that way).
+  const want = new URLSearchParams(location.search).get("board");
+  if (want && [...sel.options].some((o) => o.value === want)) sel.value = want;
+  sel.addEventListener("change", update);
+  update();
+</script>
+
+<style>
+  .flasher { display: flex; flex-direction: column; gap: 0.9rem; padding: 1.25rem; margin: 1.5rem 0; border: 1px solid var(--sl-color-gray-5); border-radius: 0.75rem; background: var(--sl-color-gray-6); }
+  .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; font-weight: 600; }
+  .pick select { font: inherit; font-weight: 500; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid var(--sl-color-gray-4); background: var(--sl-color-black); color: var(--sl-color-white); }
+  .step, .go { font-weight: 600; }
+  .go { display: flex; align-items: center; gap: 0.75rem; }
+  .install { font: inherit; font-weight: 700; padding: 0.6rem 1.2rem; border: 0; border-radius: 0.5rem; cursor: pointer; background: var(--sl-color-accent); color: var(--sl-color-black); }
+  .small { font-size: 0.9rem; color: var(--sl-color-gray-2); margin: 0; }
+  .warn { color: var(--sl-color-orange-high, #e8a33a); font-weight: 500; margin: 0; }
+</style>

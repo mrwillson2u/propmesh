@@ -1,0 +1,36 @@
+---
+title: Relays, motors and dimmers
+description: Switching fog machines and pumps, running DC motors quietly, and dimming plain LEDs.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Relays — switching things on and off
+
+A relay module lets the board switch something bigger than itself: a 12 V pump, a car-horn, a solenoid, the "fire" button of a fog machine's remote.
+
+1. Wire the module's **VCC**, **GND** and **IN** to the board (most cheap modules: VCC to VIN, IN to any output pin).
+2. Wire the thing you're switching through the relay's **COM** and **NO** (normally open) terminals.
+3. Assign the pin to **Relay / on-off output**. Most relay modules switch on when their input is pulled low — if yours clicks *off* when you press **⏻ TURN ON**, tick **on = LOW**.
+
+<Aside type="danger" title="No wall power on the board">
+PropMesh is for low voltage — up to 30 V. To switch a mains-powered prop (a plug-in fog machine, a string of incandescent lights), have the relay drive a **commercial, enclosed relay box or smart plug made for mains**, not the cheap module's own contacts.
+</Aside>
+
+**Pick a quiet pin.** Some pins wiggle briefly while the board starts up, which can click a relay on for a moment. The board pages mark the pins to avoid with ⚠ and the best relay pins with ★.
+
+## DC motors
+
+A motor needs a **motor driver** between it and the board — a small H-bridge module such as a DRV8871 or TB6612. The driver takes two control pins, **IN1** and **IN2**, and its own motor supply.
+
+Assign the first pin to **DC motor (H-bridge IN1/IN2)** and choose the second in **IN2**. The TEST slider runs from full reverse through stop to full forward; **Stop** stops.
+
+PropMesh drives motors at 25 kHz, above human hearing — no telltale whine giving the scare away.
+
+## Plain LEDs and dimmers
+
+For a single LED or a lamp driven through a MOSFET module, assign **LED dimmer (PWM)**. It dims smoothly from 0 to 100 % and fades in sequences.
+
+Pins marked "boot-quirk" on the board pages are fine for lights — a flicker at power-up doesn't matter — which keeps the quiet pins free for relays and motors.

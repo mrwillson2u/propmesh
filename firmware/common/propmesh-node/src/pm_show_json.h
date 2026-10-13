@@ -99,16 +99,48 @@ inline const char *pm_rules_from_json(JsonArrayConst a, PmRule *out, uint8_t &n)
   for (JsonObjectConst r : a) {
     PmRule &x = out[n++];
     x = PmRule();
-    long in = r["input"] | 0L, seq = r["seq"] | 0L, cd = r["cooldown_ms"] | 0L;
-    if (in < 1 || in > 255) return "trigger input must be a DIGITAL_IN index";
-    if (seq < 1 || seq > 65535) return "trigger sequence id must be 1-65535";
+    const char *trig = r["trigger"] | "sensor";
+    if (!strcmp(trig, "sensor")) {
+      long in = r["input"] | 0L;
+      if (in < 1 || in > 255) return "trigger input must be a DIGITAL_IN index";
+      const char *on = r["on"] | "active";
+      if (strcmp(on, "active") && strcmp(on, "clear")) return "trigger 'on' must be active or clear";
+      x.trigger = PM_TRIG_SENSOR;
+      x.input = (uint8_t)in;
+      x.on_active = !strcmp(on, "active");
+    } else if (!strcmp(trig, "after")) {
+      long a = r["after"] | 0L;
+      if (a < 1 || a > 65535) return "'after' must name a sequence id";
+      x.trigger = PM_TRIG_AFTER;
+      x.after = (uint16_t)a;
+    } else return "trigger must be sensor or after";
+    long cd = r["cooldown_ms"] | 0L, dl = r["delay_ms"] | 0L;
     if (cd < 0) return "bad cooldown";
-    const char *on = r["on"] | "active";
-    if (strcmp(on, "active") && strcmp(on, "clear")) return "trigger 'on' must be active or clear";
-    x.input = (uint8_t)in;
-    x.sequence = (uint16_t)seq;
+    if (dl < 0) return "bad delay";
     x.cooldown_ms = (uint32_t)cd;
-    x.on_active = !strcmp(on, "active");
+    x.delay_ms = (uint32_t)dl;
+    // "seqs": [..] with "pick"; the one-sequence form before 2026-10-12 is "seq".
+    JsonArrayConst seqs = r["seqs"];
+    if (seqs.size() > PM_RULE_MAX_SEQS) return "a trigger plays at most 4 sequences";
+    for (JsonVariantConst v : seqs) {
+      long id = v | 0L;
+      if (id < 1 || id > 65535) return "trigger sequence id must be 1-65535";
+      x.seqs[x.seq_count++] = (uint16_t)id;
+    }
+    if (!x.seq_count) {
+      long seq = r["seq"] | 0L;
+      if (seq < 1 || seq > 65535) return "trigger sequence id must be 1-65535";
+      x.seqs[x.seq_count++] = (uint16_t)seq;
+    }
+    const char *pick = r["pick"] | "all";
+    if (strcmp(pick, "all") && strcmp(pick, "random")) return "pick must be all or random";
+    x.pick = !strcmp(pick, "random") ? PM_PICK_RANDOM : PM_PICK_ALL;
+    JsonObjectConst lim = r["limit"];
+    long fires = lim["fires"] | 0L, win = lim["window_min"] | 0L;
+    if (fires < 0 || fires > 255 || win < 0 || win > PM_MAX_WINDOW_MIN) return "bad lockout";
+    if ((fires > 0) != (win > 0)) return "lockout needs both fires and window_min";
+    x.max_fires = (uint8_t)fires;
+    x.window_min = (uint16_t)win;
     x.enabled = r["enabled"] | true;
   }
   return nullptr;
@@ -117,10 +149,22 @@ inline const char *pm_rules_from_json(JsonArrayConst a, PmRule *out, uint8_t &n)
 inline void pm_rules_to_json(const PmRule *rules, uint8_t n, JsonArray a) {
   for (uint8_t i = 0; i < n; i++) {
     JsonObject r = a.add<JsonObject>();
-    r["input"] = rules[i].input;
-    r["on"] = rules[i].on_active ? "active" : "clear";
-    r["seq"] = rules[i].sequence;
-    r["cooldown_ms"] = rules[i].cooldown_ms;
-    r["enabled"] = rules[i].enabled;
+    const PmRule &x = rules[i];
+    if (x.trigger == PM_TRIG_AFTER) {
+      r["trigger"] = "after";
+      r["after"] = x.after;
+    } else {
+      r["trigger"] = "sensor";
+      r["input"] = x.input;
+      r["on"] = x.on_active ? "active" : "clear";
+    }
+    if (x.delay_ms) r["delay_ms"] = x.delay_ms;
+    r["cooldown_ms"] = x.cooldown_ms;
+    if (x.max_fires) { r["limit"]["fires"] = x.max_fires; r["limit"]["window_min"] = x.window_min; }
+    if (x.pick == PM_PICK_RANDOM) r["pick"] = "random";
+    JsonArray seqs = r["seqs"].to<JsonArray>();
+    for (uint8_t k = 0; k < x.seq_count; k++) seqs.add(x.seqs[k]);
+    r["seq"] = x.seq_count ? x.seqs[0] : 0;  // read by consoles from before 2026-10-12
+    r["enabled"] = x.enabled;
   }
 }

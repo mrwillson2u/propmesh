@@ -1,0 +1,37 @@
+---
+title: What is PropMesh?
+description: The big picture in two minutes — boards, the bridge, the console, and the mesh.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+PropMesh turns small, inexpensive **ESP32 boards** into a wireless network for your props. You put one board in (or near) each prop, wire the prop's parts to it, and tell each board what's connected using a web page — no code.
+
+## The four pieces
+
+**Prop boards.** Each one runs the prop it's wired to: servos, LED strips, relays, motors, lights, and sensors such as a motion detector or a pressure mat. One board can run several things at once.
+
+**The bridge.** One of your boards — any of them — is the bridge. It stays connected to your computer (by USB cable) or to your home WiFi, and passes your instructions to all the other boards. It also keeps the show's clock, so everything happens at the same moment.
+
+**The mesh.** The boards talk to each other directly by radio and pass messages along. A board at the far end of the yard doesn't need to reach your WiFi — it only needs to hear another PropMesh board.
+
+**The console.** The web page where you do everything: assign what's plugged into each pin, test it, make sequences, wire triggers, set the schedule, and see every board on a map of your yard.
+
+## What a show looks like
+
+1. You build **sequences** — short, timed scripts like "eyes on, jaw opens, scream, jaw closes" that can involve several props.
+2. You add **triggers** — "when the gate sensor sees someone, wait half a second, then play the skeleton sequence".
+3. You set a **schedule** — on at dusk, off at 10 pm.
+
+Then you close your laptop. Every board stores its part of the show, so the yard runs on its own all night.
+
+<Aside title="Do I need internet?">
+No. The boards talk to each other directly, and the show lives on the boards. Your computer is only needed to set things up and make changes.
+</Aside>
+
+## What it isn't
+
+- **It doesn't switch wall power.** Boards control low-voltage things (up to 30 V). For mains-powered props, PropMesh drives an off-the-shelf relay box rated for it.
+- **It isn't a pixel-mapping light show** (yet). If you run xLights or Vixen for a big pixel display, PropMesh is meant to sit beside it; direct support for the protocol those programs use (sACN) is on the roadmap.
+
+Ready? [Try the console with no hardware](/propmesh/start/try-it/), or go straight to [your first scare](/propmesh/start/first-scare/).

@@ -1,0 +1,54 @@
+---
+title: PropMesh
+description: Wireless control for Halloween and holiday props — cheap ESP32 boards, one show, no wires between them.
+template: splash
+hero:
+  tagline: Make your whole yard jump at once. Cheap ESP32 boards hidden in your props talk to each other by radio, so a sensor at the gate can set off a skeleton by the porch — no wires across the lawn, no internet needed.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Your first scare in 15 minutes
+      link: /propmesh/start/first-scare/
+      icon: right-arrow
+    - text: Try it in your browser
+      link: /propmesh/start/try-it/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What you can build
+
+<CardGrid>
+	<Card title="Props that react" icon="rocket">
+		A motion sensor sees someone coming; a skull's eyes light up, a coffin lid rattles and the fog machine kicks on — on different boards, in sync.
+	</Card>
+	<Card title="Lights that set the mood" icon="star">
+		LED strips with a flickering fire effect, dimmable lanterns, and cheap Bluetooth flood lights — all part of the same show.
+	</Card>
+	<Card title="A show that runs itself" icon="seti:clock">
+		Set it to come on at dusk and switch off at bedtime. One big **STOP ALL** button when you need it.
+	</Card>
+	<Card title="No wires between props" icon="random">
+		Boards pass messages along to each other, so the far corner of the yard works even where your WiFi doesn't reach.
+	</Card>
+</CardGrid>
+
+## What you need
+
+- **ESP32 boards** — about $5–10 each. [Which one?](/propmesh/boards/)
+- **A computer with Chrome or Edge** to set things up. Everything happens in a web page; there's nothing to install.
+- Whatever your props already use: servos, LED strips, relays, motion sensors.
+
+No soldering is required to get started, and no programming at all.
+
+## Where to next
+
+<CardGrid>
+	<LinkCard title="Try it with no hardware" description="Open the console with a pretend yard of boards and click around." href="/propmesh/start/try-it/" />
+	<LinkCard title="Install the firmware" description="Plug in a board and press one button." href="/propmesh/start/flash/" />
+	<LinkCard title="Choose a board" description="The boards PropMesh runs on, side by side." href="/propmesh/boards/" />
+	<LinkCard title="Build a show" description="Sequences, triggers, schedules and the yard map." href="/propmesh/show/sequences/" />
+</CardGrid>
+
+PropMesh is free and open source, made for the home-haunt and holiday-display community. [Come help.](/propmesh/contribute/)

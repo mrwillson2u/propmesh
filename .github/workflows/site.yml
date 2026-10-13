@@ -1,0 +1,73 @@
+name: site
+# The docs site (website/) with the browser flasher and the hosted console.
+# Every PR that touches it gets a test build; a push to main publishes it to
+# GitHub Pages (https://mrwillson2u.github.io/propmesh/) — so the site, its
+# firmware downloads and its console always match the last release.
+on:
+  pull_request:
+    paths: ["website/**", "boards/**", "console/**", "firmware/**", ".github/workflows/site.yml"]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # build_id.py stamps the git commit into the firmware
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('firmware/node/platformio.ini') }}
+      - run: pip install platformio
+      - name: Firmware for every board profile
+        run: |
+          envs=""
+          for f in boards/*.yaml; do
+            id=$(basename "$f" .yaml)
+            [ "$id" = functions ] || envs="$envs -e $id"
+          done
+          pio run -d firmware/node $envs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Console
+        run: |
+          npm ci --prefix console
+          npm run build --prefix console
+          rm -rf website/public/console
+          cp -R console/dist website/public/console
+      - name: Site
+        working-directory: website
+        run: |
+          npm ci
+          node scripts/stage-firmware.mjs "$(git rev-parse --short HEAD)"
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  deploy:
+    name: publish to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

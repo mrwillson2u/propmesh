@@ -1,8 +1,12 @@
-// Cues on real boards: sequences (timed steps on any node's outputs),
-// triggers (a sensor fires a sequence, with a cooldown), arming, and a
-// live log of what the mesh did. Everything is stored on the nodes;
-// this view reads it all in, and Save writes each node its own part.
-// docs/generic-boards.md §"Sequences and triggers".
+// Two sections over one store of what the boards hold (software-plan
+// "Console sections", 2026-10-12):
+//   Sequences — orchestrate predefined sequences of outputs: the Timeline
+//              editor, step list, Play / test.
+//   Show      — wire triggers and logic into a show: the trigger list (the
+//              row view of the Show Graph), the schedule, the mode, and the
+//              live log of what the mesh did.
+// Everything is stored on the nodes; both sections read it all in, and
+// Save writes each node its own part. docs/generic-boards.md §6b.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
@@ -14,8 +18,9 @@ import { target } from "../../lib/transport";
 import { isColor } from "../../lib/nodeConfig";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import Timeline, { type Output } from "./Timeline";
+import GraphEditor from "./GraphEditor";
 import {
-  EASE_PRESETS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
+  EASE_PRESETS, RULE_MAX_SEQS, canRamp, newUid, sameSequence, sortSteps, deleteSequence, lengthMs, loadShow, nextSequenceId, saveRules, saveSequence,
   type Rule, type Sequence, type Show, type Step,
 } from "../../lib/show";
 
@@ -43,7 +48,9 @@ const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "SPI_STRIP",
 
 const clock = (t: number) => new Date(t).toTimeString().slice(0, 8);
 
-export default function ShowView({ onConnect }: { onConnect: () => void }) {
+export type Section = "sequences" | "show";
+
+export default function ShowView({ section, onConnect }: { section: Section; onConnect: () => void }) {
   const conn = useConnection();
   if (!conn) {
     return (
@@ -58,10 +65,11 @@ export default function ShowView({ onConnect }: { onConnect: () => void }) {
       </div>
     );
   }
-  return <Editor conn={conn} />;
+  return <Editor conn={conn} section={section} />;
 }
 
-function Editor({ conn }: { conn: Connection }) {
+function Editor({ conn, section }: { conn: Connection; section: Section }) {
+  const seqSection = section === "sequences";
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState<number | null>(null);
@@ -78,6 +86,10 @@ function Editor({ conn }: { conn: Connection }) {
   const setSorted = (s: Sequence) => setDraft(sortSteps(s));
   const [playingFrom, setPlayingFrom] = useState<number | null>(null);
   const [schedOpen, setSchedOpen] = useState(false);
+  // The Show's triggers as a graph (the editor) or as rows (the same
+  // rules, one sentence each). Remembered per browser.
+  const [graphView, setGraphViewState] = useState(() => { try { return localStorage.getItem("propmesh.show.graph") !== "0"; } catch { return true; } });
+  const setGraphView = (g: boolean) => { setGraphViewState(g); try { localStorage.setItem("propmesh.show.graph", g ? "1" : "0"); } catch { /* private mode */ } };
 
   // Send a value to a real output, coalesced per output: one request in
   // flight, and only the newest value queued behind it — so dragging a
@@ -153,9 +165,11 @@ function Editor({ conn }: { conn: Connection }) {
   const draftRef = useRef<Sequence | null>(null);
   const showRef = useRef<Show | null>(null);
   const msgRef = useRef<typeof msg>(null);
+  const rulesRef = useRef<Rule[]>([]);
   draftRef.current = draft;
   showRef.current = show;
   msgRef.current = msg;
+  rulesRef.current = rules;
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
@@ -170,7 +184,11 @@ function Editor({ conn }: { conn: Connection }) {
       const onBoards = d && sh.sequences.find((x) => x.id === d.id);
       const unsaved = !!d && !sameSequence(d, before) && !sameSequence(d, onBoards);
       setShow(sh);
-      setRules(sh.rules);
+      // Unsaved trigger edits (rows or graph) survive a reload, like an
+      // unsaved sequence does — a mode change or a board catching up used
+      // to wipe a half-built chain (2026-10-12).
+      const rulesUnsaved = JSON.stringify(rulesRef.current) !== JSON.stringify(showRef.current?.rules ?? []);
+      if (!rulesUnsaved) setRules(sh.rules);
       if (!unsaved) {
         const keep = sh.sequences.find((s) => s.id === sel) ?? sh.sequences[0] ?? null;
         setSel(keep?.id ?? null);
@@ -242,12 +260,10 @@ function Editor({ conn }: { conn: Connection }) {
   const newSequence = () => {
     if (!show) return;
     const id = nextSequenceId(show);
-    const firstNode = outNodes[0];
-    const first = firstNode ? outputs[firstNode][0] : undefined;
-    const seq: Sequence = {
-      id, name: `Sequence ${id}`, loadedOn: [], problems: [],
-      steps: first ? [{ uid: newUid(), t_ms: 0, node: firstNode, kind: first.kind, index: first.index, value: first.kind === "RELAY" ? 1 : 500 }] : [],
-    };
+    // Blank: the Timeline offers "Add first track…" (a guessed first
+    // output — whatever happened to be first on the first board — was
+    // always the wrong one, 2026-10-12).
+    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], problems: [], steps: [] };
     setSel(id);
     setDraft(seq);
     setOpened((n) => n + 1);
@@ -345,25 +361,26 @@ function Editor({ conn }: { conn: Connection }) {
   return (
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
-        <span style={sys(700, 13, C.t1)}>Cues</span>
-        <span style={{
+        <span style={sys(700, 13, C.t1)}>{seqSection ? "Sequences" : "Show"}</span>
+        {seqSection && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
+        {!seqSection && <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
           ...(!modeKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
             : oneMode === "armed" ? { background: C.greenBg, border: `1px solid ${C.greenB}`, ...mono(700, 10.5, C.green) }
             : oneMode === "ambient" ? { background: C.amberBg, border: `1px solid ${C.amberB}`, ...mono(700, 10.5, C.amber) }
             : oneMode === "off" ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t3) }
             : { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }),
-        }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>
-        <span style={sys(400, 11.5, C.t4)}>
+        }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>}
+        {!seqSection && <span style={sys(400, 11.5, C.t4)}>
           {!modeKnown ? "" : !oneMode ? `Boards disagree: ${modeVals.map((m) => m.mode).join(" / ")} — check their clocks.`
             : statusLine(oneMode, lead)}
           {noClock > 0 && <span style={{ color: C.amber }}> · {noClock} board(s) have no clock</span>}
-        </span>
+        </span>}
         <div style={{ flex: 1 }} />
         {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
         {(loading || busy) && <Spinner />}
         <button onClick={() => void load()} disabled={loading} style={btn(false, loading)}>Reload from boards</button>
-        <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
+        {!seqSection && <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
           {MODES.map((m, i) => {
             const on = oneMode === m;
             return (
@@ -376,10 +393,10 @@ function Editor({ conn }: { conn: Connection }) {
               }}>{MODE_LABEL[m]}</button>
             );
           })}
-        </span>
-        <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>
+        </span>}
+        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
       </div>
-      {schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
+      {!seqSection && schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
 
       {!show && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: 16, ...mono(500, 11.5, C.t4) }}>
@@ -390,7 +407,7 @@ function Editor({ conn }: { conn: Connection }) {
       {show && (
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
           {/* sequences */}
-          <div style={{ width: 230, flex: "none", borderRight: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          {seqSection && <div style={{ width: 230, flex: "none", borderRight: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>
             {show.sequences.length === 0 && !draft && <div style={{ padding: "4px 14px", ...sys(400, 11.5, C.t4) }}>None yet.</div>}
             {[...show.sequences, ...(draft && !show.sequences.some((s) => s.id === draft.id) ? [draft] : [])].map((s) => {
@@ -413,11 +430,11 @@ function Editor({ conn }: { conn: Connection }) {
               <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), width: "100%" }}
                 title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New sequence</button>
             </div>
-          </div>
+          </div>}
 
-          {/* editor + triggers */}
+          {/* Sequences: the editor. Show: the triggers (the graph's row view). */}
           <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 18 }}>
-            {draft ? (
+            {!seqSection ? null : draft ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
@@ -525,10 +542,19 @@ function Editor({ conn }: { conn: Connection }) {
             )}
 
             {/* triggers */}
-            <div>
+            {!seqSection && <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={label}>TRIGGERS</span>
-                <span style={sys(400, 11, C.t5)}>stored on the sensor's board — they work with no laptop attached</span>
+                <span style={label}>{graphView ? "SHOW GRAPH" : "TRIGGERS"}</span>
+                <span style={sys(400, 11, C.t5)}>{graphView ? "trigger → logic → sequences; each chain is a rule stored on its trigger's board" : "stored on the sensor's board — they work with no laptop attached"}</span>
+                <span style={{ display: "flex", marginLeft: 6 }}>
+                  {(["graph", "list"] as const).map((v, i) => {
+                    const on = graphView === (v === "graph");
+                    return <button key={v} onClick={() => setGraphView(v === "graph")} style={{
+                      height: 24, padding: "0 10px", cursor: "pointer", borderRadius: i === 0 ? "5px 0 0 5px" : "0 5px 5px 0", marginLeft: i ? -1 : 0,
+                      background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`, ...sys(600, 11, on ? C.emberT : C.t3),
+                    }}>{v === "graph" ? "Graph" : "List"}</button>;
+                  })}
+                </span>
                 <div style={{ flex: 1 }} />
                 {rulesDirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
                 <button onClick={() => setRules(show.rules)} disabled={!rulesDirty || !!busy} style={btn(false, !rulesDirty || !!busy)}>Revert</button>
@@ -539,55 +565,129 @@ function Editor({ conn }: { conn: Connection }) {
                   No sensor inputs yet. Assign a pin to <b>Sensor / button input</b> in Nodes &amp; Channels — a PIR on VP/VN/D34/D35 is a good start.
                 </div>
               )}
-              {rules.map((r, i) => {
-                const set = (p: Partial<Rule>) => setRules(rules.map((x, j) => (j === i ? { ...x, ...p } : x)));
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "7px 0", borderBottom: "1px solid #181c22", opacity: r.enabled ? 1 : 0.55 }}>
-                    <Toggle small on={r.enabled} onClick={() => set({ enabled: !r.enabled })} />
-                    <span style={sys(500, 12, C.t3)}>When</span>
-                    <select value={`${r.node}|${r.input}`} style={field} onChange={(e) => {
-                      const [node, input] = e.target.value.split("|");
-                      set({ node, input: Number(input) });
-                    }}>
-                      {sensors.map((s) => <option key={`${s.node}|${s.index}`} value={`${s.node}|${s.index}`}>{nameOf(s.node)} · DIGITAL_IN_{s.index}{s.label ? ` (${s.label})` : ""}</option>)}
-                    </select>
-                    <select value={r.on} style={field} onChange={(e) => set({ on: e.target.value as Rule["on"] })}>
-                      <option value="active">becomes active</option>
-                      <option value="clear">becomes clear</option>
-                    </select>
-                    <span style={sys(500, 12, C.t3)}>play</span>
-                    <select value={r.seq} style={{ ...field, color: show.sequences.some((s) => s.id === r.seq) ? C.t1 : C.amber }}
-                      onChange={(e) => set({ seq: Number(e.target.value) })}>
-                      {show.sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      {!show.sequences.some((s) => s.id === r.seq) && <option value={r.seq}>#{r.seq} (missing)</option>}
-                    </select>
-                    <span style={sys(500, 12, C.t3)}>then wait</span>
-                    <input type="number" min={0} step={1} value={r.cooldown_ms / 1000}
-                      onChange={(e) => set({ cooldown_ms: Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000)) })}
-                      style={{ ...field, width: 64, ...mono(500, 12, C.t1) }} />
-                    <span style={sys(500, 12, C.t3)}>s before it can fire again</span>
-                    <span onClick={() => setRules(rules.filter((_, j) => j !== i))} title="Remove trigger" style={{ color: C.t5, cursor: "pointer", marginLeft: 4 }}>✕</span>
-                  </div>
-                );
-              })}
-              {sensors.length > 0 && (
-                <button onClick={() => setRules([...rules, { node: sensors[0].node, input: sensors[0].index, on: "active", seq: show.sequences[0]?.id ?? 0, cooldown_ms: 30000, enabled: true }])}
+              {graphView && (
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: "calc(100vh - 230px)", minHeight: 460 }}>
+                  <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules}
+                    onFire={async (seq) => { try { const r = await conn.link.request("cue", { seq }); return r.ok ? null : (r.error ?? "refused"); } catch (e) { return (e as Error).message; } }} />
+                </div>
+              )}
+              {!graphView && rules.map((r, i) => <RuleRow key={i} r={r} show={show} sensors={sensors} nameOf={nameOf}
+                onChange={(p) => setRules(rules.map((x, j) => (j === i ? { ...x, ...p } : x)))}
+                onRemove={() => setRules(rules.filter((_, j) => j !== i))} />)}
+              {!graphView && (sensors.length > 0 || show.sequences.length > 0) && (
+                <button onClick={() => setRules([...rules, sensors.length
+                  ? { node: sensors[0].node, trigger: "sensor", input: sensors[0].index, on: "active", after: 0, delay_ms: 0, cooldown_ms: 30000, pick: "all", seqs: [show.sequences[0]?.id ?? 0], enabled: true }
+                  : { node: show.sequences[0]?.loadedOn[0] ?? known[0]?.node ?? "", trigger: "after", input: 0, on: "active", after: show.sequences[0]?.id ?? 0, delay_ms: lengthMs(show.sequences[0]), cooldown_ms: 0, pick: "all", seqs: [show.sequences[0]?.id ?? 0], enabled: true }])}
                   disabled={!show.sequences.length} title={show.sequences.length ? "" : "Save a sequence first"}
                   style={{ ...btn(false, !show.sequences.length), marginTop: 8 }}>+ Add trigger</button>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* activity */}
-          <div style={{ width: 250, flex: "none", borderLeft: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {!seqSection && <div style={{ width: 250, flex: "none", borderLeft: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>ACTIVITY</div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
               {conn.activity.length === 0 && <div style={sys(400, 11.5, C.t5)}>Sensor changes and cues appear here as they happen.</div>}
               {conn.activity.map((a, i) => <ActivityRow key={i} a={a} nameOf={nameOf} seqName={seqName} show={show} />)}
             </div>
-          </div>
+          </div>}
         </div>
       )}
+    </div>
+  );
+}
+
+// One trigger rule as a sentence: the Show Graph's row view. Trigger →
+// delay → actions (all / one at random) → cooldown → lockout.
+function RuleRow({ r, show, sensors, nameOf, onChange, onRemove }: {
+  r: Rule; show: Show; sensors: { node: string; index: number; label: string }[];
+  nameOf: (n: string) => string; onChange: (p: Partial<Rule>) => void; onRemove: () => void;
+}) {
+  const t = (text: string) => <span style={sys(500, 12, C.t3)}>{text}</span>;
+  const num = (value: number, set: (v: number) => void, width = 64, step = 1, min = 0) => (
+    <input type="number" min={min} step={step} value={value} onChange={(e) => set(Math.max(min, parseFloat(e.target.value) || 0))}
+      style={{ ...field, width, ...mono(500, 12, C.t1) }} />
+  );
+  const seqOpt = (id: number) => (
+    <>
+      {show.sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      {!show.sequences.some((s) => s.id === id) && <option value={id}>#{id} (missing)</option>}
+    </>
+  );
+  const afterSeq = show.sequences.find((s) => s.id === r.after);
+  const afterLen = afterSeq ? lengthMs(afterSeq) : 0;
+  // "when X ends" is a delay of X's length; anything else is a plain delay.
+  const atEnd = r.trigger === "after" && afterLen > 0 && r.delay_ms === afterLen;
+  const boards = [...new Set([...show.sequences.flatMap((s) => s.loadedOn), ...Object.keys(show.configs)])].filter((n) => n !== FLOODS);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "7px 0", borderBottom: "1px solid #181c22", opacity: r.enabled ? 1 : 0.55 }}>
+      <Toggle small on={r.enabled} onClick={() => onChange({ enabled: !r.enabled })} />
+      {t("When")}
+      <select value={r.trigger === "after" ? `after` : `${r.node}|${r.input}`} style={field} onChange={(e) => {
+        if (e.target.value === "after") {
+          const first = show.sequences[0];
+          onChange({ trigger: "after", after: r.after || first?.id || 0, delay_ms: first ? lengthMs(first) : 0, node: r.node || first?.loadedOn[0] || "" });
+        } else {
+          const [node, input] = e.target.value.split("|");
+          onChange({ trigger: "sensor", node, input: Number(input) });
+        }
+      }}>
+        {sensors.map((s) => <option key={`${s.node}|${s.index}`} value={`${s.node}|${s.index}`}>{nameOf(s.node)} · DIGITAL_IN_{s.index}{s.label ? ` (${s.label})` : ""}</option>)}
+        {show.sequences.length > 0 && <option value="after">a sequence…</option>}
+      </select>
+      {r.trigger === "sensor" ? (
+        <select value={r.on} style={field} onChange={(e) => onChange({ on: e.target.value as Rule["on"] })}>
+          <option value="active">becomes active</option>
+          <option value="clear">becomes clear</option>
+        </select>
+      ) : (
+        <>
+          <select value={r.after} style={{ ...field, color: afterSeq ? C.t1 : C.amber }}
+            onChange={(e) => { const id = Number(e.target.value); const q = show.sequences.find((s) => s.id === id); onChange({ after: id, delay_ms: atEnd && q ? lengthMs(q) : r.delay_ms }); }}>
+            {seqOpt(r.after)}
+          </select>
+          <select value={atEnd ? "ends" : "starts"} style={field} onChange={(e) => onChange({ delay_ms: e.target.value === "ends" ? afterLen : 0 })}>
+            <option value="starts">starts</option>
+            <option value="ends" disabled={!afterLen}>ends</option>
+          </select>
+        </>
+      )}
+      {!atEnd && <>{t(r.trigger === "after" ? "+" : "wait")}{num(r.delay_ms / 1000, (v) => onChange({ delay_ms: Math.round(v * 1000) }), 56, 0.5)}{t("s, then")}</>}
+      {atEnd && t("then")}
+      {t("play")}
+      {r.seqs.length > 1 && (
+        <select value={r.pick} style={field} onChange={(e) => onChange({ pick: e.target.value as Rule["pick"] })}>
+          <option value="all">all of</option>
+          <option value="random">one of</option>
+        </select>
+      )}
+      {r.seqs.map((id, k) => (
+        <span key={k} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <select value={id} style={{ ...field, color: show.sequences.some((s) => s.id === id) ? C.t1 : C.amber }}
+            onChange={(e) => onChange({ seqs: r.seqs.map((x, j) => (j === k ? Number(e.target.value) : x)) })}>
+            {seqOpt(id)}
+          </select>
+          {r.seqs.length > 1 && <span onClick={() => onChange({ seqs: r.seqs.filter((_, j) => j !== k) })} title="Remove this sequence" style={{ color: C.t5, cursor: "pointer" }}>✕</span>}
+        </span>
+      ))}
+      {r.seqs.length < RULE_MAX_SEQS && show.sequences.length > 1 && (
+        <span onClick={() => onChange({ seqs: [...r.seqs, show.sequences.find((s) => !r.seqs.includes(s.id))?.id ?? show.sequences[0].id] })}
+          title="Add another sequence: play all of them, or one at random" style={{ ...sys(600, 12, C.t4), cursor: "pointer" }}>+</span>
+      )}
+      {t("· wait")}{num(r.cooldown_ms / 1000, (v) => onChange({ cooldown_ms: Math.round(v * 1000) }), 56)}{t("s before it can fire again")}
+      {t("· at most")}{num(r.limit?.fires ?? 0, (v) => onChange({ limit: v > 0 ? { fires: Math.round(v), window_min: r.limit?.window_min || 60 } : undefined }), 48)}
+      {t("times per")}{num(r.limit?.window_min ?? 60, (v) => onChange({ limit: r.limit ? { ...r.limit, window_min: Math.max(1, Math.round(v)) } : undefined }), 52, 1, 1)}{t("min")}
+      <span style={sys(400, 11, C.t5)}>(0 = no limit)</span>
+      {r.trigger === "after" && boards.length > 1 && (
+        <>
+          {t("· on")}
+          <select value={r.node} style={field} onChange={(e) => onChange({ node: e.target.value })} title="Any board can hold an 'after' rule — it hears every sequence start. Pick one that's always powered.">
+            {boards.map((n) => <option key={n} value={n}>{nameOf(n)}</option>)}
+          </select>
+        </>
+      )}
+      <span onClick={onRemove} title="Remove trigger" style={{ color: C.t5, cursor: "pointer", marginLeft: 4 }}>✕</span>
     </div>
   );
 }

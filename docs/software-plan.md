@@ -431,6 +431,40 @@ serves the bundle once per browser; live data over one WebSocket.
 schema version — a LittleFS web partition (UI updates without a
 reflash) is a later option. Bundle size is checked in CI.
 
+**Where the console runs — one codebase, three shells (decided
+2026-10-12).** Asked: drop the bridge-served UI for a hosted web app
+(and, later, native apps) so the UI needn't fit in flash? The browser
+rule that decides it: **a page served over HTTPS may not open
+`ws://192.168.x.x`** (mixed content; Chrome's Private Network Access
+on top), and a LAN device can't get a public certificate. So a
+hosted-only console works over USB (Web Serial is allowed from HTTPS)
+but **not over WiFi from a phone in the yard**, and a cloud relay would
+break mesh-first and offline yards. Decision: keep one React console
+and the transport layer that already separates UI from protocol, and
+ship it three ways:
+
+| Shell | Reaches the mesh by | For |
+|---|---|---|
+| **Bridge-served** (this section's budget) | WebSocket on the LAN; works with no internet | show night, any phone, zero install — the offline safety net |
+| **Hosted site** (GitHub Pages, `website/`) | Web Serial to a USB bridge (Chrome / Edge desktop) · the simulator | docs, browser flasher, "try it" demo, desktop setup |
+| **Native app** *(after Halloween 2026)* | plain `ws://` on the LAN — native apps aren't bound by mixed-content rules (iOS asks for local-network permission) | phones and tablets; same React code wrapped with Capacitor |
+
+Consequences:
+- **The protocol is the product.** A native app — ours or anyone's —
+  is "speak the protocol". The console's JSON API (today: generic-boards
+  §6 and the commands since) gets a **versioned, written spec** the way
+  `schema/messages.yaml` covers the mesh. Winter work, before the app.
+- **Size is a partition problem, not a UI problem.** The build is
+  ~200 KB gzipped; the node image's `min_spiffs.csv` leaves 192 KB of
+  filesystem, so the console doesn't fit *there*. But only the bridge
+  serves it: **recommend an ESP32-S3 with 16 MB flash as the bridge**
+  (a few dollars) with its own partition table, and prop nodes keep
+  theirs. The 600 KB budget above still stands for the bridge shell.
+- The console builds with relative asset paths (`base: "./"`) so the
+  same `dist/` serves from the bridge's root, from Pages under
+  `/propmesh/console/`, or from inside a native shell. `?sim=1` opens it
+  connected to the simulator (the docs site's "try it" link).
+
 **Views, in build order:**
 
 1. **Yard** *(build first — it's also the bring-up and yard-debug
@@ -445,7 +479,7 @@ reflash) is a later option. Bundle size is checked in CI.
 2. **Nodes & channels**: name nodes, map logical channels to props,
    test-fire any output, edit node settings, trigger OTA.
 3. **Show Graph** *(v1 — restored 2026-09-02)*: **the trigger-wiring
-   layer.** Trigger nodes (sensors, time, sACN, manual) → logic nodes
+   layer.** *Sections decided 2026-10-12 — see "Console sections" below.* Trigger nodes (sensors, time, sACN, manual) → logic nodes
    (delay, random, cooldown, lockout, group) → **action nodes, where an
    action is a reference to a sequence** authored in the Timeline. A
    one-PIR show is a two-node graph; the same editor scales to fan-out,
@@ -464,6 +498,52 @@ reflash) is a later option. Bundle size is checked in CI.
    Gilderfluke, xLights). Simple first: blocks and numbers, no curve
    editor. Every track type carries a **pre-roll offset** for
    slow-starting targets (video players, fog machines, pneumatics).
+
+#### Console sections (decided 2026-10-12)
+
+The October build conflated two jobs in one "Cues" view: authoring
+sequences (the Timeline) and wiring triggers (a flat rule list) — half
+of what the Show Graph is for. Colin: *"the timeline editor should be a
+sequence editor … then the graph view and triggers should be in another
+section by themselves where the logic can be chained together."* So:
+
+| Section | Job | Holds |
+|---|---|---|
+| **Yard** | see the mesh | topology / map, node detail |
+| **Nodes & Channels** | configure boards | pins, settings, floods, firmware |
+| **Sequences** | orchestrate predefined sequences of outputs | the Timeline editor, step list, Play / test, ambient loop |
+| **Show** | wire triggers and logic into a show | the Show Graph (React Flow) with the trigger list as its row view; Schedule; the mode buttons |
+
+"Cues" is no longer a section. The word keeps its one precise meaning:
+the mesh message a node broadcasts to start a sequence.
+
+**Rule model, before the canvas:** a rule becomes *trigger → chain of
+logic (delay, random pick, lockout, fan-out, chaining from a sequence's
+end) → actions*. All of it is local to the sensor's node, so the
+execution model is unchanged: the node evaluates and broadcasts cues.
+The row view can edit it before any canvas exists; the graph is then
+the editor for the same model.
+
+**Built 2026-10-12** (`console/src/lib/graph.ts`, `views/show/GraphEditor.tsx`):
+the Show section's **Graph** view — a palette (Sensor, After a sequence;
+Delay, Cooldown, Lockout, Random pick; Play sequence), cards with their
+parameters inline, wires left → right. Every chain trigger → logic →
+actions **compiles** to one rule row (`compile`), and the rows
+**decompile** to chains (`decompile`), so Graph and List are two views of
+the same rules; Save triggers writes the rules as before. Blocks in no
+complete chain show UNWIRED. Live: a block lights when its sensor fires
+or its sequence starts. Positions live in the browser, never on the
+boards. Round-tripped on hardware: a Sensor → Delay → Random pick → Play
+chain saved to Prop, reloaded from the board, decompiled to the same
+chain. Bundle 119 → 192 KB gzipped (React Flow).
+
+**React Flow first** (decided 2026-10-12): the design is the expensive
+part; the renderer is swappable. The graph model stays in our own types
+with React Flow as the view only, and styling in our tokens, so a later
+port to an SVG canvas (if the bridge-served console needs the ~150 KB
+back) replaces one component. The bridge may instead serve a lighter
+show-night build (Yard, STOP ALL, mode) with the full editor laptop-
+served.
 
 #### Timeline — implementation approach (decided 2026-09-05)
 
@@ -563,6 +643,20 @@ holds its own outgoing edges (with delays, cooldowns, targets) and
 that execute them. A dead bridge therefore costs the console and sACN
 ingress, never the show — consistent with conductor election.
 
+**Map drawing tools — built 2026-10-12** (handoff 1e, ahead of the v2
+plan): the Yard's Map has a tool rail — Select (drag boards and shapes,
+drag a shape's corners), Area (house, garage: click corners, close on the
+first), Path (driveway, sidewalk: a wide band, width presets in feet),
+Line (property line, fence: dashed), Erase, Undo — over a grid whose
+square is a set number of feet. One map document (shapes + where every
+board and flood sits) is kept **on the board the console connects to**
+(`get_yard` / `set_yard`, `/yard.json`, newest `at` wins), so a phone in
+the yard and the laptop share it; the browser keeps a copy, and the
+browser-only positions from before are folded in. Whole-number
+coordinates, flat point lists: a house + driveway + three boards is
+~300 bytes of the 3.8 KB a request can carry. Not yet: the phone layout
+(1f bottom sheet), signal heat.
+
 *Design note:* the handoff drew Topology and Map as separate views
 (Survey and Blueprint). Merged during implementation — same nodes,
 statuses, links and selection, so two canvases could (and in the
@@ -598,7 +692,12 @@ Sep 2026, field season Oct 2026, Mini v0.1 Nov–Dec, launch Sep 2027.
 | **Mar–Apr 2027** | sACN ingress + xLights smoke test; Nodes & Channels view; Cues view; mesh OTA | v0.2 |
 | **May–Jun 2027** | Hardening for beta: Mini sleep current, sync accuracy, OTA reliability; fogger profile end-to-end; beta ships | beta fleet |
 | **Jul–Aug 2027** | Beta feedback loop; docs; Blueprint view if time allows; promo season | beta fleet |
-| **Sep 2027** | Ship. Console v2 features (graph editor) are post-ship | ship |
+| **Sep 2027** | Ship. | ship |
+
+**Revised 2026-10-12:** the Pro v0.1 PCB slips to after Halloween 2026;
+the 2026 show runs on dev boards with the generic-board firmware, and
+the software freeze is dropped — the Show Graph and the richer rule
+model move into October–November, on the yard as a test bed.
 
 **De-scope line (protect the ship date):** v1 ships without Blueprint
 drawing tools, Node-RED nodes, ESPHome, MQTT, BRMesh adapter (*built

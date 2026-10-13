@@ -5,7 +5,7 @@ import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
 import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection } from "./lib/connection";
-import { reconnectLast } from "./lib/transport";
+import { connectSim, reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
 import { MODE_LABEL, hhmm } from "./lib/schedule";
 import Yard, { type YardLayout } from "./views/Yard";
@@ -13,7 +13,6 @@ import Nodes from "./views/Nodes";
 import Cues from "./views/Cues";
 import ShowGraph from "./views/ShowGraph";
 import Settings from "./views/Settings";
-import NotWired from "./views/NotWired";
 import RealYard from "./views/yard/RealYard";
 import ShowView from "./views/show/ShowView";
 import { select } from "./lib/connection";
@@ -21,19 +20,20 @@ import { select } from "./lib/connection";
 const VIEWS = [
   { name: "Yard", icon: "◎" },
   { name: "Nodes & Channels", icon: "☰" },
-  { name: "Cues", icon: "▸" },
-  { name: "Show Graph", icon: "⬡" },
+  { name: "Sequences", icon: "▸" },
+  { name: "Show", icon: "⬡" },
   { name: "Settings", icon: "⚙" },
 ] as const;
 type ViewName = (typeof VIEWS)[number]["name"];
 
-// ?view=yard|nodes|cues|show deep-links a view; ?layout=topology|map
-// picks the yard projection. The old survey/blueprint names still work.
+// ?view=yard|nodes|sequences|show deep-links a view; ?layout=topology|map
+// picks the yard projection. The old survey/blueprint/cues names still work.
 const q = () => new URLSearchParams(location.search);
 
 function initialView(): ViewName {
   const v = q().get("view")?.toLowerCase();
   if (v === "survey" || v === "blueprint") return "Yard";
+  if (v === "cues") return "Sequences";
   return VIEWS.find((x) => x.name.toLowerCase().startsWith(v ?? ""))?.name ?? "Yard";
 }
 
@@ -58,7 +58,9 @@ export default function App() {
     if (autoTried || demo || getConnection()) return;
     autoTried = true;
     setAutoState("trying");
-    reconnectLast().then((r) => {
+    // ?sim=1 (the docs site's "try it" link): the simulated mesh, no hardware.
+    const way = q().get("sim") ? connectSim() : reconnectLast();
+    way.then((r) => {
       if (r && !getConnection()) openConnection(r.link, r.hello);
       else void r?.link.close();
       setAutoState("idle");
@@ -250,15 +252,15 @@ export default function App() {
                 onOpenNode={(id) => { select(id); setView("Nodes & Channels"); }}
                 onConnect={() => setView("Nodes & Channels")} />)}
           {view === "Nodes & Channels" && <Nodes />}
-          {view === "Cues" && (demo
+          {/* Sequences: orchestrate predefined sequences of outputs. Show: wire
+              triggers and logic into a show, the schedule and the mode
+              (software-plan "Console sections", 2026-10-12). */}
+          {view === "Sequences" && (demo
             ? <Cues stopped={stopped} />
-            : <ShowView onConnect={() => setView("Nodes & Channels")} />)}
-          {view === "Show Graph" && (demo ? <ShowGraph /> : (
-            <NotWired title="The show graph is a design preview">
-              The node-graph editor for wiring triggers to sequences is planned for after the October
-              show. Stage 3 sensor triggers come first.
-            </NotWired>
-          ))}
+            : <ShowView section="sequences" onConnect={() => setView("Nodes & Channels")} />)}
+          {view === "Show" && (demo
+            ? <ShowGraph />
+            : <ShowView section="show" onConnect={() => setView("Nodes & Channels")} />)}
           {view === "Settings" && <Settings />}
         </div>
       </div>

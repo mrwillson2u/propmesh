@@ -31,6 +31,13 @@ python3 tools/genboards.py --check  # CI
 
 Full design, serial protocol and October plan: `docs/generic-boards.md`.
 
+**The docs site (`website/`, Astro Starlight) is for users; `docs/` is
+design notes.** Its board pages are generated from `boards/*.yaml`
+(`website/scripts/gen-boards.mjs`) — fix a board page in the yaml. When
+a console label or flow changes, update the site page that quotes it in
+the same commit. Published from `main` by `.github/workflows/site.yml`;
+`website/README.md` has the details.
+
 **Branches:** work goes to GitHub as pull requests into `dev` (the
 default branch); `main` takes PRs from `dev` only. Nobody pushes to
 either directly — commit on a topic branch, `gh pr create --base dev`,
@@ -66,9 +73,19 @@ original reasoning no longer holds rather than re-deriving it.
 - [ ] **US import duty rate confirmed** against current HTS classification for assembled PCBAs. The 25% figure in the spec is a placeholder and is the largest cost uncertainty.
 - [x] ~~Mounting-hole pattern fixed~~ **FROZEN 2026-09-07: 4 × M3 3.2 mm unplated holes, centres 5 mm in from each corner of the 130 × 100 board → 120 × 90 mm pattern** (`hardware/pro/layout.md` step A3 and B1; `tools/checksetup.py` verifies positions). The printable **mounting plate** adapts the board to the Multilink RNI-1500 and Bud NBF-32022 (hardware-spec §2.3); any revision that moves a hole must say why here.
 
-## Schedule (revised 2026-09-01)
+## Schedule (revised 2026-10-12)
 
-**Halloween 2026 = field test on prototypes. Halloween 2027 = launch.**
+**The Pro v0.1 PCB is delayed until after Halloween 2026.** This year's
+show runs on off-the-shelf ESP32 dev boards (DevKit V1, HUZZAH32, C6
+SuperMini) on breadboards/protoboard, with the generic-board firmware.
+Software is the main track through October: **the software feature
+freeze is dropped** — push the console and firmware as far as they go,
+keeping every step shippable so the yard has a working show on the
+night. The hardware plan below stands, shifted: Pro v0.1 after the show.
+
+**Halloween 2026 = field test on dev boards. Halloween 2027 = launch.**
+
+*(Earlier text, kept for the hardware dates:)*
 
 Pro v0.1 designed and ordered in the first two weeks of Sep 2026
 (hand-populated bare boards — no PCBA queue). Bring-up late Sep.
@@ -106,6 +123,21 @@ Any time a schematic or layout is up for review, check — in this order:
    checklist for all of this is `hardware/pro/layout.md`.
 5. **Strapping pins** safe at reset in every population/attachment case.
 6. **Open verification items** (above) actually closed, not deferred.
+
+## Firmware memory rules (ESP32 builds — learned the hard way)
+
+- **Static RAM stays ≤ ~95.5 KB** (`RAM:` line of `pio run`) — the
+  static-data region is ~128 KB and FreeRTOS creates its timer task from
+  what's left of it. A static 4 KB buffer boot-looped every ESP32 board
+  (`assert failed: vApplicationGetTimerTaskMemory`, 2026-10-12).
+- **No heap allocation in static initializers.** Global constructors
+  run before the scheduler, from that same leftover; `static PmShow &show
+  = *new PmShow()` (31 KB) did it a second time the same day. Allocate
+  in a `begin()` instead.
+- **No big objects on the loop task's 8 KB stack** (`-Wframe-larger-than`
+  catches it). Transient buffers: `malloc` for the call, then free.
+- **IRAM is full** (381 B free): check `firmware.map` before adding a
+  library; `PM_NO_BLE` / `PM_NO_SLEEP` are the escape hatches.
 
 ## Firmware priorities
 
