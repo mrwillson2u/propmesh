@@ -96,26 +96,91 @@ static void test_concurrent_limit_and_stop() {
 
 // --- triggers ----------------------------------------------------------
 
+// What `t` fires right now: the sequences of every rule that is due.
+static uint8_t fires(PmTriggers &t, const PmShow &show, uint32_t now, uint16_t *out, uint32_t rnd = 0) {
+  uint8_t idx[PM_MAX_RULES], n = t.due(now, idx, PM_MAX_RULES), m = 0;
+  for (uint8_t k = 0; k < n; k++) m += t.pick(show, idx[k], rnd, out + m);
+  return m;
+}
+
 static void test_rule_fires_on_edge_with_cooldown() {
   PmShow show;
-  show.rules[0] = {1, true, 7, 30000, true};
+  show.rules[0] = PmRule::sensor(1, true, 7, 30000);
   show.rule_count = 1;
   PmTriggers t;
-  TEST_ASSERT_EQUAL(7, t.on_input(show, 1, true, 1000));
+  uint16_t s[8];
+  TEST_ASSERT_EQUAL(1, t.on_input(show, 1, true, 1000));
+  TEST_ASSERT_EQUAL(1, fires(t, show, 1000, s)); TEST_ASSERT_EQUAL(7, s[0]);
   TEST_ASSERT_EQUAL(0, t.on_input(show, 1, false, 2000));   // clear: not this rule
   TEST_ASSERT_EQUAL(0, t.on_input(show, 1, true, 20000));   // in cooldown
-  TEST_ASSERT_EQUAL(7, t.on_input(show, 1, true, 31001));   // after
+  TEST_ASSERT_EQUAL(1, t.on_input(show, 1, true, 31001));   // after
   TEST_ASSERT_EQUAL(0, t.on_input(show, 2, true, 99999));   // other input
 }
 
 static void test_disabled_rule_and_clear_edge() {
   PmShow show;
-  show.rules[0] = {1, true, 7, 0, false};
-  show.rules[1] = {1, false, 8, 0, true};
+  show.rules[0] = PmRule::sensor(1, true, 7, 0, false);
+  show.rules[1] = PmRule::sensor(1, false, 8, 0);
   show.rule_count = 2;
   PmTriggers t;
+  uint16_t s[8];
   TEST_ASSERT_EQUAL(0, t.on_input(show, 1, true, 0));
-  TEST_ASSERT_EQUAL(8, t.on_input(show, 1, false, 10));
+  TEST_ASSERT_EQUAL(1, t.on_input(show, 1, false, 10));
+  TEST_ASSERT_EQUAL(1, fires(t, show, 10, s)); TEST_ASSERT_EQUAL(8, s[0]);
+}
+
+// --- logic: delay, fan-out, random, lockout, chaining ---------------------
+
+static void test_delay_and_fan_out() {
+  PmShow show;
+  show.rules[0] = PmRule::sensor(1, true, 7, 0);
+  show.rules[0].delay_ms = 2000;
+  show.rules[0].seq_count = 2; show.rules[0].seqs[1] = 9;  // fire both
+  show.rules[1] = PmRule::sensor(1, true, 11, 0);          // a second rule on the same sensor
+  show.rule_count = 2;
+  PmTriggers t;
+  uint16_t s[8];
+  TEST_ASSERT_EQUAL(2, t.on_input(show, 1, true, 1000));
+  TEST_ASSERT_EQUAL(1, fires(t, show, 1000, s)); TEST_ASSERT_EQUAL(11, s[0]);  // the undelayed one, now
+  TEST_ASSERT_EQUAL(0, fires(t, show, 2999, s));
+  TEST_ASSERT_EQUAL(2, fires(t, show, 3000, s));                              // the delayed one, both sequences
+  TEST_ASSERT_EQUAL(7, s[0]); TEST_ASSERT_EQUAL(9, s[1]);
+  TEST_ASSERT_EQUAL(0, fires(t, show, 9000, s));                              // once
+}
+
+static void test_random_pick_and_lockout() {
+  PmShow show;
+  show.rules[0] = PmRule::sensor(1, true, 7, 0);
+  show.rules[0].pick = PM_PICK_RANDOM;
+  show.rules[0].seq_count = 3; show.rules[0].seqs[1] = 8; show.rules[0].seqs[2] = 9;
+  show.rules[0].max_fires = 2; show.rules[0].window_min = 1;  // twice a minute at most
+  show.rule_count = 1;
+  PmTriggers t;
+  uint16_t s[8];
+  t.on_input(show, 1, true, 0);
+  TEST_ASSERT_EQUAL(1, fires(t, show, 0, s, 4)); TEST_ASSERT_EQUAL(8, s[0]);   // 4 % 3 = 1
+  t.on_input(show, 1, true, 10000);
+  TEST_ASSERT_EQUAL(1, fires(t, show, 10000, s, 5)); TEST_ASSERT_EQUAL(9, s[0]);
+  TEST_ASSERT_EQUAL(0, t.on_input(show, 1, true, 20000));   // locked out
+  TEST_ASSERT_EQUAL(1, t.on_input(show, 1, true, 61000));   // new window
+}
+
+static void test_chain_after_sequence() {
+  PmShow show;
+  PmRule &r = show.rules[0];
+  r.trigger = PM_TRIG_AFTER; r.after = 5; r.delay_ms = 6200;  // "when 5 ends" = its length
+  r.seq_count = 1; r.seqs[0] = 6;
+  show.rule_count = 1;
+  PmTriggers t;
+  uint16_t s[8];
+  TEST_ASSERT_EQUAL(0, t.on_input(show, 1, true, 0));       // a sensor doesn't arm it
+  TEST_ASSERT_EQUAL(0, t.on_cue(show, 4, 100));              // another sequence doesn't
+  TEST_ASSERT_EQUAL(1, t.on_cue(show, 5, 100));
+  TEST_ASSERT_EQUAL(0, fires(t, show, 6000, s));
+  TEST_ASSERT_EQUAL(1, fires(t, show, 6300, s)); TEST_ASSERT_EQUAL(6, s[0]);
+  TEST_ASSERT_TRUE(t.on_cue(show, 5, 7000) == 1);            // no cooldown: chains again
+  t.reset();
+  TEST_ASSERT_FALSE(t.pending());
 }
 
 // --- cue copies ----------------------------------------------------------
@@ -142,10 +207,14 @@ static void test_sequence_checked_against_node() {
 
 static void test_rules_checked_against_node() {
   PmNodeConfig c = node();
-  PmRule ok[1] = {{1, true, 5, 1000, true}};
-  PmRule bad[1] = {{2, true, 5, 1000, true}};   // no DIGITAL_IN_2
+  PmRule ok[1] = {PmRule::sensor(1, true, 5, 1000)};
+  PmRule bad[1] = {PmRule::sensor(2, true, 5, 1000)};   // no DIGITAL_IN_2
   TEST_ASSERT_NULL(pm_check_rules(ok, 1, c));
   TEST_ASSERT_NOT_NULL(pm_check_rules(bad, 1, c));
+  PmRule loop[1]; loop[0].trigger = PM_TRIG_AFTER; loop[0].after = 5; loop[0].seq_count = 1; loop[0].seqs[0] = 5;
+  TEST_ASSERT_NOT_NULL(pm_check_rules(loop, 1, c));      // restarts itself with no delay
+  loop[0].cooldown_ms = 1000;
+  TEST_ASSERT_NULL(pm_check_rules(loop, 1, c));
 }
 
 static void test_sequence_json_round_trip_sorted_and_clamped() {
@@ -188,10 +257,28 @@ static void test_rules_json() {
   TEST_ASSERT_NULL(pm_rules_from_json(d.as<JsonArrayConst>(), r, n));
   TEST_ASSERT_EQUAL(2, n);
   TEST_ASSERT_TRUE(r[0].enabled);
+  TEST_ASSERT_EQUAL(3, r[0].seqs[0]);   // the old one-sequence form still reads
   TEST_ASSERT_FALSE(r[1].on_active);
   TEST_ASSERT_FALSE(r[1].enabled);
   deserializeJson(d, "[{\"input\":1,\"on\":\"sideways\",\"seq\":3}]");
   TEST_ASSERT_NOT_NULL(pm_rules_from_json(d.as<JsonArrayConst>(), r, n));
+  // The full form, and the round trip.
+  deserializeJson(d, "[{\"trigger\":\"after\",\"after\":5,\"delay_ms\":6200,\"cooldown_ms\":1000,\"pick\":\"random\",\"seqs\":[6,7],\"limit\":{\"fires\":10,\"window_min\":60}}]");
+  TEST_ASSERT_NULL(pm_rules_from_json(d.as<JsonArrayConst>(), r, n));
+  TEST_ASSERT_EQUAL(PM_TRIG_AFTER, r[0].trigger);
+  TEST_ASSERT_EQUAL(5, r[0].after);
+  TEST_ASSERT_EQUAL(6200, r[0].delay_ms);
+  TEST_ASSERT_EQUAL(PM_PICK_RANDOM, r[0].pick);
+  TEST_ASSERT_EQUAL(2, r[0].seq_count);
+  TEST_ASSERT_EQUAL(10, r[0].max_fires);
+  TEST_ASSERT_EQUAL(60, r[0].window_min);
+  JsonDocument back;
+  pm_rules_to_json(r, n, back.to<JsonArray>());
+  PmRule r2[PM_MAX_RULES]; uint8_t n2;
+  TEST_ASSERT_NULL(pm_rules_from_json(back.as<JsonArrayConst>(), r2, n2));
+  TEST_ASSERT_EQUAL(0, memcmp(&r[0], &r2[0], sizeof(PmRule)));
+  deserializeJson(d, "[{\"trigger\":\"after\",\"after\":5,\"seqs\":[6],\"limit\":{\"fires\":3}}]");
+  TEST_ASSERT_NOT_NULL(pm_rules_from_json(d.as<JsonArrayConst>(), r, n));   // lockout without a window
 }
 
 static void test_show_put_replace_remove() {
@@ -267,6 +354,9 @@ int main() {
   RUN_TEST(test_concurrent_limit_and_stop);
   RUN_TEST(test_rule_fires_on_edge_with_cooldown);
   RUN_TEST(test_disabled_rule_and_clear_edge);
+  RUN_TEST(test_delay_and_fan_out);
+  RUN_TEST(test_random_pick_and_lockout);
+  RUN_TEST(test_chain_after_sequence);
   RUN_TEST(test_cue_copies_played_once);
   RUN_TEST(test_sequence_checked_against_node);
   RUN_TEST(test_rules_checked_against_node);

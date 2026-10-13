@@ -117,6 +117,21 @@ Any time a schematic or layout is up for review, check — in this order:
 5. **Strapping pins** safe at reset in every population/attachment case.
 6. **Open verification items** (above) actually closed, not deferred.
 
+## Firmware memory rules (ESP32 builds — learned the hard way)
+
+- **Static RAM stays ≤ ~95.5 KB** (`RAM:` line of `pio run`) — the
+  static-data region is ~128 KB and FreeRTOS creates its timer task from
+  what's left of it. A static 4 KB buffer boot-looped every ESP32 board
+  (`assert failed: vApplicationGetTimerTaskMemory`, 2026-10-12).
+- **No heap allocation in static initializers.** Global constructors
+  run before the scheduler, from that same leftover; `static PmShow &show
+  = *new PmShow()` (31 KB) did it a second time the same day. Allocate
+  in a `begin()` instead.
+- **No big objects on the loop task's 8 KB stack** (`-Wframe-larger-than`
+  catches it). Transient buffers: `malloc` for the call, then free.
+- **IRAM is full** (381 B free): check `firmware.map` before adding a
+  library; `PM_NO_BLE` / `PM_NO_SLEEP` are the escape hatches.
+
 ## Firmware priorities
 
 Full architecture, mesh protocol, control app, and milestones:
