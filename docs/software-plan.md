@@ -680,6 +680,11 @@ one detail panel, half the canvas code.
 
 ## 8. Milestones
 
+> **History, not the current plan.** This table is the plan as of
+> September 2026. The ESP-NOW stack, console, schedule, triggers, OTA and
+> Show Graph were all built in October 2026 on dev boards instead of
+> waiting for winter. Current state and next steps: [`status.md`](status.md).
+
 Aligned to the revised hardware schedule (hardware-spec §7): Pro v0.1
 Sep 2026, field season Oct 2026, Mini v0.1 Nov–Dec, launch Sep 2027.
 
@@ -713,9 +718,9 @@ done is what makes room for them. Each is additive later; none blocks a working 
 
 ## 9. Licensing
 
-Firmware and console: **MIT** (per README). Protocol spec and this doc:
-CC BY-SA 4.0. The schema file is MIT so third-party tools can generate
-bindings without thinking about it.
+Superseded 2026-10-12 — this section said MIT. PropMesh is copyleft:
+GPL-3.0 firmware and tools, AGPL-3.0 console, CERN-OHL-S-2.0 hardware,
+CC BY-SA 4.0 docs. See [`../LICENSING.md`](../LICENSING.md).
 
 **Socket DC mode (MP6603 carrier, verified 2026-09-07 — hardware-spec §2.4):**
 per-socket setting `stepper` | `dc`. In `dc`: EN inverter output → enabled
