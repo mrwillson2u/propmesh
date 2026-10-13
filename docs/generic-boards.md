@@ -520,7 +520,8 @@ is unchanged: no bridge at show time).
   the **Show** section's rows read as the sentence *When [sensor
   becomes active | sequence X starts/ends] (+ wait) play [all of | one
   of] [seqs] · wait N s · at most N times per M min [· on board]*; the
-  Show Graph will edit the same rules.
+  **Show Graph** (Graph / List toggle, software-plan "Console sections")
+  edits the same rules as chains of blocks.
 
 **Arming.** Disarmed nodes ignore triggers and cues and stop playing.
 Nodes **boot armed** (a power cut never leaves the show dead). STOP ALL
@@ -540,6 +541,7 @@ reports the problem and the console shows ⚠.
 | `set_sequence` | `sequence` | — (replaces this node's part; steps must address its outputs) |
 | `delete_sequence` | `seq` | — |
 | `set_rules` | `rules[]` of `{trigger: "sensor"\|"after", input, on: "active"\|"clear", after, delay_ms, cooldown_ms, limit: {fires, window_min}?, pick: "all"\|"random", seqs[], enabled}` (the 2026-10-05 form `{input, on, seq, cooldown_ms, enabled}` still reads) | — (replaces all this node's triggers) |
+| `get_yard` / `set_yard` | `yard: {v: 1, at, scale_ft, shapes[], pos{}}`, `at` | the Yard's map document (console `lib/yardMap.ts`), stored opaque in `/yard.json` on the board the console talks to; an older `at` is ignored (`stale`) |
 | `cue` | `seq`, `offset_ms?` | — (fires show-wide from this node; refused while disarmed) |
 | `arm` | `on` | `armed` |
 

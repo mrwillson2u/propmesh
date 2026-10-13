@@ -9,15 +9,16 @@ import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { counts, getConnection, useConnection, type Connection } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
-import { PropIcon } from "../../lib/propIcons";
+import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
 import { FLOODS, deriveFloods } from "../../lib/floods";
 import { directLabel, target } from "../../lib/transport";
 import type { NodeConfig } from "../../lib/nodeConfig";
+import { useBlueprint, toMap } from "./Blueprint";
+import { PROP_TYPES, type PropType } from "../../lib/propIcons";
 
 type Layout = "topology" | "map";
 const W = 1000, H = 640;
-const POS_KEY = "propmesh.yard.pos.";
 
 const stroke = (n: TopoNode) => (n.missing ? C.red : C.green);
 
@@ -32,14 +33,7 @@ function uptime(s?: number) {
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
 }
 
-// ---- positions (Map) ----------------------------------------------------
-
-function loadPos(id: string): { x: number; y: number } | null {
-  try { return JSON.parse(localStorage.getItem(POS_KEY + id) ?? "null"); } catch { return null; }
-}
-function savePos(id: string, p: { x: number; y: number }) {
-  try { localStorage.setItem(POS_KEY + id, JSON.stringify(p)); } catch { /* private mode */ }
-}
+// Map positions live in the shared map document (lib/yardMap.ts, Blueprint.tsx).
 
 // ---- topology layout ------------------------------------------------------
 
@@ -158,7 +152,8 @@ export default function RealYard({ onOpenNode, onConnect }: {
   onConnect: () => void;
 }) {
   const conn = useConnection();
-  const [layout, setLayout] = useState<Layout>("topology");
+  // ?layout=map deep-links the Map, as it does for the design preview.
+  const [layout, setLayout] = useState<Layout>(() => new URLSearchParams(location.search).get("layout")?.toLowerCase() === "map" ? "map" : "topology");
   const [sel, setSel] = useState<string | null>(null);
   const [showLinks, setShowLinks] = useState(true);
   const [, bump] = useState(0); // re-render after a drag saves a position
@@ -191,6 +186,31 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   onOpenNode: (id: string) => void; bump: () => void;
 }) {
   const now = Date.now();
+  const svgRef = useRef<SVGSVGElement>(null);
+  // The Map's view: scroll to zoom around the pointer, drag empty ground
+  // to pan (Select tool), +/−/fit buttons. The ground is unbounded;
+  // Topology always fits.
+  const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
+  const [showUnplaced, setShowUnplaced] = useState(() => { try { return localStorage.getItem("propmesh.yard.unplaced") !== "hide"; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem("propmesh.yard.unplaced", showUnplaced ? "show" : "hide"); } catch { /* private mode */ } }, [showUnplaced]);
+  const bp = useBlueprint(conn, layout === "map", svgRef, view);
+  const fitTo = (b: { x: number; y: number; w: number; h: number } | null) => {
+    if (!b) { setView({ x: 0, y: 0, w: W, h: H }); return; }
+    // Room around the edges, and more at the top: the toolbar strip sits there.
+    const pad = 90, top = 60;
+    let w = Math.max(b.w + 2 * pad, 400), h = w * (H / W);
+    if (b.h + 2 * pad + top > h) { h = b.h + 2 * pad + top; w = h * (W / H); }
+    setView({ x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2 - top / 2, w, h });
+  };
+  // First load of a map with something on it: show all of it.
+  const fitted = useRef(false);
+  useEffect(() => { if (bp.doc && !fitted.current) { fitted.current = true; if (bp.bounds()) fitTo(bp.bounds()); } }, [bp.doc]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const zoomBy = (f: number, at?: { x: number; y: number }) => setView((v) => {
+    const w = Math.max(W / 8, Math.min(W * 12, v.w / f)), h = w * (H / W);
+    const a = at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 };
+    const fx = (a.x - v.x) / v.w, fy = (a.y - v.y) / v.h;
+    return { x: a.x - fx * w, y: a.y - fy * h, w, h };
+  });
   const topo = useMemo(() => buildTopology(conn, now), [conn, Math.floor(now / 1000)]);
   const floods = useFloods(conn);
   const c = counts(conn, now);
@@ -199,7 +219,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
   const pos = layout === "topology"
     ? topoPositions(topo.nodes, topo.maxDepth)
-    : new Map([...topo.nodes.map((n) => n.id), ...floods.map((f) => f.id)].map((id) => [id, loadPos(id)] as const)
+    : new Map([...topo.nodes.map((n) => n.id), ...floods.map((f) => f.id)].map((id) => [id, bp.pos(id)] as const)
         .filter((e): e is [string, { x: number; y: number }] => !!e[1]));
   if (layout === "topology" && floods.length) {
     // A row of lights under the deepest boards.
@@ -227,7 +247,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
   return (
     <>
-      <div style={{ flex: 1, minWidth: 0, position: "relative", backgroundColor: C.bg, backgroundImage: `radial-gradient(${C.grid} 1px,transparent 1px)`, backgroundSize: "24px 24px" }}>
+      <div style={{ flex: 1, minWidth: 0, position: "relative", backgroundColor: C.bg, backgroundImage: layout === "map" ? undefined : `radial-gradient(${C.grid} 1px,transparent 1px)`, backgroundSize: "24px 24px" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0))", pointerEvents: "none", flexWrap: "wrap" }}>
           <span style={sys(700, 13, C.t1)}>Yard</span>
           <div style={{ display: "flex", gap: 2, padding: 2, background: "rgba(20,23,28,.9)", border: `1px solid ${C.b2}`, borderRadius: 7, pointerEvents: "auto" }}>
@@ -245,21 +265,17 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           </span>
         </div>
 
-        {layout === "map" && (
-          <div style={{ position: "absolute", top: 50, left: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
-            <span style={sys(600, 11.5, C.t2)}>Mesh links</span>
-            <Toggle on={showLinks} small onClick={() => setShowLinks(!showLinks)} />
-          </div>
-        )}
-
-        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
-          box={layout === "topology" ? fitBox(pos) : { x: 0, y: 0, w: W, h: H }}
-          draggable={layout === "map"} showLinks={layout === "topology" || showLinks}
-          onDrop={(id, p) => { savePos(id, p); bump(); }} />
-
-        {(unplaced.length > 0 || unplacedFloods.length > 0) && (
-          <div style={{ position: "absolute", top: 96, left: 14, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
-            <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
+        {(layout === "map" || unplaced.length > 0 || unplacedFloods.length > 0) && (
+          <div style={{ position: "absolute", top: 50, left: 14, right: 14, zIndex: 3, display: "flex", alignItems: "flex-start", gap: 8 }}>
+            {layout === "map" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, whiteSpace: "nowrap" }}>
+                <span style={sys(600, 11.5, C.t2)}>Mesh links</span>
+                <Toggle on={showLinks} small onClick={() => setShowLinks(!showLinks)} />
+              </div>
+            )}
+            {(unplaced.length > 0 || unplacedFloods.length > 0) && (showUnplaced ? (
+              <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
+                <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
             {unplaced.map((n) => (
               <span key={n.id} draggable
                 onDragStart={(e) => e.dataTransfer.setData("text/propmesh-node", n.id)}
@@ -276,25 +292,49 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: floodPaint(f.value)?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />{f.label}
               </span>
             ))}
+                <span title="Hide this bar" onClick={() => setShowUnplaced(false)} style={{ marginLeft: "auto", cursor: "pointer", padding: "2px 6px", ...mono(600, 11, C.t4) }}>hide ✕</span>
+              </div>
+            ) : (
+              <span title="Boards and floods not yet placed on the map" onClick={() => setShowUnplaced(true)}
+                style={{ cursor: "pointer", padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px dashed ${C.b3}`, borderRadius: 7, whiteSpace: "nowrap", ...sys(600, 11.5, C.t3) }}>
+                {unplaced.length + unplacedFloods.length} not on the map ▸
+              </span>
+            ))}
           </div>
         )}
+        {bp.rail}
 
-        <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 12, padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
+        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
+          box={layout === "topology" ? fitBox(pos) : view}
+          onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
+          onPan={layout === "map" && !bp.drawing && !bp.placing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
+          iconFor={layout === "map" ? bp.icon : undefined} unbounded={layout === "map"}
+          draggable={layout === "map" && !bp.drawing && !bp.placing} showLinks={layout === "topology" || showLinks}
+          onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
+          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
+          onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
+          onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} onLeave={layout === "map" ? bp.onLeave : undefined} />
+
+        {layout !== "map" && <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 12, padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
           <span><span style={{ color: C.green }}>━</span> strong ≥−60</span>
           <span><span style={{ color: C.linkGray }}>━</span> ok</span>
           <span><span style={{ color: C.amber }}>╌</span> weak ≤−75</span>
           <span><span style={{ color: C.red }}>╌</span> lost</span>
           <span style={{ color: C.t5 }}>· dBm, the weaker direction</span>
           {floods.length > 0 && <span><span style={{ color: C.bluetooth }}>┈</span> Bluetooth to a flood</span>}
-        </div>
+        </div>}
+        {bp.panel}
         {layout === "map" && (
-          <div style={{ position: "absolute", right: 14, bottom: 14, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, ...mono(500, 10.5, C.t5) }}>
-            drag nodes to where they sit · remembered in this browser
+          <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 4, padding: 4, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
+            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["⛶", () => fitTo(bp.bounds()), "Fit everything on the map"]].map(([t, fn, title]) => (
+              <button key={t as string} title={title as string} onClick={fn as () => void} style={{ width: 28, height: 26, borderRadius: 5, cursor: "pointer", background: C.raised, border: `1px solid ${C.b3}`, color: C.t3, font: "600 13px system-ui" }}>{t as string}</button>
+            ))}
           </div>
         )}
       </div>
 
       {selNode && <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
+        icon={bp.icon(selNode.id)} onIcon={(t) => bp.setIcon(selNode.id, t)}
         onClose={() => setSel(null)} onOpen={() => onOpenNode(selNode.id)} />}
       {selFlood && <FloodDetail f={selFlood} nameOf={(id) => topo.nodes.find((n) => n.id === id)?.name ?? id}
         onClose={() => setSel(null)} onOpen={() => onOpenNode(FLOODS)} />}
@@ -304,22 +344,35 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
 
 // ---- canvas -----------------------------------------------------------------
 
-function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop }: {
+function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showLinks, onDrop, svgRef, under, nodesInert, onBgDown, onMove, onUp, onBgDouble, onLeave, onWheel, onPan, iconFor, unbounded }: {
   topo: TopoNode[]; links: TopoLink[]; floods: YardFlood[]; pos: Map<string, { x: number; y: number }>;
   box: { x: number; y: number; w: number; h: number };
   sel: string | null; onSelect: (id: string) => void;
   draggable: boolean; showLinks: boolean;
   onDrop: (id: string, p: { x: number; y: number }) => void;
+  // The Map's drawing layer (Blueprint.tsx): drawn under everything, fed the
+  // background's pointer events; boards ignore the pointer while drawing.
+  svgRef?: React.RefObject<SVGSVGElement>;
+  under?: React.ReactNode; nodesInert?: boolean;
+  onBgDown?: (p: { x: number; y: number }) => void; onMove?: (p: { x: number; y: number }) => void; onLeave?: () => void;
+  onUp?: () => void; onBgDouble?: () => void;
+  onWheel?: (factor: number, at: { x: number; y: number }) => void;  // zoom around a map point
+  onPan?: (dx: number, dy: number) => void;  // map units; set = dragging empty ground pans
+  iconFor?: (id: string) => PropType | undefined;  // the map's chosen clip art per board
+  unbounded?: boolean;  // the Map: no edge to keep boards inside
 }) {
   const props = useProps();
-  const svg = useRef<SVGSVGElement>(null);
+  const own = useRef<SVGSVGElement>(null);
+  const svg = svgRef ?? own;
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
+  const pan = useRef<{ x: number; y: number } | null>(null);  // last pointer position while panning, map units
+  const isBg = (t: EventTarget | null) => t === svg.current || !!(t as Element)?.getAttribute?.("data-bg");
 
   const toSvg = (cx: number, cy: number) => {
     const m = svg.current?.getScreenCTM();
     if (!m) return { x: 0, y: 0 };
     const p = new DOMPoint(cx, cy).matrixTransform(m.inverse());
-    return { x: Math.max(30, Math.min(W - 30, p.x)), y: Math.max(30, Math.min(H - 30, p.y)) };
+    return unbounded ? { x: p.x, y: p.y } : { x: Math.max(30, Math.min(W - 30, p.x)), y: Math.max(30, Math.min(H - 30, p.y)) };
   };
   const at = (id: string) => (drag?.id === id ? drag : pos.get(id));
 
@@ -330,9 +383,23 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
         const id = e.dataTransfer.getData("text/propmesh-node");
         if (id) onDrop(id, toSvg(e.clientX, e.clientY));
       }}
-      onPointerMove={(e) => { if (drag) setDrag({ id: drag.id, ...toSvg(e.clientX, e.clientY) }); }}
-      onPointerUp={() => { if (drag) { onDrop(drag.id, { x: drag.x, y: drag.y }); setDrag(null); } }}
-      onPointerLeave={() => setDrag(null)}>
+      onWheel={(e) => { if (onWheel) { e.preventDefault(); onWheel(Math.exp(-e.deltaY * 0.0015), toMap(svg.current, e.clientX, e.clientY)); } }}
+      onPointerDown={(e) => {
+        if (!isBg(e.target)) return;
+        onBgDown?.(toMap(svg.current, e.clientX, e.clientY));
+        if (onPan && (e.button === 0 || e.button === 1)) { pan.current = toMap(svg.current, e.clientX, e.clientY); (e.target as Element).setPointerCapture?.(e.pointerId); }
+      }}
+      onDoubleClick={() => onBgDouble?.()}
+      onPointerMove={(e) => {
+        const p = toMap(svg.current, e.clientX, e.clientY);
+        onMove?.(p);
+        if (drag) setDrag({ id: drag.id, ...toSvg(e.clientX, e.clientY) });
+        // While panning the view moves under the pointer, so measure against the start of this step.
+        if (pan.current && onPan) { onPan(p.x - pan.current.x, p.y - pan.current.y); }
+      }}
+      onPointerUp={() => { onUp?.(); pan.current = null; if (drag) { onDrop(drag.id, { x: drag.x, y: drag.y }); setDrag(null); } }}
+      onPointerLeave={() => { setDrag(null); pan.current = null; onLeave?.(); }}>
+      {under}
       {showLinks && links.map((l) => {
         const A = at(l.a), B = at(l.b);
         if (!A || !B) return null;
@@ -359,7 +426,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
         if (!p) return null;
         const paint = floodPaint(f.value);
         return (
-          <g key={f.id} style={{ cursor: draggable ? "grab" : "pointer" }}
+          <g key={f.id} style={{ cursor: draggable ? "grab" : "pointer", pointerEvents: nodesInert ? "none" : undefined }}
             onClick={() => onSelect(f.id)}
             onPointerDown={(e) => { if (draggable) { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag({ id: f.id, x: p.x, y: p.y }); onSelect(f.id); } }}>
             {sel === f.id && <circle cx={p.x} cy={p.y} r={23} fill="none" stroke={C.ember} strokeWidth="2" strokeDasharray="4 4" />}
@@ -376,7 +443,7 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
         const big = n.bridge;
         const r = big ? 22 : 17;
         return (
-          <g key={n.id} style={{ cursor: draggable ? "grab" : "pointer" }}
+          <g key={n.id} style={{ cursor: draggable ? "grab" : "pointer", pointerEvents: nodesInert ? "none" : undefined }}
             onClick={() => onSelect(n.id)}
             onPointerDown={(e) => { if (draggable) { (e.target as Element).setPointerCapture?.(e.pointerId); setDrag({ id: n.id, x: p.x, y: p.y }); onSelect(n.id); } }}>
             {sel === n.id && <circle cx={p.x} cy={p.y} r={r + 9} fill="none" stroke={C.ember} strokeWidth="2" strokeDasharray="4 4" />}
@@ -385,7 +452,8 @@ function Canvas({ topo, links, floods, pos, box, sel, onSelect, draggable, showL
               : <circle cx={p.x} cy={p.y} r={r} fill={C.raised2} stroke={stroke(n)} strokeWidth="2" strokeDasharray={n.missing ? "3 3" : ""} />}
             {(() => {
               const s = big ? 30 : 24;
-              const type = big ? "hub" : props.get(n.id);
+              const type = big ? "hub" : iconFor?.(n.id) ?? props.get(n.id);
+              if (iconFor && !big && type !== "generic") return <PropArt type={type} size={s} x={p.x - s / 2} y={p.y - s / 2} opacity={n.missing ? 0.55 : 1} />;
               return <PropIcon type={type} size={s} x={p.x - s / 2} y={p.y - s / 2} color={big ? C.emberT : stroke(n)} opacity={n.missing ? 0.7 : 1} />;
             })()}
             <text x={p.x} y={p.y + r + 20} fontSize="12.5" fontWeight="600" textAnchor="middle" fontFamily="system-ui"
@@ -413,8 +481,9 @@ function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
   );
 }
 
-function Detail({ n, links, nodes, now, onClose, onOpen }: {
+function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
   n: TopoNode; links: TopoLink[]; nodes: TopoNode[]; now: number;
+  icon?: PropType; onIcon?: (t: PropType) => void;
   onClose: () => void; onOpen: () => void;
 }) {
   const e = n.entry;
@@ -449,6 +518,19 @@ function Detail({ n, links, nodes, now, onClose, onOpen }: {
         <Stat k="NODE ID" v={n.id} />
       </div>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}`, ...mono(500, 11, C.t4) }}>{board}</div>
+      {!n.bridge && onIcon && (
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}` }}>
+          <div style={{ ...label, marginBottom: 6 }}>DRAWN AS <span style={{ color: C.t3, letterSpacing: 0, fontWeight: 500 }}>· {PROP_TYPES.find((p) => p.id === (icon ?? "generic"))?.label}</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+            {PROP_TYPES.filter((p) => p.id !== "hub").map((p) => {
+              const on = p.id === (icon ?? "generic");
+              return <div key={p.id} title={p.label} onClick={() => onIcon(p.id)} style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
+                <PropArt type={p.id} size={22} />
+              </div>;
+            })}
+          </div>
+        </div>
+      )}
       <div style={{ padding: "12px 14px", flex: 1 }}>
         <div style={{ ...label, marginBottom: 8 }}>HEARS DIRECTLY</div>
         {nbrs.length === 0 && <div style={mono(500, 11, C.t5)}>no neighbor reports yet — they arrive with the next heartbeat</div>}
