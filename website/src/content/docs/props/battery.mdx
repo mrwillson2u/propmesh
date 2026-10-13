@@ -1,0 +1,34 @@
+---
+title: Battery props
+description: Props with no power cable — sleeping when the show is off, waking for a sensor or the next show.
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A prop in the middle of the lawn with no extension cord: a board on a battery can do that. It sleeps when the show is off and wakes when it's needed.
+
+## The board
+
+The **[Adafruit HUZZAH32 Feather](/propmesh/boards/esp32-huzzah32/)** has a LiPo battery connector and charger built in, and reports its battery voltage. The **[ESP32-C6 SuperMini](/propmesh/boards/esp32-c6-supermini/)** sleeps on very little power but needs an external charger and regulator.
+
+## Turning it on
+
+Open the board in **Nodes & Channels**, switch on **On battery**, and save. Then the board:
+
+- **becomes a leaf** — it never passes messages along for other boards (they can't count on it being awake);
+- **listens in short windows while the show runs** — by default 100 ms of every second, so a cue reaches it within about a second;
+- **deep-sleeps when the show is off**, checking in every few minutes, and wakes on its own for the next schedule window.
+
+The **SLEEP** settings on the board's page change those numbers and show the average current each choice costs.
+
+## Sensors on a battery board
+
+A sleeping board wakes the moment its sensor fires — but only from certain pins. The board pages mark them (**wakes from sleep**), and the console warns you if a sensor is on a pin that can't wake the board.
+
+<Aside type="caution" title="What a battery board is bad at">
+Anything that needs it awake: it reacts to cues up to a second late while the show runs, and not at all while asleep. Use it for props that do their own thing (a sensor and a light on the same board), and keep timing-critical props on mains power.
+</Aside>
+
+In the Yard, a sleeping board shows **☾ asleep** and its battery voltage — amber when it's getting low (under 3.5 V).

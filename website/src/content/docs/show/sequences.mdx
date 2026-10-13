@@ -1,0 +1,35 @@
+---
+title: Sequences
+description: Timed scripts across any outputs on any boards — the "what happens" of a scare.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A **sequence** is a short, timed script: *at 0 s the eyes light, at 0.2 s the jaw opens, at 1 s the floods go red…* One sequence can use outputs on as many boards as you like, and they all move together.
+
+## Making one
+
+In **Sequences**, press **+ New sequence** and give it a name. Then **+ Add first track…** — a track is one output on one board: a servo, a strip, a relay, a flood light. Add a track for each thing that moves.
+
+There are two ways to put steps on a track — use whichever suits you:
+
+- **On the timeline**: double-click a track to add a keyframe, drag it to move it. Drag the ruler to scrub through time; **−**, **+** and **Fit** zoom.
+- **In the step table** below it: **+ Add step**, then type the time (**AT (s)**), pick the output and set the **VALUE**.
+
+**GET THERE OVER** is how long the output takes to reach that value, and how: **ease in & out**, **gentle start & stop**, **linear**, **ease in**, **ease out**, **soft landing**. Zero means jump straight there. On the timeline, press **R** on a keyframe to switch between ramp and jump.
+
+<Aside type="tip" title="See it as you build it">
+**Live preview** (on by default) moves servos, LEDs, strips and floods as you edit, so you can watch the prop while you set the timing. Relays and motors only move when you press **Test** on a step — nobody wants a pump firing while they're dragging keyframes.
+</Aside>
+
+## Saving and playing
+
+**Save to boards** sends each board its part of the sequence; the sequence lives on the boards from then on. A board that's off the mesh when you save gets its part later — the bridge keeps a copy and passes it on when the board comes back.
+
+**▶ Play** runs it once, everywhere. It's available once the sequence is saved and the show isn't **Off**.
+
+## Ambient loops
+
+Turn on **Ambient loop** and set **every … s** for things that should run on their own all evening — a flickering window, a slowly breathing glow, fog every few minutes. Ambient loops play whenever the show is **Ambient** or **Armed**. See [Running the show](/propmesh/show/running/).

@@ -638,7 +638,7 @@ bonus for when the laptop's network happens to reach.
 - **Simulated mesh:** `ota` "downloads" for 6 s; the node then reports the
   build named by the URL's last path segment.
 
-## 6d. WiFi bridge — decided 2026-10-07, not yet built
+## 6d. WiFi bridge — decided 2026-10-07, built (stage A) 2026-10-07
 
 The bridge joins Colin's home WiFi so the console reaches it over the
 network (and, later, is served by it — software-plan §5). ESP-NOW shares

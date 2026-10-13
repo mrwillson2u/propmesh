@@ -1,0 +1,61 @@
+---
+title: LED strips and fire
+description: Wiring WS2812 and SK9822/APA102 strips, powering them properly, and the flickering fire effect.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Addressable LED strips are the fastest way to make a prop look alive: glowing eyes, a lantern that flickers, a cauldron that bubbles green.
+
+## Which strip?
+
+| Strip | Wires to the board | Console function |
+|---|---|---|
+| **WS2812B** (often sold as "NeoPixel") | one data wire | **LED strip (WS2812)** |
+| **SK9822** or **APA102** ("DotStar") | data **and** clock | **LED strip (SK9822 / APA102, clocked)** |
+
+Either is fine. WS2812 is cheaper and everywhere; the clocked kind is more forgiving about timing and long wires. Each board page lists how many strips it can run (the DevKit V1: up to 8 WS2812 strips).
+
+## Wiring
+
+```
+Power supply 5V ─────────────── strip 5V
+Power supply GND ──┬─────────── strip GND
+                   └─────────── board GND
+Board pin ── level shifter ──── strip DIN  (and CLK for a clocked strip)
+```
+
+1. **Power the strip from its own 5 V supply**, not from the board. A pixel at full white draws about 60 mA, so 30 pixels can want nearly 2 A — far more than a USB port or the board's regulator can give.
+2. **Join the grounds.** The supply's GND, the strip's GND and the board's GND all connect. A strip that flickers randomly is very often a missing ground.
+3. **Use a level shifter on the data line.** The board speaks 3.3 V; a 5 V strip expects close to 5 V. It often works without one — until it's cold, or the wire is long, and then it flickers. A **74AHCT125** (or the one-channel **74AHCT1G125**) fixes it for under a dollar.
+
+<Aside type="tip" title="The small extras that prevent headaches">
+A **330 Ω resistor** in series with the data line, close to the strip, and a **1000 µF capacitor** across 5 V and GND where power enters the strip. Both are cheap insurance.
+</Aside>
+
+## Setting it up in the console
+
+Assign the pin to **LED strip (WS2812)** and set:
+
+- **pixels** — how many LEDs on the strip (up to 300).
+- **order** — the color order: try **GRB** first (most WS2812). If red shows as green, switch to **RGB**.
+- **effect** — **solid color** or **fire**.
+
+**Save to node**, then use the color picker in the TEST column. A solid strip takes any color in a sequence; **Off** turns it dark.
+
+## The fire effect
+
+Set **effect** to **fire** for a flame that never repeats — great in lanterns, jack-o'-lanterns and torches. The **FIRE** settings shape it:
+
+| Setting | What it changes |
+|---|---|
+| **columns**, **height**, **zigzag** | how your strip is arranged — a single strip is 1 column; a strip folded into a grid has several, and *zigzag* means every other row runs backwards |
+| **brightness**, **speed** | how bright and how lively |
+| **flame**, **noise** | how tall and how ragged the flames are |
+| **smoke**, **smoke speed**, **smoke scale** | the darker, drifting layer on top |
+
+In the TEST column a fire strip has **Burn** and **Out**; in a sequence, any value but zero means burning.
+
+<Aside>The fire effect is a port of the "Fire2023" example from the FastLED project.</Aside>

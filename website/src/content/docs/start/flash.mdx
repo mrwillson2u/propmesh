@@ -1,0 +1,32 @@
+---
+title: Install the firmware
+description: Put PropMesh on an ESP32 board straight from this page — pick the board, plug it in, press Install.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Flasher from '../../../components/Flasher.astro';
+
+Every board needs the PropMesh firmware once. After that, updates go out over the air from the console.
+
+<Flasher />
+
+When you press **Install PropMesh**, the browser asks which USB device to use — pick the one that appears when you plug the board in (often named **CP210x**, **CH340** or **USB JTAG/serial**). Installing takes about a minute. Then [connect to it from the console](/propmesh/start/first-scare/#3-connect-the-console).
+
+<Aside type="caution" title="Erase or keep?">
+On a board that has never run PropMesh, choose **erase**. On a board that already runs it, *not* erasing keeps its name and pin setup.
+</Aside>
+
+## It didn't work
+
+**No device shows up in the list.**
+- Try another USB cable — many cables only carry power.
+- Some boards need a USB driver on Windows or older macOS: the **CP210x** driver from Silicon Labs or the **CH340** driver from WCH, depending on the chip next to the USB socket.
+- Close anything else that might be using the board (the Arduino IDE's serial monitor, another console tab).
+
+**It starts, then fails to connect.** Hold the board's **BOOT** button, press and release **EN** (or **RST**), then let go of BOOT, and press Install again. The ESP32-C6 SuperMini: hold **BOOT** while you plug it in.
+
+**The page says this browser isn't supported.** The installer needs **Chrome** or **Edge** on a desktop or laptop. Safari, Firefox and phones can't talk to USB devices.
+
+<Aside title="Building it yourself">
+Prefer PlatformIO? The firmware is in [`firmware/node`](https://github.com/mrwillson2u/propmesh/tree/dev/firmware/node): `pio run -e esp32-devkit-v1 -t upload`, with the board's id from its page under [Boards](/propmesh/boards/).
+</Aside>

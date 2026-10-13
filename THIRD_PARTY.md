@@ -47,6 +47,8 @@ travel with those binaries.
 | FastLED | MIT |
 | NimBLE (Apache Mynewt, in ESP-IDF) | Apache-2.0 |
 | Console: React, Vite and the packages in `console/package.json` | MIT / ISC / BSD (see `console/node_modules/*/LICENSE`) |
+| Docs site: Astro, Starlight and the packages in `website/package.json` | MIT / ISC (see `website/node_modules/*/LICENSE`) |
+| Docs site's flasher: ESP Web Tools (Nabu Casa), loaded by the page from unpkg.com, not bundled | Apache-2.0 |
 
 ## Work this builds on (credit, no code)
 

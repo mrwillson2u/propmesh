@@ -1,0 +1,112 @@
+---
+title: Your first scare in 15 minutes
+description: Two boards, one motion sensor, and a pair of glowing eyes that flash when someone walks by.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+By the end of this page, waving your hand in front of a motion sensor makes a light on a **different** board flash — the whole idea of PropMesh, on your desk.
+
+## What you need
+
+- **Two ESP32 DevKit V1 boards** ([why this board](/propmesh/boards/esp32-devkit-v1/)). Other [boards](/propmesh/boards/) work too; the pin names below are the DevKit's.
+- **Two USB cables** that carry data, and a USB phone charger for the second board.
+- **A PIR motion sensor** — the common HC-SR501 (the white dome, three pins) is perfect.
+- **Three female-to-female jumper wires.**
+- A computer with **Chrome or Edge**.
+
+The "glowing eyes" are the small blue LED already on the board, so there's nothing else to wire.
+
+<Steps>
+
+1. ## Install the firmware on both boards
+
+   Follow [Install the firmware](/propmesh/start/flash/) once for each board. It takes about a minute each.
+
+2. ## Wire the motion sensor to one board
+
+   Unplug that board first. With the sensor's dome facing you and its pins at the bottom:
+
+   | Sensor pin | Board pin |
+   |---|---|
+   | **VCC** (or +) | **VIN** |
+   | **OUT** | **D34** |
+   | **GND** (or −) | **GND** |
+
+   <Aside>The pin names are printed on the sensor's board, sometimes under the dome — lift it off gently to read them. D34 is a good sensor pin: it can only be an input, so it doesn't use up a pin you'd want for something else.</Aside>
+
+   Plug this board into the **charger**. It's your prop board.
+
+3. ## Connect the console
+
+   Plug the **other** board into your computer and open the console:
+
+   **[mrwillson2u.github.io/propmesh/console](/propmesh/console/)**
+
+   In **Nodes & Channels**, press **⌁ Connect USB node** and pick the board in the list. The board shows up as a chip at the top.
+
+4. ## Make it the bridge
+
+   Click the board's chip. Type **Bridge** in **Name this node**, switch on the **Bridge** toggle, and press **Save to node**.
+
+   Within a few seconds the prop board appears beside it — first as **connecting…**, then as a chip of its own. That's the two boards talking by radio.
+
+5. ## Tell the prop board what's connected
+
+   Click the prop board's chip and name it **Skeleton**. In its pin table:
+
+   | Pin | Function | Name | Options |
+   |---|---|---|---|
+   | **D2** | LED dimmer (PWM) | eyes | — |
+   | **D34** | Sensor / button input | gate | pull: **none** |
+
+   Press **Save to node**. Now try it:
+   - Drag the **eyes** slider in the TEST column — the blue LED on the prop board dims and brightens.
+   - Wave at the sensor — the **gate** row shows **● ACTIVE**.
+
+   <Aside type="tip" title="The sensor seems stuck on">A PIR sensor needs about a minute to settle after power-up, and stays "active" for a few seconds after it sees motion. The two orange knobs on its back set how far it sees and how long it stays on.</Aside>
+
+6. ## Make a sequence
+
+   Go to **Sequences** and press **+ New sequence**. Name it **Eyes flash**.
+
+   Press **+ Add first track…** and choose **Skeleton → eyes**. Then use **+ Add step** to make:
+
+   | AT (s) | VALUE |
+   |---|---|
+   | 0 | 100 % |
+   | 0.3 | 0 % |
+   | 0.6 | 100 % |
+   | 1.5 | 0 % |
+
+   Press **Save to boards**.
+
+7. ## Wire the trigger
+
+   Go to **Show**. Drag a **⊙ Sensor** block onto the graph and set it to **gate**, **becomes active**. Drag a **⚡ Play sequence** block next to it and set it to **Eyes flash**. Drag from the dot on the right of the sensor block to the dot on the left of the play block.
+
+   Press **Save triggers**.
+
+8. ## Arm the show
+
+   Still in **Show**, press **Armed**. Now walk past the sensor.
+
+   👻 The eyes flash.
+
+</Steps>
+
+## What just happened
+
+The sensor and the light happened to be on the same board, but they didn't have to be: the trigger lives on the board with the sensor, and it plays the sequence **everywhere at once** — a sensor at the gate can just as easily flash eyes in a tombstone across the yard. Add a third board, give it an output, add a track for it to **Eyes flash**, and see.
+
+You can close the console now. The show is stored on the boards and keeps running.
+
+<Aside title="Armed won't last forever">
+**Armed** holds until the schedule's next change. Set up a schedule so the show arms itself at dusk — see [Running the show](/propmesh/show/running/).
+</Aside>
+
+## Next steps
+
+- [Wire real props](/propmesh/props/led-strips/): LED strips, servos, relays, flood lights.
+- [Sequences in depth](/propmesh/show/sequences/) and [triggers](/propmesh/show/triggers/).
+- [Draw your yard](/propmesh/show/yard-map/) and see where every board is.

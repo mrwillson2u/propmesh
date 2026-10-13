@@ -31,6 +31,13 @@ python3 tools/genboards.py --check  # CI
 
 Full design, serial protocol and October plan: `docs/generic-boards.md`.
 
+**The docs site (`website/`, Astro Starlight) is for users; `docs/` is
+design notes.** Its board pages are generated from `boards/*.yaml`
+(`website/scripts/gen-boards.mjs`) — fix a board page in the yaml. When
+a console label or flow changes, update the site page that quotes it in
+the same commit. Published from `main` by `.github/workflows/site.yml`;
+`website/README.md` has the details.
+
 **Branches:** work goes to GitHub as pull requests into `dev` (the
 default branch); `main` takes PRs from `dev` only. Nobody pushes to
 either directly — commit on a topic branch, `gh pr create --base dev`,
