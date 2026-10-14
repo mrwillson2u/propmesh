@@ -60,6 +60,8 @@ The "glowing eyes" will be the small blue LED that is already on the board, so t
    | **D2** | LED dimmer (PWM) | eyes | — |
    | **D34** | Sensor / button input | gate | pull: **none** |
 
+   ![The Skeleton board's pin table with D2 assigned to LED dimmer and named eyes, and a test slider at the right of the row](../../../assets/console/first-scare-pins.png)
+
    Press **Save to node**. Now try it out:
    - Drag the **eyes** slider in the TEST column. The blue LED on the prop board dims and brightens.
    - Wave at the sensor. The **gate** row shows **● ACTIVE**.
@@ -79,11 +81,15 @@ The "glowing eyes" will be the small blue LED that is already on the board, so t
    | 0.6 | 100 % |
    | 1.5 | 0 % |
 
+   ![The Eyes flash sequence: one track for Skeleton eyes with four keyframes stepping between 100 % and 0 %, and the step table below it](../../../assets/console/first-scare-sequence.png)
+
    Press **Save to boards**.
 
 7. ## Wire the trigger
 
    Go to **Show**. Drag a **⊙ Sensor** block onto the graph and set it to **gate**, **becomes active**. Drag a **⚡ Play sequence** block next to it and set it to **Eyes flash**. Drag from the dot on the right side of the sensor block to the dot on the left side of the play block.
+
+   ![The Show graph with two blocks: a Sensor block set to Skeleton gate, becomes active, wired to a Play sequence block set to Eyes flash](../../../assets/console/first-scare-graph.png)
 
    Press **Save triggers**.
 

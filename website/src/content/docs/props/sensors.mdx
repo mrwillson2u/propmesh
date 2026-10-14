@@ -26,6 +26,8 @@ A sensor is how the yard knows someone is there. Anything that switches a wire o
 Some pins can only be inputs. On the DevKit V1 those are VP, VN, D34 and D35. Use them for sensors and keep the other pins free for outputs. Those four have no internal pull-up, though, so a **button** on one of them needs an extra resistor. Put buttons on a pin that has a pull-up instead. The board pages list which pins are which.
 </Aside>
 
+![The console's pinout drawing of a DevKit V1: input-only pins VP, VN, D34 and D35 marked as best for sensors, with the node's own assignments on the pads](../../../assets/console/nodes-pinout.png)
+
 ## In the console
 
 Assign the pin to **Sensor / button input**, set **pull** and **active = LOW** as above, and **Save to node**. The TEST column shows **● ACTIVE** or **○ clear** live. Walk past, step on the mat or press the button and watch it change.

@@ -9,7 +9,11 @@
     "prebuild": "node scripts/gen-boards.mjs",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "shots": "node scripts/shots/shoot.mjs src/assets/console"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.42.6",
