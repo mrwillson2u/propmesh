@@ -1,27 +1,27 @@
 ---
 title: What is PropMesh?
-description: The big picture in two minutes — boards, the bridge, the console, and the mesh.
+description: The big picture in two minutes. Boards, the bridge, the console, and the mesh.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-PropMesh turns small, inexpensive **ESP32 boards** into a wireless network for your props. You put one board in (or near) each prop, wire the prop's parts to it, and tell each board what's connected using a web page — no code.
+PropMesh turns small, inexpensive **ESP32 boards** into a wireless network for your props. You put one board in or near each prop, wire the prop's parts to it, and use a web page to tell the board what is connected. There is no code to write.
 
 ## The four pieces
 
-**Prop boards.** Each one runs the prop it's wired to: servos, LED strips, relays, motors, lights, and sensors such as a motion detector or a pressure mat. One board can run several things at once.
+**Prop boards.** Each one runs the prop it is wired to: servos, LED strips, relays, motors, lights, and sensors such as a motion detector or a pressure mat. One board can run several things at once.
 
-**The bridge.** One of your boards — any of them — is the bridge. It stays connected to your computer (by USB cable) or to your home WiFi, and passes your instructions to all the other boards. It also keeps the show's clock, so everything happens at the same moment.
+**The bridge.** One of your boards is the bridge. Any board can take the job. It stays connected to your computer by USB, or to your home WiFi, and passes your instructions to the other boards. It also keeps the show's clock so that everything happens at the same moment.
 
-**The mesh.** The boards talk to each other directly by radio and pass messages along. A board at the far end of the yard doesn't need to reach your WiFi — it only needs to hear another PropMesh board.
+**The mesh.** The boards talk to each other directly by radio and pass messages along. A board at the far end of the yard doesn't need to reach your WiFi. It only needs to hear one other PropMesh board.
 
-**The console.** The web page where you do everything: assign what's plugged into each pin, test it, make sequences, wire triggers, set the schedule, and see every board on a map of your yard.
+**The console.** The web page where you do everything: say what is plugged into each pin, test it, build sequences, wire up triggers, set the schedule, and see every board on a map of your yard.
 
 ## What a show looks like
 
-1. You build **sequences** — short, timed scripts like "eyes on, jaw opens, scream, jaw closes" that can involve several props.
-2. You add **triggers** — "when the gate sensor sees someone, wait half a second, then play the skeleton sequence".
-3. You set a **schedule** — on at dusk, off at 10 pm.
+1. You build **sequences**. A sequence is a short, timed script, such as "eyes on, jaw opens, scream, jaw closes", and it can involve several props.
+2. You add **triggers**, such as "when the gate sensor sees someone, wait half a second, then play the skeleton sequence".
+3. You set a **schedule**: on at dusk, off at 10 pm.
 
 Then you close your laptop. Every board stores its part of the show, so the yard runs on its own all night.
 
@@ -29,9 +29,23 @@ Then you close your laptop. Every board stores its part of the show, so the yard
 No. The boards talk to each other directly, and the show lives on the boards. Your computer is only needed to set things up and make changes.
 </Aside>
 
+<Aside title="Our own boards are on the way">
+Today PropMesh runs on off-the-shelf ESP32 dev boards. Two purpose-built boards are being designed for the 2027 season and will run the same firmware: the **PropMesh Pro** for big props and the **PropMesh Mini** for small battery props. [A sneak peek.](/propmesh/boards/#coming-later-propmeshs-own-boards)
+</Aside>
+
 ## What it isn't
 
-- **It doesn't switch wall power.** Boards control low-voltage things (up to 30 V). For mains-powered props, PropMesh drives an off-the-shelf relay box rated for it.
-- **It isn't a pixel-mapping light show** (yet). If you run xLights or Vixen for a big pixel display, PropMesh is meant to sit beside it; direct support for the protocol those programs use (sACN) is on the roadmap.
+- **It doesn't switch wall power.** PropMesh is built for low-voltage props. For something that plugs into the wall, have the board drive an enclosed relay box or smart plug that is rated for mains. See [Relays, motors and dimmers](/propmesh/props/relays-and-motors/).
+- **It isn't a pixel-mapping light show**, at least not yet. If you run xLights or Vixen for a big pixel display, PropMesh is meant to sit beside it. Support for the protocol those programs use (sACN) is on the roadmap.
+
+## It's in beta
+
+PropMesh is a hobby project in active development. It runs a real yard: the project's own Halloween show is its field test. But it is young, and some parts have had more use than others.
+
+- **Things change between versions.** Screens move, features arrive, and now and then a setting needs redoing after an update.
+- **Not everything has had a season outdoors.** Each [board page](/propmesh/boards/) says how far that board has been tested. Pages about a feature say when it hasn't been tried on real hardware yet. Your mix of boards, strips and sensors may be a first.
+- **Test before the big night.** Run your show for a few evenings before the one that matters, and keep the [STOP ALL](/propmesh/show/running/#stop-all) button in mind.
+
+If you find a bug, or something on this site doesn't match what you see, please [open an issue on GitHub](https://github.com/mrwillson2u/propmesh/issues). Reports from real yards are how the project improves.
 
 Ready? [Try the console with no hardware](/propmesh/start/try-it/), or go straight to [your first scare](/propmesh/start/first-scare/).

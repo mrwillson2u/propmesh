@@ -7,30 +7,30 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-## Relays — switching things on and off
+## Relays: switching things on and off
 
-A relay module lets the board switch something bigger than itself: a 12 V pump, a car-horn, a solenoid, the "fire" button of a fog machine's remote.
+A relay module lets the board switch something bigger than itself: a 12 V pump, a car horn, a solenoid, or the "fire" button on a fog machine's remote.
 
-1. Wire the module's **VCC**, **GND** and **IN** to the board (most cheap modules: VCC to VIN, IN to any output pin).
-2. Wire the thing you're switching through the relay's **COM** and **NO** (normally open) terminals.
-3. Assign the pin to **Relay / on-off output**. Most relay modules switch on when their input is pulled low — if yours clicks *off* when you press **⏻ TURN ON**, tick **on = LOW**.
+1. Wire the module's **VCC**, **GND** and **IN** to the board. On most inexpensive modules, VCC goes to VIN and IN goes to any output pin.
+2. Wire the thing you are switching through the relay's **COM** and **NO** (normally open) terminals.
+3. Assign the pin to **Relay / on-off output**. Most relay modules switch on when their input is pulled low. If yours clicks *off* when you press **⏻ TURN ON**, tick **on = LOW**.
 
-<Aside type="danger" title="No wall power on the board">
-PropMesh is for low voltage — up to 30 V. To switch a mains-powered prop (a plug-in fog machine, a string of incandescent lights), have the relay drive a **commercial, enclosed relay box or smart plug made for mains**, not the cheap module's own contacts.
+<Aside type="danger" title="Keep wall power off the board">
+PropMesh is built for low-voltage props. The PropMesh boards' own relays are rated to 30 V, and the advice here is the same for a relay module on a dev board. To switch something that plugs into the wall, such as a fog machine or a string of incandescent lights, have the relay drive a **commercial, enclosed relay box or smart plug made for mains**. Don't run mains through a bare relay module's contacts.
 </Aside>
 
-**Pick a quiet pin.** Some pins wiggle briefly while the board starts up, which can click a relay on for a moment. The board pages mark the pins to avoid with ⚠ and the best relay pins with ★.
+**Pick a quiet pin.** Some pins pulse briefly while the board starts up, which can click a relay on for a moment. The board pages mark the pins to avoid with ⚠ and the best relay pins with ★.
 
 ## DC motors
 
-A motor needs a **motor driver** between it and the board — a small H-bridge module such as a DRV8871 or TB6612. The driver takes two control pins, **IN1** and **IN2**, and its own motor supply.
+A motor needs a **motor driver** between it and the board: a small H-bridge module such as a DRV8871 or TB6612. The driver takes two control pins, **IN1** and **IN2**, and has its own motor supply.
 
-Assign the first pin to **DC motor (H-bridge IN1/IN2)** and choose the second in **IN2**. The TEST slider runs from full reverse through stop to full forward; **Stop** stops.
+Assign the first pin to **DC motor (H-bridge IN1/IN2)** and choose the second pin in **IN2**. The TEST slider runs from full reverse, through stop, to full forward. **Stop** stops.
 
-PropMesh drives motors at 25 kHz, above human hearing — no telltale whine giving the scare away.
+PropMesh drives motors at 25 kHz, which is above human hearing, so there is no whine to give the scare away.
 
 ## Plain LEDs and dimmers
 
-For a single LED or a lamp driven through a MOSFET module, assign **LED dimmer (PWM)**. It dims smoothly from 0 to 100 % and fades in sequences.
+For a single LED, or a lamp driven through a MOSFET module, assign **LED dimmer (PWM)**. It dims smoothly from 0 to 100 % and can fade in sequences.
 
-Pins marked "boot-quirk" on the board pages are fine for lights — a flicker at power-up doesn't matter — which keeps the quiet pins free for relays and motors.
+Pins marked "boot-quirk" on the board pages are fine for lights, since a flicker at power-up doesn't matter. Using them for lights keeps the quiet pins free for relays and motors.

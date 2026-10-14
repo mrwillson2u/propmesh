@@ -3,6 +3,11 @@
 Open-source ESP32 mesh prop controller for Halloween and holiday displays.
 Two boards, one firmware base, one mesh protocol.
 
+**Where things stand, what's next, pending bench tests and how to set up
+a new machine: [`docs/status.md`](docs/status.md) — read it first in a
+new session, and keep it current.** Software work happens on Colin's home
+server; hardware (KiCad) stays on his Mac.
+
 ## Repo conventions
 
 **`pinmap.yaml` is the single source of truth for pin assignments.**
@@ -142,17 +147,50 @@ Any time a schematic or layout is up for review, check — in this order:
 ## Firmware priorities
 
 Full architecture, mesh protocol, control app, and milestones:
-`docs/software-plan.md`. Two tracks: the Oct 2026 show runs "show
-firmware v0" (hardcoded sequences + the old painlessMesh rig, one last
-season); the real ESP-NOW stack is winter work on devkits and
-field-tested v0.1 boards.
+`docs/software-plan.md` (its §8 milestone table is the original plan —
+much of it was pulled into October 2026; `docs/status.md` is current).
+The firmware that runs today is `firmware/node` (generic boards, pins
+assigned from the console) on the ESP-NOW stack in
+`firmware/common/propmesh-node`; the painlessMesh rig is retired.
 
-Must-have: ESP-NOW mesh with conductor time sync, OTA, captive portal +
-web UI, deep-sleep mode selector (Mini), battery reporting (Mini).
+Must-have still to build: bridge-served console, captive-portal setup,
+API token, a versioned console↔board API spec. Mini deep-sleep and
+battery reporting exist for generic battery boards.
 
 Highest-value for adoption: **E1.31 / sACN input.** The display community
 already runs xLights and Vixen. Speaking sACN means the boards drop into
 existing shows on day one.
+
+`tools/bridge.py` talks to the bridge over WiFi from a terminal (`ask`,
+`status`, `ota`) — no USB, so no board resets.
+
+## Working with Colin
+
+- **Mesh-first.** Props are out of reach and often out of WiFi range: a
+  node feature must work over the mesh alone; a WiFi path is an extra,
+  added alongside. Check big design choices with him before building.
+- **Available means usable.** Only restrict what the chip or build forces
+  (and say it's a chip limit); otherwise allow it and add a console
+  disclaimer. Never present your own assumption as his decision.
+- **Bench tests:** write exactly what to watch, then **wait for him to
+  say go** — never start a test in the same turn. Make tests
+  self-announcing (N blinks = variant N).
+- **Findings go in the repo docs the same turn**, one self-contained doc
+  per task — scattered information is his stated failure mode.
+- **Docs are candid**: say what's unfinished or untested; never claim a
+  test that hasn't run. Board test state: `boards/*.yaml` `status`.
+- **US English** (color, gray, center) in replies, UI, docs and names.
+- **FastLED** for color math and effects; output stays on `pm_ws2812`.
+  Check IRAM after adding any library.
+- **Git:** one topic branch per change, PR into `dev`. Don't stack PRs —
+  stacked ones merged into their parent branches instead of `dev`
+  (2026-10-13). Commit software only; Colin commits hardware.
+- **Secrets:** `reference/old_files/` has live credentials — never commit
+  or copy it around. The BRMesh key lives only on the boards; WiFi
+  passwords are written to flash and never read back; never handle his
+  WiFi password.
+- He's new to KiCad (came from Eagle): explain KiCad steps from basics,
+  as page → row → exact field → value.
 
 ## Style
 
