@@ -19,6 +19,8 @@ A relay module lets the board switch something bigger than itself: a 12 V pump, 
 PropMesh is built for low-voltage props. The PropMesh boards' own relays are rated to 30 V, and the advice here is the same for a relay module on a dev board. To switch something that plugs into the wall, such as a fog machine or a string of incandescent lights, have the relay drive a **commercial, enclosed relay box or smart plug made for mains**. Don't run mains through a bare relay module's contacts.
 </Aside>
 
+![The relay row in the pin table: D23 assigned to Relay / on-off output, named fogger, on = LOW ticked, and a TURN ON test button](../../../assets/console/nodes-pins.png)
+
 **Pick a quiet pin.** Some pins pulse briefly while the board starts up, which can click a relay on for a moment. The board pages mark the pins to avoid with ⚠ and the best relay pins with ★.
 
 ## DC motors

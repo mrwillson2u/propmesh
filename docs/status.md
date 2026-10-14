@@ -105,8 +105,11 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 - Console handoff items: phone layout and a phone "placement mode" for the
   Yard map, **locate** (blink a board's LED to find it), **last-fired**
   time on each trigger rule, signal-strength heat on the map.
-- Console's OTA panel loading the update image straight from the docs
-  site (the site already serves `propmesh-<board>-update.bin`).
+- ~~Console's OTA panel loading the update image straight from the docs
+  site~~ — built 2026-10-13 ("Latest release" in the Firmware panel), but
+  it fetched `firmware.bin` + `version.json`, which the site never staged
+  (404 on the live site, found 2026-10-14 by screenshot). Fixed in
+  `stage-firmware.mjs`; works from the next `main` publish.
 
 **Winter 2026–27**
 - **Versioned spec of the console ↔ board JSON API** — before any native

@@ -28,6 +28,24 @@ npm run build      # → dist/
 Design notes for the project itself stay in `../docs/` — this site is for
 people using PropMesh.
 
+## Screenshots
+
+`src/assets/console/*.png` are taken from the console's simulator by
+`scripts/shots/shoot.mjs` (Playwright, Chromium headless, 1280 × 800 at
+2×). `seed.json` is the show it drives: three named boards, pins, a
+sequence, a trigger chain and a drawn yard; `seed-first-scare.json` is
+the two-board tutorial. Retake them whenever a screen in the console
+changes:
+
+```
+npm run dev --prefix ../console -- --port 5180     # in another terminal
+npx playwright install chromium                     # once
+npm run shots                                       # → src/assets/console/
+```
+
+Pages embed them as `![…](../../../assets/console/<name>.png)` so Astro
+optimizes them. Keep the alt text saying what the reader should notice.
+
 ## How to write a page
 
 The reader is someone building a yard display who may never have used a

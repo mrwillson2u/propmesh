@@ -15,6 +15,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 **Connecting over WiFi fails.** The bridge has to be set up for your WiFi first, over USB. Open it in the console, and under **HOME WIFI** press **Set up home WiFi…**. Enter your network, which must be 2.4 GHz because ESP32 boards can't use 5 GHz, and press **Save to node**. Its row then shows the address to use. On most home networks `propmesh.local` works too.
 
+![The bridge's page in Nodes & Channels: the Bridge toggle on, and a HOME WIFI row showing the network name, its connection state and a Change button](../../../assets/console/nodes-bridge.png)
+
 ## Boards
 
 **"No other nodes heard yet."** Is the second board flashed and powered? Boards report in every few seconds, so give it ten. Try moving it closer.

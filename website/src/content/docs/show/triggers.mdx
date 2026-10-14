@@ -9,6 +9,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 Triggers decide **when** sequences play: *when the gate sensor sees someone, wait half a second, then play the skeleton.* You build them in **Show** as a graph of blocks wired left to right, or as a plain list if you prefer.
 
+![The Show graph: three chains of blocks. A sensor through a delay and a cooldown to a sequence; a second sensor through a cooldown; and an After a sequence block that plays the flood lights when the skeleton sequence ends](../../../assets/console/show-graph.png)
+
 ## The blocks
 
 | Block | What it does |
@@ -43,5 +45,7 @@ Every trigger block has **▶ sim**. It runs the chain right now as if the senso
 <Aside title="The list view">
 **Graph | List** switches to a list of sentences, such as *"When gate becomes active, wait 0.5 s, then play Skeleton…"*. The list is quicker for checking a big show at a glance and for turning single triggers on and off. Both are views of the same triggers.
 </Aside>
+
+![The same triggers as a list: each one reads as a sentence with its sensor, delay, sequence and cooldown, and an on/off toggle at the left](../../../assets/console/show-list.png)
 
 Sensors only set off scares when the show is **Armed**. See [Running the show](/propmesh/show/running/).
