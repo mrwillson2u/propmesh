@@ -64,6 +64,29 @@ static const pm_function_t PM_FUNCTIONS[] = {
 };
 #define PM_FUNCTION_COUNT 8
 
+// ESP32-C3 SuperMini — ESP32-C3FH4
+static const pm_board_pin_t PM_BOARD_ESP32_C3_SUPERMINI_PINS[] = {
+    {0, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC | PM_CAP_WAKE, PM_TIER_GOOD, "0", nullptr},
+    {1, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC | PM_CAP_WAKE, PM_TIER_GOOD, "1", nullptr},
+    {2, PM_CAP_OUT, PM_TIER_CAUTION, "2", "STRAPPING: must be HIGH at power-up or the board will not boot. Outputs only, and nothing that holds it low at reset (a PIR's output idles low)"},
+    {3, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC | PM_CAP_WAKE, PM_TIER_GOOD, "3", nullptr},
+    {4, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC | PM_CAP_WAKE, PM_TIER_GOOD, "4", "also JTAG TMS — harmless for anything this board does"},
+    {5, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_WAKE, PM_TIER_GOOD, "5", "its analog input is ADC2, which the radio blocks — digital only here"},
+    {6, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "6", nullptr},
+    {7, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "7", nullptr},
+    {10, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "10", nullptr},
+    {20, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_GOOD, "20", "UART0 RX — unused here (the console runs on USB)"},
+    {8, PM_CAP_OUT, PM_TIER_CAUTION, "8", "STRAPPING + the onboard blue LED (on = LOW; a WS2812 pixel on the Plus). Outputs only; anything holding it low at reset blocks flashing"},
+    {9, PM_CAP_IN | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_CAUTION, "9", "STRAPPING + the BOOT button: low at reset = download mode. A button here is fine (don't hold it while resetting); inputs only"},
+    {21, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN, PM_TIER_CAUTION, "21", "UART0 TX: the boot ROM prints here at power-up — fine for a light or strip, not for a relay or motor. The console uses USB, not this pin"},
+    {18, 0, PM_TIER_RESERVED, "18", "USB D− — the console and the flasher live on the USB port"},
+    {19, 0, PM_TIER_RESERVED, "19", "USB D+ — the console and the flasher live on the USB port"},
+};
+static const pm_board_t PM_BOARD_ESP32_C3_SUPERMINI = {
+    "esp32-c3-supermini", "ESP32-C3 SuperMini", "ESP32-C3FH4",
+    PM_BOARD_TYPE_C3_SUPERMINI, 6, 2, 0, 0.0f, 15, PM_BOARD_ESP32_C3_SUPERMINI_PINS,
+};
+
 // ESP32-C6 SuperMini — ESP32-C6FH4
 static const pm_board_pin_t PM_BOARD_ESP32_C6_SUPERMINI_PINS[] = {
     {0, PM_CAP_IN | PM_CAP_OUT | PM_CAP_PULLUP | PM_CAP_PULLDOWN | PM_CAP_ADC | PM_CAP_WAKE, PM_TIER_GOOD, "0", nullptr},

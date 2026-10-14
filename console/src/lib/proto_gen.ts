@@ -32,6 +32,7 @@ export const BoardType = {
   MINI: 2,
   HUZZAH32: 3,
   C6_SUPERMINI: 4,
+  C3_SUPERMINI: 5,
 } as const;
 export type BoardType = (typeof BoardType)[keyof typeof BoardType];
 

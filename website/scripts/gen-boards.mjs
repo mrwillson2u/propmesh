@@ -95,6 +95,12 @@ function boardPage(b) {
   }
   if (b.pinout_url) L.push(`The seller-style pinout with photos: [${new URL(b.pinout_url).hostname}](${b.pinout_url}).`, "");
 
+  if (b.variants?.length) {
+    L.push("## Versions of this board", "",
+      "\"" + b.name + "\" is a board format, not one product, and sellers' versions differ. Check these on the board in hand:", "");
+    for (const v of b.variants) L.push(`- ${v}`);
+    L.push("");
+  }
   L.push("## Which pin for what", "",
     "The console marks these with ★ when you assign pins. They are advice. Any pin that *can* do a job is allowed.", "",
     "| To connect… | Use | Why |", "|---|---|---|");
@@ -123,6 +129,7 @@ function indexPage() {
     "esp32-devkit-v1": "you want the easy default: cheap, everywhere, lots of pins.",
     "esp32-huzzah32": "the prop runs on a battery — it has a LiPo charger built in.",
     "esp32-c6-supermini": "you need it tiny, or a battery prop with a very low sleep current.",
+    "esp32-c3-supermini": "you want the cheapest board that works, for a prop with a few outputs.",
   };
   for (const b of boards) L.push(`| [${b.name}](/propmesh/boards/${b.id}/) | ${status(b).badge} | ${esc(b.mcu)} | ${b.ledc_channels} | ${b.rmt_tx_channels} | ${b.battery ? "built in" : "external"} | ${why[b.id] ?? ""} |`);
   L.push("", "**Not sure? Get an ESP32 DevKit V1.** It is the board everything is tested on first.", "",
