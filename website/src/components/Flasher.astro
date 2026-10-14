@@ -34,7 +34,7 @@ const anyBuilt = boards.some((b) => b.built);
     </esp-web-install-button>
   </div>
   <p id="pm-update" class="small" hidden={!first.built}>
-    Already running PropMesh? Download the <a id="pm-update-link" href={`${base}/firmware/${first.id}/propmesh-${first.id}-update.bin`} download>update file</a> instead and <a href={`${base}/help/updating/`}>send it over the air</a>.
+    Already running PropMesh? You don't need to plug it in: <a href={`${base}/help/updating/`}>update it over the air</a> from the console, which loads this release by itself. (The <a id="pm-update-link" href={`${base}/firmware/${first.id}/propmesh-${first.id}-update.bin`} download>update file</a> is here too, for doing it by hand.)
   </p>
   <p id="pm-missing" class="warn" hidden={first.built}>
     {anyBuilt ? "There's no firmware for this board on the site yet." : "Firmware files are added when the site is published. This local preview has none."}

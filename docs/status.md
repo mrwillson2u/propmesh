@@ -38,6 +38,8 @@ Head", Feather):
 | SK9822/APA102 clocked strips + fire effect (FastLED Fire2023 math) | built, **not on hardware** |
 | pm_ws2812 (WS2812 on the IDF RMT driver, replaced NeoPixel) | built, **not on hardware** |
 | ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
+| ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
+| Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
 Branches: work goes to `dev` by PR; `main` takes PRs from `dev` only and
@@ -54,6 +56,10 @@ Run these with the boards in hand. Protocol: write out what to watch,
    22 pins with 0–7 wake-capable, LED strip on 8, LED on 15, flood sender,
    mesh join, OTA. Open question: does the C6 controller accept the 20 ms
    non-connectable advert interval?
+1b. **C3 SuperMini** — generic-boards §6l "Bench test (to do)": 13 pins
+   with 0–5 wake-capable, the blue LED on 8 (active low), a strip on 10,
+   flood sender, mesh RSSI next to a DevKit (antenna caveat), OTA, deep
+   sleep + wake on GPIO 1.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
@@ -99,8 +105,11 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 - Console handoff items: phone layout and a phone "placement mode" for the
   Yard map, **locate** (blink a board's LED to find it), **last-fired**
   time on each trigger rule, signal-strength heat on the map.
-- Console's OTA panel loading the update image straight from the docs
-  site (the site already serves `propmesh-<board>-update.bin`).
+- ~~Console's OTA panel loading the update image straight from the docs
+  site~~ — built 2026-10-13 ("Latest release" in the Firmware panel), but
+  it fetched `firmware.bin` + `version.json`, which the site never staged
+  (404 on the live site, found 2026-10-14 by screenshot). Fixed in
+  `stage-firmware.mjs`; works from the next `main` publish.
 
 **Winter 2026–27**
 - **Versioned spec of the console ↔ board JSON API** — before any native

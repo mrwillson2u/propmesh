@@ -1,0 +1,74 @@
+# ESP32-C3 SuperMini (generic, ~22 × 18 mm, ESP32-C3FH4) — generic-board profile.
+#
+# Edit, then run:  python3 tools/genboards.py
+# Never hand-edit boards_gen.h / boards_gen.ts.
+#
+# Same rules as esp32-devkit-v1.yaml: caps / tier / best are what each pin
+# CAN do and what to warn about; the user assigns functions in the console.
+#
+# Why this board: the cheapest ESP32 going (~$3), USB-C with native USB
+# serial, 4 MB flash, and the same low-power wake pins story as the C6.
+# 13 GPIOs on the header, 6 LEDC channels, 2 RMT TX channels. No battery
+# input on the standard board.
+#
+# Sources: ESP32-C3 datasheet (pin table; strapping GPIO 2, 8, 9; RTC /
+# deep-sleep wake GPIO 0-5; ADC1 on GPIO 0-4, ADC2 on 5 — unusable with the
+# radio on); esp32.co.uk and espboards.dev SuperMini pinouts (2026-10-14).
+# ⚠ "SuperMini" is not one official board. The common black board has a
+# plain blue LED on GPIO 8 (on = LOW); the red "SuperMini Plus" has a
+# WS2812 pixel on GPIO 8 and a U.FL antenna socket. Header order differs
+# between sellers, so labels are the GPIO numbers on the silkscreen.
+#
+# Native USB: the console and the flasher are the USB-JTAG port on
+# GPIO 18/19 (reserved). After a deep sleep the port re-enumerates, so a
+# USB-connected console drops and reconnects on every wake.
+
+id: esp32-c3-supermini
+name: ESP32-C3 SuperMini
+mcu: ESP32-C3FH4
+board_type: C3_SUPERMINI      # BoardType in schema/messages.yaml
+# How far this board has been tried on real hardware — shown on the docs
+# site's board pages (tested / partial / untested). Update it after a bench test.
+status: untested
+status_note: "Profile and firmware are built (Bluetooth floods through NimBLE, deep sleep on the GPIO wake path) but it has not been flashed onto a real board yet. Expect surprises, and please report them."
+ledc_channels: 6              # the C3 has 6 LEDC channels (ESP32: 16)
+rmt_tx_channels: 2            # 2 RMT TX channels → at most 2 strips
+pinout_url: https://esp32.co.uk/esp32-c3-supermini-pinout-safe-gpios/
+# No `header`: SuperMini vendors order the pins differently, so the console
+# shows this board as a list of GPIO numbers, not a drawing.
+
+# Versions of this board people actually receive — shown on the board's
+# page and in the console. Reports from the web, not measured here.
+variants:
+  - "The common **black** board has a plain blue LED on GPIO 8 (it lights when the pin is LOW) and a ceramic antenna. Its WiFi range is often reported as poor because of the antenna layout, and it varies from batch to batch. Since the mesh uses the same radio, expect weaker links than from a DevKit. People report that soldering a 31 mm wire to the antenna's feed pad helps a lot."
+  - "The red **SuperMini Plus** has a U.FL socket for an external antenna and a WS2812 pixel on GPIO 8 instead of the blue LED (some also keep the blue LED on the same pin). Assign GPIO 8 as LED strip with 1 pixel to use it."
+  - "Header order differs between sellers. Go by the GPIO numbers printed on the board."
+
+guide:
+  SERVO: "Quiet at power-up, so nothing twitches while the board boots."
+  MOTOR: "A quiet pair side by side for IN1 / IN2 — a motor never lurches at boot."
+  RELAY: "Quiet at power-up, so a relay never clicks on during boot."
+  LED_STRIP: "Any output can drive a strip; the C3 has two strip engines (RMT), so two strips at most. 3.3 V board — use a 74AHCT-type level shifter for 5 V strips."
+  LED: "The boot-quirk pins — a flicker at power-up doesn't matter for a light. 8 is the onboard blue LED (on = LOW) on the common board."
+  DIGITAL_IN: "GPIO 0–5 are the low-power pins: the only ones that can wake the board from deep sleep on battery. All have internal pull-ups, so buttons need no resistor. 0–4 also read analog."
+
+pins:
+  # low-power pins — wake from deep sleep, ADC1 on 0-4
+  - {gpio: 0,  label: "0",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 1,  label: "1",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 2,  label: "2",  caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING: must be HIGH at power-up or the board will not boot. Outputs only, and nothing that holds it low at reset (a PIR's output idles low)"}
+  - {gpio: 3,  label: "3",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: DIGITAL_IN, also: [SERVO, RELAY]}
+  - {gpio: 4,  label: "4",  caps: [in, out, pullup, pulldown, adc, wake], tier: good, best: SERVO, also: [DIGITAL_IN, RELAY], note: "also JTAG TMS — harmless for anything this board does"}
+  - {gpio: 5,  label: "5",  caps: [in, out, pullup, pulldown, wake], tier: good, best: SERVO, also: [DIGITAL_IN, RELAY], note: "its analog input is ADC2, which the radio blocks — digital only here"}
+  # general purpose
+  - {gpio: 6,  label: "6",  caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
+  - {gpio: 7,  label: "7",  caps: [in, out, pullup, pulldown], tier: good, best: MOTOR, also: [SERVO, RELAY]}
+  - {gpio: 10, label: "10", caps: [in, out, pullup, pulldown], tier: good, best: LED_STRIP, also: [RELAY, SERVO, LED]}
+  - {gpio: 20, label: "20", caps: [in, out, pullup, pulldown], tier: good, best: RELAY, also: [SERVO, LED_STRIP], note: "UART0 RX — unused here (the console runs on USB)"}
+  # onboard parts and strapping
+  - {gpio: 8,  label: "8",  caps: [out], tier: caution, best: LED, also: [LED_STRIP], note: "STRAPPING + the onboard blue LED (on = LOW; a WS2812 pixel on the Plus). Outputs only; anything holding it low at reset blocks flashing"}
+  - {gpio: 9,  label: "9",  caps: [in, pullup, pulldown], tier: caution, best: DIGITAL_IN, note: "STRAPPING + the BOOT button: low at reset = download mode. A button here is fine (don't hold it while resetting); inputs only"}
+  - {gpio: 21, label: "21", caps: [in, out, pullup, pulldown], tier: caution, best: LED, also: [LED_STRIP], note: "UART0 TX: the boot ROM prints here at power-up — fine for a light or strip, not for a relay or motor. The console uses USB, not this pin"}
+  # reserved
+  - {gpio: 18, label: "18", caps: [], tier: reserved, note: "USB D− — the console and the flasher live on the USB port"}
+  - {gpio: 19, label: "19", caps: [], tier: reserved, note: "USB D+ — the console and the flasher live on the USB port"}

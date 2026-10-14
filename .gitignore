@@ -43,3 +43,6 @@ console/dist/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Python venv for tools/ and PlatformIO (docs/status.md §5)
+.venv/

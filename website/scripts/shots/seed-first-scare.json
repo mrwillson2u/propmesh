@@ -1,0 +1,86 @@
+{
+ "propmesh.sim.51a0beef": {
+  "v": 1,
+  "name": "Bridge",
+  "bridge": true,
+  "channels": []
+ },
+ "propmesh.sim.5c0ffee1": {
+  "v": 1,
+  "name": "Skeleton",
+  "bridge": false,
+  "channels": [
+   {
+    "kind": "LED",
+    "index": 1,
+    "label": "eyes",
+    "pins": [
+     2
+    ]
+   },
+   {
+    "kind": "DIGITAL_IN",
+    "index": 1,
+    "label": "gate",
+    "pins": [
+     34
+    ],
+    "pull": "none"
+   }
+  ]
+ },
+ "propmesh.sim.5c0ffee2": {
+  "v": 1,
+  "name": "",
+  "bridge": false,
+  "channels": []
+ },
+ "propmesh.sim.show.5c0ffee1": {
+  "seqs": [
+   {
+    "id": 1,
+    "name": "Eyes flash",
+    "steps": [
+     [
+      0,
+      "LED",
+      1,
+      1000
+     ],
+     [
+      300,
+      "LED",
+      1,
+      0
+     ],
+     [
+      600,
+      "LED",
+      1,
+      1000
+     ],
+     [
+      1500,
+      "LED",
+      1,
+      0
+     ]
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "trigger": "sensor",
+    "input": 1,
+    "on": "active",
+    "delay_ms": 0,
+    "cooldown_ms": 0,
+    "pick": "all",
+    "seqs": [
+     1
+    ],
+    "enabled": true
+   }
+  ]
+ }
+}

@@ -35,6 +35,9 @@ export interface Board {
   // The headers as printed, top to bottom, for the console's pinout drawing;
   // absent when vendors differ (the C6 SuperMini) — shown as a list instead.
   header?: { usb: "top" | "bottom"; left: string[]; right: string[] };
+  // Versions of the board people receive (sellers differ): what to check on
+  // the one in hand. Markdown on the site, plain text in the console.
+  variants?: string[];
   pins: BoardPin[];
   guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function
 }
@@ -64,6 +67,42 @@ export const FUNCTIONS: Record<ChannelKindName, FunctionDef> = {
 };
 
 export const BOARDS: Record<string, Board> = {
+  "esp32-c3-supermini": {
+    id: "esp32-c3-supermini",
+    name: "ESP32-C3 SuperMini",
+    mcu: "ESP32-C3FH4",
+    ledcChannels: 6,
+    rmtTxChannels: 2,
+    battery: undefined,
+    pinoutUrl: "https://esp32.co.uk/esp32-c3-supermini-pinout-safe-gpios/",
+    header: undefined,
+    variants: ["The common **black** board has a plain blue LED on GPIO 8 (it lights when the pin is LOW) and a ceramic antenna. Its WiFi range is often reported as poor because of the antenna layout, and it varies from batch to batch. Since the mesh uses the same radio, expect weaker links than from a DevKit. People report that soldering a 31 mm wire to the antenna's feed pad helps a lot.", "The red **SuperMini Plus** has a U.FL socket for an external antenna and a WS2812 pixel on GPIO 8 instead of the blue LED (some also keep the blue LED on the same pin). Assign GPIO 8 as LED strip with 1 pixel to use it.", "Header order differs between sellers. Go by the GPIO numbers printed on the board."],
+    pins: [
+      { gpio: 0, label: "0", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
+      { gpio: 1, label: "1", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
+      { gpio: 2, label: "2", caps: 0x02, tier: "caution", note: "STRAPPING: must be HIGH at power-up or the board will not boot. Outputs only, and nothing that holds it low at reset (a PIR's output idles low)", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 3, label: "3", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
+      { gpio: 4, label: "4", caps: 0x3f, tier: "good", note: "also JTAG TMS — harmless for anything this board does", best: "SERVO", also: ["DIGITAL_IN", "RELAY"] },
+      { gpio: 5, label: "5", caps: 0x2f, tier: "good", note: "its analog input is ADC2, which the radio blocks — digital only here", best: "SERVO", also: ["DIGITAL_IN", "RELAY"] },
+      { gpio: 6, label: "6", caps: 0x0f, tier: "good", best: "MOTOR", also: ["SERVO", "RELAY"] },
+      { gpio: 7, label: "7", caps: 0x0f, tier: "good", best: "MOTOR", also: ["SERVO", "RELAY"] },
+      { gpio: 10, label: "10", caps: 0x0f, tier: "good", best: "LED_STRIP", also: ["RELAY", "SERVO", "LED"] },
+      { gpio: 20, label: "20", caps: 0x0f, tier: "good", note: "UART0 RX — unused here (the console runs on USB)", best: "RELAY", also: ["SERVO", "LED_STRIP"] },
+      { gpio: 8, label: "8", caps: 0x02, tier: "caution", note: "STRAPPING + the onboard blue LED (on = LOW; a WS2812 pixel on the Plus). Outputs only; anything holding it low at reset blocks flashing", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 9, label: "9", caps: 0x0d, tier: "caution", note: "STRAPPING + the BOOT button: low at reset = download mode. A button here is fine (don't hold it while resetting); inputs only", best: "DIGITAL_IN" },
+      { gpio: 21, label: "21", caps: 0x0f, tier: "caution", note: "UART0 TX: the boot ROM prints here at power-up — fine for a light or strip, not for a relay or motor. The console uses USB, not this pin", best: "LED", also: ["LED_STRIP"] },
+      { gpio: 18, label: "18", caps: 0x00, tier: "reserved", note: "USB D− — the console and the flasher live on the USB port" },
+      { gpio: 19, label: "19", caps: 0x00, tier: "reserved", note: "USB D+ — the console and the flasher live on the USB port" },
+    ],
+    guide: {
+      SERVO: "Quiet at power-up, so nothing twitches while the board boots.",
+      MOTOR: "A quiet pair side by side for IN1 / IN2 — a motor never lurches at boot.",
+      RELAY: "Quiet at power-up, so a relay never clicks on during boot.",
+      LED_STRIP: "Any output can drive a strip; the C3 has two strip engines (RMT), so two strips at most. 3.3 V board — use a 74AHCT-type level shifter for 5 V strips.",
+      LED: "The boot-quirk pins — a flicker at power-up doesn't matter for a light. 8 is the onboard blue LED (on = LOW) on the common board.",
+      DIGITAL_IN: "GPIO 0–5 are the low-power pins: the only ones that can wake the board from deep sleep on battery. All have internal pull-ups, so buttons need no resistor. 0–4 also read analog.",
+    },
+  },
   "esp32-c6-supermini": {
     id: "esp32-c6-supermini",
     name: "ESP32-C6 SuperMini",
@@ -73,6 +112,7 @@ export const BOARDS: Record<string, Board> = {
     battery: undefined,
     pinoutUrl: "https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-datasheet-schema-and-specs/",
     header: undefined,
+    variants: ["Header order differs between sellers. Go by the GPIO numbers printed on the board.", "Most have a WS2812 pixel on GPIO 8 and a blue status LED on GPIO 15. One seller's version is reported to put the pixel elsewhere; if GPIO 8 does nothing, that may be why.", "Some versions have battery pads (**B+** / **B−** or **BAT**) with a small charger behind them, and a green charging LED. Others have none. Either way there is no battery-sense pin, so the console can't show the battery voltage on this board.", "The RGB pixel and the power LED draw about a milliamp even when the pixel is off, which is most of this board's deep-sleep current. People who need months on a battery remove them."],
     pins: [
       { gpio: 0, label: "0", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
       { gpio: 1, label: "1", caps: 0x3f, tier: "good", best: "DIGITAL_IN", also: ["SERVO", "RELAY"] },
@@ -115,6 +155,7 @@ export const BOARDS: Record<string, Board> = {
     battery: undefined,
     pinoutUrl: "https://randomnerdtutorials.com/esp32-pinout-reference-gpios/",
     header: {"usb": "bottom", "left": ["EN", "VP", "VN", "D34", "D35", "D32", "D33", "D25", "D26", "D27", "D14", "D12", "D13", "GND", "VIN"], "right": ["D23", "D22", "TX0", "RX0", "D21", "D19", "D18", "D5", "TX2", "RX2", "D4", "D2", "D15", "GND", "3V3"]},
+    variants: undefined,
     pins: [
       { gpio: 36, label: "VP", caps: 0x31, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
       { gpio: 39, label: "VN", caps: 0x31, tier: "good", note: "input only, no internal pull — a button here needs an external resistor", best: "DIGITAL_IN" },
@@ -160,6 +201,7 @@ export const BOARDS: Record<string, Board> = {
     battery: {"gpio": 35, "divider": 2.0},
     pinoutUrl: "https://learn.adafruit.com/adafruit-huzzah32-esp32-feather/pinouts",
     header: {"usb": "bottom", "left": ["RST", "3V", "AREF", "GND", "A0", "A1", "A2", "A3", "A4", "A5", "SCK", "MO", "MI", "RX", "TX", "21"], "right": ["SDA", "SCL", "14", "32", "15", "33", "27", "12", "13", "USB", "EN", "BAT"]},
+    variants: undefined,
     pins: [
       { gpio: 26, label: "A0", caps: 0x2f, tier: "good", note: "also DAC2", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },
       { gpio: 25, label: "A1", caps: 0x2f, tier: "good", note: "also DAC1", best: "SERVO", also: ["MOTOR", "RELAY", "LED"] },

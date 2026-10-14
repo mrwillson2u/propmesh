@@ -1,0 +1,513 @@
+{
+ "propmesh.sim.51a0beef": {
+  "v": 1,
+  "name": "Bridge",
+  "bridge": true,
+  "wifi": {
+   "ssid": "HomeWiFi",
+   "pass_set": true
+  },
+  "channels": []
+ },
+ "propmesh.sim.5c0ffee1": {
+  "v": 1,
+  "name": "Skeleton",
+  "bridge": false,
+  "brmesh_key": "5e367bc4",
+  "channels": [
+   {
+    "kind": "SERVO",
+    "index": 1,
+    "label": "jaw",
+    "pins": [
+     13
+    ],
+    "min_us": 700,
+    "max_us": 1900,
+    "travel_ms": 600,
+    "ease_ms": 200
+   },
+   {
+    "kind": "LED",
+    "index": 1,
+    "label": "eyes",
+    "pins": [
+     2
+    ]
+   },
+   {
+    "kind": "LED_STRIP",
+    "index": 1,
+    "label": "chest glow",
+    "pins": [
+     16
+    ],
+    "pixels": 30,
+    "order": "grb",
+    "effect": "solid"
+   },
+   {
+    "kind": "RELAY",
+    "index": 1,
+    "label": "fogger",
+    "pins": [
+     23
+    ],
+    "active_low": true
+   },
+   {
+    "kind": "DIGITAL_IN",
+    "index": 1,
+    "label": "gate",
+    "pins": [
+     34
+    ],
+    "pull": "none"
+   },
+   {
+    "kind": "BLE_LIGHT",
+    "index": 1,
+    "label": "porch flood",
+    "pins": [],
+    "light": 1
+   },
+   {
+    "kind": "BLE_LIGHT",
+    "index": 2,
+    "label": "driveway flood",
+    "pins": [],
+    "light": 2
+   }
+  ]
+ },
+ "propmesh.sim.5c0ffee2": {
+  "v": 1,
+  "name": "Porch lantern",
+  "bridge": false,
+  "brmesh_key": "5e367bc4",
+  "channels": [
+   {
+    "kind": "LED_STRIP",
+    "index": 1,
+    "label": "flame",
+    "pins": [
+     17
+    ],
+    "pixels": 8,
+    "order": "grb",
+    "effect": "fire",
+    "fire": {
+     "w": 2,
+     "h": 4,
+     "zigzag": true,
+     "brightness": 128,
+     "speed": 2,
+     "flame10": 30,
+     "noise": 0,
+     "smoke_speed": 25,
+     "smoke_dim": 250,
+     "smoke_scale": 125
+    }
+   },
+   {
+    "kind": "DIGITAL_IN",
+    "index": 1,
+    "label": "doormat",
+    "pins": [
+     35
+    ],
+    "pull": "up",
+    "active_low": true
+   },
+   {
+    "kind": "BLE_LIGHT",
+    "index": 1,
+    "label": "porch flood",
+    "pins": [],
+    "light": 1
+   },
+   {
+    "kind": "BLE_LIGHT",
+    "index": 2,
+    "label": "driveway flood",
+    "pins": [],
+    "light": 2
+   }
+  ]
+ },
+ "propmesh.sim.show.5c0ffee1": {
+  "seqs": [
+   {
+    "id": 1,
+    "name": "Eyes flash",
+    "steps": [
+     [
+      0,
+      "LED",
+      1,
+      1000
+     ],
+     [
+      300,
+      "LED",
+      1,
+      0
+     ],
+     [
+      600,
+      "LED",
+      1,
+      1000
+     ],
+     [
+      1500,
+      "LED",
+      1,
+      0
+     ]
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Skeleton pops up",
+    "steps": [
+     [
+      0,
+      "LED",
+      1,
+      1000
+     ],
+     [
+      800,
+      "SERVO",
+      1,
+      1000,
+      600,
+      50,
+      50
+     ],
+     [
+      400,
+      "RELAY",
+      1,
+      1
+     ],
+     [
+      1500,
+      "RELAY",
+      1,
+      0
+     ],
+     [
+      2800,
+      "SERVO",
+      1,
+      0,
+      1000,
+      30,
+      30
+     ],
+     [
+      3000,
+      "LED",
+      1,
+      0,
+      400,
+      0,
+      100
+     ],
+     [
+      0,
+      "LED_STRIP",
+      1,
+      16711680
+     ],
+     [
+      3000,
+      "LED_STRIP",
+      1,
+      0
+     ]
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Floods flash red",
+    "steps": [
+     [
+      0,
+      "BLE_LIGHT",
+      1,
+      16711680
+     ],
+     [
+      0,
+      "BLE_LIGHT",
+      2,
+      16711680
+     ],
+     [
+      3000,
+      "BLE_LIGHT",
+      1,
+      4202496
+     ],
+     [
+      3000,
+      "BLE_LIGHT",
+      2,
+      4202496
+     ]
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "trigger": "sensor",
+    "input": 1,
+    "on": "active",
+    "delay_ms": 500,
+    "cooldown_ms": 20000,
+    "pick": "all",
+    "seqs": [
+     2
+    ],
+    "enabled": true
+   },
+   {
+    "trigger": "after",
+    "after": 2,
+    "delay_ms": 3000,
+    "cooldown_ms": 0,
+    "pick": "all",
+    "seqs": [
+     3
+    ],
+    "enabled": true
+   }
+  ]
+ },
+ "propmesh.sim.show.5c0ffee2": {
+  "seqs": [
+   {
+    "id": 2,
+    "name": "Skeleton pops up",
+    "steps": [
+     [
+      0,
+      "LED_STRIP",
+      1,
+      16711680
+     ],
+     [
+      3000,
+      "LED_STRIP",
+      1,
+      0
+     ]
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Floods flash red",
+    "steps": [
+     [
+      0,
+      "BLE_LIGHT",
+      1,
+      16711680
+     ],
+     [
+      0,
+      "BLE_LIGHT",
+      2,
+      16711680
+     ],
+     [
+      3000,
+      "BLE_LIGHT",
+      1,
+      4202496
+     ],
+     [
+      3000,
+      "BLE_LIGHT",
+      2,
+      4202496
+     ]
+    ]
+   },
+   {
+    "id": 4,
+    "name": "Lantern burns",
+    "steps": [
+     [
+      0,
+      "LED_STRIP",
+      1,
+      1
+     ]
+    ],
+    "ambient": true,
+    "loop_ms": 60000
+   }
+  ],
+  "rules": [
+   {
+    "trigger": "sensor",
+    "input": 1,
+    "on": "active",
+    "delay_ms": 0,
+    "cooldown_ms": 10000,
+    "pick": "all",
+    "seqs": [
+     1
+    ],
+    "enabled": true
+   }
+  ]
+ },
+ "propmesh.yard.doc": {
+  "v": 1,
+  "at": 1791900000,
+  "scale_ft": 5,
+  "shapes": [
+   {
+    "id": "s1",
+    "kind": "area",
+    "pts": [
+     60,
+     40,
+     420,
+     40,
+     420,
+     260,
+     60,
+     260
+    ],
+    "label": "House",
+    "color": "#2a2d33"
+   },
+   {
+    "id": "s2",
+    "kind": "area",
+    "pts": [
+     60,
+     300,
+     420,
+     300,
+     420,
+     520,
+     60,
+     520
+    ],
+    "label": "Front lawn",
+    "color": "#16281a"
+   },
+   {
+    "id": "s3",
+    "kind": "path",
+    "pts": [
+     480,
+     40,
+     480,
+     560
+    ],
+    "w": 40,
+    "label": "Driveway",
+    "color": "#2a2d33"
+   },
+   {
+    "id": "s4",
+    "kind": "path",
+    "pts": [
+     240,
+     260,
+     240,
+     560
+    ],
+    "w": 16,
+    "label": "Walk"
+   },
+   {
+    "id": "s5",
+    "kind": "line",
+    "pts": [
+     20,
+     20,
+     20,
+     580,
+     560,
+     580
+    ],
+    "label": "Fence"
+   },
+   {
+    "id": "p1",
+    "kind": "prop",
+    "pts": [
+     120,
+     360
+    ],
+    "icon": "tombstone",
+    "size": 2
+   },
+   {
+    "id": "p2",
+    "kind": "prop",
+    "pts": [
+     170,
+     420
+    ],
+    "icon": "tombstone",
+    "size": 2
+   },
+   {
+    "id": "p3",
+    "kind": "prop",
+    "pts": [
+     340,
+     380
+    ],
+    "icon": "spider",
+    "size": 2
+   },
+   {
+    "id": "p4",
+    "kind": "prop",
+    "pts": [
+     120,
+     470
+    ],
+    "icon": "ghost",
+    "size": 2
+   }
+  ],
+  "pos": {
+   "51a0beef": [
+    300,
+    140
+   ],
+   "5c0ffee1": [
+    330,
+    470
+   ],
+   "5c0ffee2": [
+    260,
+    290
+   ],
+   "flood:1": [
+    400,
+    300
+   ],
+   "flood:2": [
+    470,
+    480
+   ]
+  },
+  "icons": {
+   "5c0ffee1": "skull",
+   "5c0ffee2": "pumpkin"
+  }
+ }
+}

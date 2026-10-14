@@ -10,6 +10,7 @@
 // built gets staged. public/firmware is gitignored.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
@@ -35,9 +36,26 @@ for (const f of readdirSync(join(root, "boards"))) {
   const dir = join(out, b.id);
   mkdirSync(dir, { recursive: true });
   copyFileSync(bin, join(dir, `propmesh-${b.id}.bin`));
-  // The plain app image too: what the console's "↑ Firmware" panel sends
-  // over the air ("from file").
-  copyFileSync(join(dirname(bin), "firmware.bin"), join(dir, `propmesh-${b.id}-update.bin`));
+  // The plain app image too, under two names: propmesh-<id>-update.bin for
+  // people who download it, and firmware.bin + version.json (build, size,
+  // sha256 — build_id.py writes it beside the build) for the console's
+  // "Latest release" option, which fetches <site>/firmware/<id>/firmware.bin
+  // (console/src/lib/ota.ts releaseUrl). Until 2026-10-14 only the first
+  // was staged, so "Latest release" 404'd on the live site.
+  const app = join(dirname(bin), "firmware.bin");
+  copyFileSync(app, join(dir, `propmesh-${b.id}-update.bin`));
+  copyFileSync(app, join(dir, "firmware.bin"));
+  const verFile = join(dirname(bin), "version.json");
+  if (existsSync(verFile)) copyFileSync(verFile, join(dir, "version.json"));
+  else {
+    const bytes = readFileSync(app);
+    writeFileSync(join(dir, "version.json"), JSON.stringify({ build: version, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }));
+  }
+  // …and under the names the console's update panel fetches by default
+  // ("Latest release": <site>/firmware/<board>/firmware.bin + version.json).
+  copyFileSync(join(dirname(bin), "firmware.bin"), join(dir, "firmware.bin"));
+  const ver = join(dirname(bin), "version.json");
+  if (existsSync(ver)) copyFileSync(ver, join(dir, "version.json"));
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({
     name: `PropMesh for ${b.name}`,
     version,
