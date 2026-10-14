@@ -1242,6 +1242,61 @@ FreeRTOS no heap for its timer task and the ESP32 builds boot-looped
 sequence that uses it in the console (the save reports it unreachable),
 plug it back in — it should have the edit within seconds.
 
+## 6l. ESP32-C3 SuperMini, and board versions (added 2026-10-14, not yet on hardware)
+
+Colin has a C3 SuperMini, and §7b already called it the obvious next
+profile. Added as `boards/esp32-c3-supermini.yaml`, env
+`esp32-c3-supermini` (`board = esp32-c3-devkitm-1`, CDC-on-boot like the
+C6), `BoardType` 5. Builds: 1.56 MB of the 1.9 MB slot (80 %), 81.8 KB
+static RAM. DevKit and C6 builds unchanged.
+
+- **Pins.** 13 on the header: 0–10, 20, 21. USB is native on 18/19
+  (reserved, not on the header). Strapping 2, 8, 9 (datasheet). **Wake
+  pins 0–5** (the C3's RTC domain); 0–4 read analog (ADC1), 5 is ADC2 and
+  blocked by the radio, so the profile lists it digital-only. 6 LEDC
+  channels, 2 RMT TX channels — same budgets as the C6. GPIO 2 is a
+  strapping pin that must be high at reset, so it is outputs-only (a
+  PIR's output idles low and would stop the boot); 8 is the onboard blue
+  LED (on = LOW) and also strapping; 9 the BOOT button; 21 is UART0 TX
+  (boot ROM chatter), 20 UART0 RX.
+- **Deep sleep: the C3 has no ext1.** `pm_sleep.cpp` now switches on
+  `SOC_PM_SUPPORT_EXT1_WAKEUP`: ESP32 and C6 keep the ext1 path; the C3
+  arms `esp_deep_sleep_enable_gpio_wakeup` once per polarity (it takes a
+  level per call, so active-high and active-low inputs can both wake it —
+  better than ext1's one-polarity rule), and the wake cause is
+  `ESP_SLEEP_WAKEUP_GPIO` with `esp_sleep_get_gpio_wakeup_status()`.
+- **Bluetooth floods** go through the NimBLE backend (`#if
+  !CONFIG_IDF_TARGET_ESP32`), untouched. Same unknown as the C6: whether
+  the controller accepts the 20 ms non-connectable interval.
+- **Versions of a board** (`variants:` in the profile, 2026-10-14).
+  "SuperMini" is a board format, not a product; sellers' boards differ
+  in LEDs, antenna, charger pads and header order. The profile now
+  carries a list of plain-text notes, validated by `genboards.py`,
+  emitted to `boards_gen.ts` (`Board.variants`) and rendered as a
+  "Versions of this board" section on the site page and a "VERSIONS
+  DIFFER" note under the console's Pinout panel. Written for the C3
+  (black board: blue LED on 8, weak ceramic antenna; red "Plus": U.FL
+  socket and a WS2812 on 8) and the C6 (charger pads on some; RGB pixel
+  reportedly elsewhere on one seller's; the pixel + power LED ≈ 1 mA of
+  the sleep floor). Sources: espboards.dev, esp32.co.uk, mischianti.org;
+  none of it measured here.
+- **The antenna caveat matters for the mesh.** The standard C3's ceramic
+  antenna sits against the ground plane without the reference layout's
+  clearance, and range is the board's most common complaint. ESP-NOW
+  uses the same radio, so expect weaker links than a DevKit at the same
+  distance; a Plus with an external antenna, or the reported 31 mm wire
+  on the feed pad, are the fixes people use. Measure RSSI on the Yard
+  before trusting one at the far end of the yard.
+- **Bench test (to do):** flash (hold BOOT while plugging in if the
+  port isn't found), Connect, confirm 13 pins with 0–5 wake-capable;
+  assign 8 = LED and test (it should go *dark* at 100 % if it is the
+  active-low blue LED — if so, tick nothing: the LED dimmer's polarity is
+  whatever the board does, and the note says so); 10 = LED_STRIP on a
+  real strip; a flood color change as a sender; mesh join with RSSI
+  compared to a DevKit at the same spot; OTA its own image; On battery +
+  a button on GPIO 1 → deep sleep and wake, with `hello.reset` saying
+  "deep sleep" and the boot event naming GPIO 1.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
@@ -1294,8 +1349,8 @@ every 4 s).
 **Adding a board:** copy the devkit yaml, fill in its pins from the
 vendor pinout and the chip datasheet's strapping table, run
 `genboards.py`, add an env to `firmware/node/platformio.ini` with
-`-DPM_BOARD_PROFILE=PM_BOARD_<ID>`. The C3 Super Mini is the obvious
-next one (6 LEDC channels — the budget check exists for it).
+`-DPM_BOARD_PROFILE=PM_BOARD_<ID>`. The C3 SuperMini was added
+2026-10-14 (§6l).
 
 ## 8. Plan (October 2026)
 

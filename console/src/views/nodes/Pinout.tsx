@@ -38,6 +38,12 @@ export default function Pinout({ board, cfg }: { board: Board; cfg: NodeConfig }
             style={{ ...sys(500, 11, C.t3), textDecoration: "underline" }}>vendor pinout ↗</a>
         )}
       </div>
+      {open && board.variants && (
+        <div style={{ padding: "0 12px 8px", ...sys(400, 11.5, C.t3) }} title="Sellers' versions of this board differ — what to check on the one in hand">
+          <span style={sys(700, 11, C.t5)}>VERSIONS DIFFER · </span>
+          {board.variants.map((v, i) => <div key={i} style={{ margin: "3px 0 0 10px" }}>• {v.replace(/\*\*/g, "")}</div>)}
+        </div>
+      )}
       {open && (board.header
         ? <Drawing board={board} cfg={cfg} byLabel={byLabel} jump={jump} />
         : <List board={board} cfg={cfg} jump={jump} />)}

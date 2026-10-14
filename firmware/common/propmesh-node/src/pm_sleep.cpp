@@ -57,7 +57,8 @@ static int wake_gpio = -1;
 static bool show_tier;  // modem sleep configured
 
 // Pins the board profile marks `wake` (ESP32: RTC GPIOs; C6: LP GPIO
-// 0-7) — the only ones ext1 can wake on.
+// 0-7; C3: GPIO 0-5) — the only ones the chip can wake on. The ESP32 and
+// C6 wake through ext1; the C3 has no ext1 and uses the GPIO wake path.
 bool pm_sleep_rtc_pin(uint8_t g) {
   const pm_board_pin_t *p = pm_board_pin(PM_BOARD_PROFILE, g);
   return p && (p->caps & PM_CAP_WAKE);
@@ -66,12 +67,21 @@ bool pm_sleep_rtc_pin(uint8_t g) {
 void pm_sleep_begin() {
   switch (esp_sleep_get_wakeup_cause()) {
     case ESP_SLEEP_WAKEUP_TIMER: cause = "timer"; break;
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
     case ESP_SLEEP_WAKEUP_EXT1: {
       cause = "sensor";
       uint64_t m = esp_sleep_get_ext1_wakeup_status();
       for (int g = 0; g < 40; g++) if (m & (1ULL << g)) { wake_gpio = g; break; }
       break;
     }
+#else
+    case ESP_SLEEP_WAKEUP_GPIO: {
+      cause = "sensor";
+      uint64_t m = esp_sleep_get_gpio_wakeup_status();
+      for (int g = 0; g < 40; g++) if (m & (1ULL << g)) { wake_gpio = g; break; }
+      break;
+    }
+#endif
     default: cause = esp_reset_reason() == ESP_RST_POWERON ? "power" : "reset"; break;
   }
   if (cause[0] == 't' || cause[0] == 's') {
@@ -149,11 +159,18 @@ static void deep_sleep(uint32_t seconds, const char *why) {
     if (c.kind != PM_CHANNEL_KIND_DIGITAL_IN || !pm_sleep_rtc_pin(c.pins[0])) continue;
     (c.active_low ? lo : hi) |= 1ULL << c.pins[0];
   }
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
   if (hi) esp_sleep_enable_ext1_wakeup(hi, ESP_EXT1_WAKEUP_ANY_HIGH);
 #if CONFIG_IDF_TARGET_ESP32
   else if (lo) esp_sleep_enable_ext1_wakeup(lo, ESP_EXT1_WAKEUP_ALL_LOW);  // the ESP32 has no ANY_LOW
 #else
   else if (lo) esp_sleep_enable_ext1_wakeup(lo, ESP_EXT1_WAKEUP_ANY_LOW);
+#endif
+#else
+  // The C3: no ext1. The GPIO wake path takes a polarity per call, so both
+  // sets can be armed at once.
+  if (hi) esp_deep_sleep_enable_gpio_wakeup(hi, ESP_GPIO_WAKEUP_GPIO_HIGH);
+  if (lo) esp_deep_sleep_enable_gpio_wakeup(lo, ESP_GPIO_WAKEUP_GPIO_LOW);
 #endif
   esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
   // Carry the wall clock: the system clock runs on the RTC through sleep.

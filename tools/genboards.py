@@ -115,6 +115,9 @@ def validate(funcs, boards, enums, consts):
                     errs.append(f"{bid}: GPIO {g} recommends {r} but can't do it (caps)")
                 if r in QUIET and p["tier"] == "caution":
                     errs.append(f"{bid}: GPIO {g} glitches at power-up — don't recommend {r} on it")
+        var = b.get("variants")
+        if var is not None and (not isinstance(var, list) or not all(isinstance(v, str) and v for v in var)):
+            errs.append(f"{bid}: variants must be a list of non-empty strings")
         guide = b.get("guide", {})
         for k in guide:
             if k not in funcs:
@@ -250,6 +253,9 @@ def render_ts(funcs, boards, enums):
           "  // The headers as printed, top to bottom, for the console's pinout drawing;",
           "  // absent when vendors differ (the C6 SuperMini) — shown as a list instead.",
           "  header?: { usb: \"top\" | \"bottom\"; left: string[]; right: string[] };",
+          "  // Versions of the board people receive (sellers differ): what to check on",
+          "  // the one in hand. Markdown on the site, plain text in the console.",
+          "  variants?: string[];",
           "  pins: BoardPin[];",
           "  guide: Partial<Record<ChannelKindName, string>>; // why those pins, per function",
           "}",
@@ -288,6 +294,7 @@ def render_ts(funcs, boards, enums):
               f"    battery: {json.dumps(b['battery']) if b.get('battery') else 'undefined'},",
               f"    pinoutUrl: {json.dumps(b['pinout_url']) if b.get('pinout_url') else 'undefined'},",
               f"    header: {json.dumps({k: ([str(x) for x in v] if isinstance(v, list) else v) for k, v in b['header'].items()}) if b.get('header') else 'undefined'},",
+              f"    variants: {json.dumps(b['variants'], ensure_ascii=False) if b.get('variants') else 'undefined'},",
               "    pins: ["]
         for p in b["pins"]:
             note = f", note: {json.dumps(p['note'], ensure_ascii=False)}" if p.get("note") else ""
