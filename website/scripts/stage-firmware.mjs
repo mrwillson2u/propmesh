@@ -38,6 +38,11 @@ for (const f of readdirSync(join(root, "boards"))) {
   // The plain app image too: what the console's "↑ Firmware" panel sends
   // over the air ("from file").
   copyFileSync(join(dirname(bin), "firmware.bin"), join(dir, `propmesh-${b.id}-update.bin`));
+  // …and under the names the console's update panel fetches by default
+  // ("Latest release": <site>/firmware/<board>/firmware.bin + version.json).
+  copyFileSync(join(dirname(bin), "firmware.bin"), join(dir, "firmware.bin"));
+  const ver = join(dirname(bin), "version.json");
+  if (existsSync(ver)) copyFileSync(ver, join(dir, "version.json"));
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({
     name: `PropMesh for ${b.name}`,
     version,

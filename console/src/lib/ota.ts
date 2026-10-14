@@ -15,6 +15,12 @@ export function imageUrlFor(url: string, board: string): string {
   return m ? `${m[1]}${board}/${m[3]}` : url;
 }
 
+// The latest release, as the docs site publishes it for each board type
+// (website/scripts/stage-firmware.mjs): <site>/firmware/<board>/firmware.bin
+// beside its version.json. GitHub Pages allows cross-origin fetches.
+export const RELEASE_ROOT = "https://mrwillson2u.github.io/propmesh/firmware";
+export const releaseUrl = (board: string) => `${RELEASE_ROOT}/${board}/firmware.bin`;
+
 export async function fetchImage(url: string): Promise<Image> {
   const [bin, ver] = await Promise.all([
     fetch(url, { cache: "no-store" }),

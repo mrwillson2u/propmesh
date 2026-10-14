@@ -9,7 +9,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
-import { fetchImage, fileImage, imageUrlFor, streamImage, type Image } from "../../lib/ota";
+import { fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -28,8 +28,13 @@ type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: n
 const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
 export default function OtaPanel({ link, entries }: { link: NodeLink; entries: Record<string, Entry> }) {
-  const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string; mode: string }>;
+  const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string; mode: string; source: string }>;
   const [mode, setMode] = useState<"mesh" | "wifi">(stored.mode === "wifi" ? "wifi" : "mesh");
+  // Over the mesh, the image is the latest release from the docs site by
+  // default (no server to run); "own" is a build served by ota_serve.py
+  // or a file. Over WiFi the boards fetch it themselves over plain HTTP,
+  // which the site (HTTPS only) can't serve — that path needs ota_serve.py.
+  const [source, setSource] = useState<"release" | "own">(stored.source === "own" ? "own" : "release");
   const [image, setImage] = useState<Image | "loading" | null>(null);
   // Other boards' images (a HUZZAH32 needs its own build), fetched on demand.
   const images = useRef(new Map<string, Image>());
@@ -46,11 +51,15 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   // outlive renders, so it reads the latest entries through a ref.
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
-  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass, mode })); } catch { /* private mode */ } }, [url, ssid, pass, mode]);
+  useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass, mode, source })); } catch { /* private mode */ } }, [url, ssid, pass, mode, source]);
 
   const known = Object.values(entries).filter((e) => e.hello)
     .sort((a, b) => Number(a.usb) - Number(b.usb) || (a.hello!.name || a.node).localeCompare(b.hello!.name || b.node));
   const nameOf = (n: string) => entries[n]?.hello?.name || n;
+  // The release image for the board the console is connected to; other
+  // board types get theirs through imageUrlFor (same folder layout).
+  const homeBoard = known.find((e) => e.usb)?.hello?.board ?? known[0]?.hello?.board ?? "esp32-devkit-v1";
+  const meshUrl = source === "release" ? releaseUrl(homeBoard) : url;
 
   // What each board is doing about updates RIGHT NOW, from the board —
   // not from this page's memory, which a refresh wipes: a half-received
@@ -98,17 +107,24 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     setImageErr(null);
     try {
       if (link.via === "sim") {  // no server behind the URL: a fake image of the right size
-        const build = url.replace(/\/firmware\.bin$/, "").split("/").pop() || "simnew";
+        const build = source === "release" ? "release" : url.replace(/\/firmware\.bin$/, "").split("/").pop() || "simnew";
         setImage({ bytes: new Uint8Array(27000), sha256: "0".repeat(64), build: build.slice(0, 12) });
         return;
       }
       images.current.clear();
-      setImage(file ? await fileImage(file) : await fetchImage(url));
+      setImage(file ? await fileImage(file) : await fetchImage(meshUrl));
     } catch (e) {
       setImage(null);
       setImageErr((e as Error).message);
     }
   };
+
+  // The release needs no setup: load it as soon as the panel knows which
+  // board it's talking to (and again if the source or that board changes).
+  useEffect(() => {
+    if (mode === "mesh" && source === "release" && known.length) void loadImage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, source, homeBoard, known.length > 0]);
 
   // A board that was sent an update is done when its hello shows a
   // different build; it goes quiet (missing) while it downloads and reboots.
@@ -151,9 +167,9 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
       // A board of another profile than the loaded image: fetch its own.
       let img: Image = image;
       const board = en.hello?.board;
-      if (board && !image.board?.startsWith(board) && !image.board && link.via !== "sim" && url) {
-        const own = imageUrlFor(url, board);
-        if (own !== url) {
+      if (board && !image.board?.startsWith(board) && !image.board && link.via !== "sim" && meshUrl) {
+        const own = imageUrlFor(meshUrl, board);
+        if (own !== meshUrl) {
           try {
             img = images.current.get(board) ?? await fetchImage(own);
             images.current.set(board, img);
@@ -203,29 +219,50 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
             : "Each board joins your WiFi and fetches the image itself — fast, when your WiFi reaches the board. Details stay in this browser."}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={sys(500, 11.5, C.t4)}>Run <code style={mono(600, 11, C.t2)}>python3 tools/ota_serve.py --build</code> on the laptop and paste its URL:</span>
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://192.168.1.20:8266/firmware.bin" style={{ ...field, width: 300 }} />
-        {mode === "mesh" ? (
-          <>
-            <button onClick={() => void loadImage()} disabled={!url || image === "loading"} style={btn(false, !url || image === "loading")}>Load image</button>
-            <label style={{ ...btn(), display: "inline-flex", alignItems: "center" }} title="…or pick a firmware.bin from this computer">
-              from file
-              <input type="file" accept=".bin" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadImage(f); }} />
-            </label>
-            {image === "loading" && <Spinner />}
-            {imageErr && <span style={mono(600, 11, C.red)}>✕ {imageErr} — is ota_serve.py running?</span>}
-            {typeof image === "object" && image && <span style={mono(600, 11, C.green)}>✓ image build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB</span>}
-          </>
-        ) : (
-          <>
-            <button onClick={() => void check()} disabled={!url} style={btn(false, !url)}>Check</button>
-            {served === "checking" && <Spinner />}
-            {served === "error" && <span style={mono(600, 11, C.red)}>✕ nothing served there — is ota_serve.py running, and the laptop on the same WiFi?</span>}
-            {typeof served === "object" && served && <span style={mono(600, 11, C.green)}>✓ serving build {served.build} · {(served.size / 1024).toFixed(0)} kB</span>}
-          </>
-        )}
-      </div>
+      {mode === "mesh" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={sys(500, 11.5, C.t4)}>Image:</span>
+          <span style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => { if (source !== "release") { setImage(null); setImageErr(null); setSource("release"); } }} style={pill(source === "release")} title="The firmware published on the PropMesh site — the latest release, built for each board type">Latest release</button>
+            <button onClick={() => { if (source !== "own") { setImage(null); setImageErr(null); setSource("own"); } }} style={pill(source === "own")} title="A build of your own: from tools/ota_serve.py, or a .bin file">My own build</button>
+          </span>
+          {source === "release" && image === "loading" && <><Spinner /><span style={sys(400, 11.5, C.t4)}>loading from the PropMesh site…</span></>}
+          {source === "release" && imageErr && (
+            <span style={mono(600, 11, C.red)}>✕ couldn't load the release ({imageErr}) — is this computer online? <span onClick={() => void loadImage()} style={{ textDecoration: "underline", cursor: "pointer" }}>retry</span></span>
+          )}
+          {source === "release" && typeof image === "object" && image && (
+            <span style={mono(600, 11, C.green)}>✓ latest release · build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB — each board type gets its own</span>
+          )}
+        </div>
+      )}
+      {(mode === "wifi" || source === "own") && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={sys(500, 11.5, C.t4)}>
+            {mode === "wifi" ? "Over WiFi the boards download the image themselves from a server on your network: run " : "Run "}
+            <code style={mono(600, 11, C.t2)}>python3 tools/ota_serve.py --build</code> on the laptop and paste its URL:
+          </span>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://192.168.1.20:8266/firmware.bin" style={{ ...field, width: 300 }} />
+          {mode === "mesh" ? (
+            <>
+              <button onClick={() => void loadImage()} disabled={!url || image === "loading"} style={btn(false, !url || image === "loading")}>Load image</button>
+              <label style={{ ...btn(), display: "inline-flex", alignItems: "center" }} title="…or pick a firmware.bin from this computer">
+                from file
+                <input type="file" accept=".bin" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadImage(f); }} />
+              </label>
+              {image === "loading" && <Spinner />}
+              {imageErr && <span style={mono(600, 11, C.red)}>✕ {imageErr} — is ota_serve.py running?</span>}
+              {typeof image === "object" && image && <span style={mono(600, 11, C.green)}>✓ image build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB</span>}
+            </>
+          ) : (
+            <>
+              <button onClick={() => void check()} disabled={!url} style={btn(false, !url)}>Check</button>
+              {served === "checking" && <Spinner />}
+              {served === "error" && <span style={mono(600, 11, C.red)}>✕ nothing served there — is ota_serve.py running, and the laptop on the same WiFi?</span>}
+              {typeof served === "object" && served && <span style={mono(600, 11, C.green)}>✓ serving build {served.build} · {(served.size / 1024).toFixed(0)} kB</span>}
+            </>
+          )}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {mode === "wifi" && (
           <>
