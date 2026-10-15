@@ -54,7 +54,8 @@ static uint16_t interval_ms = 1000, window_ms = 100;
 static uint32_t hold_until_ms;
 static const char *cause = "power";
 static int wake_gpio = -1;
-static bool show_tier;  // modem sleep configured
+static bool show_tier;  // in the show tier (modem sleep, or awake on a repeater)
+static bool relay;      // battery repeater (docs §6m): awake and relaying in the show tier
 
 // Pins the board profile marks `wake` (ESP32: RTC GPIOs; C6: LP GPIO
 // 0-7; C3: GPIO 0-5) — the only ones the chip can wake on. The ESP32 and
@@ -113,6 +114,16 @@ void pm_sleep_after_boot(const PmNodeConfig &cfg) {
 
 void pm_sleep_apply(const PmNodeConfig &cfg) {
   battery = cfg.battery;
+  bool was_relay = relay;
+  relay = cfg.battery && cfg.sleep_relay;
+  // The repeater setting changed mid-show: leave the tier so the next
+  // pass re-enters it the right way (windows, or awake).
+  if (show_tier && relay != was_relay) {
+    esp_now_set_wake_window(65535);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    pm_mesh_set_stale_ms(PM_SYNC_STALE_MS);
+    show_tier = false;
+  }
   checkin_ms = cfg.sleep_checkin_ms;
   interval_ms = cfg.sleep_interval_ms;
   window_ms = cfg.sleep_window_ms;
@@ -125,7 +136,9 @@ void pm_sleep_hold(uint32_t ms) {
   if ((int32_t)(until - hold_until_ms) > 0) hold_until_ms = until;
 }
 bool pm_sleep_supported() { return true; }
-uint16_t pm_sleep_listen_ms() { return show_tier ? interval_ms : 0; }
+// 0 on a repeater: it is awake through the show, so others needn't send
+// cues early or repeat them into a window.
+uint16_t pm_sleep_listen_ms() { return show_tier && !relay ? interval_ms : 0; }
 bool pm_sleep_holding() { return (int32_t)(millis() - hold_until_ms) < 0; }
 const char *pm_sleep_wake_cause() { return cause; }
 int pm_sleep_wake_gpio() { return wake_gpio; }
@@ -134,7 +147,14 @@ int pm_sleep_wake_gpio() { return wake_gpio; }
 static void set_show_tier(bool on) {
   if (on == show_tier) return;
   show_tier = on;
-  if (on) {
+  if (on && relay) {
+    // A battery repeater relays for the boards behind it, and a relay
+    // can't doze: frames sent while it slept would be lost (no store-and-
+    // forward). So the show tier keeps the radio on, like a mains board.
+    esp_now_set_wake_window(65535);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    Serial.println("sleep: show tier — repeater, awake and relaying until the show is off");
+  } else if (on) {
     esp_wifi_connectionless_module_set_wake_interval(interval_ms);
     esp_now_set_wake_window(window_ms);
     esp_wifi_set_ps(WIFI_PS_MIN_MODEM);

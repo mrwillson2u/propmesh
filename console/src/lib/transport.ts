@@ -18,6 +18,7 @@ export interface NodeHello {
   ble?: boolean; // false: built without Bluetooth (the HUZZAH32) — can't drive floods. Absent on firmware before 2026-10-11
   awake?: boolean; // held awake (console or sensor) rather than free to sleep
   checkin_ms?: number;
+  relay?: boolean; // a battery repeater: relays while the show runs (docs §6m)
   pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;
@@ -410,6 +411,10 @@ interface SimNode {
 
 interface SimBleLight { addr: string; type: string; rssi: number; state: "found" | "pairing" | "paired" | "failed" | "other"; number?: number; key?: string; at: number }
 
+// NodeRole as the firmware sets it (pm_node_apply): a bridge relays and keeps
+// the clock; a battery board is a leaf unless it is a repeater (docs §6m).
+const simRole = (cfg: NodeConfig) => cfg.bridge ? 7 : cfg.power === "battery" && !cfg.sleep?.relay ? 0 : 1;
+
 class SimLink implements NodeLink {
   readonly via = "sim" as const;
   private nodes = new Map<string, SimNode>();
@@ -457,7 +462,7 @@ class SimLink implements NodeLink {
       if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
       if (o) return; // off the mesh while it downloads and reboots
       const hb: Heartbeat = {
-        node: r.node, board: 0, role: 1 | (n.cfg.bridge ? 6 : 0), fw: 3,
+        node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
         batt: 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
@@ -477,7 +482,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: 1 | (n.cfg.bridge ? 6 : 0), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? 300000, sleeps: true, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };

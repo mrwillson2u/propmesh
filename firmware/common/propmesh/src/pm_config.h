@@ -100,6 +100,10 @@ struct PmNodeConfig {
   uint16_t sleep_interval_ms = 1000;
   uint16_t sleep_window_ms = 100;
   uint32_t sleep_checkin_ms = 300000;  // 5 min
+  // Battery repeater (docs §6m): while the show runs, stay fully awake and
+  // relay for other boards instead of listening in windows; the off tier
+  // is unchanged. Ignored unless `battery`.
+  bool sleep_relay = false;
   uint8_t channel_count = 0;
   PmChannelCfg channels[PM_MAX_CHANNELS];
 };

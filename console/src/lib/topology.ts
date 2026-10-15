@@ -15,6 +15,10 @@ export interface TopoNode {
   conductor: boolean;
   missing: boolean;
   depth: number; // hops from the root over live links; -1 = unreachable
+  batteryRelay: boolean; // a battery repeater (docs §6m): relays only while the show runs
+  // Reaches the root only through a battery repeater — cut off while it
+  // sleeps. The repeater's id, or undefined.
+  viaBattery?: string;
 }
 
 export interface TopoLink {
@@ -64,11 +68,15 @@ export function buildTopology(c: Connection, now = Date.now()): Topology {
     Object.assign(l, linkStyle(l.rssi, l.lost));
   }
 
+  // A battery repeater: on battery and relaying (docs §6m).
+  const batteryRelay = new Set(entries.filter((e) => e.hello?.power === "battery" && (roleOf(e) & NodeRole.RELAY)).map((e) => e.node));
+
   // Depth: breadth-first from the conductor over live links.
   const conductor = entries.find((e) => roleOf(e) & NodeRole.CONDUCTOR)?.node
     ?? c.local?.conductor ?? null;
   const root = conductor && ids.has(conductor) ? conductor : c.hello.node;
   const depth = new Map<string, number>([[root, 0]]);
+  const parent = new Map<string, string>();
   const queue = [root];
   while (queue.length) {
     const at = queue.shift()!;
@@ -77,9 +85,28 @@ export function buildTopology(c: Connection, now = Date.now()): Topology {
       const other = l.a === at ? l.b : l.a;
       if (depth.has(other)) continue;
       depth.set(other, depth.get(at)! + 1);
+      parent.set(other, at);
       queue.push(other);
     }
   }
+  // The same walk, but never THROUGH a battery repeater: whoever it misses
+  // depends on one (named by the first repeater up its route).
+  const solid = new Set([root]);
+  const q2 = [root];
+  while (q2.length) {
+    const at = q2.shift()!;
+    if (at !== root && batteryRelay.has(at)) continue;
+    for (const l of links.values()) {
+      if (l.lost || (l.a !== at && l.b !== at)) continue;
+      const other = l.a === at ? l.b : l.a;
+      if (!solid.has(other)) { solid.add(other); q2.push(other); }
+    }
+  }
+  const viaBattery = (id: string) => {
+    if (solid.has(id) || !depth.has(id)) return undefined;
+    for (let at = parent.get(id); at; at = parent.get(at)) if (batteryRelay.has(at)) return at;
+    return undefined;
+  };
 
   const nodes: TopoNode[] = entries.map((e) => {
     const role = roleOf(e);
@@ -91,6 +118,8 @@ export function buildTopology(c: Connection, now = Date.now()): Topology {
       bridge: !!(role & NodeRole.BRIDGE),
       conductor: !!(role & NodeRole.CONDUCTOR),
       missing: missing.has(e.node),
+      batteryRelay: batteryRelay.has(e.node),
+      viaBattery: viaBattery(e.node),
       // A node with no link report yet (just heard, before its first
       // neighbor table fills) still has a hop count from its heartbeat.
       depth: depth.get(e.node) ?? (missing.has(e.node) ? -1 : (e.hb ? e.hb.hops + 1 : -1)),

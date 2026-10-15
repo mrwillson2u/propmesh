@@ -35,4 +35,29 @@ A sleeping board wakes the moment its own sensor fires, but only from certain pi
 Anything that needs it awake. While the show runs, a scare that involves a battery board starts about a second after the sensor fires instead of almost at once, because the cue has to wait for the board's next listen window. While the show is off, it only wakes for its own sensor. Use it for props that do their own thing, such as a sensor and a light on the same board, and keep props with tight timing on mains power.
 </Aside>
 
+## A battery board as a repeater
+
+Sometimes the far corner of the yard is out of radio range of everything else, and there's no outlet to power a board in between. A battery board can bridge that gap by passing messages along, which the mesh calls **relaying**. A relay can't doze, though. Anything sent while it sleeps is simply lost, so a relay has to keep its radio on, and that costs about 100 mA. There are two ways to set one up.
+
+**For a short run on a big battery, leave On battery switched off.** The board then behaves like any plugged-in board: it relays all the time, fires its own sensor instantly, and still reports its battery voltage. Runtime depends on the battery:
+
+| Battery | Runtime, always on |
+|---|---|
+| 10,000 mAh | about 4 days |
+| 20,000 mAh | about a week |
+
+A USB power bank plugged into the board's USB port works well here.
+
+**For weeks on a battery, switch On battery on and turn on Relay for other boards while the show runs** in its **SLEEP** settings. The board stays awake and relays during the show, then deep-sleeps when the show is off. With a 5-hour show each night, a 10,000 mAh battery lasts roughly two to three weeks. Use a LiPo on the battery connector for this one: many power banks switch themselves off when the board's draw drops in deep sleep.
+
+<Aside type="caution" title="What the boards behind it lose">
+While the repeater sleeps, any board that reaches the bridge only through it is cut off from the console. Those boards keep running their own schedule and triggers, and any edits you save reach them when the repeater wakes for the next show. The Yard marks these boards **☾ via battery relay**. If you need to reach one after hours, wait for the repeater's next check-in, five minutes by default.
+</Aside>
+
+<Aside type="note" title="Not yet tested on real boards">
+The repeater setting is new and has only run in the console's simulator. The runtimes above are worked out from published figures, not measured.
+</Aside>
+
+## On the Yard
+
 In the Yard, a sleeping board shows **☾ asleep** and its battery voltage. The voltage turns amber when it is getting low (under 3.5 V).

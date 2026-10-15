@@ -35,8 +35,11 @@ bool pm_node_apply(const PmNodeConfig &cfg) {
   if (cfg.bridge) {
     role |= PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR;
   } else if (cfg.battery) {
-    // A battery board is a leaf: it never relays (and never keeps the clock).
+    // A battery board never keeps the clock and is never the bridge. It is
+    // a leaf (never relays) unless it is a battery repeater (docs §6m),
+    // which relays while awake — the show tier keeps it awake.
     role = role & ~(PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR);
+    if (cfg.sleep_relay) role |= PM_NODE_ROLE_RELAY;
   } else {
     role = (role | PM_NODE_ROLE_RELAY) & ~PM_NODE_ROLE_BRIDGE;
     // An elected (non-bridge) conductor keeps the clock; a former
@@ -79,6 +82,7 @@ static void cmd_hello(JsonObject resp) {
   if (pm_channels_config().battery) {
     resp["power"] = "battery";
     resp["checkin_ms"] = pm_channels_config().sleep_checkin_ms;
+    if (pm_channels_config().sleep_relay) resp["relay"] = true;  // a battery repeater (docs §6m)
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }

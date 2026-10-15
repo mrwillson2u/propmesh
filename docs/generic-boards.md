@@ -1297,7 +1297,7 @@ static RAM. DevKit and C6 builds unchanged.
   a button on GPIO 1 → deep sleep and wake, with `hello.reset` saying
   "deep sleep" and the boot event naming GPIO 1.
 
-## 6m. Battery repeater (designed 2026-10-14, not built)
+## 6m. Battery repeater (built 2026-10-14, simulator only)
 
 Colin's ask: a Feather on a large battery as a **repeater** for the far
 end of the yard, with a sensor or nothing else wired to it.
@@ -1366,6 +1366,22 @@ should say so.
   battery page: when to leave *On battery* off (big battery, short
   season), when to use the relay toggle (weeks on a battery), what the
   boards behind it lose after hours.
+
+**As built (2026-10-14).** Exactly the design above. Firmware:
+`PmNodeConfig.sleep_relay`; `pm_node_apply` keeps RELAY for it;
+`set_show_tier` with relay leaves the radio on (`WIFI_PS_NONE`, no wake
+window) and `pm_sleep_listen_ms()` reports 0, so the bridge treats it
+like a mains relay during the show; changing the setting mid-show leaves
+the tier so it re-enters the right way; `hello.relay`. Host test
+`test_battery_repeater_setting_round_trips`. Console: the toggle under
+SLEEP (the listen row dims when it's on); the simulator now gives
+battery boards the leaf / relay role the firmware does; `topology.ts`
+walks the routes a second time without passing through battery
+repeaters, and whoever that misses gets `viaBattery` — the Yard header
+counts them ("☾ N via battery relay") and the detail panel says which
+repeater and what that means. Checked in the simulator with Skeleton as
+a repeater: Porch lantern (reached only through it) is flagged. Not on
+hardware.
 
 **Other tricks, considered**
 - **A relay that listens in windows (modem sleep + RELAY).** The
