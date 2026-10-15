@@ -513,6 +513,12 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
         <Stat k="CONNECTION" v={n.usb ? directTag() : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
         <Stat k="LAST HEARD" v={n.usb ? "on the cable" : `${age(now - e.seen)} ago`} color={n.missing && e.hello?.power !== "battery" ? C.red : undefined} />
         {e.hello?.power === "battery" && <Stat k="SLEEP" v={n.missing ? `asleep · ${checkinText(e.hello.checkin_ms, now)}` : hb?.listen ? `listening ${hb.listen} ms windows` : e.hello.awake ? "awake (held)" : "awake"} />}
+        {e.hello?.power === "battery" && (e.hello.awake_ms || e.hello.drift_ppm !== undefined) && (
+          <Stat k="LAST CHECK-IN" v={[
+            e.hello.awake_ms ? `awake ${(e.hello.awake_ms / 1000).toFixed(1)} s` : "",
+            e.hello.drift_ppm !== undefined ? `clock ${Math.abs(e.hello.drift_ppm / 10000).toFixed(2)} % ${e.hello.drift_ppm >= 0 ? "fast" : "slow"}, corrected` : "",
+          ].filter(Boolean).join(" · ")} />
+        )}
         <Stat k="UPTIME" v={uptime(hb?.up)} />
         {hb && hb.batt > 0 && <Stat k="BATTERY" v={`${(hb.batt / 1000).toFixed(2)} V`} color={hb.batt < 3500 ? C.amber : undefined} />}
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />

@@ -1461,8 +1461,33 @@ rides in RTC memory so the timer wake holds `dwell + 2 × guard`. The
 console shows "next check-in HH:MM:SS" for a sleeping board (roster
 tooltip, Yard) from the same grid (`nextCheckin` in `lib/connection.ts`).
 **Not built yet:** queueing a console request to go out in the slot —
-today you still retry by hand, but now you know when. The drift
-self-correction is still the later refinement.
+today you still retry by hand, but now you know when.
+
+**Shorter check-ins and drift self-correction (built 2026-10-14; host
+tests and builds only).**
+- *Early release.* A check-in used to hold a fixed `dwell + 2 × guard`
+  (14 s at 5 min). Now that is only the ceiling: the first heartbeat goes
+  ~0.5 s after a wake (it used to wait 5 s), and the board sleeps again
+  once the bridge has been heard and 1.5 s more have passed (time for a
+  sync pull to start and hold it). A repeater also stays until
+  `slot + guard + 6 s` — the latest a board behind it can wake, plus one
+  beacon period — so its saving is smaller; a leaf's check-in should
+  drop to roughly 3–5 s (most of it waiting for the next beacon). No
+  bridge heard: the old ceiling applies.
+- *Drift.* The wall clock rides through deep sleep on the same RC
+  oscillator as the wake timer, so the jump it takes at the first
+  conductor beacon (`pm_wall_first_step`, recorded in `pm_mesh.cpp`)
+  over how long the RTC thought it slept is the oscillator's error.
+  Measured each wake (sleeps ≥ 60 s, jumps within ±5 %), blended 3:1
+  with the last value, kept in RTC memory; the next sleep asks for
+  `real × (1 + ppm)`. Once measured the guard drops from 1 % to 0.3 %
+  of the period + 1 s (4 s → 1 s at 5 min). Pure math in `pm_checkin.h`,
+  two more host tests.
+- *Visible:* `hello.awake_ms` (how long the last wake lasted) and
+  `hello.drift_ppm`; the Yard's detail panel shows them as **LAST
+  CHECK-IN**, and the serial log prints both at every sleep. That is
+  the bench check without a meter: watch `awake` fall to a few seconds
+  and the clock error settle after two or three check-ins.
 
 **Bench test without a battery.** *On battery* is a setting, not a
 sensor: a board on USB power sleeps and relays exactly as on a cell, and

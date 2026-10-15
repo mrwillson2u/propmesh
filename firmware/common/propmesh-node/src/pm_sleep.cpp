@@ -15,6 +15,8 @@ bool pm_sleep_supported() { return false; }
 uint16_t pm_sleep_listen_ms() { return 0; }
 const char *pm_sleep_wake_cause() { return "power"; }
 int pm_sleep_wake_gpio() { return -1; }
+bool pm_sleep_drift_ppm(int32_t *) { return false; }
+uint32_t pm_sleep_last_awake_ms() { return 0; }
 bool pm_sleep_rtc_pin(uint8_t g) { const pm_board_pin_t *p = pm_board_pin(PM_BOARD_PROFILE, g); return p && (p->caps & PM_CAP_WAKE); }
 #else
 #include <Arduino.h>
@@ -51,11 +53,25 @@ RTC_DATA_ATTR static bool rtc_clock_ok;
 // The check-in grid's guard for the sleep just ended (pm_checkin.h): a
 // board woke this early, so it stays this long past the slot as well.
 RTC_DATA_ATTR static uint32_t rtc_guard_s;
+RTC_DATA_ATTR static uint32_t rtc_slot_s;        // the grid slot this wake is for (UTC s); 0 = not a grid wake
+// Drift self-correction (§6m): the wall clock when we went to sleep, the
+// sleep clock's measured error, and how long the previous wake lasted.
+RTC_DATA_ATTR static int64_t rtc_sleep_utc_ms;   // 0 = no clock at sleep
+RTC_DATA_ATTR static int32_t rtc_drift_ppm;
+RTC_DATA_ATTR static bool rtc_drift_ok;
+RTC_DATA_ATTR static uint32_t rtc_awake_ms;
 
 static bool battery;
 static uint32_t checkin_ms = 300000;
 static uint16_t interval_ms = 1000, window_ms = 100;
-static uint32_t hold_until_ms;
+static uint32_t hold_until_ms;   // explicit holds: a console request, a sync pull, a sensor wake
+// A check-in's wake: at most this long (the old fixed dwell, the fallback
+// when no bridge is heard); released early once its job is done (§6m).
+static uint32_t wake_until_ms;
+static bool check_in;            // this boot is a timer wake on the grid
+static uint32_t first_bridge_ms; // millis() the bridge was first heard this boot
+static int64_t wake_utc_ms;      // the wall clock as the RTC restored it at wake
+static bool drift_done;          // measured (or given up) this boot
 static const char *cause = "power";
 static int wake_gpio = -1;
 static bool show_tier;  // in the show tier (modem sleep, or awake on a repeater)
@@ -95,13 +111,21 @@ void pm_sleep_begin() {
     gettimeofday(&tv, nullptr);
     if (rtc_clock_ok && tv.tv_sec > 1600000000) {
       PmWallClock &w = pm_wall();
-      w.set_utc((int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000, millis());
+      wake_utc_ms = (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      w.set_utc(wake_utc_ms, millis());
       w.set_tz(rtc_tz_min, rtc_tz_next_s, rtc_tz_next_min);
     }
-    // A timer wake on the grid came `guard` early: stay through the slot
-    // and `guard` past it, then the usual dwell, so every board's window
-    // overlaps at the slot whichever way its clock drifted.
-    hold_until_ms = millis() + (cause[0] == 's' ? SENSOR_HOLD_MS : BOOT_DWELL_MS + 2000UL * rtc_guard_s);
+    if (cause[0] == 's') {
+      hold_until_ms = millis() + SENSOR_HOLD_MS;
+    } else {
+      // A timer wake on the grid came `guard` early. At most it stays
+      // through the slot and `guard` past it plus the dwell, so every
+      // board's window overlaps at the slot whichever way its clock
+      // drifted; pm_sleep_loop lets it go sooner once its job is done.
+      check_in = rtc_slot_s != 0;
+      hold_until_ms = millis();
+      wake_until_ms = millis() + BOOT_DWELL_MS + 2000UL * rtc_guard_s;
+    }
   } else {
     hold_until_ms = millis() + BOOT_DWELL_MS;
   }
@@ -146,7 +170,47 @@ bool pm_sleep_supported() { return true; }
 // 0 on a repeater: it is awake through the show, so others needn't send
 // cues early or repeat them into a window.
 uint16_t pm_sleep_listen_ms() { return show_tier && !relay ? interval_ms : 0; }
-bool pm_sleep_holding() { return (int32_t)(millis() - hold_until_ms) < 0; }
+bool pm_sleep_holding() {
+  uint32_t now = millis();
+  return (int32_t)(now - hold_until_ms) < 0 || (int32_t)(now - wake_until_ms) < 0;
+}
+bool pm_sleep_drift_ppm(int32_t *ppm) { if (rtc_drift_ok) *ppm = rtc_drift_ppm; return rtc_drift_ok; }
+uint32_t pm_sleep_last_awake_ms() { return rtc_awake_ms; }
+
+// Drift self-correction (§6m): the first conductor beacon after a deep
+// sleep says how far the RTC-carried wall clock wandered while asleep.
+static void measure_drift() {
+  if (drift_done || !wake_utc_ms || !rtc_sleep_utc_ms) return;
+  int64_t step;
+  if (!pm_wall_first_step(&step)) return;
+  drift_done = true;
+  int64_t slept = wake_utc_ms - rtc_sleep_utc_ms;
+  int32_t ppm;
+  if (!pm_drift_ppm(step, slept, &ppm)) {
+    Serial.printf("sleep: clock off by %+lld ms after %lld s asleep — not used for drift\n", (long long)step, (long long)(slept / 1000));
+    return;
+  }
+  rtc_drift_ppm = pm_drift_blend(rtc_drift_ppm, rtc_drift_ok, ppm);
+  rtc_drift_ok = true;
+  Serial.printf("sleep: clock off by %+lld ms after %lld s asleep (%+ld ppm); correcting by %+ld ppm\n",
+                (long long)step, (long long)(slept / 1000), (long)ppm, (long)rtc_drift_ppm);
+}
+
+// A check-in can end once its job is done (§6m): our heartbeat is out (the
+// first goes ~0.5 s after a timer wake), the bridge has been heard (so the
+// mesh path is up and the beacon's edit stamps have arrived), and a
+// moment has passed for a sync pull to start and hold us itself. A
+// repeater also stays until the latest a board behind it can arrive —
+// `guard` past the slot — plus one beacon period, so that board hears the
+// bridge through it.
+static void release_check_in() {
+  if (!check_in || (int32_t)(millis() - wake_until_ms) >= 0) return;
+  uint32_t heard = pm_mesh_bridge_heard_at_ms();
+  if (heard && !first_bridge_ms) first_bridge_ms = millis();
+  if (!first_bridge_ms || millis() < 1500 || millis() - first_bridge_ms < 1500) return;
+  if (relay && (!pm_wall().utc_ok || pm_wall_utc_ms() / 1000 < (int64_t)rtc_slot_s + rtc_guard_s + 6)) return;
+  wake_until_ms = millis();
+}
 const char *pm_sleep_wake_cause() { return cause; }
 int pm_sleep_wake_gpio() { return wake_gpio; }
 
@@ -175,7 +239,7 @@ static void set_show_tier(bool on) {
   }
 }
 
-static void deep_sleep(uint32_t seconds, const char *why) {
+static void deep_sleep(uint64_t ms, const char *why) {
   const PmNodeConfig &cfg = pm_channels_config();
   // Every sensor/button pin wakes us. ext1 takes one polarity for the whole
   // set: active-high pins (most PIRs) on ANY_HIGH; if every input is
@@ -199,7 +263,7 @@ static void deep_sleep(uint32_t seconds, const char *why) {
   if (hi) esp_deep_sleep_enable_gpio_wakeup(hi, ESP_GPIO_WAKEUP_GPIO_HIGH);
   if (lo) esp_deep_sleep_enable_gpio_wakeup(lo, ESP_GPIO_WAKEUP_GPIO_LOW);
 #endif
-  esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
+  esp_sleep_enable_timer_wakeup(ms * 1000ULL);
   // Carry the wall clock: the system clock runs on the RTC through sleep.
   PmWallClock &w = pm_wall();
   if (w.utc_ok) {
@@ -208,8 +272,10 @@ static void deep_sleep(uint32_t seconds, const char *why) {
     settimeofday(&tv, nullptr);
     rtc_tz_min = w.tz_min; rtc_tz_next_s = w.tz_next_s; rtc_tz_next_min = w.tz_next_min;
     rtc_clock_ok = w.tz_ok;
-  } else rtc_clock_ok = false;
-  Serial.printf("sleep: deep sleep %lu s (%s)%s\n", (unsigned long)seconds, why, hi || lo ? ", sensor pins wake" : "");
+    rtc_sleep_utc_ms = utc_ms;
+  } else { rtc_clock_ok = false; rtc_sleep_utc_ms = 0; }
+  rtc_awake_ms = millis();  // how long this wake lasted, for hello next time
+  Serial.printf("sleep: awake %lu ms; deep sleep %.1f s (%s)%s\n", (unsigned long)rtc_awake_ms, ms / 1000.0, why, hi || lo ? ", sensor pins wake" : "");
   Serial.flush();
   delay(50);
   esp_deep_sleep_start();
@@ -217,6 +283,8 @@ static void deep_sleep(uint32_t seconds, const char *why) {
 
 void pm_sleep_loop() {
   if (!battery) return;
+  measure_drift();
+  release_check_in();
   bool off = pm_show_mode() == PM_MODE_OFF;
   set_show_tier(!off && !pm_sleep_holding());
   if (!off || pm_sleep_holding()) return;
@@ -229,20 +297,25 @@ void pm_sleep_loop() {
   // a full period from now.
   uint32_t secs = checkin_ms / 1000;
   rtc_guard_s = 0;
+  rtc_slot_s = 0;
   bool clock = pm_wall().utc_ok;
   if (clock) {
-    PmCheckinPlan plan = pm_checkin_plan((uint64_t)(pm_wall_utc_ms() / 1000), checkin_ms / 1000, MIN_SLEEP_S);
+    PmCheckinPlan plan = pm_checkin_plan((uint64_t)(pm_wall_utc_ms() / 1000), checkin_ms / 1000, MIN_SLEEP_S,
+                                         pm_checkin_guard(checkin_ms / 1000, rtc_drift_ok));
     secs = plan.sleep_s;
     rtc_guard_s = plan.guard_s;
+    rtc_slot_s = (uint32_t)plan.slot_s;
   }
   bool window = false;
   uint32_t next = pm_show_next_change_s();
   if (next && clock) {
     int64_t until = (int64_t)next - pm_wall_utc_ms() / 1000 - WINDOW_LEAD_S;
-    if (until > 0 && until < secs) { secs = (uint32_t)until; window = true; rtc_guard_s = 0; }
+    if (until > 0 && until < secs) { secs = (uint32_t)until; window = true; rtc_guard_s = 0; rtc_slot_s = 0; }
   }
   if (secs < MIN_SLEEP_S) { pm_sleep_hold(MIN_SLEEP_S * 1000); return; }
-  deep_sleep(secs, window ? "until the next schedule window" : clock ? "check-in (on the grid)" : "check-in (no clock yet)");
+  // Real seconds → what to ask this board's (measured) sleep clock for.
+  uint64_t ms = rtc_drift_ok ? pm_drift_correct_ms((uint64_t)secs * 1000, rtc_drift_ppm) : (uint64_t)secs * 1000;
+  deep_sleep(ms, window ? "until the next schedule window" : clock ? "check-in (on the grid)" : "check-in (no clock yet)");
 }
 
 #endif  // PM_NO_SLEEP

@@ -276,8 +276,8 @@ static void test_loop_index_is_shared() {
 // Check-ins land on a shared UTC grid (§6m): two boards that fell asleep
 // at different moments, with the same period, wake for the same slot.
 static void test_checkin_grid_aligns_boards() {
-  PmCheckinPlan a = pm_checkin_plan(1000000000ULL + 17, 300, 20);
-  PmCheckinPlan b = pm_checkin_plan(1000000000ULL + 140, 300, 20);
+  PmCheckinPlan a = pm_checkin_plan(1000000000ULL + 17, 300, 20, pm_checkin_guard(300, false));
+  PmCheckinPlan b = pm_checkin_plan(1000000000ULL + 140, 300, 20, pm_checkin_guard(300, false));
   TEST_ASSERT_EQUAL_UINT64(a.slot_s, b.slot_s);
   TEST_ASSERT_EQUAL_UINT64(0, a.slot_s % 300);
   TEST_ASSERT_EQUAL_UINT32(4, a.guard_s);  // 1 % of 300 s, + 1 s
@@ -287,17 +287,40 @@ static void test_checkin_grid_aligns_boards() {
 // A slot too close to bother sleeping for is skipped for the next one.
 static void test_checkin_skips_a_slot_too_close() {
   uint64_t slot = (1000000200ULL / 300) * 300 + 300;  // a slot on the grid
-  PmCheckinPlan p = pm_checkin_plan(slot - 10, 300, 20);
+  PmCheckinPlan p = pm_checkin_plan(slot - 10, 300, 20, pm_checkin_guard(300, false));
   TEST_ASSERT_EQUAL_UINT64(slot + 300, p.slot_s);
   TEST_ASSERT_TRUE(p.sleep_s >= 20);
 }
 
 // A 10-minute board meets the 5-minute ones on every other slot.
 static void test_checkin_longer_period_meets_shorter() {
-  PmCheckinPlan five = pm_checkin_plan(1800000000ULL + 5, 300, 20);
-  PmCheckinPlan ten = pm_checkin_plan(1800000000ULL + 5, 600, 20);
+  PmCheckinPlan five = pm_checkin_plan(1800000000ULL + 5, 300, 20, 4);
+  PmCheckinPlan ten = pm_checkin_plan(1800000000ULL + 5, 600, 20, 7);
   TEST_ASSERT_EQUAL_UINT64(0, ten.slot_s % 300);
   TEST_ASSERT_TRUE(ten.slot_s == five.slot_s || ten.slot_s == five.slot_s + 300);
+}
+
+// Drift: a board whose clock read 3 s ahead after 300 s asleep runs 1 %
+// fast, asks for a 1 % longer sleep next time, and earns a tighter guard.
+static void test_drift_measured_and_corrected() {
+  int32_t ppm = 0;
+  TEST_ASSERT_TRUE(pm_drift_ppm(3000, 300000, &ppm));
+  TEST_ASSERT_EQUAL_INT32(10000, ppm);
+  TEST_ASSERT_EQUAL_UINT64(303000, pm_drift_correct_ms(300000, ppm));
+  TEST_ASSERT_EQUAL_UINT64(297000, pm_drift_correct_ms(300000, -ppm));
+  TEST_ASSERT_EQUAL_UINT32(4, pm_checkin_guard(300, false));
+  TEST_ASSERT_EQUAL_UINT32(1, pm_checkin_guard(300, true));
+  TEST_ASSERT_EQUAL_UINT32(3, pm_checkin_guard(900, true));
+}
+
+// Not drift: too short a sleep to judge, or a jump no oscillator makes.
+static void test_drift_rejects_nonsense() {
+  int32_t ppm = 123;
+  TEST_ASSERT_FALSE(pm_drift_ppm(500, 30000, &ppm));     // 30 s asleep
+  TEST_ASSERT_FALSE(pm_drift_ppm(3600000, 300000, &ppm)); // an hour's jump
+  TEST_ASSERT_EQUAL_INT32(123, ppm);
+  TEST_ASSERT_EQUAL_INT32(10000, pm_drift_blend(0, false, 10000));
+  TEST_ASSERT_EQUAL_INT32(7500, pm_drift_blend(10000, true, 0));
 }
 
 int main() {
@@ -305,6 +328,8 @@ int main() {
   RUN_TEST(test_checkin_grid_aligns_boards);
   RUN_TEST(test_checkin_skips_a_slot_too_close);
   RUN_TEST(test_checkin_longer_period_meets_shorter);
+  RUN_TEST(test_drift_measured_and_corrected);
+  RUN_TEST(test_drift_rejects_nonsense);
   RUN_TEST(test_sun_matches_reference);
   RUN_TEST(test_polar_night_has_no_sunset);
   RUN_TEST(test_calendar);

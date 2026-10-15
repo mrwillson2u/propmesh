@@ -26,6 +26,11 @@ static PmDedup s_dedup;
 static PmNeighbors s_neighbors;
 static PmClock s_clock;
 static PmWallClock s_wall;
+// The jump the wall clock took at the first conductor beacon after boot
+// (local − conductor, ms): a board waking from deep sleep measures its
+// sleep clock's drift from it (pm_sleep, docs §6m).
+static bool s_wall_stepped, s_wall_step_ok;
+static int64_t s_wall_step_ms;
 // Beacons from firmware before 2026-10-09 end at `priority`: still read.
 #define TIME_V1_LEN offsetof(pm_time_t, wall_ms)
 static int64_t local_ms() { return esp_timer_get_time() / 1000; }
@@ -202,7 +207,13 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
     // Wall time comes from the conductor we follow; a beacon without it
     // leaves ours alone (a node the console set directly keeps that).
     if (!(s_role & PM_NODE_ROLE_CONDUCTOR) && t.conductor_id == s_clock.conductor()) {
-      if (t.wall_flags & 1) s_wall.set_utc((int64_t)t.wall_ms, local_ms());
+      if (t.wall_flags & 1) {
+        if (!s_wall_stepped) {
+          s_wall_stepped = true;
+          if (s_wall.utc_ok) { s_wall_step_ms = s_wall.utc_ms(local_ms()) - (int64_t)t.wall_ms; s_wall_step_ok = true; }
+        }
+        s_wall.set_utc((int64_t)t.wall_ms, local_ms());
+      }
       if (t.wall_flags & 2) s_wall.set_tz(t.tz_offset_min, t.tz_next_change_s, t.tz_next_offset_min);
       // The show's stamps: only a full-length beacon carries them.
       if (plen >= sizeof(pm_time_t) && s_stamps_cb) {
@@ -302,6 +313,8 @@ bool pm_mesh_recover(uint8_t ch) {
   pm_mesh_set_channel(ch);
   return true;
 }
+bool pm_wall_first_step(int64_t *ms) { if (s_wall_step_ok) *ms = s_wall_step_ms; return s_wall_step_ok; }
+uint32_t pm_mesh_bridge_heard_at_ms() { return s_last_bridge_ms; }
 uint16_t pm_mesh_bridge_age_s() {
   return s_last_bridge_ms ? (uint16_t)((millis() - s_last_bridge_ms) / 1000) : 0xFFFF;
 }

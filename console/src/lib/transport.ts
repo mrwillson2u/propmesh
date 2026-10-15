@@ -19,6 +19,8 @@ export interface NodeHello {
   awake?: boolean; // held awake (console or sensor) rather than free to sleep
   checkin_ms?: number;
   relay?: boolean; // a battery repeater: relays while the show runs (docs §6m)
+  drift_ppm?: number; // its sleep clock's measured error, corrected for (§6m)
+  awake_ms?: number; // how long its last wake lasted
   pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;
