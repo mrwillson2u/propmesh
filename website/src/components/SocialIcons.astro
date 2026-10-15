@@ -1,0 +1,42 @@
+---
+// Replaces Starlight's icon-only social links in the header with a labeled
+// button, so the GitHub link is easy to spot (2026-10-14). Wired up in
+// astro.config.mjs → components.SocialIcons.
+import config from 'virtual:starlight/user-config';
+import { Icon } from '@astrojs/starlight/components';
+
+const links = config.social || [];
+---
+
+{links.map(({ label, href, icon }) => (
+	<a {href} rel="me" class="social">
+		<Icon name={icon} size="1.15rem" />
+		<span class="label">{label}</span>
+	</a>
+))}
+
+<style>
+	.social {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.3rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 999px;
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.social:hover {
+		border-color: var(--sl-color-accent);
+		color: var(--sl-color-accent-high);
+		background: var(--sl-color-accent-low);
+	}
+	/* Narrow header: the icon alone, as before, but still in a button. */
+	@media (max-width: 50rem) {
+		.social { padding: 0.35rem; }
+		.label { display: none; }
+	}
+</style>
