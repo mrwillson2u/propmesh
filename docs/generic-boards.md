@@ -1422,7 +1422,7 @@ hardware.
   extension with a USB charger beats every trick above, where it
   exists. The battery repeater is for where it doesn't.
 
-**Synchronized check-ins (proposed 2026-10-14, not built).** Colin:
+**Synchronized check-ins (built 2026-10-14, one grid for every battery board — Colin; simulator and host tests only).** Colin:
 battery repeaters should check in *at the same time*. Today a board
 sleeps `checkin_ms` from whenever it fell asleep, so the moment drifts
 with every sensor wake, console hold and dwell; two repeaters in a
@@ -1451,6 +1451,17 @@ unreachable after hours even at check-in time. Design:
   slot, instead of the user retrying blind.
 - No protocol change; `checkin_ms` stays per board (the console can
   nudge "boards with the same check-in wake together").
+
+*As built:* `pm_checkin.h` (pure, three host tests in `test_schedule`)
+plans the next slot with guard = 1 % of the period + 1 s; `pm_sleep_loop`
+sleeps to it whenever the board has a wall clock (else the old "a period
+from now"), a schedule window that comes first still wins, and the guard
+rides in RTC memory so the timer wake holds `dwell + 2 × guard`. The
+console shows "next check-in HH:MM:SS" for a sleeping board (roster
+tooltip, Yard) from the same grid (`nextCheckin` in `lib/connection.ts`).
+**Not built yet:** queueing a console request to go out in the slot —
+today you still retry by hand, but now you know when. The drift
+self-correction is still the later refinement.
 
 **Bench test without a battery.** *On battery* is a setting, not a
 sensor: a board on USB power sleeps and relays exactly as on a cell, and

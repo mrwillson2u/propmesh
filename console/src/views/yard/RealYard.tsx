@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
-import { counts, getConnection, useConnection, type Connection } from "../../lib/connection";
+import { counts, getConnection, useConnection, type Connection, checkinText } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
@@ -512,7 +512,7 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
         <Stat k="MESH CLOCK" v={n.conductor ? "⏱ keeps it" : "follows"} />
         <Stat k="CONNECTION" v={n.usb ? directTag() : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
         <Stat k="LAST HEARD" v={n.usb ? "on the cable" : `${age(now - e.seen)} ago`} color={n.missing && e.hello?.power !== "battery" ? C.red : undefined} />
-        {e.hello?.power === "battery" && <Stat k="SLEEP" v={n.missing ? `asleep · checks in every ${e.hello.checkin_ms ? Math.round(e.hello.checkin_ms / 60000) : "?"} min` : hb?.listen ? `listening ${hb.listen} ms windows` : e.hello.awake ? "awake (held)" : "awake"} />}
+        {e.hello?.power === "battery" && <Stat k="SLEEP" v={n.missing ? `asleep · ${checkinText(e.hello.checkin_ms, now)}` : hb?.listen ? `listening ${hb.listen} ms windows` : e.hello.awake ? "awake (held)" : "awake"} />}
         <Stat k="UPTIME" v={uptime(hb?.up)} />
         {hb && hb.batt > 0 && <Stat k="BATTERY" v={`${(hb.batt / 1000).toFixed(2)} V`} color={hb.batt < 3500 ? C.amber : undefined} />}
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />

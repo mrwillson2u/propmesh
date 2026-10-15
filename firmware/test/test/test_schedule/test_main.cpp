@@ -1,6 +1,7 @@
 // Show schedule: sun times, calendar, window evaluation, manual hold, JSON.
 // docs/software-plan.md §4.1, docs/generic-boards.md §6e.
 #include <unity.h>
+#include "pm_checkin.h"
 #include "pm_schedule.h"
 #include "pm_schedule_json.h"
 #include "pm_show_core.h"
@@ -272,8 +273,38 @@ static void test_loop_index_is_shared() {
   TEST_ASSERT_EQUAL_STRING("loop is shorter than the sequence", pm_check_sequence(s, c));
 }
 
+// Check-ins land on a shared UTC grid (§6m): two boards that fell asleep
+// at different moments, with the same period, wake for the same slot.
+static void test_checkin_grid_aligns_boards() {
+  PmCheckinPlan a = pm_checkin_plan(1000000000ULL + 17, 300, 20);
+  PmCheckinPlan b = pm_checkin_plan(1000000000ULL + 140, 300, 20);
+  TEST_ASSERT_EQUAL_UINT64(a.slot_s, b.slot_s);
+  TEST_ASSERT_EQUAL_UINT64(0, a.slot_s % 300);
+  TEST_ASSERT_EQUAL_UINT32(4, a.guard_s);  // 1 % of 300 s, + 1 s
+  TEST_ASSERT_EQUAL_UINT64(a.slot_s, 1000000000ULL + 17 + a.sleep_s + a.guard_s);
+}
+
+// A slot too close to bother sleeping for is skipped for the next one.
+static void test_checkin_skips_a_slot_too_close() {
+  uint64_t slot = (1000000200ULL / 300) * 300 + 300;  // a slot on the grid
+  PmCheckinPlan p = pm_checkin_plan(slot - 10, 300, 20);
+  TEST_ASSERT_EQUAL_UINT64(slot + 300, p.slot_s);
+  TEST_ASSERT_TRUE(p.sleep_s >= 20);
+}
+
+// A 10-minute board meets the 5-minute ones on every other slot.
+static void test_checkin_longer_period_meets_shorter() {
+  PmCheckinPlan five = pm_checkin_plan(1800000000ULL + 5, 300, 20);
+  PmCheckinPlan ten = pm_checkin_plan(1800000000ULL + 5, 600, 20);
+  TEST_ASSERT_EQUAL_UINT64(0, ten.slot_s % 300);
+  TEST_ASSERT_TRUE(ten.slot_s == five.slot_s || ten.slot_s == five.slot_s + 300);
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_checkin_grid_aligns_boards);
+  RUN_TEST(test_checkin_skips_a_slot_too_close);
+  RUN_TEST(test_checkin_longer_period_meets_shorter);
   RUN_TEST(test_sun_matches_reference);
   RUN_TEST(test_polar_night_has_no_sunset);
   RUN_TEST(test_calendar);

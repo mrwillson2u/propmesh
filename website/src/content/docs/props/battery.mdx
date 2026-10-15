@@ -23,7 +23,7 @@ Open the board in **Nodes & Channels**, switch on **On battery**, and save. From
 
 - **becomes a leaf.** It never passes messages along for other boards, because they can't count on it being awake.
 - **listens in short windows while the show runs.** By default it listens for 100 ms out of every second. The other boards know this and send cues early enough to land in a window, so a battery board fires together with everyone else.
-- **deep-sleeps when the show is off.** It checks in every five minutes by default, and wakes on its own in time for the next schedule window.
+- **deep-sleeps when the show is off.** It checks in every five minutes by default, and wakes on its own in time for the next schedule window. Check-ins happen on the clock, at :00, :05, :10 and so on, so every battery board with the same setting wakes at the same moment. The console shows when a sleeping board will next check in.
 
 The **SLEEP** settings on the board's page let you change those numbers, and show roughly what each choice costs in average current.
 

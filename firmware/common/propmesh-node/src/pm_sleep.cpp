@@ -28,6 +28,7 @@ bool pm_sleep_rtc_pin(uint8_t g) { const pm_board_pin_t *p = pm_board_pin(PM_BOA
 #include "pm_time.h"
 #include "pm_mesh.h"
 #include "pm_schedule.h"
+#include "pm_checkin.h"
 #include "pm_channels.h"
 #include "pm_ble_tx.h"
 
@@ -47,6 +48,9 @@ RTC_DATA_ATTR static int16_t rtc_tz_min;
 RTC_DATA_ATTR static uint32_t rtc_tz_next_s;
 RTC_DATA_ATTR static int16_t rtc_tz_next_min;
 RTC_DATA_ATTR static bool rtc_clock_ok;
+// The check-in grid's guard for the sleep just ended (pm_checkin.h): a
+// board woke this early, so it stays this long past the slot as well.
+RTC_DATA_ATTR static uint32_t rtc_guard_s;
 
 static bool battery;
 static uint32_t checkin_ms = 300000;
@@ -94,7 +98,10 @@ void pm_sleep_begin() {
       w.set_utc((int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000, millis());
       w.set_tz(rtc_tz_min, rtc_tz_next_s, rtc_tz_next_min);
     }
-    hold_until_ms = millis() + (cause[0] == 's' ? SENSOR_HOLD_MS : BOOT_DWELL_MS);
+    // A timer wake on the grid came `guard` early: stay through the slot
+    // and `guard` past it, then the usual dwell, so every board's window
+    // overlaps at the slot whichever way its clock drifted.
+    hold_until_ms = millis() + (cause[0] == 's' ? SENSOR_HOLD_MS : BOOT_DWELL_MS + 2000UL * rtc_guard_s);
   } else {
     hold_until_ms = millis() + BOOT_DWELL_MS;
   }
@@ -217,15 +224,25 @@ void pm_sleep_loop() {
   // A flood color just sent (e.g. "dark" at the end of the show) goes out
   // before the radio does.
   if (pm_ble_busy()) return;
-  // How long: the check-in, or sooner if a schedule window starts first.
+  // How long: to the next check-in on the shared UTC grid (§6m), or sooner
+  // if a schedule window starts first. With no clock yet, the old rule:
+  // a full period from now.
   uint32_t secs = checkin_ms / 1000;
+  rtc_guard_s = 0;
+  bool clock = pm_wall().utc_ok;
+  if (clock) {
+    PmCheckinPlan plan = pm_checkin_plan((uint64_t)(pm_wall_utc_ms() / 1000), checkin_ms / 1000, MIN_SLEEP_S);
+    secs = plan.sleep_s;
+    rtc_guard_s = plan.guard_s;
+  }
+  bool window = false;
   uint32_t next = pm_show_next_change_s();
-  if (next && pm_wall().utc_ok) {
+  if (next && clock) {
     int64_t until = (int64_t)next - pm_wall_utc_ms() / 1000 - WINDOW_LEAD_S;
-    if (until > 0 && until < secs) secs = (uint32_t)until;
+    if (until > 0 && until < secs) { secs = (uint32_t)until; window = true; rtc_guard_s = 0; }
   }
   if (secs < MIN_SLEEP_S) { pm_sleep_hold(MIN_SLEEP_S * 1000); return; }
-  deep_sleep(secs, next && secs < checkin_ms / 1000 ? "until the next schedule window" : "check-in");
+  deep_sleep(secs, window ? "until the next schedule window" : clock ? "check-in (on the grid)" : "check-in (no clock yet)");
 }
 
 #endif  // PM_NO_SLEEP
