@@ -78,38 +78,24 @@ come after Halloween 2026, aiming at the 2027 season. Designs are in
 2026-09-19 and its new allocation isn't finished. Neither board switches
 mains power. That is a design decision; see [`CLAUDE.md`](CLAUDE.md).
 
-## How it got here
+## Origins
 
-PropMesh grew out of two Halloween seasons of one-off prop controllers
-(2024–25): a painlessMesh network of ESP32-C3s, a stepper-driven prop
-lid, a fire-effect lantern, and a bridge for Bluetooth flood lights. Those prototypes, with
-credentials scrubbed, are in [`reference/`](reference/). This repository
-started on 2026-08-31 to turn them into one system anyone can use.
+PropMesh grew out of one-off prop controllers built for the 2024 and
+2025 seasons: a painlessMesh network of ESP32-C3s, a stepper-driven prop
+lid, a fire-effect lantern, and a bridge for Bluetooth flood lights.
+Those prototypes are kept in [`reference/`](reference/), with
+credentials removed. This repository started in September 2026 to turn
+them into one system.
 
-Six weeks in, it has:
+## How it is tested
 
-| | |
-|---|---|
-| Node firmware | about 8,000 lines of C++, plus 132 host tests |
-| Console | about 9,800 lines of TypeScript and React, with a full simulator |
-| Hardware | two KiCad projects; the Pro's 8-sheet schematic is drawn, reviewed against its datasheets and passing its electrical rules check |
-| Design notes | about 12,000 lines, recording every decision and every bench result |
-| Docs site | 18 hand-written pages, a generated page per board, a browser installer |
-
-Features are tested on real boards on a workbench before they count as
-done, and the design notes record the numbers. A few of them:
-
-- **Mesh requests:** 240 of 240 answered across three boards, median 54 ms
-  to set an output on another board (2026-10-05).
-- **Firmware over the mesh:** about 3.5 minutes per board, verified by
-  SHA-256 on the board before it restarts (2026-10-07).
-- **Bluetooth flood lights:** three off-the-shelf BRMesh floods paired
-  from the console, 3 of 3, with no phone app (2026-10-07).
-- **Battery board:** 4 of 4 cues received while listening only 100 ms
-  out of every second (2026-10-11).
-
-When something fails on the bench, the cause and the fix go into the
-design notes the same day, along with what is still untested.
+A feature counts as done when it has run on real boards. The host test
+suite (`firmware/test/`) covers the pure logic: pin rules, show
+scheduling, sunrise and sunset, ramps, mesh framing and reassembly.
+Bench results, with dates and numbers, are recorded in
+[`docs/generic-boards.md`](docs/generic-boards.md) next to each
+feature's design; anything that has not yet run on hardware is marked
+there, in [`docs/status.md`](docs/status.md), and on the docs site.
 
 ## Repository layout
 
