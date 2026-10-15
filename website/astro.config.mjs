@@ -16,6 +16,8 @@ export default defineConfig({
 			logo: { src: './src/assets/logo.svg' },
 			favicon: '/favicon.svg',
 			customCss: ['./src/styles/theme.css'],
+			// A labeled GitHub button in the header instead of a small icon.
+			components: { SocialIcons: './src/components/SocialIcons.astro' },
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/mrwillson2u/propmesh' }],
 			editLink: { baseUrl: 'https://github.com/mrwillson2u/propmesh/edit/dev/website/' },
 			lastUpdated: true,
@@ -31,6 +33,7 @@ export default defineConfig({
 				{ label: 'Building a show', items: [{ autogenerate: { directory: 'show' } }] },
 				{ label: 'Help', items: [{ autogenerate: { directory: 'help' } }] },
 				{ label: 'Contribute', slug: 'contribute' },
+				{ label: 'PropMesh on GitHub ↗', link: 'https://github.com/mrwillson2u/propmesh' },
 			],
 		}),
 	],
