@@ -48,7 +48,7 @@ Sometimes the far corner of the yard is out of radio range of everything else, a
 
 A USB power bank plugged into the board's USB port works well here.
 
-**For weeks on a battery, switch On battery on and turn on Relay for other boards while the show runs** in its **SLEEP** settings. The board stays awake and relays during the show, then deep-sleeps when the show is off. With a 5-hour show each night, a 10,000 mAh battery lasts roughly two to three weeks. Use a LiPo on the battery connector for this one: many power banks switch themselves off when the board's draw drops in deep sleep.
+**For weeks on a battery, switch On battery on and turn on Relay for other boards while the show runs** in its **SLEEP** settings. The board stays awake and relays during the show, then deep-sleeps when the show is off. With a 5-hour show each night, a 10,000 mAh battery lasts roughly two weeks. Most of that goes to the show itself; the rest is the check-ins, about 14 seconds awake every 5 minutes. A longer check-in setting stretches it. Use a LiPo on the battery connector for this one: many power banks switch themselves off when the board's draw drops in deep sleep.
 
 <Aside type="caution" title="What the boards behind it lose">
 While the repeater sleeps, any board that reaches the bridge only through it is cut off from the console. Those boards keep running their own schedule and triggers, and any edits you save reach them when the repeater wakes for the next show. The Yard marks these boards **☾ via battery relay**. If you need to reach one after hours, wait for the repeater's next check-in, five minutes by default.

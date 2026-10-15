@@ -1320,8 +1320,9 @@ board with `sleep.relay = true`:
 | Battery repeater | **radio always on, RELAY role**, `listen_ms` 0 (cues need no lead for it) | **unchanged** — deep sleep, check-ins, sensor wake, pre-window wake |
 
 So the show costs ~100 mA while it runs and the rest of the day costs
-the off-tier floor. Five hours of show a night on 10,000 mAh ≈ 2–3
-weeks (as bought; the Feather's 6.5 mA CP2104 floor eats ~1/3 of that —
+the off-tier floor. Five hours of show a night on 10,000 mAh ≈ 2
+weeks (corrected 2026-10-14: the check-ins on the grid are ~14 s awake per
+5 min, ~4 mA averaged — most of the off-tier cost) (as bought; the Feather's 6.5 mA CP2104 floor eats ~1/3 of that —
 the D− pull-down in §6f matters more here than anywhere). Never the
 conductor and never the bridge (unchanged from a battery board).
 
