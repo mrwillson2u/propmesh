@@ -178,6 +178,9 @@ void setup() {
 
   pm_api_begin(BOARD);
   pm_sleep_begin();  // wake cause; the wall clock after a deep sleep
+  // Back from deep sleep: say so at once instead of 5 s in. A check-in
+  // ends as soon as its heartbeat is out and the bridge is heard (§6m).
+  if (strcmp(pm_sleep_wake_cause(), "timer") == 0 || strcmp(pm_sleep_wake_cause(), "sensor") == 0) next_period = 500;
 
   // Stored config is re-validated against THIS firmware's board table:
   // a file from another board, or from before a rule changed, must not

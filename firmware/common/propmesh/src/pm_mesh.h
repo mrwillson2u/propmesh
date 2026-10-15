@@ -112,6 +112,12 @@ uint8_t pm_sync_hop();  // hops from the conductor; 0 = we are it
 // the conductor's from its TIME beacon. pm_wall().ok() before trusting it.
 PmWallClock &pm_wall();
 int64_t pm_wall_utc_ms();
+// The jump (local − conductor, ms) the wall clock took at the first
+// conductor beacon after boot; false until there was one, or if the clock
+// wasn't set before it. A board waking from deep sleep reads its drift here.
+bool pm_wall_first_step(int64_t *ms);
+// millis() of the latest bridge beacon or heartbeat heard; 0 = none yet.
+uint32_t pm_mesh_bridge_heard_at_ms();
 
 // --- Topology --------------------------------------------------------
 // Nodes heard directly, strongest first. Fills the heartbeat's neighbor

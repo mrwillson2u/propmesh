@@ -23,6 +23,7 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   out.sleep_interval_ms = sl["interval_ms"] | 1000;
   out.sleep_window_ms = sl["window_ms"] | 100;
   out.sleep_checkin_ms = sl["checkin_ms"] | 300000UL;
+  out.sleep_relay = sl["relay"] | false;
   if (out.sleep_interval_ms < 200 || out.sleep_interval_ms > 10000) return "sleep.interval_ms must be 200-10000";
   if (out.sleep_window_ms < 30 || out.sleep_window_ms > out.sleep_interval_ms) return "sleep.window_ms must be 30 to interval_ms";
   if (out.sleep_checkin_ms < 30000 || out.sleep_checkin_ms > 86400000UL) return "sleep.checkin_ms must be 30000 (30 s) to 86400000 (24 h)";
@@ -114,6 +115,7 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
     sl["interval_ms"] = cfg.sleep_interval_ms;
     sl["window_ms"] = cfg.sleep_window_ms;
     sl["checkin_ms"] = cfg.sleep_checkin_ms;
+    if (cfg.sleep_relay) sl["relay"] = true;
   }
   if (cfg.wifi_ssid[0]) {
     JsonObject wifi = root["wifi"].to<JsonObject>();

@@ -26,4 +26,9 @@ uint16_t pm_sleep_listen_ms();  // listen interval while in the show tier, else 
 // "power" | "timer" | "sensor" | "reset" — what started this boot.
 const char *pm_sleep_wake_cause();
 int pm_sleep_wake_gpio();           // -1 unless a sensor pin woke us
+// How far this board's sleep clock drifts, measured against the conductor
+// and corrected for (docs §6m); false until it has measured once.
+bool pm_sleep_drift_ppm(int32_t *ppm);
+// How long the board was awake on its previous wake, ms (0 = unknown).
+uint32_t pm_sleep_last_awake_ms();
 bool pm_sleep_rtc_pin(uint8_t gpio);  // can this GPIO wake the chip from deep sleep? (profile `wake` cap)

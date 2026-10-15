@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
-import { counts, getConnection, useConnection, type Connection } from "../../lib/connection";
+import { counts, getConnection, useConnection, type Connection, checkinText } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
@@ -212,6 +212,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
     return { x: a.x - fx * w, y: a.y - fy * h, w, h };
   });
   const topo = useMemo(() => buildTopology(conn, now), [conn, Math.floor(now / 1000)]);
+  const viaBat = topo.nodes.filter((x) => x.viaBattery && !x.missing).length;
   const floods = useFloods(conn);
   const c = counts(conn, now);
   const weak = topo.links.filter((l) => !l.lost && l.rssi <= -75).length;
@@ -257,6 +258,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           <span style={{ padding: "3px 9px", borderRadius: 4, background: health.bg, border: `1px solid ${health.b}`, ...mono(700, 10.5, health.fg) }}>{health.t}</span>
           <span style={mono(500, 11, C.t5)}>
             {c.online} online{c.missing ? ` · ✕ ${c.missing} missing` : ""}{weak ? ` · ⚠ ${weak} weak link${weak > 1 ? "s" : ""}` : ""}
+            {viaBat ? <span style={{ color: C.amber }} title="These boards reach the bridge only through a battery repeater, which sleeps when the show is off"> · ☾ {viaBat} via battery relay</span> : null}
           </span>
           <div style={{ flex: 1 }} />
           <span style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, C.t5) }}>
@@ -506,11 +508,17 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
         <span onClick={onClose} style={{ color: C.t5, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>✕</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: C.b1, borderBottom: `1px solid ${C.b1}` }}>
-        <Stat k="ROLE" v={n.bridge ? "Bridge" : (e.hb && !(e.hb.role & 1)) ? "Leaf (battery)" : "Relay"} color={n.bridge ? C.emberT : undefined} />
+        <Stat k="ROLE" v={n.bridge ? "Bridge" : n.batteryRelay ? "Relay (battery, show only)" : (e.hb && !(e.hb.role & 1)) ? "Leaf (battery)" : "Relay"} color={n.bridge ? C.emberT : undefined} />
         <Stat k="MESH CLOCK" v={n.conductor ? "⏱ keeps it" : "follows"} />
         <Stat k="CONNECTION" v={n.usb ? directTag() : n.depth === 1 ? "direct" : n.depth > 1 ? `${n.depth} hops` : "—"} />
         <Stat k="LAST HEARD" v={n.usb ? "on the cable" : `${age(now - e.seen)} ago`} color={n.missing && e.hello?.power !== "battery" ? C.red : undefined} />
-        {e.hello?.power === "battery" && <Stat k="SLEEP" v={n.missing ? `asleep · checks in every ${e.hello.checkin_ms ? Math.round(e.hello.checkin_ms / 60000) : "?"} min` : hb?.listen ? `listening ${hb.listen} ms windows` : e.hello.awake ? "awake (held)" : "awake"} />}
+        {e.hello?.power === "battery" && <Stat k="SLEEP" v={n.missing ? `asleep · ${checkinText(e.hello.checkin_ms, now)}` : hb?.listen ? `listening ${hb.listen} ms windows` : e.hello.awake ? "awake (held)" : "awake"} />}
+        {e.hello?.power === "battery" && (e.hello.awake_ms || e.hello.drift_ppm !== undefined) && (
+          <Stat k="LAST CHECK-IN" v={[
+            e.hello.awake_ms ? `awake ${(e.hello.awake_ms / 1000).toFixed(1)} s` : "",
+            e.hello.drift_ppm !== undefined ? `clock ${Math.abs(e.hello.drift_ppm / 10000).toFixed(2)} % ${e.hello.drift_ppm >= 0 ? "fast" : "slow"}, corrected` : "",
+          ].filter(Boolean).join(" · ")} />
+        )}
         <Stat k="UPTIME" v={uptime(hb?.up)} />
         {hb && hb.batt > 0 && <Stat k="BATTERY" v={`${(hb.batt / 1000).toFixed(2)} V`} color={hb.batt < 3500 ? C.amber : undefined} />}
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />
@@ -518,6 +526,12 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
         <Stat k="NODE ID" v={n.id} />
       </div>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}`, ...mono(500, 11, C.t4) }}>{board}</div>
+      {n.viaBattery && (
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}`, ...sys(500, 12, C.amber) }}>
+          ☾ Reaches the bridge only through <b>{name(n.viaBattery)}</b>, a battery repeater. While the show is off it sleeps, and this board
+          can't be reached from the console until the repeater's next check-in. Its own schedule and triggers keep running.
+        </div>
+      )}
       {!n.bridge && onIcon && (
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${C.b1}` }}>
           <div style={{ ...label, marginBottom: 6 }}>DRAWN AS <span style={{ color: C.t3, letterSpacing: 0, fontWeight: 500 }}>· {PROP_TYPES.find((p) => p.id === (icon ?? "generic"))?.label}</span></div>

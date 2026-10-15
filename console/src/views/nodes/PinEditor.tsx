@@ -432,7 +432,8 @@ function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React
   const dutyMa = Math.round(100 * sl.window_ms / sl.interval_ms + 25);
   return (
     <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3), opacity: sl.relay ? 0.45 : 1 }}
+        title={sl.relay ? "Not used while it relays: a repeater stays awake through the show" : undefined}>
         <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SLEEP</span>
         <span>While the show runs, listen for</span>{num(sl.window_ms, (n) => set({ window_ms: Math.max(30, n) }))}<span>ms of every</span>
         {num(sl.interval_ms, (n) => set({ interval_ms: Math.max(200, n) }))}<span>ms</span>
@@ -442,6 +443,16 @@ function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React
         <span style={{ width: 44 }} />
         <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_ms, (n) => set({ checkin_ms: Math.max(30000, n) }), 88)}<span>ms</span>
         <span style={mono(500, 11, C.t4)}>({(sl.checkin_ms / 60000).toFixed(1)} min) — its sensor pins wake it at once; it also wakes for the next schedule window</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
+        <span style={{ width: 44 }} />
+        <Toggle small on={!!sl.relay} onClick={() => set({ relay: !sl.relay })} />
+        <span>Relay for other boards while the show runs</span>
+        <span style={mono(500, 11, sl.relay ? C.amber : C.t4)}>
+          {sl.relay
+            ? "— stays awake through the show (about 100 mA instead of the listen setting above); the off tier is unchanged. Boards that reach the bridge only through this one are cut off while it sleeps."
+            : "— for a repeater on a big battery: awake and passing messages along during the show, asleep outside it"}
+        </span>
       </div>
     </div>
   );

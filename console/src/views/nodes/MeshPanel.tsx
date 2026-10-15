@@ -15,8 +15,7 @@ import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
-  useConnection, type Entry,
-} from "../../lib/connection";
+  useConnection, type Entry, checkinText } from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -127,7 +126,7 @@ export default function MeshPanel() {
           const on = en.node === selected;
           return (
             <button key={en.node} onClick={() => setSelected(en.node)}
-              title={`${en.node} · ${where(en)}${asleep ? ` · asleep — checks in every ${en.hello?.checkin_ms ? Math.round(en.hello.checkin_ms / 60000) : "?"} min, or on its sensor` : missing ? " · not heard recently" : ""}${listening ? ` · listening ${en.hb!.listen} ms windows` : ""}${en.hello ? "" : " · asking it for its name and board"}`}
+              title={`${en.node} · ${where(en)}${asleep ? ` · asleep — ${checkinText(en.hello?.checkin_ms)} (every ${en.hello?.checkin_ms ? Math.round(en.hello.checkin_ms / 60000) : "?"} min), or on its sensor` : missing ? " · not heard recently" : ""}${listening ? ` · listening ${en.hb!.listen} ms windows` : ""}${en.hello ? "" : " · asking it for its name and board"}`}
               style={{
                 display: "flex", alignItems: "center", gap: 7, height: 32, padding: "0 10px", borderRadius: 6, cursor: "pointer",
                 background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}`,

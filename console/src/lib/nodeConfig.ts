@@ -60,7 +60,9 @@ export interface NodeConfig {
   power?: "mains" | "battery";
   // Sleep on battery (docs §6f): show tier listens window_ms of every interval_ms;
   // off tier deep-sleeps, checking in every checkin_min minutes.
-  sleep?: { interval_ms: number; window_ms: number; checkin_ms: number };
+  // relay: a battery repeater (docs §6m) — awake and relaying while the show
+  // runs, deep sleep when it's off.
+  sleep?: { interval_ms: number; window_ms: number; checkin_ms: number; relay?: boolean };
   channels: ChannelCfg[];
 }
 
