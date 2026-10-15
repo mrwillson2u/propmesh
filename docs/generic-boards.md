@@ -1297,6 +1297,124 @@ static RAM. DevKit and C6 builds unchanged.
   a button on GPIO 1 → deep sleep and wake, with `hello.reset` saying
   "deep sleep" and the boot event naming GPIO 1.
 
+## 6m. Battery repeater (designed 2026-10-14, not built)
+
+Colin's ask: a Feather on a large battery as a **repeater** for the far
+end of the yard, with a sensor or nothing else wired to it.
+
+**Today** that works by leaving *On battery* **off**: the board then
+relays, keeps its radio on, fires its sensor instantly, and still reports
+its battery voltage (the sense pin is read whatever the switch says). The
+cost is runtime: a relay can't sleep, because ESP-NOW has no
+store-and-forward — a dozing relay drops whatever the others send
+meanwhile. Awake with the radio listening is ~100 mA (design figure,
+§6f; not yet measured on the Feather): a 2,000 mAh cell lasts under a
+day, 10,000 mAh ~4 days, 20,000 mAh ~a week.
+
+**The mode to add: relay during the show, sleep outside it.** A battery
+board with `sleep.relay = true`:
+
+| | Show tier (any mode but off) | Off tier (schedule off, STOP ALL) |
+|---|---|---|
+| Today's battery board | modem sleep, listens `window/interval`, never relays | deep sleep, check-ins, sensor wake, wakes 5 s before the next window |
+| Battery repeater | **radio always on, RELAY role**, `listen_ms` 0 (cues need no lead for it) | **unchanged** — deep sleep, check-ins, sensor wake, pre-window wake |
+
+So the show costs ~100 mA while it runs and the rest of the day costs
+the off-tier floor. Five hours of show a night on 10,000 mAh ≈ 2–3
+weeks (as bought; the Feather's 6.5 mA CP2104 floor eats ~1/3 of that —
+the D− pull-down in §6f matters more here than anywhere). Never the
+conductor and never the bridge (unchanged from a battery board).
+
+**What the boards behind it experience.** While the show runs, nothing
+different from a mains relay: cues, requests, heartbeats and beacons all
+pass. When the schedule goes off and the repeater sleeps, the boards
+behind it lose their path to the bridge: after 30 s without a bridge
+heartbeat they start the channel scan (§6d — 13 s off-channel every
+2 min, harmless with the show off); their own schedule still runs on
+their own wall clock, so they come on at the next window by themselves;
+the repeater wakes 5 s before that window and the beacon reaches them
+again; edits saved meanwhile reach them through the show-sync pull (§6k)
+once the beacon carries a newer stamp. To reach them from the console
+after hours: wait for the repeater's check-in (`checkin_ms`, 5 min
+default) — a request then holds it awake 10 min (`hold_awake`, as for
+any battery board), and the boards behind it are reachable for that
+long. This bends the mesh-first rule knowingly: **a prop whose only
+path is a battery repeater is cut off outside show hours.** The console
+should say so.
+
+**Design**
+- Config: `sleep.relay` (bool, default false), alongside `interval_ms`
+  / `window_ms` / `checkin_ms`. `pm_config.h` `sleep_relay`; JSON both
+  ways; ignored unless `power` is `battery`.
+- `pm_node_apply`: battery + relay → keep `RELAY`, still strip
+  `BRIDGE` and `CONDUCTOR`.
+- `pm_sleep.cpp`: `set_show_tier(on)` with relay → `WIFI_PS_NONE`, no
+  wake window, `pm_sleep_listen_ms()` returns 0 (other boards then send
+  cues at the normal 200 ms lead and don't repeat into a window). Off
+  tier unchanged.
+- `hello`/heartbeat: nothing new — `role` already carries RELAY, and
+  the config carries `power` + `sleep.relay`.
+- Console, board page: under SLEEP, a toggle **Relay for other boards
+  while the show runs** with the cost in the same sentence (about 100 mA
+  while the show runs instead of ~25; the off tier is unchanged) and
+  the caveat (boards behind it are cut off outside show hours).
+- Console, Yard: a board whose every route to the bridge passes through
+  a battery board shows **via battery relay** in its detail panel and an
+  amber note on the topology — `lib/topology.ts` already walks routes.
+- Host test: config JSON round trip with `sleep.relay`; `test_pin_config`.
+- Docs site: a "Using a battery board as a repeater" section on the
+  battery page: when to leave *On battery* off (big battery, short
+  season), when to use the relay toggle (weeks on a battery), what the
+  boards behind it lose after hours.
+
+**Other tricks, considered**
+- **A relay that listens in windows (modem sleep + RELAY).** The
+  bridge already repeats cues and hold-awake bursts across a leaf's
+  interval, and a windowed relay would catch those. But heartbeats and
+  beacons go out once per 5 s and are not repeated: at 100/1000 ms it
+  hears ~10 % of them, so every board behind it loses the bridge within
+  30 s and starts scanning channels mid-show, and the console shows
+  them red. Fixing that means repeating every mesh-wide frame through
+  the window — a protocol change for a 4× saving. **Rejected** for now;
+  the schedule-gated relay gets most of the benefit with no protocol
+  change.
+- **CPU at 80 MHz on battery boards** (`setCpuFrequencyMhz(80)`).
+  Saves roughly 10–20 mA of the ~100; WiFi needs ≥ 80 MHz, LEDC and RMT
+  run from the 80 MHz APB clock so servo/strip timing is unaffected;
+  the fire effect's math gets slower. **Worth trying after a baseline
+  measurement**, not before: cheap, but unverified, and it touches
+  every battery board.
+- **Automatic light sleep** (`CONFIG_PM_ENABLE`, §6g "the real lever"):
+  the CPU would sleep between frames while the radio listens; the radio
+  is the larger draw, so the saving is the CPU's ~30 mA at best. Needs
+  the SDK rebuilt. Winter.
+- **Lower transmit power.** A relay transmits for milliseconds per
+  frame; the receive current dominates. **Negligible**, skip.
+- **The Feather's USB-chip floor** (§6f): ~6.5 mA around the clock from
+  the CP2104 with no host. On a repeater that sleeps 19 h a day it is
+  most of the off-tier cost; the D− pull-down fix is the single biggest
+  win after the relay mode. Measure before and after.
+- **Charging.** The Feather's charger is 500 mA: 10,000 mAh takes ~20 h.
+  Charge big packs off-board, or run the Feather from a **USB power
+  bank** on its USB port — at ~100 mA most banks don't auto-off (the
+  deep-sleep floor is another story: many banks switch off below
+  ~50 mA, so a power bank suits the always-on setup, a LiPo on the JST
+  suits the relay mode).
+- **Solar.** 100 mA × 5 h ≈ 2 Wh a night; a 5–10 W panel covers that on
+  most October days. A future note once something has been measured.
+- **Just use mains.** A porch-light socket-to-USB adapter or an outdoor
+  extension with a USB charger beats every trick above, where it
+  exists. The battery repeater is for where it doesn't.
+
+**Bench test (to write once built):** Feather on a 2,000 mAh LiPo,
+relay toggle on, schedule with a 10-minute window starting 3 min out, a
+DevKit placed out of the bridge's range but within the Feather's. Watch:
+the DevKit appears on the roster only once the Feather is awake and
+relaying; a cue from the bridge reaches the DevKit at the normal lead;
+at the window's end the Feather deep-sleeps and the DevKit turns red
+within ~20 s; before the next window the Feather wakes first and the
+DevKit comes back. Meter on the Feather in both tiers.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
