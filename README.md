@@ -80,10 +80,9 @@ mains power. That is a design decision; see [`CLAUDE.md`](CLAUDE.md).
 
 ## How it got here
 
-PropMesh is designed and built by Colin Willson. It grew out of two
-Halloween seasons of one-off prop controllers (2024–25): a painlessMesh
-network of ESP32-C3s, a stepper-driven prop lid, a fire-effect
-lantern, and a bridge for Bluetooth flood lights. Those prototypes, with
+PropMesh grew out of two Halloween seasons of one-off prop controllers
+(2024–25): a painlessMesh network of ESP32-C3s, a stepper-driven prop
+lid, a fire-effect lantern, and a bridge for Bluetooth flood lights. Those prototypes, with
 credentials scrubbed, are in [`reference/`](reference/). This repository
 started on 2026-08-31 to turn them into one system anyone can use.
 
