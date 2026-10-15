@@ -1422,6 +1422,44 @@ hardware.
   extension with a USB charger beats every trick above, where it
   exists. The battery repeater is for where it doesn't.
 
+**Synchronized check-ins (proposed 2026-10-14, not built).** Colin:
+battery repeaters should check in *at the same time*. Today a board
+sleeps `checkin_ms` from whenever it fell asleep, so the moment drifts
+with every sensor wake, console hold and dwell; two repeaters in a
+chain almost never wake together, and a board two repeaters deep is
+unreachable after hours even at check-in time. Design:
+- **Wake on a UTC grid**: the next multiple of `checkin_ms` since
+  midnight UTC, not "now + checkin_ms". Boards with the same period wake
+  together; a 10-min board meets the 5-min ones every other slot. A
+  sensor wake or a console hold no longer shifts it. Schedule windows
+  still win (wake 5 s before one, as now).
+- **Guard for clock drift.** The deep-sleep timer runs from the chip's
+  internal RC oscillator (no 32 kHz crystal on the Feather or the
+  SuperMinis): roughly 1 % off, temperature-dependent — ~3 s over 5 min.
+  So wake `guard` early and stay until `guard` after the slot plus the
+  dwell. Start with guard = 1 % of the sleep + 1 s. Later: each wake
+  compares its clock with the conductor's beacon, keeps the error in RTC
+  memory, and corrects the next sleep — that shrinks the guard to ~1 s
+  and the cost back to today's.
+- **Cost** with the fixed guard: ~6 s more awake per 5-min check-in,
+  roughly 2 mA → 4 mA average in the off tier. Worth it only for boards
+  that relay or sit behind a relay; leaves could keep the old rule, but
+  one rule for all battery boards is simpler to explain. Decide at
+  build time.
+- **Console**: the bridge knows the grid, so a request for a sleeping
+  board can say "next check-in 21:35:00" and be queued to go out in that
+  slot, instead of the user retrying blind.
+- No protocol change; `checkin_ms` stays per board (the console can
+  nudge "boards with the same check-in wake together").
+
+**Bench test without a battery.** *On battery* is a setting, not a
+sensor: a board on USB power sleeps and relays exactly as on a cell, and
+every build carries deep sleep, so the repeater can be tested on two
+DevKits plus the bridge, all on USB chargers. Only the current and
+runtime figures need a real battery and a meter. (2026-10-14: both of
+Colin's Feathers have damaged chargers; a reversed-polarity LiPo is the
+likely cause.)
+
 **Bench test (to write once built):** Feather on a 2,000 mAh LiPo,
 relay toggle on, schedule with a 10-minute window starting 3 min out, a
 DevKit placed out of the bridge's range but within the Feather's. Watch:
