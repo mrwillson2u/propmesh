@@ -89,8 +89,10 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
   ("enter it above the light list", `console/src/lib/pinRules.ts`).
   Pairing makes the key; decide whether a manual key field is wanted or
   fix the text.
-- **README board table is stale** (Mini listed as C3 + microSD; it's an
-  ESP32-S3-WROOM-1U-N16R2 with audio in flash — CLAUDE.md).
+- ~~README board table is stale~~ — README rewritten 2026-10-14. Still
+  stale: `docs/hardware-spec.md` locked-decisions table says the Mini
+  stores audio in flash because "ESP32-C3 has no SDMMC" (hardware doc —
+  Colin's to update).
 - **Console's Firmware panel says "About six minutes a board"** for mesh
   updates; measured 3.5 min since the 921600 baud change (generic-boards
   §6c). Site audit 2026-10-13 lists the other small ones.
