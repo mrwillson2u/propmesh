@@ -59,6 +59,9 @@ microcontroller. Professional, friendly, and never showy. Audited
   included, and check them against `console/src` before publishing.
 - **No catchphrases or jokes.** No "your mileage may vary", "gold",
   "👻". No exclamation marks. Wit is fine; a wink at the reader is not.
+- **No showing off.** No author's name, no counts of lines, pages or
+  weeks, no lists of achievements. The project is described by what it
+  does and how it is tested; the work speaks for itself.
 - **Be plain about what is untested.** If a feature hasn't run on real
   hardware, say so in a caution aside on that page (see LED strips),
   and take it out when it has. `boards/*.yaml` `status` is the board
