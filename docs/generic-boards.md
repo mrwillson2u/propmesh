@@ -1004,7 +1004,11 @@ The board from the lantern fire test, as a third profile:
   accepts the 20 ms non-connectable interval (the stats would show
   `failed_opcode` 0x200A).
 - **Native USB caveats.** `Serial` is the USB-JTAG CDC port
-  (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. After a deep
+  (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. **Plugged into a
+  computer that isn't reading the port, writes blocked** (up to 2 s each)
+  and the watchdog rebooted the board every few minutes (first real C6
+  run, 2026-10-15); `main.cpp` now sets a zero TX timeout and a 4 KB TX
+  buffer on native-USB builds, so unread output is dropped instead. After a deep
   sleep the port re-enumerates, so a USB-connected console drops and
   reconnects on every wake — on battery, talk to it over the mesh
   instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;

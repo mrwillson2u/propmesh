@@ -173,7 +173,19 @@ void setup() {
   // the cable (1.75 MB of base64 per image) cost more than the mesh did
   // (2026-10-07). The console tries this speed first, then 115200 for
   // boards not yet updated. The CP2102/CH340 on the devkits both do it.
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+  // Native USB (C3, C6): Serial is the chip's own USB port. Plugged into a
+  // computer that isn't reading it, each write waited up to 20 × 100 ms
+  // for the host, and a few dozen log lines hung the loop past the 30 s
+  // watchdog — a C6 on a laptop rebooted every few minutes (2026-10-15).
+  // Never wait: drop output nobody reads. A 4 KB buffer keeps a console
+  // that IS reading from losing the end of a long reply.
+  Serial.setTxBufferSize(4096);
+#endif
   Serial.begin(PM_SERIAL_BAUD);
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+  Serial.setTxTimeoutMs(0);
+#endif
   delay(300);
 
   pm_api_begin(BOARD);

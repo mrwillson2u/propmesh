@@ -84,18 +84,20 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 ## 3. Open bugs and loose ends
 
-- **C6 SuperMini crash-loops on its first real run (2026-10-15, open).**
-  e076df14 on the release firmware (`d73db6b`), no outputs assigned, not
-  on battery: it joins the mesh, hears the bridge (−47 dBm) and answers
-  every request — then the **task watchdog** reboots it every few
-  minutes (`hello.reset` = "task watchdog", uptime 210 s → 8 s), i.e. the
-  main loop was stuck for 30 s. Not the radio link (two-way, heartbeats
-  steady). The second C6, e0761d54, went silent. Leading suspect: the
-  C6's native USB serial blocking on log output while plugged into a
-  computer with no serial monitor open. Next: the watchdog's panic
-  backtrace from the C6's USB port, decoded against a `d73db6b` build.
-  The flashing BAT LED on one C6 is the charger's "no battery" signal,
-  not a fault.
+- **C6 SuperMini crash-loop on its first real run (2026-10-15) —
+  cause found, fix built, not yet on the board.** e076df14 on the release
+  firmware (`d73db6b`), nothing assigned: it joined the mesh and answered
+  requests, then the **task watchdog** rebooted it every few minutes
+  (`hello.reset` "task watchdog", uptime 210 s → 8 s). It was plugged
+  into a laptop with no serial monitor open; moved to a USB charger it
+  ran normally. Cause: on native-USB chips (C3, C6) `Serial` is the
+  chip's USB port, and the Arduino core's write waits up to 20 × 100 ms
+  per write for a host that isn't reading — a few dozen log lines pass
+  the 30 s watchdog. Fix (`main.cpp`): `setTxTimeoutMs(0)` and a 4 KB TX
+  buffer on native-USB builds. Bench check: the fixed build on a C6 plugged
+  into a computer with no monitor open, uptime past 10 min. The second
+  C6 (e0761d54) went silent the same way. The flashing BAT LED on one C6
+  is the charger's "no battery" signal, not a fault.
 - **Bridge went dead during servo slider moves** (2026-10-08, not
   reproduced) and **froze updating itself over the mesh** (2026-10-11, not
   reproduced; suspect its power supply). Workaround: update the bridge
