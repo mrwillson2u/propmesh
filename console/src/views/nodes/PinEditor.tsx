@@ -750,7 +750,7 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
   const [chz, setChz] = useState(current);
   const [kick, setKick] = useState(currentKick);
   const [sweeping, setSweeping] = useState(false);
-  const LO = 100, HI = 500, STEP = 10, HOLD_MS = 2500;  // 1.00–5.00 Hz, 0.10 Hz every 2.5 s
+  const LO = 50, HI = 600, STEP = 10, HOLD_MS = 2500;  // 0.50–6.00 Hz, 0.10 Hz every 2.5 s (a floppy flame can swing under 1 Hz)
   // The parent re-renders every time a board reports in (every second or
   // two), and `onCandle` is a fresh function each time. The sweep timer
   // must not restart on those renders — it never reached 2.5 s on the
@@ -783,7 +783,7 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <span style={{ ...mono(800, 22, C.t1), minWidth: 84, textAlign: "right" }}>{hz} Hz</span>
         <button onClick={() => send(Math.max(LO, chz - 5), kick)} style={btn()} title="0.05 Hz slower">−</button>
         <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
-        <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 1.00 to 5.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
+        <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 0.50 to 6.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
         <span style={mono(500, 10.5, C.t4)}>steady kicks, no gusts · watch for the widest swing</span>
       </span>
       <span style={row}>
