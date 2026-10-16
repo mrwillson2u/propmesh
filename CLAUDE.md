@@ -180,6 +180,13 @@ existing shows on day one.
 - **Docs are candid**: say what's unfinished or untested; never claim a
   test that hasn't run. Board test state: `boards/*.yaml` `status`.
 - **US English** (color, gray, center) in replies, UI, docs and names.
+- **Let the work show for itself.** In anything public (README, site,
+  PR text, issue replies, release notes): no author's name, no line or
+  commit counts, no "six weeks in", no achievement lists, no adjectives
+  about thoroughness. Say what it does, what is and isn't tested, and
+  where the records are. Bench numbers live beside their feature in the
+  design notes, not in a showcase. Colin's name appears only where a
+  legal role needs it (CONTRIBUTING, LICENSING). (2026-10-14)
 - **FastLED** for color math and effects; output stays on `pm_ws2812`.
   Check IRAM after adding any library.
 - **Git:** one topic branch per change, PR into `dev`. Don't stack PRs —
