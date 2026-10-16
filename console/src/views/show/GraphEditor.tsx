@@ -10,7 +10,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { C, MONO } from "../../lib/tokens";
-import { mono, sys } from "../../ui";
+import { mono, sys, NumberInput } from "../../ui";
 import type { Activity } from "../../lib/connection";
 import { lengthMs, type Rule, type Show } from "../../lib/show";
 import { FLOODS } from "../../lib/floods";
@@ -114,15 +114,15 @@ function PmBlock({ id, data, selected }: NodeProps<PmNode>) {
         )}
         {(data.kind === "delay" || data.kind === "cooldown") && (
           <label style={{ display: "flex", alignItems: "center", gap: 5, ...sys(500, 11, C.t3) }}>
-            <input className="nodrag" type="number" min={0} step={0.5} value={(data.ms ?? 0) / 1000} style={num}
-              onChange={(e) => set({ ms: Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000)) })} /> s
+            <NumberInput className="nodrag" value={(data.ms ?? 0) / 1000} min={0} max={3600} style={num} width={num.width as number}
+              onChange={(v) => set({ ms: Math.round(v * 1000) })} /> s
             {data.kind === "cooldown" && <span style={sys(400, 10.5, C.t5)}>before it fires again</span>}
           </label>
         )}
         {data.kind === "lockout" && (
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", ...sys(500, 11, C.t3) }}>
-            at most <input className="nodrag" type="number" min={1} value={data.fires ?? 10} style={{ ...num, width: 46 }} onChange={(e) => set({ fires: Math.max(1, parseInt(e.target.value, 10) || 1) })} />
-            per <input className="nodrag" type="number" min={1} value={data.window_min ?? 60} style={{ ...num, width: 52 }} onChange={(e) => set({ window_min: Math.max(1, parseInt(e.target.value, 10) || 1) })} /> min
+            at most <NumberInput className="nodrag" value={data.fires ?? 10} min={1} max={1000} integer style={num} width={46} onChange={(v) => set({ fires: v })} />
+            per <NumberInput className="nodrag" value={data.window_min ?? 60} min={1} max={1440} integer style={num} width={52} onChange={(v) => set({ window_min: v })} /> min
           </div>
         )}
         {data.kind === "pick" && <div style={sys(400, 11, C.t4)}>one of the connected sequences, at random</div>}

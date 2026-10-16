@@ -46,6 +46,11 @@ npm run shots                                       # → src/assets/console/
 Pages embed them as `![…](../../../assets/console/<name>.png)` so Astro
 optimizes them. Keep the alt text saying what the reader should notice.
 
+`scripts/shots/type-fields.mjs` (`npm run test:fields`, console dev server
+on port 5182) types into every number field in the console and checks
+it keeps the value. Run it after changing any numeric setting in the
+console: until 2026-10-16 typing "2.85" into a field gave 2.02.
+
 ## How to write a page
 
 The reader is someone building a yard display who may never have used a

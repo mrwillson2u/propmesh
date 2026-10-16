@@ -8,7 +8,7 @@
 // the nodes), `rail` (tools), `panel` (the selected shape) and `status`.
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { C, MONO } from "../../lib/tokens";
-import { mono, sys } from "../../ui";
+import { mono, sys, NumberInput } from "../../ui";
 import type { Connection } from "../../lib/connection";
 import {
   COLORS, GRID, MAX_BYTES, PROP_SIZE, SHAPE_DEFAULT, loadYard, saveYard, shapeId, size, snap, stamp,
@@ -406,8 +406,8 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
       )}
       <span style={{ display: "flex", alignItems: "center", gap: 5, ...mono(500, 10.5, C.t5) }}>
         · 1 square =
-        <input type="number" min={1} max={50} value={doc.scale_ft} onChange={(e) => commit({ ...doc, scale_ft: Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 5)) })}
-          style={{ ...field, width: 46, height: 22, ...mono(500, 11, C.t1) }} /> ft
+        <NumberInput value={doc.scale_ft} min={1} max={50} integer onChange={(v) => commit({ ...doc, scale_ft: v })}
+          width={46} style={{ ...field, height: 22, ...mono(500, 11, C.t1) }} /> ft
       </span>
       {status && <span style={mono(500, 10.5, status.bad ? C.amber : C.t5)} title={status.text}>· {status.bad ? "⚠ " : ""}{status.text.length > 60 && status.bad ? status.text.slice(0, 58) + "…" : status.text}</span>}
       {doc && size(doc) > MAX_BYTES * 0.8 && !status?.bad && <span style={mono(500, 10.5, C.amber)}>· map {Math.round((size(doc) / MAX_BYTES) * 100)}% full</span>}
