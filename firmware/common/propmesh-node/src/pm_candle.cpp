@@ -44,13 +44,22 @@ void PmCandle::led(float duty) {
 }
 
 void PmCandle::off() {
+  if (core.tuning()) tune(0, millis());
   if (timer) esp_timer_stop((esp_timer_handle_t)timer);
   digitalWrite(coil_pin, LOW);
   led(0);
   lit = false;
 }
 
+void PmCandle::tune(uint16_t chz, uint32_t now) {
+  core.tune(chz);
+  tune_until_ms = chz ? now + PM_CANDLE_TUNE_MAX_MS : 0;
+  if (chz) Serial.printf("candle: tuning — steady kicks at %u.%02u Hz for up to %d s\n", chz / 100, chz % 100, PM_CANDLE_TUNE_MAX_MS / 1000);
+  else Serial.println("candle: tuning off");
+}
+
 void PmCandle::update(uint32_t now, int32_t level) {
+  if (core.tuning() && (int32_t)(now - tune_until_ms) >= 0) tune(0, now);
   if (level <= 0) { if (lit) off(); return; }
   uint32_t dt = lit ? now - last_ms : PM_CANDLE_TICK_MS;
   if (dt > 100) dt = 100;  // after a stall, don't leap
