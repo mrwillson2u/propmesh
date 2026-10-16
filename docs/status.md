@@ -84,6 +84,20 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 ## 3. Open bugs and loose ends
 
+- **C6 SuperMini crash-loop on its first real run (2026-10-15) —
+  cause found, fix built, not yet on the board.** e076df14 on the release
+  firmware (`d73db6b`), nothing assigned: it joined the mesh and answered
+  requests, then the **task watchdog** rebooted it every few minutes
+  (`hello.reset` "task watchdog", uptime 210 s → 8 s). It was plugged
+  into a laptop with no serial monitor open; moved to a USB charger it
+  ran normally. Cause: on native-USB chips (C3, C6) `Serial` is the
+  chip's USB port, and the Arduino core's write waits up to 20 × 100 ms
+  per write for a host that isn't reading — a few dozen log lines pass
+  the 30 s watchdog. Fix (`main.cpp`): `setTxTimeoutMs(0)` and a 4 KB TX
+  buffer on native-USB builds. Bench check: the fixed build on a C6 plugged
+  into a computer with no monitor open, uptime past 10 min. The second
+  C6 (e0761d54) went silent the same way. The flashing BAT LED on one C6
+  is the charger's "no battery" signal, not a fault.
 - **Bridge went dead during servo slider moves** (2026-10-08, not
   reproduced) and **froze updating itself over the mesh** (2026-10-11, not
   reproduced; suspect its power supply). Workaround: update the bridge
