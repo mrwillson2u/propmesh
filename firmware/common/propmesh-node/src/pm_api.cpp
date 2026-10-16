@@ -352,11 +352,11 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
   // {"cmd":"candle","index":1,"event":"gust"|"sputter"} — the console's test
-  // buttons; "tune" with "chz" (Hz × 100, 0 = stop) kicks steadily at that
-  // rate for the swing hunt (docs §6n).
+  // buttons; "tune" with "chz" (Hz × 100, 0 = stop) and optional "ms" (kick
+  // width) kicks steadily at that rate for the swing hunt (docs §6n).
   else if (!strcmp(cmd, "candle")) {
     const char *ev = req["event"] | "gust";
-    bool ok = !strcmp(ev, "tune") ? pm_candle_tune(req["index"] | 0, (uint16_t)(req["chz"] | 0))
+    bool ok = !strcmp(ev, "tune") ? pm_candle_tune(req["index"] | 0, (uint16_t)(req["chz"] | 0), (uint8_t)(req["ms"] | 0))
                                   : pm_candle_event(req["index"] | 0, !strcmp(ev, "sputter"));
     if (!ok) fail(resp, "no such candle");
   }

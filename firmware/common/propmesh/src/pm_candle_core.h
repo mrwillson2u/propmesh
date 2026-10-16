@@ -73,14 +73,15 @@ class PmCandleCore {
   // Tuning (the sketch's "steady kicking, resonance hunt"): kick every
   // cycle at `chz` with no rests and no gust pumping, so the eye judges
   // one thing — how far the flame swings at this rate. 0 = back to normal.
-  void tune(uint16_t chz) { tune_chz = chz; }
+  // `kick_ms` 0 = the configured width.
+  void tune(uint16_t chz, uint8_t kick_ms = 0) { tune_chz = chz; tune_kick = kick_ms; }
   uint16_t tuning() const { return tune_chz; }
 
   uint16_t kick(uint32_t now) {
     if (!due(now, next_kick)) return 0;
     if (tune_chz) {
       next_kick = now + (uint32_t)(100000.0f / tune_chz);
-      return c.kick_ms;
+      return tune_kick ? tune_kick : c.kick_ms;
     }
     float period = 100000.0f / (c.swing_chz ? c.swing_chz : 1);
     if (gust_on || sputter_on) {
@@ -169,4 +170,5 @@ class PmCandleCore {
   uint32_t next_kick = 0;
   int kicks_left = 0;
   uint16_t tune_chz = 0;
+  uint8_t tune_kick = 0;
 };

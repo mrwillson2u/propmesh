@@ -327,8 +327,8 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
-                        onCandle={(event, chz) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
-                        onSwing={(chz) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz } })}
+                        onCandle={(event, chz, ms) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
+                        onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
                           on: cal?.code === channelCode(c),
                           us: cal?.code === channelCode(c) ? cal.us : 0,
@@ -737,39 +737,55 @@ function Health({ hello }: { hello: NodeHello }) {
 // Find the flame's own swing (docs §6n): the board kicks the coil steadily
 // at one rate (no bursts, no gusts) while the rate sweeps slowly across the
 // range, or is nudged by hand. The flame swings furthest at its own
-// frequency; "Use this" puts that rate in the settings (then Save to node).
-// The board stops kicking on its own after 2 minutes; the coil warms
-// under steady kicks.
-function SwingFinder({ lit, light, current, onCandle, onSwing }: {
-  lit: boolean; light: () => void; current: number;
-  onCandle: (event: "tune", chz: number) => void; onSwing: (chz: number) => void;
+// frequency. Then the kick width: at the found rate, shorten the kick until
+// the swing shrinks, and go back up a step — the lightest push that still
+// swings fully is the one that keeps the coil cool. "Use" puts both in the
+// settings (then Save to node). The board stops kicking on its own after
+// 2 minutes.
+function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
+  lit: boolean; light: () => void; current: number; currentKick: number;
+  onCandle: (event: "tune", chz: number, ms?: number) => void; onSwing: (chz: number, kick_ms: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [chz, setChz] = useState(current);
+  const [kick, setKick] = useState(currentKick);
   const [sweeping, setSweeping] = useState(false);
   const LO = 100, HI = 500, STEP = 10, HOLD_MS = 2500;  // 1.00–5.00 Hz, 0.10 Hz every 2.5 s
-  const send = (v: number) => { setChz(v); onCandle("tune", v); };
-  const start = (v: number) => { if (!lit) light(); setOpen(true); setSweeping(false); send(v); };
+  const send = (c: number, k: number) => { setChz(c); setKick(k); onCandle("tune", c, k); };
+  const start = () => { if (!lit) light(); setOpen(true); setSweeping(false); send(current, currentKick); };
   const stop = () => { setSweeping(false); setOpen(false); onCandle("tune", 0); };
   useEffect(() => {
     if (!sweeping) return;
-    const t = setInterval(() => setChz((c) => { const n = c + STEP > HI ? LO : c + STEP; onCandle("tune", n); return n; }), HOLD_MS);
+    const t = setInterval(() => setChz((c) => { const n = c + STEP > HI ? LO : c + STEP; onCandle("tune", n, kick); return n; }), HOLD_MS);
     return () => clearInterval(t);
-  }, [sweeping, onCandle]);
+  }, [sweeping, kick, onCandle]);
   useEffect(() => () => { if (open) onCandle("tune", 0); }, []);  // leaving the page stops the kicks
   if (!open)
-    return <button onClick={() => start(current)} style={{ ...btn(), alignSelf: "flex-start" }} title="Kick the coil steadily while the rate sweeps, and watch which rate swings the flame furthest">Find the swing…</button>;
+    return <button onClick={start} style={{ ...btn(), alignSelf: "flex-start" }} title="Kick the coil steadily while the rate sweeps, and watch which rate swings the flame furthest; then find the lightest kick that still swings it">Find the swing…</button>;
   const hz = (chz / 100).toFixed(2);
+  const row: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" };
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", border: `1px solid ${C.amberB}`, background: C.amberBg, borderRadius: 6 }}>
-      <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FINDING THE SWING</span>
-      <span style={{ ...mono(800, 22, C.t1), minWidth: 84, textAlign: "right" }}>{hz} Hz</span>
-      <button onClick={() => send(Math.max(LO, chz - 5))} style={btn()} title="0.05 Hz slower">−</button>
-      <button onClick={() => send(Math.min(HI, chz + 5))} style={btn()} title="0.05 Hz faster">+</button>
-      <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 1.00 to 5.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
-      <button onClick={() => { onSwing(chz); stop(); }} style={{ ...btn(true), fontWeight: 700 }} title="Put this rate in the candle's settings (then Save to node)">Use {hz} Hz</button>
-      <button onClick={stop} style={btn()}>Stop</button>
-      <span style={mono(500, 10.5, C.t4)}>steady kicks, no gusts · watch for the widest swing · the board stops on its own after 2 min</span>
+    <span style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 10px", border: `1px solid ${C.amberB}`, background: C.amberBg, borderRadius: 6 }}>
+      <span style={row}>
+        <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>RATE</span>
+        <span style={{ ...mono(800, 22, C.t1), minWidth: 84, textAlign: "right" }}>{hz} Hz</span>
+        <button onClick={() => send(Math.max(LO, chz - 5), kick)} style={btn()} title="0.05 Hz slower">−</button>
+        <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
+        <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 1.00 to 5.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
+        <span style={mono(500, 10.5, C.t4)}>steady kicks, no gusts · watch for the widest swing</span>
+      </span>
+      <span style={row}>
+        <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>KICK</span>
+        <span style={{ ...mono(800, 22, C.t1), minWidth: 84, textAlign: "right" }}>{kick} ms</span>
+        <button onClick={() => send(chz, Math.max(4, kick - 2))} style={btn()} title="2 ms lighter">−</button>
+        <button onClick={() => send(chz, Math.min(80, kick + 2))} style={btn()} title="2 ms harder">+</button>
+        <span style={mono(500, 10.5, C.t4)}>at the found rate, shorten until the swing shrinks, then one step back up · a warm coil means too long</span>
+      </span>
+      <span style={row}>
+        <button onClick={() => { onSwing(chz, kick); stop(); }} style={{ ...btn(true), fontWeight: 700 }} title="Put this rate and kick in the candle's settings (then Save to node)">Use {hz} Hz · {kick} ms</button>
+        <button onClick={stop} style={btn()}>Stop</button>
+        <span style={mono(500, 10.5, C.t4)}>the board stops on its own after 2 min</span>
+      </span>
     </span>
   );
 }
@@ -827,7 +843,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
 
 function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
   c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
-  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number) => void; onSwing?: (chz: number) => void; cal?: Cal;
+  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
@@ -891,7 +907,7 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
           <button disabled={!v} onClick={() => onCandle?.("sputter")} style={btn(false, !v)} title="A near-blowout now">Sputter</button>
           {readout(v ? `${Math.round(v / 10)}%` : "out")}
         </span>
-        {onCandle && onSwing && <SwingFinder lit={!!v} light={() => onFire(1000)} current={c.candle?.swing_chz ?? CANDLE_DEFAULTS.swing_chz} onCandle={onCandle} onSwing={onSwing} />}
+        {onCandle && onSwing && <SwingFinder lit={!!v} light={() => onFire(1000)} current={c.candle?.swing_chz ?? CANDLE_DEFAULTS.swing_chz} currentKick={c.candle?.kick_ms ?? CANDLE_DEFAULTS.kick_ms} onCandle={onCandle} onSwing={onSwing} />}
       </span>
     );
 

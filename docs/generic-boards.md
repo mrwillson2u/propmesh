@@ -1561,8 +1561,11 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   pumping, `{"cmd":"candle","event":"tune","chz":285}` (0 stops), and the
   driver stops it after 2 min (`PM_CANDLE_TUNE_MAX_MS`) or on Out. The
   console's **Find the swing…** sweeps 1.00–5.00 Hz by 0.10 every 2.5 s,
-  ± nudges by 0.05, and **Use** writes `swing_chz` into the draft. Host
-  test: 57 kicks in 20 s at 2.85 Hz, never the gust width.
+  ± nudges by 0.05; a KICK row nudges the pulse width by 2 ms (`"ms"` on
+  the tune command, rides along without saving) — the method is: at the
+  found rate, shorten until the swing shrinks, then one step back up;
+  **Use** writes `swing_chz` and `kick_ms` into the draft. Host test: 57
+  kicks in 20 s at 2.85 Hz, never the gust width, a trial width applies.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune

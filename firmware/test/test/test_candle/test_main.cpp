@@ -108,9 +108,11 @@ static void test_tuning_kicks_steadily_at_the_rate() {
   }
   TEST_ASSERT_TRUE(kicks >= 56 && kicks <= 58);  // 2.85 × 20 s = 57
   TEST_ASSERT_EQUAL_UINT16(cfg.kick_ms, widest);  // never the gust's wider kick
+  m.tune(285, 12);  // a trial kick width rides along
+  TEST_ASSERT_EQUAL_UINT16(12, m.kick(20000 + 5000));
   m.tune(0);
   uint32_t after = 0;
-  for (uint32_t t = 20000; t < 80000; t += PM_CANDLE_TICK_MS) { m.led(t, PM_CANDLE_TICK_MS); if (m.kick(t)) after++; }
+  for (uint32_t t = 26000; t < 86000; t += PM_CANDLE_TICK_MS) { m.led(t, PM_CANDLE_TICK_MS); if (m.kick(t)) after++; }
   TEST_ASSERT_TRUE(after < 57 * 3);  // bursts and rests again: well under steady
 }
 
