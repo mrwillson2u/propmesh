@@ -4,7 +4,7 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Confirm, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
@@ -426,8 +426,8 @@ function BridgeWifi({ draft, applied, setDraft, isLink, local }: {
 function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React.Dispatch<React.SetStateAction<NodeConfig>> }) {
   const sl = draft.sleep ?? { interval_ms: 1000, window_ms: 100, checkin_ms: 300000 };
   const set = (p: Partial<typeof sl>) => setDraft((d) => ({ ...d, sleep: { ...sl, ...p } }));
-  const num = (v: number, on: (n: number) => void, w = 64) => (
-    <input type="number" value={v} onChange={(e) => on(Number(e.target.value))} style={{ ...field, width: w, textAlign: "right" }} />
+  const num = (v: number, on: (n: number) => void, min: number, max: number, w = 64) => (
+    <NumberInput value={v} onChange={on} min={min} max={max} integer width={w} style={field} />
   );
   const dutyMa = Math.round(100 * sl.window_ms / sl.interval_ms + 25);
   return (
@@ -435,13 +435,13 @@ function SleepSettings({ draft, setDraft }: { draft: NodeConfig; setDraft: React
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3), opacity: sl.relay ? 0.45 : 1 }}
         title={sl.relay ? "Not used while it relays: a repeater stays awake through the show" : undefined}>
         <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}>SLEEP</span>
-        <span>While the show runs, listen for</span>{num(sl.window_ms, (n) => set({ window_ms: Math.max(30, n) }))}<span>ms of every</span>
-        {num(sl.interval_ms, (n) => set({ interval_ms: Math.max(200, n) }))}<span>ms</span>
+        <span>While the show runs, listen for</span>{num(sl.window_ms, (n) => set({ window_ms: n }), 30, sl.interval_ms)}<span>ms of every</span>
+        {num(sl.interval_ms, (n) => set({ interval_ms: n }), 200, 10000)}<span>ms</span>
         <span style={mono(500, 11, C.t4)}>— a cue reaches it within {(sl.interval_ms / 1000).toFixed(1)} s; about {dutyMa} mA on average</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
         <span style={{ width: 44 }} />
-        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_ms, (n) => set({ checkin_ms: Math.max(30000, n) }), 88)}<span>ms</span>
+        <span>When the show is off, deep-sleep and check in every</span>{num(sl.checkin_ms, (n) => set({ checkin_ms: n }), 30000, 86400000, 88)}<span>ms</span>
         <span style={mono(500, 11, C.t4)}>({(sl.checkin_ms / 60000).toFixed(1)} min) — its sensor pins wake it at once; it also wakes for the next schedule window</span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...sys(500, 12, C.t3) }}>
@@ -574,7 +574,6 @@ const num: React.CSSProperties = { ...field, width: 64, ...mono(500, 11.5, C.t1)
 function Options({ c, pin, in2, onChange }: {
   c: ChannelCfg; pin: BoardPin; in2: BoardPin[]; onChange: (p: Partial<ChannelCfg>) => void;
 }) {
-  const int = (s: string) => Math.max(0, parseInt(s, 10) || 0);
   const activeLow = (text: string, hint?: string) => (
     <label style={optLabel} title={hint}>
       <input type="checkbox" checked={!!c.active_low} onChange={(e) => onChange({ active_low: e.target.checked })} />
@@ -598,8 +597,8 @@ function Options({ c, pin, in2, onChange }: {
       )}
       {c.kind === "SERVO" && (
         <>
-          <label style={optLabel} title="Pulse width at 0 %">min <input type="number" step={10} value={c.min_us ?? 500} onChange={(e) => onChange({ min_us: int(e.target.value) })} style={num} /></label>
-          <label style={optLabel} title="Pulse width at 100 %">max <input type="number" step={10} value={c.max_us ?? 2500} onChange={(e) => onChange({ max_us: int(e.target.value) })} style={num} /> µs</label>
+          <label style={optLabel} title="Pulse width at 0 %">min <NumberInput value={c.min_us ?? 500} onChange={(n) => onChange({ min_us: n })} min={SERVO_MIN_US} max={SERVO_MAX_US} integer style={num} /></label>
+          <label style={optLabel} title="Pulse width at 100 %">max <NumberInput value={c.max_us ?? 2500} onChange={(n) => onChange({ max_us: n })} min={SERVO_MIN_US} max={SERVO_MAX_US} integer style={num} /> µs</label>
           {/* Reverse = the two ends swapped; stored as min above max. */}
           <label style={optLabel} title="Swap the ends: 0 % moves to where 100 % was">
             <input type="checkbox" checked={(c.min_us ?? 500) > (c.max_us ?? 2500)}
@@ -620,7 +619,7 @@ function Options({ c, pin, in2, onChange }: {
               </select>
             </label>
           )}
-          <label style={optLabel}>pixels <input type="number" min={1} value={c.pixels ?? 30} onChange={(e) => onChange({ pixels: int(e.target.value) })} style={num} /></label>
+          <label style={optLabel}>pixels <NumberInput value={c.pixels ?? 30} onChange={(n) => onChange({ pixels: n })} min={1} max={300} integer style={num} /></label>
           <label style={optLabel} title="Color order on the wire — WS2812 is usually GRB, SK9822 / APA102 BGR. Wrong order = wrong colors, nothing worse.">order
             <select value={c.order ?? (c.kind === "SPI_STRIP" ? "bgr" : "grb")} onChange={(e) => onChange({ order: e.target.value as ColorOrder })} style={field}>
               <option value="grb">GRB</option><option value="rgb">RGB</option><option value="bgr">BGR</option>
@@ -673,7 +672,6 @@ function Smoothing({ c, onChange }: { c: ChannelCfg; onChange: (p: Partial<Chann
   const preset = SMOOTHING.find((p) => p.travel_ms === t && p.ease_ms === e);
   const [custom, setCustom] = useState(!preset);
   const showNums = custom || !preset;
-  const int = (s: string) => Math.max(0, parseInt(s, 10) || 0);
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
       title="How the servo gets to a new position. Off snaps at the servo's own speed; the presets accelerate, cruise and slow to a stop.">
@@ -693,9 +691,9 @@ function Smoothing({ c, onChange }: { c: ChannelCfg; onChange: (p: Partial<Chann
       {showNums && (
         <>
           <label style={optLabel} title="Time for a full 0–100 % sweep at cruise speed (0 = snap)">sweep
-            <input type="number" step={50} min={0} value={t} onChange={(ev) => onChange({ travel_ms: int(ev.target.value) })} style={num} /></label>
+            <NumberInput value={t} onChange={(n) => onChange({ travel_ms: n })} min={0} max={10000} integer style={num} /></label>
           <label style={optLabel} title="Time to speed up from rest (and to slow down before stopping)">ease
-            <input type="number" step={20} min={0} value={e} onChange={(ev) => onChange({ ease_ms: int(ev.target.value) })} style={num} /> ms</label>
+            <NumberInput value={e} onChange={(n) => onChange({ ease_ms: n })} min={0} max={5000} integer style={num} /> ms</label>
         </>
       )}
     </span>
@@ -737,24 +735,21 @@ function Health({ hello }: { hello: NodeHello }) {
 // 0–1.5, the swing in Hz.
 function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<CandleCfg>) => void }) {
   const small: React.CSSProperties = { ...num, width: 64 };
-  const n = (s: string) => parseFloat(s) || 0;
   return (
     <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
       <label style={optLabel} title="Scales every effect: 0 = a calm, steady flame; 1 = normal; 1.5 = wild">drama
-        <input type="number" min={0} max={1.5} step={0.1} value={(k.drama10 / 10).toFixed(1)}
-          onChange={(e) => onChange({ drama10: Math.max(0, Math.min(15, Math.round(n(e.target.value) * 10))) })} style={small} /></label>
+        <NumberInput value={k.drama10 / 10} onChange={(v) => onChange({ drama10: Math.round(v * 10) })} min={0} max={1.5} digits={1} style={small} /></label>
       <label style={optLabel} title="The dimmest the flame ever gets, even mid-sputter">floor
-        <input type="number" min={0} max={30} value={k.floor} onChange={(e) => onChange({ floor: Math.max(0, Math.min(30, Math.round(n(e.target.value)))) })} style={small} /> %</label>
+        <NumberInput value={k.floor} onChange={(v) => onChange({ floor: v })} min={0} max={30} integer style={small} /> %</label>
       <label style={optLabel} title="Average seconds between gusts — quick dips with a big swing of the flame. Random, never on a beat.">gust every
-        <input type="number" min={2} max={255} value={k.gust_s} onChange={(e) => onChange({ gust_s: Math.max(2, Math.min(255, Math.round(n(e.target.value)))) })} style={small} /> s</label>
+        <NumberInput value={k.gust_s} onChange={(v) => onChange({ gust_s: v })} min={2} max={255} integer style={small} /> s</label>
       <label style={optLabel} title="Average seconds between near-blowouts: the flame nearly dies, stutters, then flares back. 0 = never.">sputter every
-        <input type="number" min={0} max={3600} value={k.sputter_s} onChange={(e) => onChange({ sputter_s: Math.max(0, Math.min(3600, Math.round(n(e.target.value)))) })} style={small} /> s</label>
+        <NumberInput value={k.sputter_s} onChange={(v) => onChange({ sputter_s: v })} min={0} max={3600} integer style={small} /> s</label>
       <label style={{ ...optLabel, opacity: k.coil ? 1 : 0.5 }} title="How often the coil kicks. Match the flame's own swing: nudge it ±0.3 Hz and watch for the biggest motion (the candle sketch measured 2.7 Hz).">swing
-        <input type="number" min={0.5} max={8} step={0.05} value={(k.swing_chz / 100).toFixed(2)}
-          onChange={(e) => onChange({ swing_chz: Math.max(50, Math.min(800, Math.round(n(e.target.value) * 100))) })} style={small} /> Hz</label>
+        <NumberInput value={k.swing_chz / 100} onChange={(v) => onChange({ swing_chz: Math.round(v * 100) })} min={0.5} max={8} digits={2} style={small} /> Hz</label>
       <label style={{ ...optLabel, opacity: k.coil ? 1 : 0.5 }} title="Length of each coil pulse. Longer = a harder kick and more battery. Start low; the coil gets warm if overdriven.">kick
-        <input type="number" min={4} max={80} value={k.kick_ms} onChange={(e) => onChange({ kick_ms: Math.max(4, Math.min(80, Math.round(n(e.target.value)))) })} style={small} /> ms</label>
+        <NumberInput value={k.kick_ms} onChange={(v) => onChange({ kick_ms: v })} min={4} max={80} integer style={small} /> ms</label>
       <label style={optLabel} title="Off: the flame piece stays still, the LED still flickers">
         <input type="checkbox" checked={k.coil} onChange={(e) => onChange({ coil: e.target.checked })} /> swing the flame</label>
     </span>
@@ -762,11 +757,10 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
 }
 
 function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCfg>) => void }) {
-  const u8 = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10) || 0));
   const small: React.CSSProperties = { ...num, width: 50 };
   const field = (key: keyof FireCfg, label: string, title: string, max = 255) => (
     <label style={optLabel} title={title}>{label}
-      <input type="number" min={0} max={max} value={f[key] as number} onChange={(e) => onChange({ [key]: Math.min(max, u8(e.target.value)) })} style={small} />
+      <NumberInput value={f[key] as number} onChange={(v) => onChange({ [key]: v })} min={0} max={max} integer style={small} />
     </label>
   );
   return (
@@ -780,8 +774,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
       {field("brightness", "brightness", "Overall level, 0–255.")}
       {field("speed", "speed", "How fast the flames move. Small matrices want small values (the lantern: 2).")}
       <label style={optLabel} title="Flame height — higher values cool the heat less, so flames climb further up the column (the lantern: 3.0).">flame
-        <input type="number" min={0.1} max={25} step={0.1} value={(f.flame10 / 10).toFixed(1)}
-          onChange={(e) => onChange({ flame10: Math.max(1, Math.min(255, Math.round((parseFloat(e.target.value) || 0) * 10))) })} style={small} />
+        <NumberInput value={f.flame10 / 10} onChange={(v) => onChange({ flame10: Math.round(v * 10) })} min={0.1} max={25.5} digits={1} style={small} />
       </label>
       {field("noise", "noise", "Flame noise scale: 0 = one smooth flame across the columns, bigger = each column flickers on its own.")}
       {field("smoke_speed", "smoke speed", "How fast the smoke layer drifts — a little faster than the flames reads best (the lantern: 25).")}

@@ -9,7 +9,7 @@
 // Save writes each node its own part. docs/generic-boards.md §6b.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
@@ -447,10 +447,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   {draft.ambient && (
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }} title="Repeat every … seconds. Blank or shorter than the sequence = its own length.">
                       <span style={sys(500, 11.5, C.t4)}>every</span>
-                      <input type="number" min={1} step={1} placeholder={secs(Math.max(lengthMs(draft), 1000))}
-                        value={draft.loop_ms ? draft.loop_ms / 1000 : ""}
-                        onChange={(e) => setDraft({ ...draft, loop_ms: e.target.value === "" ? undefined : Math.max(1000, Math.round(+e.target.value * 1000)) })}
-                        style={{ ...field, width: 64, ...mono(500, 12, C.t1) }} />
+                      <NumberInput placeholder={secs(Math.max(lengthMs(draft), 1000))} min={1} max={3600}
+                        value={draft.loop_ms ? draft.loop_ms / 1000 : undefined}
+                        onChange={(v) => setDraft({ ...draft, loop_ms: Math.round(v * 1000) })}
+                        onEmpty={() => setDraft({ ...draft, loop_ms: undefined })}
+                        width={64} style={{ ...field, ...mono(500, 12, C.t1) }} />
                       <span style={sys(500, 11.5, C.t4)}>s</span>
                     </span>
                   )}
@@ -488,10 +489,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   return (
                     <div key={st.uid ?? i} onClick={() => setSelStep(st.uid ?? null)}
                       style={{ display: "grid", gridTemplateColumns: STEP_COLS, gap: 8, alignItems: "center", padding: "5px 0 5px 6px", borderBottom: "1px solid #181c22", borderLeft: `3px solid ${on ? C.ember : "transparent"}`, background: on ? C.emberBg2 : undefined }}>
-                      <input type="number" min={0} step={0.1} value={st.t_ms / 1000}
-                        onChange={(e) => patchStep(i, { t_ms: Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000)) })}
-                        onBlur={() => setDraft((d) => d && sortSteps(d))}
-                        style={{ ...field, ...mono(500, 12, C.t1) }} />
+                      <span onBlur={() => setDraft((d) => d && sortSteps(d))} style={{ display: "contents" }}>
+                        <NumberInput value={st.t_ms / 1000} min={0} max={600}
+                          onChange={(v) => patchStep(i, { t_ms: Math.round(v * 1000) })}
+                          style={{ ...field, width: "100%", textAlign: "left", ...mono(500, 12, C.t1) }} />
+                      </span>
                       <select value={st.node} style={field} onChange={(e) => {
                         const o = outputs[e.target.value]?.[0];
                         if (o) patchStep(i, { node: e.target.value, kind: o.kind, index: o.index });
@@ -512,10 +514,10 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                       }} />
                       {canRamp(st.kind) ? (
                         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <input type="number" min={0} step={0.1} value={(st.dur_ms ?? 0) / 1000}
+                          <NumberInput value={(st.dur_ms ?? 0) / 1000} min={0} max={st.t_ms / 1000}
                             title="Seconds. 0 = jump. The ramp ends at AT, so it can't be longer than AT."
-                            onChange={(e) => patchStep(i, { dur_ms: Math.min(st.t_ms, Math.max(0, Math.round((parseFloat(e.target.value) || 0) * 1000))) })}
-                            style={{ ...field, width: 54, ...mono(500, 12, (st.dur_ms ?? 0) > 0 ? C.t1 : C.t5) }} />
+                            onChange={(v) => patchStep(i, { dur_ms: Math.round(v * 1000) })}
+                            width={54} style={{ ...field, ...mono(500, 12, (st.dur_ms ?? 0) > 0 ? C.t1 : C.t5) }} />
                           <span style={sys(500, 11, C.t5)}>s</span>
                           <EaseInput step={st} onChange={(p) => patchStep(i, p)} />
                         </span>
@@ -605,9 +607,8 @@ function RuleRow({ r, show, sensors, nameOf, onChange, onRemove }: {
   nameOf: (n: string) => string; onChange: (p: Partial<Rule>) => void; onRemove: () => void;
 }) {
   const t = (text: string) => <span style={sys(500, 12, C.t3)}>{text}</span>;
-  const num = (value: number, set: (v: number) => void, width = 64, step = 1, min = 0) => (
-    <input type="number" min={min} step={step} value={value} onChange={(e) => set(Math.max(min, parseFloat(e.target.value) || 0))}
-      style={{ ...field, width, ...mono(500, 12, C.t1) }} />
+  const num = (value: number, set: (v: number) => void, width = 64, _step = 1, min = 0) => (
+    <NumberInput value={value} min={min} onChange={set} width={width} style={{ ...field, ...mono(500, 12, C.t1) }} />
   );
   const seqOpt = (id: number) => (
     <>

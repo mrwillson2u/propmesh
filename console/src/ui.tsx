@@ -152,3 +152,70 @@ export function ColorPicker({ value, onChange, white }: { value: number; onChang
     </span>
   );
 }
+
+// A number field you can type into (2026-10-16). The plain controlled
+// <input type="number"> reformatted and clamped on every keystroke: typing
+// "2.85" gave 2.02 (the "." vanished under toFixed), and "18" into a
+// 4-80 field gave 48 (the "1" was clamped to 4 before the "8" arrived).
+// This one keeps exactly what you type while the field has focus, applies
+// it the moment it's a valid number in range (so live previews still
+// follow), and clamps / tidies only when you leave the field or press
+// Enter. A value out of range shows red until you leave, then snaps to the
+// nearest end. No spinner arrows: people type numbers (Colin).
+export function NumberInput({ value, onChange, min, max, digits, integer, width = 64, style, title, placeholder, className, disabled, onEmpty }: {
+  value: number | undefined;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  digits?: number;      // decimals shown when not editing (e.g. 2 → "2.70")
+  integer?: boolean;    // round to whole numbers
+  width?: number;
+  style?: CSSProperties;
+  title?: string;
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
+  onEmpty?: () => void; // a blank field means something ("no location", "its own length")
+}) {
+  const fmt = (n: number | undefined) =>
+    n === undefined || !Number.isFinite(n) ? "" : digits !== undefined ? n.toFixed(digits) : String(n);
+  const [text, setText] = useState<string | null>(null);  // null = not editing: show the value
+  const parse = (t: string) => {
+    const s = t.trim().replace(",", ".");
+    if (s === "" || s === "-" || s === "." || s === "-.") return NaN;
+    const n = Number(s);
+    return Number.isFinite(n) ? (integer ? Math.round(n) : n) : NaN;
+  };
+  const inRange = (n: number) => (min === undefined || n >= min) && (max === undefined || n <= max);
+  const clamp = (n: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n));
+  const shown = text ?? fmt(value);
+  const n = parse(shown);
+  const bad = text !== null && text.trim() !== "" && (!Number.isFinite(n) || !inRange(n));
+  const finish = () => {
+    if (text === null) return;
+    const v = parse(text);
+    if (Number.isFinite(v)) { const c = clamp(v); if (c !== value) onChange(c); }
+    else if (text.trim() === "" && onEmpty) onEmpty();
+    setText(null);  // back to showing the (tidied) value
+  };
+  return (
+    <input type="text" inputMode={integer ? "numeric" : "decimal"} value={shown} title={title} placeholder={placeholder}
+      className={className} disabled={disabled} autoComplete="off" spellCheck={false}
+      onFocus={(e) => { setText(fmt(value)); e.target.select(); }}
+      onChange={(e) => {
+        setText(e.target.value);
+        const v = parse(e.target.value);
+        if (Number.isFinite(v) && inRange(v) && v !== value) onChange(v);
+      }}
+      onBlur={finish}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { finish(); (e.target as HTMLInputElement).blur(); }
+        else if (e.key === "Escape") { setText(null); (e.target as HTMLInputElement).blur(); }
+      }}
+      style={{
+        width, textAlign: "right", fontVariantNumeric: "tabular-nums",
+        ...style,
+        ...(bad ? { borderColor: C.red, color: C.red } : {}),
+      }} />
+  );
+}
