@@ -35,8 +35,11 @@ bool pm_node_apply(const PmNodeConfig &cfg) {
   if (cfg.bridge) {
     role |= PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR;
   } else if (cfg.battery) {
-    // A battery board is a leaf: it never relays (and never keeps the clock).
+    // A battery board never keeps the clock and is never the bridge. It is
+    // a leaf (never relays) unless it is a battery repeater (docs §6m),
+    // which relays while awake — the show tier keeps it awake.
     role = role & ~(PM_NODE_ROLE_RELAY | PM_NODE_ROLE_BRIDGE | PM_NODE_ROLE_CONDUCTOR);
+    if (cfg.sleep_relay) role |= PM_NODE_ROLE_RELAY;
   } else {
     role = (role | PM_NODE_ROLE_RELAY) & ~PM_NODE_ROLE_BRIDGE;
     // An elected (non-bridge) conductor keeps the clock; a former
@@ -79,6 +82,10 @@ static void cmd_hello(JsonObject resp) {
   if (pm_channels_config().battery) {
     resp["power"] = "battery";
     resp["checkin_ms"] = pm_channels_config().sleep_checkin_ms;
+    if (pm_channels_config().sleep_relay) resp["relay"] = true;  // a battery repeater (docs §6m)
+    int32_t ppm;
+    if (pm_sleep_drift_ppm(&ppm)) resp["drift_ppm"] = ppm;  // its sleep clock's error, corrected for
+    if (pm_sleep_last_awake_ms()) resp["awake_ms"] = pm_sleep_last_awake_ms();  // how long its last wake lasted
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }
@@ -344,6 +351,10 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     pm_config_to_json(pm_channels_config(), resp["config"].to<JsonObject>());
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
+  // {"cmd":"candle","index":1,"event":"gust"|"sputter"} — the console's test buttons.
+  else if (!strcmp(cmd, "candle")) {
+    if (!pm_candle_event(req["index"] | 0, !strcmp(req["event"] | "gust", "sputter"))) fail(resp, "no such candle");
+  }
   else if (!strcmp(cmd, "state")) cmd_state(resp);
   else if (!strcmp(cmd, "all_off")) {
     pm_show_stop();

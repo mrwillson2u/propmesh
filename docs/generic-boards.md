@@ -1004,7 +1004,11 @@ The board from the lantern fire test, as a third profile:
   accepts the 20 ms non-connectable interval (the stats would show
   `failed_opcode` 0x200A).
 - **Native USB caveats.** `Serial` is the USB-JTAG CDC port
-  (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. After a deep
+  (`ARDUINO_USB_CDC_ON_BOOT=1`); the baud rate is ignored. **Plugged into a
+  computer that isn't reading the port, writes blocked** (up to 2 s each)
+  and the watchdog rebooted the board every few minutes (first real C6
+  run, 2026-10-15); `main.cpp` now sets a zero TX timeout and a 4 KB TX
+  buffer on native-USB builds, so unread output is dropped instead. After a deep
   sleep the port re-enumerates, so a USB-connected console drops and
   reconnects on every wake — on battery, talk to it over the mesh
   instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;
@@ -1296,6 +1300,267 @@ static RAM. DevKit and C6 builds unchanged.
   compared to a DevKit at the same spot; OTA its own image; On battery +
   a button on GPIO 1 → deep sleep and wake, with `hello.reset` saying
   "deep sleep" and the boot event naming GPIO 1.
+
+## 6m. Battery repeater (built 2026-10-14, simulator only)
+
+Colin's ask: a Feather on a large battery as a **repeater** for the far
+end of the yard, with a sensor or nothing else wired to it.
+
+**Today** that works by leaving *On battery* **off**: the board then
+relays, keeps its radio on, fires its sensor instantly, and still reports
+its battery voltage (the sense pin is read whatever the switch says). The
+cost is runtime: a relay can't sleep, because ESP-NOW has no
+store-and-forward — a dozing relay drops whatever the others send
+meanwhile. Awake with the radio listening is ~100 mA (design figure,
+§6f; not yet measured on the Feather): a 2,000 mAh cell lasts under a
+day, 10,000 mAh ~4 days, 20,000 mAh ~a week.
+
+**The mode to add: relay during the show, sleep outside it.** A battery
+board with `sleep.relay = true`:
+
+| | Show tier (any mode but off) | Off tier (schedule off, STOP ALL) |
+|---|---|---|
+| Today's battery board | modem sleep, listens `window/interval`, never relays | deep sleep, check-ins, sensor wake, wakes 5 s before the next window |
+| Battery repeater | **radio always on, RELAY role**, `listen_ms` 0 (cues need no lead for it) | **unchanged** — deep sleep, check-ins, sensor wake, pre-window wake |
+
+So the show costs ~100 mA while it runs and the rest of the day costs
+the off-tier floor. Five hours of show a night on 10,000 mAh ≈ 2
+weeks (corrected 2026-10-14: the check-ins on the grid are ~14 s awake per
+5 min, ~4 mA averaged — most of the off-tier cost) (as bought; the Feather's 6.5 mA CP2104 floor eats ~1/3 of that —
+the D− pull-down in §6f matters more here than anywhere). Never the
+conductor and never the bridge (unchanged from a battery board).
+
+**What the boards behind it experience.** While the show runs, nothing
+different from a mains relay: cues, requests, heartbeats and beacons all
+pass. When the schedule goes off and the repeater sleeps, the boards
+behind it lose their path to the bridge: after 30 s without a bridge
+heartbeat they start the channel scan (§6d — 13 s off-channel every
+2 min, harmless with the show off); their own schedule still runs on
+their own wall clock, so they come on at the next window by themselves;
+the repeater wakes 5 s before that window and the beacon reaches them
+again; edits saved meanwhile reach them through the show-sync pull (§6k)
+once the beacon carries a newer stamp. To reach them from the console
+after hours: wait for the repeater's check-in (`checkin_ms`, 5 min
+default) — a request then holds it awake 10 min (`hold_awake`, as for
+any battery board), and the boards behind it are reachable for that
+long. This bends the mesh-first rule knowingly: **a prop whose only
+path is a battery repeater is cut off outside show hours.** The console
+should say so.
+
+**Design**
+- Config: `sleep.relay` (bool, default false), alongside `interval_ms`
+  / `window_ms` / `checkin_ms`. `pm_config.h` `sleep_relay`; JSON both
+  ways; ignored unless `power` is `battery`.
+- `pm_node_apply`: battery + relay → keep `RELAY`, still strip
+  `BRIDGE` and `CONDUCTOR`.
+- `pm_sleep.cpp`: `set_show_tier(on)` with relay → `WIFI_PS_NONE`, no
+  wake window, `pm_sleep_listen_ms()` returns 0 (other boards then send
+  cues at the normal 200 ms lead and don't repeat into a window). Off
+  tier unchanged.
+- `hello`/heartbeat: nothing new — `role` already carries RELAY, and
+  the config carries `power` + `sleep.relay`.
+- Console, board page: under SLEEP, a toggle **Relay for other boards
+  while the show runs** with the cost in the same sentence (about 100 mA
+  while the show runs instead of ~25; the off tier is unchanged) and
+  the caveat (boards behind it are cut off outside show hours).
+- Console, Yard: a board whose every route to the bridge passes through
+  a battery board shows **via battery relay** in its detail panel and an
+  amber note on the topology — `lib/topology.ts` already walks routes.
+- Host test: config JSON round trip with `sleep.relay`; `test_pin_config`.
+- Docs site: a "Using a battery board as a repeater" section on the
+  battery page: when to leave *On battery* off (big battery, short
+  season), when to use the relay toggle (weeks on a battery), what the
+  boards behind it lose after hours.
+
+**As built (2026-10-14).** Exactly the design above. Firmware:
+`PmNodeConfig.sleep_relay`; `pm_node_apply` keeps RELAY for it;
+`set_show_tier` with relay leaves the radio on (`WIFI_PS_NONE`, no wake
+window) and `pm_sleep_listen_ms()` reports 0, so the bridge treats it
+like a mains relay during the show; changing the setting mid-show leaves
+the tier so it re-enters the right way; `hello.relay`. Host test
+`test_battery_repeater_setting_round_trips`. Console: the toggle under
+SLEEP (the listen row dims when it's on); the simulator now gives
+battery boards the leaf / relay role the firmware does; `topology.ts`
+walks the routes a second time without passing through battery
+repeaters, and whoever that misses gets `viaBattery` — the Yard header
+counts them ("☾ N via battery relay") and the detail panel says which
+repeater and what that means. Checked in the simulator with Skeleton as
+a repeater: Porch lantern (reached only through it) is flagged. Not on
+hardware.
+
+**Other tricks, considered**
+- **A relay that listens in windows (modem sleep + RELAY).** The
+  bridge already repeats cues and hold-awake bursts across a leaf's
+  interval, and a windowed relay would catch those. But heartbeats and
+  beacons go out once per 5 s and are not repeated: at 100/1000 ms it
+  hears ~10 % of them, so every board behind it loses the bridge within
+  30 s and starts scanning channels mid-show, and the console shows
+  them red. Fixing that means repeating every mesh-wide frame through
+  the window — a protocol change for a 4× saving. **Rejected** for now;
+  the schedule-gated relay gets most of the benefit with no protocol
+  change.
+- **CPU at 80 MHz on battery boards** (`setCpuFrequencyMhz(80)`).
+  Saves roughly 10–20 mA of the ~100; WiFi needs ≥ 80 MHz, LEDC and RMT
+  run from the 80 MHz APB clock so servo/strip timing is unaffected;
+  the fire effect's math gets slower. **Worth trying after a baseline
+  measurement**, not before: cheap, but unverified, and it touches
+  every battery board.
+- **Automatic light sleep** (`CONFIG_PM_ENABLE`, §6g "the real lever"):
+  the CPU would sleep between frames while the radio listens; the radio
+  is the larger draw, so the saving is the CPU's ~30 mA at best. Needs
+  the SDK rebuilt. Winter.
+- **Lower transmit power.** A relay transmits for milliseconds per
+  frame; the receive current dominates. **Negligible**, skip.
+- **The Feather's USB-chip floor** (§6f): ~6.5 mA around the clock from
+  the CP2104 with no host. On a repeater that sleeps 19 h a day it is
+  most of the off-tier cost; the D− pull-down fix is the single biggest
+  win after the relay mode. Measure before and after.
+- **Charging.** The Feather's charger is 500 mA: 10,000 mAh takes ~20 h.
+  Charge big packs off-board, or run the Feather from a **USB power
+  bank** on its USB port — at ~100 mA most banks don't auto-off (the
+  deep-sleep floor is another story: many banks switch off below
+  ~50 mA, so a power bank suits the always-on setup, a LiPo on the JST
+  suits the relay mode).
+- **Solar.** 100 mA × 5 h ≈ 2 Wh a night; a 5–10 W panel covers that on
+  most October days. A future note once something has been measured.
+- **Just use mains.** A porch-light socket-to-USB adapter or an outdoor
+  extension with a USB charger beats every trick above, where it
+  exists. The battery repeater is for where it doesn't.
+
+**Synchronized check-ins (built 2026-10-14, one grid for every battery board — Colin; simulator and host tests only).** Colin:
+battery repeaters should check in *at the same time*. Today a board
+sleeps `checkin_ms` from whenever it fell asleep, so the moment drifts
+with every sensor wake, console hold and dwell; two repeaters in a
+chain almost never wake together, and a board two repeaters deep is
+unreachable after hours even at check-in time. Design:
+- **Wake on a UTC grid**: the next multiple of `checkin_ms` since
+  midnight UTC, not "now + checkin_ms". Boards with the same period wake
+  together; a 10-min board meets the 5-min ones every other slot. A
+  sensor wake or a console hold no longer shifts it. Schedule windows
+  still win (wake 5 s before one, as now).
+- **Guard for clock drift.** The deep-sleep timer runs from the chip's
+  internal RC oscillator (no 32 kHz crystal on the Feather or the
+  SuperMinis): roughly 1 % off, temperature-dependent — ~3 s over 5 min.
+  So wake `guard` early and stay until `guard` after the slot plus the
+  dwell. Start with guard = 1 % of the sleep + 1 s. Later: each wake
+  compares its clock with the conductor's beacon, keeps the error in RTC
+  memory, and corrects the next sleep — that shrinks the guard to ~1 s
+  and the cost back to today's.
+- **Cost** with the fixed guard: ~6 s more awake per 5-min check-in,
+  roughly 2 mA → 4 mA average in the off tier. Worth it only for boards
+  that relay or sit behind a relay; leaves could keep the old rule, but
+  one rule for all battery boards is simpler to explain. Decide at
+  build time.
+- **Console**: the bridge knows the grid, so a request for a sleeping
+  board can say "next check-in 21:35:00" and be queued to go out in that
+  slot, instead of the user retrying blind.
+- No protocol change; `checkin_ms` stays per board (the console can
+  nudge "boards with the same check-in wake together").
+
+*As built:* `pm_checkin.h` (pure, three host tests in `test_schedule`)
+plans the next slot with guard = 1 % of the period + 1 s; `pm_sleep_loop`
+sleeps to it whenever the board has a wall clock (else the old "a period
+from now"), a schedule window that comes first still wins, and the guard
+rides in RTC memory so the timer wake holds `dwell + 2 × guard`. The
+console shows "next check-in HH:MM:SS" for a sleeping board (roster
+tooltip, Yard) from the same grid (`nextCheckin` in `lib/connection.ts`).
+**Not built yet:** queueing a console request to go out in the slot —
+today you still retry by hand, but now you know when.
+
+**Shorter check-ins and drift self-correction (built 2026-10-14; host
+tests and builds only).**
+- *Early release.* A check-in used to hold a fixed `dwell + 2 × guard`
+  (14 s at 5 min). Now that is only the ceiling: the first heartbeat goes
+  ~0.5 s after a wake (it used to wait 5 s), and the board sleeps again
+  once the bridge has been heard and 1.5 s more have passed (time for a
+  sync pull to start and hold it). A repeater also stays until
+  `slot + guard + 6 s` — the latest a board behind it can wake, plus one
+  beacon period — so its saving is smaller; a leaf's check-in should
+  drop to roughly 3–5 s (most of it waiting for the next beacon). No
+  bridge heard: the old ceiling applies.
+- *Drift.* The wall clock rides through deep sleep on the same RC
+  oscillator as the wake timer, so the jump it takes at the first
+  conductor beacon (`pm_wall_first_step`, recorded in `pm_mesh.cpp`)
+  over how long the RTC thought it slept is the oscillator's error.
+  Measured each wake (sleeps ≥ 60 s, jumps within ±5 %), blended 3:1
+  with the last value, kept in RTC memory; the next sleep asks for
+  `real × (1 + ppm)`. Once measured the guard drops from 1 % to 0.3 %
+  of the period + 1 s (4 s → 1 s at 5 min). Pure math in `pm_checkin.h`,
+  two more host tests.
+- *Visible:* `hello.awake_ms` (how long the last wake lasted) and
+  `hello.drift_ppm`; the Yard's detail panel shows them as **LAST
+  CHECK-IN**, and the serial log prints both at every sleep. That is
+  the bench check without a meter: watch `awake` fall to a few seconds
+  and the clock error settle after two or three check-ins.
+
+**Bench test without a battery.** *On battery* is a setting, not a
+sensor: a board on USB power sleeps and relays exactly as on a cell, and
+every build carries deep sleep, so the repeater can be tested on two
+DevKits plus the bridge, all on USB chargers. Only the current and
+runtime figures need a real battery and a meter. (2026-10-14: both of
+Colin's Feathers have damaged chargers; a reversed-polarity LiPo is the
+likely cause.)
+
+**Bench test (to write once built):** Feather on a 2,000 mAh LiPo,
+relay toggle on, schedule with a 10-minute window starting 3 min out, a
+DevKit placed out of the bridge's range but within the Feather's. Watch:
+the DevKit appears on the roster only once the Feather is awake and
+relaying; a cue from the bridge reaches the DevKit at the normal lead;
+at the window's end the Feather deep-sleeps and the DevKit turns red
+within ~20 s; before the next window the Feather wakes first and the
+DevKit comes back. Meter on the Feather in both tiers.
+
+## 6n. Electric candles (built 2026-10-15, simulator and host tests only)
+
+Colin's prop: a flameless candle with a plastic flame on a pivot, lit by
+one plain LED, swung by a small coil (YMT-LZ06 board, its controller
+removed), with an ESP32-C6 SuperMini inside. A sketch from another
+session drove it directly (`reference/candle_esp32.ino`); this brings it
+into PropMesh so it turns on and off, and is tuned, from the console.
+
+- **Why not the strip fire effect.** Fire2023 is a 2-D pixel
+  simulation for addressable strips; the candle is one PWM LED and a
+  coil. The sketch's flicker was written for exactly this hardware and
+  couples the coil to the gusts, which is what sells it.
+- **A NeoPixel instead of the LED** was considered: a sharpened
+  through-hole WS2812 for color, powered straight from the LiPo (no
+  level shifter needed at that supply), optionally ground-switched by an
+  AO3400A with the data pin released when off. Shelved for this year
+  (Colin, 2026-10-15): the pixels on hand are 5 mm and the candle LED is
+  smaller. The design is here for later; it would be a `candle` effect on
+  a 1-pixel LED_STRIP plus a coil pin.
+- **Function `CANDLE`** (ChannelKind 9): pins LIGHT (LEDC, 1 kHz, 12-bit,
+  gamma 2.2; `active_low` for a board that sinks the LED) and COIL (plain
+  GPIO into the candle's transistor). Value 0–1000 = brightness of the
+  flicker, 0 = out; it ramps like an LED dimmer. 1 LEDC channel.
+- **Model** `pm_candle_core.h` (pure, host-tested): the sketch's four
+  LED layers (wander, shimmer, gusts, sputters, exponential gaps) and its
+  coil pattern (bursts of 3–5 kicks at the swing frequency then 0.5–1.5 s
+  rest; during a gust, continuous in-phase kicks 1.4× wider). Seeded
+  xorshift instead of `esp_random` so tests are repeatable.
+  `PmCandleCfg`: drama10, floor %, gust_s, sputter_s (0 = never),
+  swing_chz, kick_ms (4–80), coil. Validator issue `candle_settings`.
+- **Driver** `pm_candle.cpp`: ticks every 5 ms from `pm_channels_loop`;
+  each coil pulse is ended by a one-shot `esp_timer`, not the loop, so a
+  stalled loop can't leave the coil energized; off / STOP ALL / release
+  stop the timer and drive the coil low. Allocated on the heap only when
+  a candle is assigned. `{"cmd":"candle","index":N,"event":"gust"|"sputter"}`
+  fires one now (the console's test buttons).
+- **Dropped from the sketch:** the 4 h / 8 h auto-off and its mode switch
+  (the schedule does it), battery compensation (wants a board-wide
+  battery sense — on the list), the IR input, the serial tuning keys.
+- **Cost:** static RAM +~450 B on the classic ESP32 builds (the candle
+  settings ride in every channel slot): HUZZAH32 96.5 KB, ~1.3 KB under
+  the limit. Flash +~8 KB.
+- **Open hardware question:** in deep sleep the coil pin floats. If Q3's
+  base has no pull-down on that board, add 10 kΩ to ground (the site page
+  says so) — or the firmware will need to hold the pin through sleep.
+- **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
+  = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
+  dips and a big swing; Sputter → near-blowout, stutter, flare; tune
+  swing ±0.05 Hz for the largest motion and note the value; Out and STOP
+  ALL → dark and still, coil cold; a 30-minute run with a finger on the
+  coil for heat.
 
 ## 7. Bench test — Stage 1
 

@@ -53,3 +53,9 @@ functions:
     pins: []
     ble: true
     value: {min: 0, max: 2147483647}   # 0xWWRRGGBB, W (white) 0–127; 0 = off
+  CANDLE:
+    label: Candle (flicker LED + flame coil)
+    pins: [{role: LIGHT, need: out}, {role: COIL, need: out}]
+    ledc: 1                   # the LED; the coil is plain GPIO pulses
+    pwm_hz: 1000              # LED_PWM_HZ
+    value: {min: 0, max: 1000}   # brightness; 0 = out

@@ -39,6 +39,8 @@ Head", Feather):
 | pm_ws2812 (WS2812 on the IDF RMT driver, replaced NeoPixel) | built, **not on hardware** |
 | ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
 | ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
+| Battery repeater: relay during the show, sleep outside it (generic-boards §6m) | built 2026-10-14, **simulator only** |
+| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | built 2026-10-15, **simulator only** |
 | Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
@@ -60,6 +62,12 @@ Run these with the boards in hand. Protocol: write out what to watch,
    with 0–5 wake-capable, the blue LED on 8 (active low), a strip on 10,
    flood sender, mesh RSSI next to a DevKit (antenna caveat), OTA, deep
    sleep + wake on GPIO 1.
+1c. **Battery repeater** — generic-boards §6m "Bench test": Feather on a
+   LiPo with the relay toggle on, a DevKit out of the bridge's range;
+   the DevKit should appear only while the Feather relays, and drop
+   when it sleeps. Meter both tiers.
+1d. **Electric candle** — generic-boards §6n "Bench test": the C6 in the
+   candle, flicker, gust, sputter, swing tuning, coil temperature.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
@@ -76,6 +84,20 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 ## 3. Open bugs and loose ends
 
+- **C6 SuperMini crash-loop on its first real run (2026-10-15) —
+  cause found, fix built, not yet on the board.** e076df14 on the release
+  firmware (`d73db6b`), nothing assigned: it joined the mesh and answered
+  requests, then the **task watchdog** rebooted it every few minutes
+  (`hello.reset` "task watchdog", uptime 210 s → 8 s). It was plugged
+  into a laptop with no serial monitor open; moved to a USB charger it
+  ran normally. Cause: on native-USB chips (C3, C6) `Serial` is the
+  chip's USB port, and the Arduino core's write waits up to 20 × 100 ms
+  per write for a host that isn't reading — a few dozen log lines pass
+  the 30 s watchdog. Fix (`main.cpp`): `setTxTimeoutMs(0)` and a 4 KB TX
+  buffer on native-USB builds. Bench check: the fixed build on a C6 plugged
+  into a computer with no monitor open, uptime past 10 min. The second
+  C6 (e0761d54) went silent the same way. The flashing BAT LED on one C6
+  is the charger's "no battery" signal, not a fault.
 - **Bridge went dead during servo slider moves** (2026-10-08, not
   reproduced) and **froze updating itself over the mesh** (2026-10-11, not
   reproduced; suspect its power supply). Workaround: update the bridge
@@ -84,8 +106,10 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
   ("enter it above the light list", `console/src/lib/pinRules.ts`).
   Pairing makes the key; decide whether a manual key field is wanted or
   fix the text.
-- **README board table is stale** (Mini listed as C3 + microSD; it's an
-  ESP32-S3-WROOM-1U-N16R2 with audio in flash — CLAUDE.md).
+- ~~README board table is stale~~ — README rewritten 2026-10-14. Still
+  stale: `docs/hardware-spec.md` locked-decisions table says the Mini
+  stores audio in flash because "ESP32-C3 has no SDMMC" (hardware doc —
+  Colin's to update).
 - **Console's Firmware panel says "About six minutes a board"** for mesh
   updates; measured 3.5 min since the 921600 baud change (generic-boards
   §6c). Site audit 2026-10-13 lists the other small ones.
@@ -123,6 +147,13 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 - Audio (I²S), steppers, analog inputs — the Pro/Mini feature set.
 - Pro and Mini board profiles in the node firmware (after v0.1 boards).
 - Native app (Capacitor, same React code) after the protocol spec.
+- **Custom effects / a code editor** (Colin, 2026-10-15): write an effect
+  like the candle in the console and push it to boards. Needs an on-board
+  interpreter (Berry — what Tasmota runs on ESP32, MIT — is the first
+  candidate; ~100–200 KB flash, the C6 has ~250 KB left), per-frame time
+  limits so a bad script can't hang a prop, an in-browser preview that
+  matches the board exactly, and a slot in the versioned API spec. Until
+  then, built-in effects with console settings.
 
 **Hardware (on the Mac):** Pro v0.1 after Halloween; Mini v0.1 Nov–Dec;
 v0.2 Jan–Feb 2027; beta May–Jun; launch season 2027 (hardware-spec §7).
@@ -155,10 +186,24 @@ needs your user in the `dialout` group.
   Run the dev server on the server and tunnel it so the page is
   `localhost` (Web Serial needs a secure context; `ws://` to the bridge is
   allowed from an `http://localhost` page):
-  `ssh -L 5180:localhost:5180 server`, then on the server
-  `npm run dev --prefix console -- --port 5180`, open
-  http://localhost:5180. USB connects to the board on *your* machine;
+  `ssh -L 5181:localhost:5181 server`, then on the server
+  `npm run dev --prefix console -- --port 5181` (5180 is the always-on
+  copy below), open
+  http://localhost:5181. USB connects to the board on *your* machine;
   WiFi connects need your machine on the home network.
+
+**The always-on console on the server (set up 2026-10-15).** A user
+service serves a built copy of the console to the home network and
+Tailscale at **http://192.168.175.9:5180** (LAN) — phones in the yard can
+use it and connect to the bridge over WiFi. USB doesn't work from it
+(browsers allow Web Serial only on https or localhost; use the SSH
+tunnel for that). No login: anyone on the home network can open it.
+- Built from a separate checkout, `~/propmesh-live`, pinned to
+  `origin/dev`, so switching branches in `~/propmesh` never changes it.
+- Service: `~/.config/systemd/user/propmesh-console.service`
+  (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
+  at boot). `systemctl --user status propmesh-console`.
+- Update after merging to dev: `~/bin/propmesh-console-update`.
 
 **Not in git — copy or recreate deliberately**
 - **Claude's memory** — `~/.claude/projects/<path>/memory/` on the Mac

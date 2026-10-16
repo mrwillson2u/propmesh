@@ -173,11 +173,26 @@ void setup() {
   // the cable (1.75 MB of base64 per image) cost more than the mesh did
   // (2026-10-07). The console tries this speed first, then 115200 for
   // boards not yet updated. The CP2102/CH340 on the devkits both do it.
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+  // Native USB (C3, C6): Serial is the chip's own USB port. Plugged into a
+  // computer that isn't reading it, each write waited up to 20 × 100 ms
+  // for the host, and a few dozen log lines hung the loop past the 30 s
+  // watchdog — a C6 on a laptop rebooted every few minutes (2026-10-15).
+  // Never wait: drop output nobody reads. A 4 KB buffer keeps a console
+  // that IS reading from losing the end of a long reply.
+  Serial.setTxBufferSize(4096);
+#endif
   Serial.begin(PM_SERIAL_BAUD);
+#if ARDUINO_USB_MODE && ARDUINO_USB_CDC_ON_BOOT
+  Serial.setTxTimeoutMs(0);
+#endif
   delay(300);
 
   pm_api_begin(BOARD);
   pm_sleep_begin();  // wake cause; the wall clock after a deep sleep
+  // Back from deep sleep: say so at once instead of 5 s in. A check-in
+  // ends as soon as its heartbeat is out and the bridge is heard (§6m).
+  if (strcmp(pm_sleep_wake_cause(), "timer") == 0 || strcmp(pm_sleep_wake_cause(), "sensor") == 0) next_period = 500;
 
   // Stored config is re-validated against THIS firmware's board table:
   // a file from another board, or from before a rule changed, must not

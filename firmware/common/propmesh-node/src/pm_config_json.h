@@ -23,6 +23,7 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
   out.sleep_interval_ms = sl["interval_ms"] | 1000;
   out.sleep_window_ms = sl["window_ms"] | 100;
   out.sleep_checkin_ms = sl["checkin_ms"] | 300000UL;
+  out.sleep_relay = sl["relay"] | false;
   if (out.sleep_interval_ms < 200 || out.sleep_interval_ms > 10000) return "sleep.interval_ms must be 200-10000";
   if (out.sleep_window_ms < 30 || out.sleep_window_ms > out.sleep_interval_ms) return "sleep.window_ms must be 30 to interval_ms";
   if (out.sleep_checkin_ms < 30000 || out.sleep_checkin_ms > 86400000UL) return "sleep.checkin_ms must be 30000 (30 s) to 86400000 (24 h)";
@@ -90,6 +91,14 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
       f.smoke_speed = fj["smoke_speed"] | f.smoke_speed;  f.smoke_dim = fj["smoke_dim"] | f.smoke_dim;
       f.smoke_scale = fj["smoke_scale"] | f.smoke_scale;
     }
+    JsonVariantConst cj = jc["candle"];
+    if (!cj.isNull()) {
+      PmCandleCfg &k = c.candle;
+      k.drama10 = cj["drama10"] | k.drama10;  k.floor = cj["floor"] | k.floor;
+      k.gust_s = cj["gust_s"] | k.gust_s;  k.sputter_s = cj["sputter_s"] | k.sputter_s;
+      k.swing_chz = cj["swing_chz"] | k.swing_chz;  k.kick_ms = cj["kick_ms"] | k.kick_ms;
+      k.coil = cj["coil"] | k.coil;
+    }
     long light = jc["light"] | (long)c.light_id;
     if (light < 0 || light > 255) return "light must be 1-255";
     c.light_id = (uint8_t)light;
@@ -114,6 +123,7 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
     sl["interval_ms"] = cfg.sleep_interval_ms;
     sl["window_ms"] = cfg.sleep_window_ms;
     sl["checkin_ms"] = cfg.sleep_checkin_ms;
+    if (cfg.sleep_relay) sl["relay"] = true;
   }
   if (cfg.wifi_ssid[0]) {
     JsonObject wifi = root["wifi"].to<JsonObject>();
@@ -169,6 +179,15 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
       case PM_CHANNEL_KIND_BLE_LIGHT:
         jc["light"] = c.light_id;
         break;
+      case PM_CHANNEL_KIND_CANDLE: {
+        jc["active_low"] = c.active_low;
+        JsonObject cj = jc["candle"].to<JsonObject>();
+        const PmCandleCfg &k = c.candle;
+        cj["drama10"] = k.drama10;  cj["floor"] = k.floor;  cj["gust_s"] = k.gust_s;
+        cj["sputter_s"] = k.sputter_s;  cj["swing_chz"] = k.swing_chz;  cj["kick_ms"] = k.kick_ms;
+        cj["coil"] = k.coil;
+        break;
+      }
     }
   }
 }

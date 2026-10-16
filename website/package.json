@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "shots": "node scripts/shots/shoot.mjs src/assets/console"
+    "shots": "node scripts/shots/shoot.mjs src/assets/console",
+    "test:fields": "node scripts/shots/type-fields.mjs http://127.0.0.1:5182"
   },
   "devDependencies": {
     "playwright": "^1.58.2"

@@ -374,6 +374,32 @@ static void test_wifi_password_kept_in_flash_not_shown() {
   TEST_ASSERT_TRUE(console["wifi"]["pass_set"].as<bool>());
 }
 
+// A battery repeater (docs §6m) keeps its relay setting through flash and
+// the console; a plain battery board doesn't grow one, and a mains board
+// writes no sleep block at all.
+static void test_battery_repeater_setting_round_trips() {
+  PmNodeConfig c;
+  c.battery = true;
+  c.sleep_relay = true;
+  JsonDocument doc;
+  pm_config_to_json(c, doc.to<JsonObject>());
+  TEST_ASSERT_TRUE(doc["sleep"]["relay"].as<bool>());
+  PmNodeConfig back;
+  TEST_ASSERT_NULL(pm_config_from_json(doc.as<JsonVariantConst>(), back));
+  TEST_ASSERT_TRUE(back.battery);
+  TEST_ASSERT_TRUE(back.sleep_relay);
+
+  c.sleep_relay = false;
+  JsonDocument plain;
+  pm_config_to_json(c, plain.to<JsonObject>());
+  TEST_ASSERT_TRUE(plain["sleep"]["relay"].isNull());
+
+  c.battery = false;
+  JsonDocument mains;
+  pm_config_to_json(c, mains.to<JsonObject>());
+  TEST_ASSERT_TRUE(mains["sleep"].isNull());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_plain_config_is_clean);
@@ -410,5 +436,6 @@ int main() {
   RUN_TEST(test_ble_light_rules);
   RUN_TEST(test_ble_light_json);
   RUN_TEST(test_wifi_password_kept_in_flash_not_shown);
+  RUN_TEST(test_battery_repeater_setting_round_trips);
   return UNITY_END();
 }

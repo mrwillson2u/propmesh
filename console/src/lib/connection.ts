@@ -311,3 +311,15 @@ export const armAll = async (on: boolean) => { const r = await everyNode("arm", 
 // Off / ambient / armed on every node — held until the schedule's next
 // change (firmware PmModeKeeper).
 export const setModeAll = async (mode: Mode) => { const r = await everyNode("set_mode", { mode }); refreshAll(); return r; };
+
+// When a sleeping battery board next checks in. Boards wake on a UTC grid,
+// the next whole multiple of their check-in period (firmware pm_checkin.h,
+// docs §6m), so every board with the same period checks in together.
+export function nextCheckin(checkinMs: number | undefined, now = Date.now()): Date | null {
+  if (!checkinMs || checkinMs <= 0) return null;
+  return new Date(Math.floor(now / checkinMs) * checkinMs + checkinMs);
+}
+export const checkinText = (checkinMs: number | undefined, now = Date.now()) => {
+  const t = nextCheckin(checkinMs, now);
+  return t ? `next check-in ${t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "checks in on its own schedule";
+};

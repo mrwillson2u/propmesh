@@ -5,7 +5,7 @@
 import { isAway } from "../../lib/show";
 import { useEffect, useState } from "react";
 import { C } from "../../lib/tokens";
-import { Spinner, Toggle, mono, sys } from "../../ui";
+import { Spinner, Toggle, mono, sys, NumberInput } from "../../ui";
 import type { Connection } from "../../lib/connection";
 import {
   DAYS, DEFAULT_WINDOWS, MODES, MODE_LABEL, TIME_RE, emptySchedule, hhmm, loadSchedule, resolve, saveSchedule, validTime,
@@ -151,10 +151,10 @@ export default function SchedulePanel({ conn, onSaved }: { conn: Connection; onS
         </label>
         <span style={{ width: 12 }} />
         <span style={label}>LOCATION</span>
-        <input type="number" step={0.01} placeholder="latitude" value={Number.isFinite(sched.lat) ? sched.lat : ""}
-          onChange={(e) => set({ lat: e.target.value === "" ? NaN : +e.target.value })} style={{ ...field, width: 92, ...mono(500, 12, C.t1) }} />
-        <input type="number" step={0.01} placeholder="longitude" value={Number.isFinite(sched.lon) ? sched.lon : ""}
-          onChange={(e) => set({ lon: e.target.value === "" ? NaN : +e.target.value })} style={{ ...field, width: 92, ...mono(500, 12, C.t1) }} />
+        <NumberInput placeholder="latitude" value={Number.isFinite(sched.lat) ? sched.lat : undefined} min={-90} max={90}
+          onChange={(v) => set({ lat: v })} onEmpty={() => set({ lat: NaN })} width={92} style={{ ...field, ...mono(500, 12, C.t1) }} />
+        <NumberInput placeholder="longitude" value={Number.isFinite(sched.lon) ? sched.lon : undefined} min={-180} max={180}
+          onChange={(v) => set({ lon: v })} onEmpty={() => set({ lon: NaN })} width={92} style={{ ...field, ...mono(500, 12, C.t1) }} />
         <button onClick={locate} disabled={!!busy} style={btn(false, !!busy)}>Use this device's location</button>
         <span style={mono(500, 11, C.t4)}>
           {located ? `today: sunrise ${hhmm(sunrise)} · sunset ${hhmm(sunset)}` : "west is negative (New York −74.01)"}
@@ -235,9 +235,8 @@ export default function SchedulePanel({ conn, onSaved }: { conn: Connection; onS
           Later rows win where they overlap; outside every window the show is <b>Off</b>.
           A button press holds until the next change, but Armed during quiet hours lasts at most
         </span>
-        <input type="number" min={1} max={1440} value={sched.manual_max_min}
-          onChange={(e) => set({ manual_max_min: Math.max(1, Math.min(1440, Math.round(+e.target.value || 60))) })}
-          style={{ ...field, width: 58, ...mono(500, 12, C.t1) }} />
+        <NumberInput value={sched.manual_max_min} min={1} max={1440} integer
+          onChange={(v) => set({ manual_max_min: v })} width={58} style={{ ...field, ...mono(500, 12, C.t1) }} />
         <span style={sys(400, 11.5, C.t4)}>min.</span>
       </div>
     </div>

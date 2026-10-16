@@ -48,7 +48,7 @@ inline bool pm_kind_color(uint8_t kind) {
 // Kinds a ramp makes sense for: a level, a position or a color — not a switch.
 inline bool pm_kind_ramps(uint8_t kind) {
   return kind == PM_CHANNEL_KIND_SERVO || kind == PM_CHANNEL_KIND_LED ||
-         kind == PM_CHANNEL_KIND_MOTOR || pm_kind_color(kind);
+         kind == PM_CHANNEL_KIND_MOTOR || kind == PM_CHANNEL_KIND_CANDLE || pm_kind_color(kind);
 }
 
 struct PmSequence {

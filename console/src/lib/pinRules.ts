@@ -5,7 +5,7 @@
 // the firmware's validator and its verdict is what gets shown on save.
 import { Cap, FUNCTIONS, type Board } from "./boards_gen";
 import {
-  FIRE_DEFAULTS, isStrip,
+  CANDLE_DEFAULTS, FIRE_DEFAULTS, isStrip,
   MAX_CHANNELS, MAX_EASE_MS, MAX_TRAVEL_MS, SERVO_MAX_US, SERVO_MIN_TRAVEL_US, SERVO_MIN_US, STRIP_MAX_PIXELS,
   channelCode, type NodeConfig,
 } from "./nodeConfig";
@@ -81,6 +81,11 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
         if (!(f.w >= 1 && f.h >= 2 && f.w * f.h === n)) add("fire_matrix", true, i);
       }
     }
+    if (c.kind === "CANDLE") {
+      const k = c.candle ?? CANDLE_DEFAULTS;
+      if (k.drama10 > 15 || k.floor > 30 || k.gust_s < 2 || k.sputter_s > 3600 ||
+          k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80) add("candle_settings", true, i);
+    }
     ledc += f.ledc;
     rmt += f.rmt;
   });
@@ -97,7 +102,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
   const pin = bp ? `${bp.label} (GPIO ${bp.gpio})` : `GPIO ${it.gpio}`;
   switch (it.code) {
     case "pin_count":
-      return c?.kind === "MOTOR" ? `${who}: choose the second pin (IN2)` : c?.kind === "SPI_STRIP" ? `${who}: choose the clock pin` : `${who}: wrong number of pins`;
+      return c?.kind === "MOTOR" ? `${who}: choose the second pin (IN2)` : c?.kind === "SPI_STRIP" ? `${who}: choose the clock pin` : c?.kind === "CANDLE" ? `${who}: choose the coil pin` : `${who}: wrong number of pins`;
     case "no_such_pin": return `${who}: ${pin} is not on this board`;
     case "pin_reserved": return `${who}: ${pin} is reserved — ${bp?.note ?? ""}`;
     case "pin_cannot": return `${who}: ${pin} can't do this${bp?.note ? ` — ${bp.note}` : ""}`;
@@ -111,6 +116,7 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "ble_light_dup": return `${who}: another light on this board already uses number ${c?.light}`;
     case "ble_no_key": return "Bluetooth lights need the BRMesh key (8 hex digits) — enter it above the light list";
     case "pixel_count": return `${who}: pixel count must be 1–${STRIP_MAX_PIXELS}`;
+    case "candle_settings": return `${who}: candle settings out of range — drama 0–1.5, floor 0–30 %, gusts every 2–255 s, sputters every 0–3600 s, swing 0.5–8 Hz, kick 4–80 ms`;
     case "fire_matrix": return `${who}: the fire's columns × height must equal the pixel count (${c?.pixels ?? "?"}), at least 2 tall`;
     case "pwm_budget": return `Too many PWM outputs — this board has ${board.ledcChannels} PWM channels (a motor uses 2)`;
     case "strip_budget": return `Too many LED strips — this board drives ${board.rmtTxChannels}`;

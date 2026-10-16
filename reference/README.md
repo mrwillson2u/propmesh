@@ -18,6 +18,7 @@ BLE keys → placeholders). The raw unscrubbed dump lives in
 | ~~`brmesh-to-mqtt`~~ | BLE bridge for BRMesh floodlights → Home Assistant, built on dsclee1/BRmesh-esp32-mqtt. **Not published**: that project has no license, so it can't be redistributed. Kept locally in `reference/old_files/brmesh-to-mqtt/` (2026-10-12). | Worked | The protocol only — `pm_brmesh.h` reimplements it (THIRD_PARTY.md) |
 | `halloween-stepper` | TMC2209 UART + AccelStepper animation state machine. Prop lid choreography test. | Worked | Library choice (TMCStepper + AccelStepper), UART config sequence, animation state-machine pattern → Pro stepper driver |
 | `lantern-fire-test` | FastLED fire effect on SK9822 (APA102-class, 4-wire) with reusable `Fire2023Lib`. | Worked | The fire effect → stock effect library; proves the Pro's APA102 path |
+| `candle_esp32.ino` | **Electric candle** (YMT-LZ06 board, controller removed): layered LED flicker with gusts and sputters, coil kicks at the flame's swing frequency, battery compensation, auto-off timer. Written October 2026; not yet run. | Not yet run | Ported as the `CANDLE` output (docs/generic-boards.md §6n) |
 
 ## Key lessons encoded in this code
 

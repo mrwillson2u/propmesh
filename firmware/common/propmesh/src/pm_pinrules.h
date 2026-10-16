@@ -121,6 +121,12 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
         (c.fire.w < 1 || c.fire.h < 2 || (uint16_t)c.fire.w * c.fire.h != c.pixels))
       out.add("fire_matrix", true, i);
 
+    if (c.kind == PM_CHANNEL_KIND_CANDLE) {
+      const PmCandleCfg &k = c.candle;
+      if (k.drama10 > 15 || k.floor > 30 || k.gust_s < 2 || k.sputter_s > PM_CANDLE_MAX_SPUTTER_S ||
+          k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80)
+        out.add("candle_settings", true, i);
+    }
     ledc += f->ledc;
     rmt += f->rmt;
   }
