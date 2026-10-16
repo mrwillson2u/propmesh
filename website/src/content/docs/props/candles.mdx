@@ -1,0 +1,52 @@
+---
+title: Electric candles
+description: Put a board inside a flameless candle with a swinging flame, and make its flicker part of the show.
+sidebar:
+  order: 7
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Many flameless candles have a plastic flame on a pivot, lit from below by a single LED, with a small coil underneath that nudges the flame so it sways. With the candle's own chip removed, a PropMesh board can drive the LED and the coil, so the candle flickers, sways and sputters on cue, and goes dark when the show does.
+
+<Aside type="caution" title="Not yet tested on a real candle">
+The candle output is new. Its flicker comes from a sketch that ran on a real candle, but the PropMesh version has only run in the console's simulator and in automated tests. Please report how it looks.
+</Aside>
+
+## Wiring
+
+You need two pins: one for the LED and one for the coil.
+
+- **The LED.** Most candle boards feed the LED from the battery through a resistor and switch its other leg to ground. Connect that leg to a board pin, and tick **LED on = LOW** in the console. If instead the pin feeds the LED directly (pin → resistor → LED → ground), leave it unticked.
+- **The coil.** Never connect the coil straight to a pin. The candle board drives it through a transistor; connect a board pin to the transistor's input, usually through the resistor that is already there.
+- **Power.** The candle's battery can power the board through its 5V or VIN pin. The slide switch then turns everything off.
+
+<Aside type="tip" title="Check before you power it">
+If the coil's transistor has no resistor from its input to ground, the coil can twitch while the board starts up. A 10 kΩ resistor from the transistor's input to ground keeps it still.
+</Aside>
+
+## Setting it up in the console
+
+Assign the LED's pin to **Candle (flicker LED + flame coil)**, then choose the **coil** pin beside it. The **CANDLE** settings shape the flame:
+
+| Setting | What it changes |
+|---|---|
+| **drama** | how strong every effect is: 0 is a calm, steady flame, 1 is normal, 1.5 is wild |
+| **floor** | the dimmest the flame ever gets, even as it nearly blows out |
+| **gust every** | the average time between gusts: quick dips with a big swing of the flame |
+| **sputter every** | the average time between near-blowouts, where the flame stutters and flares back. 0 turns them off. |
+| **swing** | how often the coil kicks. Match it to the flame's own swing. |
+| **kick** | how long each coil pulse lasts. Longer kicks swing harder and use more battery. |
+| **swing the flame** | untick to keep the flame still while the LED flickers |
+
+Gusts and sputters come at random intervals around those averages, so the flicker never falls into a rhythm.
+
+### Tuning the swing
+
+Each candle's flame piece has its own natural swing. Press **Light**, then change **swing** in small steps, about 0.05 Hz at a time, and save after each one. At the right setting the flame swings noticeably further. Keep **kick** as short as still gives a good swing; a coil that gets warm is being pushed too hard.
+
+## In the show
+
+The candle's **TEST** column has a brightness slider, **Light** and **Out**, and **Gust** and **Sputter** buttons to try the effects on demand.
+
+In a sequence, a candle is a track like an LED dimmer: its value is the brightness of the flicker, 0 puts it out, and it can fade. A candle that fades up at dusk as part of an ambient loop, and gusts when a scare goes off nearby, is a few steps.

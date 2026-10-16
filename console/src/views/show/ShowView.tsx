@@ -44,7 +44,7 @@ const secs = (ms: number) => (ms / 1000).toFixed(ms % 1000 ? (ms % 100 ? 2 : 1) 
 // Kinds whose step slider drives the real output while you drag it.
 // Relays and motors are left to the Test button: a fogger clicking on
 // or a motor spinning as a slider moves would be a surprise.
-const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "LED_STRIP", "SPI_STRIP", "BLE_LIGHT"];
+const LIVE_KINDS: ChannelKindName[] = ["SERVO", "LED", "CANDLE", "LED_STRIP", "SPI_STRIP", "BLE_LIGHT"];
 
 const clock = (t: number) => new Date(t).toTimeString().slice(0, 8);
 

@@ -539,6 +539,10 @@ class SimLink implements NodeLink {
         try { localStorage.setItem(SIM_KEY + node, JSON.stringify(cfg)); } catch { /* private mode */ }
         return { ok: true, issues };
       }
+      case "candle": {
+        const c = n.cfg.channels.find((x) => x.kind === "CANDLE" && x.index === body.index);
+        return c ? { ok: true } : { ok: false, error: "no such candle" };
+      }
       case "set": {
         const c = n.cfg.channels.find((x) => x.kind === body.kind && x.index === body.index);
         if (!c || c.kind === "DIGITAL_IN") return { ok: false, error: "no such output channel" };

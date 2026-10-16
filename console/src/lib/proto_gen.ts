@@ -62,6 +62,7 @@ export const ChannelKind = {
   DIGITAL_IN: 6,
   BLE_LIGHT: 7,
   SPI_STRIP: 8,
+  CANDLE: 9,
 } as const;
 export type ChannelKind = (typeof ChannelKind)[keyof typeof ChannelKind];
 

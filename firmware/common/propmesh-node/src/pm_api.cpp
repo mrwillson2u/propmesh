@@ -351,6 +351,10 @@ void pm_api_handle(JsonObjectConst req, JsonObject resp) {
     pm_config_to_json(pm_channels_config(), resp["config"].to<JsonObject>());
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
+  // {"cmd":"candle","index":1,"event":"gust"|"sputter"} — the console's test buttons.
+  else if (!strcmp(cmd, "candle")) {
+    if (!pm_candle_event(req["index"] | 0, !strcmp(req["event"] | "gust", "sputter"))) fail(resp, "no such candle");
+  }
   else if (!strcmp(cmd, "state")) cmd_state(resp);
   else if (!strcmp(cmd, "all_off")) {
     pm_show_stop();

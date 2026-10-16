@@ -4,6 +4,7 @@
 // boards/functions.yaml:
 //   RELAY 0/1 · LED 0..1000 · SERVO 0..1000 (between its end stops)
 //   MOTOR -1000..1000 · LED_STRIP 0xRRGGBB · DIGITAL_IN read-only
+//   CANDLE 0..1000 (brightness of its flicker; 0 = out)
 #pragma once
 #include "pm_config.h"
 
@@ -43,6 +44,9 @@ int32_t pm_channel_get(uint8_t kind, uint8_t index);
 
 // Every output to its off state; servos stop being driven.
 void pm_channels_all_off();
+
+// A candle's gust or near-blowout, now (the console's test buttons).
+bool pm_candle_event(uint8_t index, bool sputter);
 
 void pm_on_input(pm_input_handler_t handler);
 void pm_channels_loop();

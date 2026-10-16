@@ -9,8 +9,7 @@ import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from 
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
   type ColorOrder, type FireCfg, type StripEffect,
-  type ChannelCfg, type NodeConfig, type Pull,
-} from "../../lib/nodeConfig";
+  type ChannelCfg, type NodeConfig, type Pull, CANDLE_DEFAULTS, type CandleCfg } from "../../lib/nodeConfig";
 import { issueText, validate, type Issue } from "../../lib/pinRules";
 import { SHORT, isBest, isGood, tips } from "../../lib/pinAdvice";
 import PinGuide from "./PinGuide";
@@ -326,8 +325,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
+                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
+                        onCandle={(event) => node.request("candle", { index: c.index, event }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         cal={c.kind !== "SERVO" ? undefined : {
                           on: cal?.code === channelCode(c),
                           us: cal?.code === channelCode(c) ? cal.us : 0,
@@ -641,6 +641,19 @@ function Options({ c, pin, in2, onChange }: {
           {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
         </>
       )}
+      {c.kind === "CANDLE" && (
+        <>
+          <label style={optLabel} title={`The LED is on ${pin.label}. The coil pulses to swing the flame; it drives a transistor, never the coil directly.`}>coil
+            <select value={c.pins[1] ?? ""} style={field}
+              onChange={(e) => onChange({ pins: e.target.value === "" ? [c.pins[0]] : [c.pins[0], Number(e.target.value)] })}>
+              <option value="">— choose —</option>
+              {in2.filter((p) => p.gpio !== c.pins[0]).map((p) => <option key={p.gpio} value={p.gpio}>{p.label}{p.tier === "caution" ? " ⚠" : ""}</option>)}
+            </select>
+          </label>
+          {activeLow("LED on = LOW", "Tick if the LED lights when its pin is pulled LOW (the pin sinks the LED's current, as on most hacked candle boards)")}
+          <CandleOptions k={c.candle ?? CANDLE_DEFAULTS} onChange={(p) => onChange({ candle: { ...(c.candle ?? CANDLE_DEFAULTS), ...p } })} />
+        </>
+      )}
       {c.kind === "MOTOR" && (
         <label style={optLabel} title={`IN1 is ${pin.label}`}>IN2
           <select value={c.pins[1] ?? ""} style={field}
@@ -720,6 +733,34 @@ function Health({ hello }: { hello: NodeHello }) {
 
 // Fire2023's knobs (firmware pm_fire.h). Titles say which way each one
 // pushes the look; the defaults are Colin's lantern.
+// The candle's knobs (firmware PmCandleCfg). Shown in plain units: drama as
+// 0–1.5, the swing in Hz.
+function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<CandleCfg>) => void }) {
+  const small: React.CSSProperties = { ...num, width: 64 };
+  const n = (s: string) => parseFloat(s) || 0;
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+      <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
+      <label style={optLabel} title="Scales every effect: 0 = a calm, steady flame; 1 = normal; 1.5 = wild">drama
+        <input type="number" min={0} max={1.5} step={0.1} value={(k.drama10 / 10).toFixed(1)}
+          onChange={(e) => onChange({ drama10: Math.max(0, Math.min(15, Math.round(n(e.target.value) * 10))) })} style={small} /></label>
+      <label style={optLabel} title="The dimmest the flame ever gets, even mid-sputter">floor
+        <input type="number" min={0} max={30} value={k.floor} onChange={(e) => onChange({ floor: Math.max(0, Math.min(30, Math.round(n(e.target.value)))) })} style={small} /> %</label>
+      <label style={optLabel} title="Average seconds between gusts — quick dips with a big swing of the flame. Random, never on a beat.">gust every
+        <input type="number" min={2} max={255} value={k.gust_s} onChange={(e) => onChange({ gust_s: Math.max(2, Math.min(255, Math.round(n(e.target.value)))) })} style={small} /> s</label>
+      <label style={optLabel} title="Average seconds between near-blowouts: the flame nearly dies, stutters, then flares back. 0 = never.">sputter every
+        <input type="number" min={0} max={3600} value={k.sputter_s} onChange={(e) => onChange({ sputter_s: Math.max(0, Math.min(3600, Math.round(n(e.target.value)))) })} style={small} /> s</label>
+      <label style={{ ...optLabel, opacity: k.coil ? 1 : 0.5 }} title="How often the coil kicks. Match the flame's own swing: nudge it ±0.3 Hz and watch for the biggest motion (the candle sketch measured 2.7 Hz).">swing
+        <input type="number" min={0.5} max={8} step={0.05} value={(k.swing_chz / 100).toFixed(2)}
+          onChange={(e) => onChange({ swing_chz: Math.max(50, Math.min(800, Math.round(n(e.target.value) * 100))) })} style={small} /> Hz</label>
+      <label style={{ ...optLabel, opacity: k.coil ? 1 : 0.5 }} title="Length of each coil pulse. Longer = a harder kick and more battery. Start low; the coil gets warm if overdriven.">kick
+        <input type="number" min={4} max={80} value={k.kick_ms} onChange={(e) => onChange({ kick_ms: Math.max(4, Math.min(80, Math.round(n(e.target.value)))) })} style={small} /> ms</label>
+      <label style={optLabel} title="Off: the flame piece stays still, the LED still flickers">
+        <input type="checkbox" checked={k.coil} onChange={(e) => onChange({ coil: e.target.checked })} /> swing the flame</label>
+    </span>
+  );
+}
+
 function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCfg>) => void }) {
   const u8 = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10) || 0));
   const small: React.CSSProperties = { ...num, width: 50 };
@@ -750,8 +791,9 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
   );
 }
 
-function Test({ c, value, disabled, onFire, cal }: {
-  c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void; cal?: Cal;
+function Test({ c, value, disabled, onFire, onCandle, cal }: {
+  c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
+  onCandle?: (event: "gust" | "sputter") => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
@@ -801,6 +843,19 @@ function Test({ c, value, disabled, onFire, cal }: {
       </span>
     );
   }
+
+  // A candle: its brightness on a slider, plus a gust or a sputter on demand.
+  if (c.kind === "CANDLE")
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap", ...dim }}>
+        <input type="range" min={0} max={1000} step={10} value={v}
+          onChange={(e) => onFire(Number(e.target.value))} style={{ flex: 1, minWidth: 60, accentColor: C.ember }} />
+        <button onClick={() => onFire(v ? 0 : 1000)} style={btn(!v)}>{v ? "Out" : "Light"}</button>
+        <button disabled={!v} onClick={() => onCandle?.("gust")} style={btn(false, !v)} title="A gust now: quick dips and a big swing">Gust</button>
+        <button disabled={!v} onClick={() => onCandle?.("sputter")} style={btn(false, !v)} title="A near-blowout now">Sputter</button>
+        {readout(v ? `${Math.round(v / 10)}%` : "out")}
+      </span>
+    );
 
   // LED, SERVO, MOTOR: a slider over the function's value range.
   const limp = c.kind === "SERVO" && v < 0;

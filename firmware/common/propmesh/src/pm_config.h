@@ -46,6 +46,20 @@ struct PmFireCfg {
   uint8_t smoke_scale = 125;
 };
 
+// CANDLE (pm_candle_core.h): an electric candle's LED and the coil that
+// swings its flame, from the candle sketch in reference/ (docs §6n).
+// Every field is a console knob; the defaults are the sketch's.
+struct PmCandleCfg {
+  uint8_t drama10 = 10;       // scales every effect × 10: 0 = calm, 10 = normal, 15 = wild
+  uint8_t floor = 3;          // dimmest the flame ever gets, % (0-30)
+  uint8_t gust_s = 18;        // mean seconds between gusts (2-255)
+  uint16_t sputter_s = 150;   // mean seconds between near-blowouts; 0 = never (max 3600)
+  uint16_t swing_chz = 270;   // flame swing frequency, Hz × 100 (50-800): match the flame's own
+  uint8_t kick_ms = 25;       // coil pulse width (4-80)
+  bool coil = true;           // swing the flame at all
+};
+#define PM_CANDLE_MAX_SPUTTER_S 3600
+
 struct PmChannelCfg {
   uint8_t kind = 0;   // pm_channel_kind_t
   uint8_t index = 0;  // 1-based: SERVO_1, SERVO_2…
@@ -68,6 +82,7 @@ struct PmChannelCfg {
   uint8_t order = PM_ORDER_GRB;   // strips: color order on the wire
   uint8_t effect = PM_EFFECT_SOLID;
   PmFireCfg fire;                 // when effect == PM_EFFECT_FIRE
+  PmCandleCfg candle;             // CANDLE (active_low: the LED is on when its pin is LOW)
 };
 
 inline bool pm_kind_is_strip(uint8_t kind) {

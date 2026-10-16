@@ -21,6 +21,7 @@ export interface ChannelCfg {
   order?: ColorOrder; // strips: color order on the wire (WS2812 grb, SK9822 bgr)
   effect?: StripEffect; // strips: what they show — the set color, or a running effect the color only switches on/off
   fire?: FireCfg; // when effect is "fire"
+  candle?: CandleCfg; // CANDLE (active_low: the LED is on when its pin is LOW)
   light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
 
@@ -41,6 +42,19 @@ export interface FireCfg {
   smoke_scale: number;
 }
 export const FIRE_DEFAULTS: FireCfg = { w: 2, h: 4, zigzag: true, brightness: 128, speed: 2, flame10: 30, noise: 0, smoke_speed: 25, smoke_dim: 250, smoke_scale: 125 };
+
+// CANDLE (firmware pm_candle_core.h, docs §6n): an electric candle's LED and
+// the coil that swings its flame. The defaults are the candle sketch's.
+export interface CandleCfg {
+  drama10: number; // every effect × 10: 0 calm, 10 normal, 15 wild
+  floor: number; // dimmest the flame gets, % (0–30)
+  gust_s: number; // mean seconds between gusts (2–255)
+  sputter_s: number; // mean seconds between near-blowouts; 0 = never (≤ 3600)
+  swing_chz: number; // flame swing frequency, Hz × 100 (50–800)
+  kick_ms: number; // coil pulse width (4–80)
+  coil: boolean; // swing the flame at all
+}
+export const CANDLE_DEFAULTS: CandleCfg = { drama10: 10, floor: 3, gust_s: 18, sputter_s: 150, swing_chz: 270, kick_ms: 25, coil: true };
 
 export const isStrip = (kind: string) => kind === "LED_STRIP" || kind === "SPI_STRIP";
 // Outputs whose value is a color (0xRRGGBB, 0 = off) rather than a level.
@@ -106,6 +120,7 @@ export function newChannel(cfg: NodeConfig, kind: ChannelKindName, gpio: number)
   if (kind === "SERVO") { c.min_us = 500; c.max_us = 2500; c.travel_ms = 0; c.ease_ms = 0; }
   if (kind === "LED_STRIP") { c.pixels = 30; c.order = "grb"; c.effect = "solid"; }
   if (kind === "SPI_STRIP") { c.pixels = 8; c.order = "bgr"; c.effect = "solid"; }
+  if (kind === "CANDLE") { c.active_low = false; c.candle = { ...CANDLE_DEFAULTS }; }
   return c;
 }
 

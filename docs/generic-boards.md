@@ -1506,6 +1506,58 @@ at the window's end the Feather deep-sleeps and the DevKit turns red
 within ~20 s; before the next window the Feather wakes first and the
 DevKit comes back. Meter on the Feather in both tiers.
 
+## 6n. Electric candles (built 2026-10-15, simulator and host tests only)
+
+Colin's prop: a flameless candle with a plastic flame on a pivot, lit by
+one plain LED, swung by a small coil (YMT-LZ06 board, its controller
+removed), with an ESP32-C6 SuperMini inside. A sketch from another
+session drove it directly (`reference/candle_esp32.ino`); this brings it
+into PropMesh so it turns on and off, and is tuned, from the console.
+
+- **Why not the strip fire effect.** Fire2023 is a 2-D pixel
+  simulation for addressable strips; the candle is one PWM LED and a
+  coil. The sketch's flicker was written for exactly this hardware and
+  couples the coil to the gusts, which is what sells it.
+- **A NeoPixel instead of the LED** was considered: a sharpened
+  through-hole WS2812 for color, powered straight from the LiPo (no
+  level shifter needed at that supply), optionally ground-switched by an
+  AO3400A with the data pin released when off. Shelved for this year
+  (Colin, 2026-10-15): the pixels on hand are 5 mm and the candle LED is
+  smaller. The design is here for later; it would be a `candle` effect on
+  a 1-pixel LED_STRIP plus a coil pin.
+- **Function `CANDLE`** (ChannelKind 9): pins LIGHT (LEDC, 1 kHz, 12-bit,
+  gamma 2.2; `active_low` for a board that sinks the LED) and COIL (plain
+  GPIO into the candle's transistor). Value 0–1000 = brightness of the
+  flicker, 0 = out; it ramps like an LED dimmer. 1 LEDC channel.
+- **Model** `pm_candle_core.h` (pure, host-tested): the sketch's four
+  LED layers (wander, shimmer, gusts, sputters, exponential gaps) and its
+  coil pattern (bursts of 3–5 kicks at the swing frequency then 0.5–1.5 s
+  rest; during a gust, continuous in-phase kicks 1.4× wider). Seeded
+  xorshift instead of `esp_random` so tests are repeatable.
+  `PmCandleCfg`: drama10, floor %, gust_s, sputter_s (0 = never),
+  swing_chz, kick_ms (4–80), coil. Validator issue `candle_settings`.
+- **Driver** `pm_candle.cpp`: ticks every 5 ms from `pm_channels_loop`;
+  each coil pulse is ended by a one-shot `esp_timer`, not the loop, so a
+  stalled loop can't leave the coil energized; off / STOP ALL / release
+  stop the timer and drive the coil low. Allocated on the heap only when
+  a candle is assigned. `{"cmd":"candle","index":N,"event":"gust"|"sputter"}`
+  fires one now (the console's test buttons).
+- **Dropped from the sketch:** the 4 h / 8 h auto-off and its mode switch
+  (the schedule does it), battery compensation (wants a board-wide
+  battery sense — on the list), the IR input, the serial tuning keys.
+- **Cost:** static RAM +~450 B on the classic ESP32 builds (the candle
+  settings ride in every channel slot): HUZZAH32 96.5 KB, ~1.3 KB under
+  the limit. Flash +~8 KB.
+- **Open hardware question:** in deep sleep the coil pin floats. If Q3's
+  base has no pull-down on that board, add 10 kΩ to ground (the site page
+  says so) — or the firmware will need to hold the pin through sleep.
+- **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
+  = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
+  dips and a big swing; Sputter → near-blowout, stutter, flare; tune
+  swing ±0.05 Hz for the largest motion and note the value; Out and STOP
+  ALL → dark and still, coil cold; a 30-minute run with a finger on the
+  coil for heat.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial
