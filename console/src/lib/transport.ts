@@ -539,7 +539,7 @@ class SimLink implements NodeLink {
         try { localStorage.setItem(SIM_KEY + node, JSON.stringify(cfg)); } catch { /* private mode */ }
         return { ok: true, issues };
       }
-      case "candle": {
+      case "candle": {  // gust / sputter / tune: nothing to show in the simulator
         const c = n.cfg.channels.find((x) => x.kind === "CANDLE" && x.index === body.index);
         return c ? { ok: true } : { ok: false, error: "no such candle" };
       }

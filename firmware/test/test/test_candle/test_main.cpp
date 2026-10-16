@@ -93,6 +93,29 @@ static void test_candle_config_round_trips_and_validates() {
   TEST_ASSERT_TRUE(pm_validate(PM_BOARD_ESP32_DEVKIT_V1, back).has("pin_cannot"));
 }
 
+// Tuning: steady kicks at exactly the asked rate, no rests, no gust
+// pumping; back to the burst pattern when it stops.
+static void test_tuning_kicks_steadily_at_the_rate() {
+  PmCandleCfg cfg;
+  PmCandleCore m;
+  m.begin(cfg, 0, 7);
+  m.tune(285);  // 2.85 Hz
+  uint32_t kicks = 0; uint16_t widest = 0;
+  for (uint32_t t = 0; t < 20000; t += PM_CANDLE_TICK_MS) {
+    m.led(t, PM_CANDLE_TICK_MS);
+    uint16_t w = m.kick(t);
+    if (w) { kicks++; if (w > widest) widest = w; }
+  }
+  TEST_ASSERT_TRUE(kicks >= 56 && kicks <= 58);  // 2.85 × 20 s = 57
+  TEST_ASSERT_EQUAL_UINT16(cfg.kick_ms, widest);  // never the gust's wider kick
+  m.tune(285, 12);  // a trial kick width rides along
+  TEST_ASSERT_EQUAL_UINT16(12, m.kick(20000 + 5000));
+  m.tune(0);
+  uint32_t after = 0;
+  for (uint32_t t = 26000; t < 86000; t += PM_CANDLE_TICK_MS) { m.led(t, PM_CANDLE_TICK_MS); if (m.kick(t)) after++; }
+  TEST_ASSERT_TRUE(after < 57 * 3);  // bursts and rests again: well under steady
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_flicker_stays_in_range_and_never_goes_dark);
@@ -100,5 +123,6 @@ int main() {
   RUN_TEST(test_coil_off_means_no_kicks);
   RUN_TEST(test_calm_candle_barely_dips);
   RUN_TEST(test_candle_config_round_trips_and_validates);
+  RUN_TEST(test_tuning_kicks_steadily_at_the_rate);
   return UNITY_END();
 }

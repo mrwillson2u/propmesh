@@ -379,6 +379,13 @@ void pm_channels_loop() {
   }
 }
 
+bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms) {
+  int i = find(PM_CHANNEL_KIND_CANDLE, index);
+  if (i < 0 || !rt[i].candle) return false;
+  rt[i].candle->tune(chz, kick_ms, millis());
+  return true;
+}
+
 bool pm_candle_event(uint8_t index, bool sputter) {
   int i = find(PM_CHANNEL_KIND_CANDLE, index);
   if (i < 0 || !rt[i].candle) return false;
