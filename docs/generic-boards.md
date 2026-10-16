@@ -1564,7 +1564,9 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   ± nudges by 0.05; a KICK row nudges the pulse width by 2 ms (`"ms"` on
   the tune command, rides along without saving) — the method is: at the
   found rate, shorten until the swing shrinks, then one step back up;
-  **Use** writes `swing_chz` and `kick_ms` into the draft. Host test: 57
+  **Use** writes `swing_chz` and `kick_ms` into the draft. While tuning
+  the LED holds steady (85 % of the set level): with the flicker running
+  Colin couldn't tell whether the flame moved at all (2026-10-16). Host test: 57
   kicks in 20 s at 2.85 Hz, never the gust width, a trial width applies.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick

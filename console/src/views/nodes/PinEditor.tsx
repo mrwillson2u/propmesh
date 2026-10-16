@@ -772,7 +772,7 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <button onClick={() => send(Math.max(LO, chz - 5), kick)} style={btn()} title="0.05 Hz slower">−</button>
         <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
         <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 1.00 to 5.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
-        <span style={mono(500, 10.5, C.t4)}>steady kicks, no gusts · watch for the widest swing</span>
+        <span style={mono(500, 10.5, C.t4)}>steady kicks, steady light, no gusts · watch the flame piece for the widest swing</span>
       </span>
       <span style={row}>
         <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>KICK</span>
