@@ -379,10 +379,10 @@ void pm_channels_loop() {
   }
 }
 
-bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms) {
+bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms, bool burst) {
   int i = find(PM_CHANNEL_KIND_CANDLE, index);
   if (i < 0 || !rt[i].candle) return false;
-  rt[i].candle->tune(chz, kick_ms, millis());
+  rt[i].candle->tune(chz, kick_ms, burst, millis());
   return true;
 }
 

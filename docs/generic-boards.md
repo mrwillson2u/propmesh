@@ -1579,7 +1579,12 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   meter across the coil leads during a hold; coil leads briefly across
   the battery with the board off; flame piece swung by hand (count the
   swings: that is the resonant rate). If Q3 won't switch from 3.3 V, an
-  AO3400A in its place, driven straight from the pin.
+  AO3400A in its place, driven straight from the pin. Colin then noticed
+  the stock drive rests between sets of kicks; a centered magnet gets no
+  sideways torque from a steady pull, so the 2 s hold was a weaker test
+  than claimed, and the finder gained **Bursts** (`"burst": true` on the
+  tune command: the normal 3–5-kick sets with rests, at the tuned rate
+  and width). To be tried.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune

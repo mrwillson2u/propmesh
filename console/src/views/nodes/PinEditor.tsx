@@ -327,7 +327,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
-                        onCandle={(event, chz, ms) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
+                        onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
                           on: cal?.code === channelCode(c),
@@ -744,30 +744,31 @@ function Health({ hello }: { hello: NodeHello }) {
 // 2 minutes.
 function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
   lit: boolean; light: () => void; current: number; currentKick: number;
-  onCandle: (event: "tune", chz: number, ms?: number) => void; onSwing: (chz: number, kick_ms: number) => void;
+  onCandle: (event: "tune", chz: number, ms?: number, burst?: boolean) => void; onSwing: (chz: number, kick_ms: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [chz, setChz] = useState(current);
   const [kick, setKick] = useState(currentKick);
   const [sweeping, setSweeping] = useState(false);
+  const [burst, setBurst] = useState(false);
   const LO = 50, HI = 600, STEP = 10, HOLD_MS = 2500;  // 0.50–6.00 Hz, 0.10 Hz every 2.5 s (a floppy flame can swing under 1 Hz)
   // The parent re-renders every time a board reports in (every second or
   // two), and `onCandle` is a fresh function each time. The sweep timer
   // must not restart on those renders — it never reached 2.5 s on the
   // first real try (2026-10-16) — so it reads the latest values through
   // refs and depends only on `sweeping`.
-  const latest = useRef({ chz, kick, onCandle, open });
-  latest.current = { chz, kick, onCandle, open };
-  const send = (c: number, k: number) => { setChz(c); setKick(k); onCandle("tune", c, k); };
+  const latest = useRef({ chz, kick, burst, onCandle, open });
+  latest.current = { chz, kick, burst, onCandle, open };
+  const send = (c: number, k: number, b = burst) => { setChz(c); setKick(k); onCandle("tune", c, k, b); };
   const start = () => { if (!lit) light(); setOpen(true); setSweeping(false); send(current, currentKick); };
   const stop = () => { setSweeping(false); setOpen(false); onCandle("tune", 0); };
   useEffect(() => {
     if (!sweeping) return;
     const t = setInterval(() => {
-      const { chz: c, kick: k, onCandle: send } = latest.current;
+      const { chz: c, kick: k, burst: b, onCandle: send } = latest.current;
       const n = c + STEP > HI ? LO : c + STEP;
       setChz(n);
-      send("tune", n, k);
+      send("tune", n, k, b);
     }, HOLD_MS);
     return () => clearInterval(t);
   }, [sweeping]);
@@ -784,7 +785,8 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <button onClick={() => send(Math.max(LO, chz - 5), kick)} style={btn()} title="0.05 Hz slower">−</button>
         <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
         <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 0.50 to 6.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
-        <span style={mono(500, 10.5, C.t4)}>steady kicks, no gusts · watch for the widest swing</span>
+        <button onClick={() => { setBurst(!burst); send(chz, kick, !burst); }} style={btn(burst)} title="Kick in sets of 3–5 with a rest between, like the normal flicker, instead of steadily. A rest lets the next set catch the flame at a different point in its swing, which can start it moving when steady kicks don't.">{burst ? "Bursts" : "Steady"}</button>
+        <span style={mono(500, 10.5, C.t4)}>no gusts · watch the flame piece for the widest swing</span>
       </span>
       <span style={row}>
         <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>KICK</span>
@@ -855,7 +857,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
 
 function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
   c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
-  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
+  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number, burst?: boolean) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;

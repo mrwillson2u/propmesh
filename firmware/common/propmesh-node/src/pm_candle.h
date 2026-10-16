@@ -18,7 +18,7 @@ class PmCandle {
   void sputter(uint32_t now) { core.sputter(now); }
   // Steady kicks at chz (Hz × 100) for the swing hunt; 0 stops. Stops by
   // itself after PM_CANDLE_TUNE_MAX_MS: the coil warms under steady kicks.
-  void tune(uint16_t chz, uint8_t kick_ms, uint32_t now);
+  void tune(uint16_t chz, uint8_t kick_ms, bool burst, uint32_t now);
 
  private:
   void led(float duty);

@@ -73,18 +73,22 @@ class PmCandleCore {
   // Tuning (the sketch's "steady kicking, resonance hunt"): kick every
   // cycle at `chz` with no rests and no gust pumping, so the eye judges
   // one thing — how far the flame swings at this rate. 0 = back to normal.
-  // `kick_ms` 0 = the configured width.
-  void tune(uint16_t chz, uint8_t kick_ms = 0) { tune_chz = chz; tune_kick = kick_ms; }
+  // `kick_ms` 0 = the configured width. `burst`: kick in the normal sets of
+  // 3-5 with rests between, instead of steadily — a rest lets the next set
+  // catch the flame at a different phase, which can start a swing that
+  // steady kicking at a slightly wrong rate never does (Colin, 2026-10-16).
+  void tune(uint16_t chz, uint8_t kick_ms = 0, bool burst = false) { tune_chz = chz; tune_kick = kick_ms; tune_burst = burst; }
   uint16_t tuning() const { return tune_chz; }
 
   uint16_t kick(uint32_t now) {
     if (!due(now, next_kick)) return 0;
-    if (tune_chz) {
+    if (tune_chz && !tune_burst) {
       next_kick = now + (uint32_t)(100000.0f / tune_chz);
       return tune_kick ? tune_kick : c.kick_ms;
     }
-    float period = 100000.0f / (c.swing_chz ? c.swing_chz : 1);
-    if (gust_on || sputter_on) {
+    float period = 100000.0f / (tune_chz ? tune_chz : c.swing_chz ? c.swing_chz : 1);
+    uint16_t width = tune_chz && tune_kick ? tune_kick : c.kick_ms;
+    if (!tune_chz && (gust_on || sputter_on)) {
       // Pump in phase for the whole gust: the swing builds.
       next_kick = now + (uint32_t)(period * (1.0f + 0.02f * range(-1, 1)));
       kicks_left = 0;
@@ -97,7 +101,7 @@ class PmCandleCore {
     }
     kicks_left--;
     next_kick = now + (uint32_t)(period * (1.0f + 0.05f * range(-1, 1)));
-    return c.coil ? c.kick_ms : 0;
+    return tune_chz || c.coil ? width : 0;
   }
 
   void gust(uint32_t now) {
@@ -171,4 +175,5 @@ class PmCandleCore {
   int kicks_left = 0;
   uint16_t tune_chz = 0;
   uint8_t tune_kick = 0;
+  bool tune_burst = false;
 };

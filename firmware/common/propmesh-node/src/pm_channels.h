@@ -49,7 +49,7 @@ void pm_channels_all_off();
 bool pm_candle_event(uint8_t index, bool sputter);
 // Steady coil kicks at chz (Hz × 100) to find the flame's own swing; 0 stops.
 // kick_ms 0 = the configured width.
-bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms);
+bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms, bool burst);
 
 void pm_on_input(pm_input_handler_t handler);
 void pm_channels_loop();
