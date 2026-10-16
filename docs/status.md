@@ -40,6 +40,7 @@ Head", Feather):
 | ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
 | ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
 | Battery repeater: relay during the show, sleep outside it (generic-boards §6m) | built 2026-10-14, **simulator only** |
+| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | built 2026-10-15, **simulator only** |
 | Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
@@ -65,6 +66,8 @@ Run these with the boards in hand. Protocol: write out what to watch,
    LiPo with the relay toggle on, a DevKit out of the bridge's range;
    the DevKit should appear only while the Feather relays, and drop
    when it sleeps. Meter both tiers.
+1d. **Electric candle** — generic-boards §6n "Bench test": the C6 in the
+   candle, flicker, gust, sputter, swing tuning, coil temperature.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
@@ -130,6 +133,13 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 - Audio (I²S), steppers, analog inputs — the Pro/Mini feature set.
 - Pro and Mini board profiles in the node firmware (after v0.1 boards).
 - Native app (Capacitor, same React code) after the protocol spec.
+- **Custom effects / a code editor** (Colin, 2026-10-15): write an effect
+  like the candle in the console and push it to boards. Needs an on-board
+  interpreter (Berry — what Tasmota runs on ESP32, MIT — is the first
+  candidate; ~100–200 KB flash, the C6 has ~250 KB left), per-frame time
+  limits so a bad script can't hang a prop, an in-browser preview that
+  matches the board exactly, and a slot in the versioned API spec. Until
+  then, built-in effects with console settings.
 
 **Hardware (on the Mac):** Pro v0.1 after Halloween; Mini v0.1 Nov–Dec;
 v0.2 Jan–Feb 2027; beta May–Jun; launch season 2027 (hardware-spec §7).

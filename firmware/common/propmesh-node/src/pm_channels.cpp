@@ -3,6 +3,7 @@
 #include "pm_ws2812.h"
 #include "pm_apa102.h"
 #include "pm_fire.h"
+#include "pm_candle.h"
 #include "pm_channels.h"
 #include "pm_motion.h"
 #include "pm_ramp.h"
@@ -28,6 +29,7 @@ struct Runtime {
   PmRamp ramp;          // a sequence ramp in progress (SERVO / LED / MOTOR)
   PmPixels *strip;      // LED_STRIP / SPI_STRIP
   PmFire *fire;         // a strip showing the fire effect
+  PmCandle *candle;     // CANDLE: on the heap, only when assigned (static RAM is full)
   bool raw;             // last sampled input level (active = true)
   uint32_t changed_ms;  // when `raw` last differed from `value`
 };
@@ -83,6 +85,9 @@ static void release(const PmChannelCfg &c, Runtime &r) {
     case PM_CHANNEL_KIND_SERVO:
     case PM_CHANNEL_KIND_MOTOR:
       for (uint8_t p = 0; p < c.pin_count; p++) ledcDetach(c.pins[p]);
+      break;
+    case PM_CHANNEL_KIND_CANDLE:
+      if (r.candle) { r.candle->end(); delete r.candle; }
       break;
     case PM_CHANNEL_KIND_LED_STRIP:
     case PM_CHANNEL_KIND_SPI_STRIP:
@@ -140,6 +145,11 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       }
       break;
     }
+    case PM_CHANNEL_KIND_CANDLE:
+      r.candle = new PmCandle();
+      ok = r.candle->begin(c.candle, c.pins[0], c.pins[1], c.active_low);  // starts out
+      if (!ok) { r.candle->end(); delete r.candle; r.candle = nullptr; }
+      break;
     case PM_CHANNEL_KIND_BLE_LIGHT:
       // No pin. The light keeps whatever it was showing until commanded.
       ok = pm_ble_start();
@@ -163,7 +173,7 @@ static void strip_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
   r.strip->fill((uint32_t)v & 0xFFFFFF);
   r.strip->show();
 }
-static uint32_t last_fire_ms;
+static uint32_t last_fire_ms, last_candle_ms;
 
 // Put a level on the pins with no smoothing — a ramp's own interpolation
 // is the motion.
@@ -190,6 +200,9 @@ static void raw_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);
       if (v != r.value) lights_dirty = true;
+      break;
+    case PM_CHANNEL_KIND_CANDLE:  // the loop flickers at this level
+      if (r.candle && v <= 0) r.candle->off();
       break;
   }
   r.value = v;
@@ -231,6 +244,9 @@ static void write(const PmChannelCfg &c, Runtime &r, int32_t v) {
     case PM_CHANNEL_KIND_BLE_LIGHT:
       pm_ble_light(c.light_id, (uint32_t)v & 0x7FFFFFFF);  // 0xWWRRGGBB, W 0–127
       if (v != r.value) lights_dirty = true;
+      break;
+    case PM_CHANNEL_KIND_CANDLE:  // the loop flickers at this level
+      if (r.candle && v <= 0) r.candle->off();
       break;
   }
   r.value = v;
@@ -342,6 +358,11 @@ void pm_channels_loop() {
       r.strip->show();
     }
   }
+  if ((uint32_t)(now - last_candle_ms) >= PM_CANDLE_TICK_MS) {
+    last_candle_ms = now;
+    for (uint8_t i = 0; i < active.channel_count; i++)
+      if (rt[i].candle) rt[i].candle->update(now, rt[i].value);
+  }
   for (uint8_t i = 0; i < active.channel_count; i++) {
     const PmChannelCfg &c = active.channels[i];
     if (c.kind != PM_CHANNEL_KIND_DIGITAL_IN) continue;
@@ -356,4 +377,11 @@ void pm_channels_loop() {
       if (input_handler) input_handler(c.index, level);
     }
   }
+}
+
+bool pm_candle_event(uint8_t index, bool sputter) {
+  int i = find(PM_CHANNEL_KIND_CANDLE, index);
+  if (i < 0 || !rt[i].candle) return false;
+  if (sputter) rt[i].candle->sputter(millis()); else rt[i].candle->gust(millis());
+  return true;
 }

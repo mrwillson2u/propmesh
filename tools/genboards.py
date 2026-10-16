@@ -30,7 +30,7 @@ MAX_FN_PINS = 2
 # the recommendation is "nothing twitches at boot".
 QUIET = {"SERVO", "MOTOR", "RELAY"}
 # functions.yaml pwm_hz must agree with the project-wide constants.
-PWM_CONST = {"LED": "LED_PWM_HZ", "SERVO": "SERVO_PWM_HZ", "MOTOR": "MOTOR_PWM_HZ"}
+PWM_CONST = {"LED": "LED_PWM_HZ", "SERVO": "SERVO_PWM_HZ", "MOTOR": "MOTOR_PWM_HZ", "CANDLE": "LED_PWM_HZ"}
 
 
 def load():
