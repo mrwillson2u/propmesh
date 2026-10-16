@@ -1566,6 +1566,20 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   found rate, shorten until the swing shrinks, then one step back up;
   **Use** writes `swing_chz` and `kick_ms` into the draft. Host test: 57
   kicks in 20 s at 2.85 Hz, never the gust width, a trial width applies.
+- **First run on the candle (2026-10-16, Colin).** C6 (e076df14) with
+  LED on GPIO 1 (on = LOW) and coil on GPIO 2, build 8022b97. The LED
+  flickers. The finder's sweep didn't step (timer reset on every render —
+  fixed, PR #28) and the flicker hid any flame motion (LED held steady
+  while tuning, PR #27). With the sweep working, Colin measured the
+  drive pulsing at the 2.70 Hz shown, but saw **no flame movement — not
+  even with GPIO 2 held on for 2 s as a relay.** So the coil isn't acting
+  on the magnet: either not energized (Q3 not switching from 3.3 V
+  through R2, or its supply cut when the stock chips came off) or
+  mechanical (flame piece stuck, magnet out of reach, open coil). Next:
+  meter across the coil leads during a hold; coil leads briefly across
+  the battery with the board off; flame piece swung by hand (count the
+  swings: that is the resonant rate). If Q3 won't switch from 3.3 V, an
+  AO3400A in its place, driven straight from the pin.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
