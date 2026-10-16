@@ -118,7 +118,7 @@ def cmd_ota(b, a):
     print("begin:", r, flush=True)
     if not r or not r.get("ok"):
         sys.exit(1)
-    chunk, off, misses, t0, last = r.get("chunk", 2700), 0, 0, time.time(), 0
+    chunk, off, misses, t0, last, last_err = r.get("chunk", 2700), 0, 0, time.time(), 0, None
     while off < len(img):
         r = b.ask("ota_data", node=a.node, off=off, data=base64.b64encode(img[off:off + chunk]).decode(), timeout=9)
         if r and r.get("ok"):
@@ -127,6 +127,13 @@ def cmd_ota(b, a):
             off = r["written"]  # the board already has more than we thought: resume there
         else:
             misses += 1
+            # Say what went wrong the first time it does, not only on giving
+            # up: a board that drops the session answers "no update in
+            # progress" to every later chunk, which hides the real reason.
+            why = (r or {}).get("error") or "no reply"
+            if why != last_err:
+                last_err = why
+                print(f"  at {off} ({off * 100 // len(img)} %): {why}", flush=True)
             if misses > 20:
                 sys.exit(f"gave up at {off}: {r}")
             time.sleep(0.5)
