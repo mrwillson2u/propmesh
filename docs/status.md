@@ -172,10 +172,24 @@ needs your user in the `dialout` group.
   Run the dev server on the server and tunnel it so the page is
   `localhost` (Web Serial needs a secure context; `ws://` to the bridge is
   allowed from an `http://localhost` page):
-  `ssh -L 5180:localhost:5180 server`, then on the server
-  `npm run dev --prefix console -- --port 5180`, open
-  http://localhost:5180. USB connects to the board on *your* machine;
+  `ssh -L 5181:localhost:5181 server`, then on the server
+  `npm run dev --prefix console -- --port 5181` (5180 is the always-on
+  copy below), open
+  http://localhost:5181. USB connects to the board on *your* machine;
   WiFi connects need your machine on the home network.
+
+**The always-on console on the server (set up 2026-10-15).** A user
+service serves a built copy of the console to the home network and
+Tailscale at **http://192.168.175.9:5180** (LAN) — phones in the yard can
+use it and connect to the bridge over WiFi. USB doesn't work from it
+(browsers allow Web Serial only on https or localhost; use the SSH
+tunnel for that). No login: anyone on the home network can open it.
+- Built from a separate checkout, `~/propmesh-live`, pinned to
+  `origin/dev`, so switching branches in `~/propmesh` never changes it.
+- Service: `~/.config/systemd/user/propmesh-console.service`
+  (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
+  at boot). `systemctl --user status propmesh-console`.
+- Update after merging to dev: `~/bin/propmesh-console-update`.
 
 **Not in git — copy or recreate deliberately**
 - **Claude's memory** — `~/.claude/projects/<path>/memory/` on the Mac
