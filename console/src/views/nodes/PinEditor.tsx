@@ -751,15 +751,27 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
   const [kick, setKick] = useState(currentKick);
   const [sweeping, setSweeping] = useState(false);
   const LO = 100, HI = 500, STEP = 10, HOLD_MS = 2500;  // 1.00–5.00 Hz, 0.10 Hz every 2.5 s
+  // The parent re-renders every time a board reports in (every second or
+  // two), and `onCandle` is a fresh function each time. The sweep timer
+  // must not restart on those renders — it never reached 2.5 s on the
+  // first real try (2026-10-16) — so it reads the latest values through
+  // refs and depends only on `sweeping`.
+  const latest = useRef({ chz, kick, onCandle, open });
+  latest.current = { chz, kick, onCandle, open };
   const send = (c: number, k: number) => { setChz(c); setKick(k); onCandle("tune", c, k); };
   const start = () => { if (!lit) light(); setOpen(true); setSweeping(false); send(current, currentKick); };
   const stop = () => { setSweeping(false); setOpen(false); onCandle("tune", 0); };
   useEffect(() => {
     if (!sweeping) return;
-    const t = setInterval(() => setChz((c) => { const n = c + STEP > HI ? LO : c + STEP; onCandle("tune", n, kick); return n; }), HOLD_MS);
+    const t = setInterval(() => {
+      const { chz: c, kick: k, onCandle: send } = latest.current;
+      const n = c + STEP > HI ? LO : c + STEP;
+      setChz(n);
+      send("tune", n, k);
+    }, HOLD_MS);
     return () => clearInterval(t);
-  }, [sweeping, kick, onCandle]);
-  useEffect(() => () => { if (open) onCandle("tune", 0); }, []);  // leaving the page stops the kicks
+  }, [sweeping]);
+  useEffect(() => () => { if (latest.current.open) latest.current.onCandle("tune", 0); }, []);  // leaving the page stops the kicks
   if (!open)
     return <button onClick={start} style={{ ...btn(), alignSelf: "flex-start" }} title="Kick the coil steadily while the rate sweeps, and watch which rate swings the flame furthest; then find the lightest kick that still swings it">Find the swing…</button>;
   const hz = (chz / 100).toFixed(2);
