@@ -1586,21 +1586,23 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   tune command: the normal 3–5-kick sets with rests, at the tuned rate
   and width). To be tried.
 - **Found it (2026-10-16, Colin with the meter):** the coil wasn't getting
-  current. Holding GPIO 2 on as a relay, the coil saw a 2 V spike that
-  fell to under 0.1 V, the candle LED went out and the SuperMini's charge
-  LED lit — the rail collapsing. The coil is 26 Ω (140 mA from a LiPo if
-  fed directly). Resistance, power off: BAT+ → coil+ **180 Ω**, coil+ →
-  LED+ **67 Ω**, the added "100 Ω" LED feed reads **117 Ω** in circuit.
-  So the stock chain is BAT+ → 100 Ω (added) → LED+ → **47 Ω** → the
-  removed charge pump's output node → **20 Ω** → coil+: the charge pump
-  used to drive that node, and without it the coil is fed through ~180 Ω.
-  Fix: lift the 47 Ω, wire switched BAT+ to the 20 Ω's battery-side pad
-  (the 20 Ω stays as the stock coil limit: ~2.4 V, ~90 mA per kick on a
-  LiPo; bridge it for the full 140 mA if the swing is weak), LED keeps
-  its 100 Ω (~12 mA). Verify: BAT+ → coil+ ≈ 20 Ω, coil+ → LED+ open.
-  Board designator noted by Colin: **R5** (which of the three — to
-  confirm). Lesson for the hold test: a 2 s hold is only a valid coil
-  test when the coil's supply can source it; here it never could.
+  current. *Measured:* holding GPIO 2 on as a relay, the coil saw a 2 V
+  spike that fell to under 0.1 V, the candle LED went out and the
+  SuperMini's charge LED lit — the rail collapsing. Coil 26 Ω (140 mA
+  from a LiPo if fed directly). Power off: BAT+ → coil+ **180 Ω**, coil+ →
+  LED+ **67 Ω**, the added 100 Ω LED feed reads **117 Ω** in circuit.
+  *Inferred, not seen:* 117 + 67 ≈ 180, and the only resistors on the
+  board that make 67 are a 47 and a 20 — so the coil's supply reaches it
+  through the LED node and those two, a chain the removed charge pump
+  presumably used to drive. **Fix that doesn't depend on the inference:**
+  switched BAT+ straight to coil+ (the coil's own supply lead), and lift
+  one end of either the 47 or the 20 so battery voltage on coil+ can't
+  feed the LED a second way (it would double the LED's ~12 mA). Verify:
+  BAT+ → coil+ ≈ 0 Ω, coil+ → LED+ open. Kicks are then 140 mA; a
+  resistor in the new wire tames it if too strong. Designator noted by
+  Colin: **R5** (which one — to confirm). Lesson: a 2 s hold is only a
+  valid coil test when the coil's supply can source it; here it never
+  could.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
