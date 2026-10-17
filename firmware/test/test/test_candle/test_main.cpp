@@ -40,7 +40,7 @@ static void test_coil_kicks_are_bounded() {
   PmCandleCfg cfg;
   float lo, hi; uint32_t kicks, gust_ticks; uint16_t widest;
   run_hour(cfg, &lo, &hi, &kicks, &widest, &gust_ticks);
-  TEST_ASSERT_TRUE(kicks > 3000 && kicks < 12000);
+  TEST_ASSERT_TRUE(kicks > 6000 && kicks < 11000);  // ~2.7 Hz with short pauses and a skip in ten
   TEST_ASSERT_TRUE(widest <= (uint16_t)(cfg.kick_ms * 1.7f * 1.15f) + 1);  // a sputter's hardest pump
   TEST_ASSERT_TRUE(widest <= 100);
   TEST_ASSERT_TRUE(gust_ticks > 0);  // gusts happened
@@ -120,7 +120,7 @@ static void test_tuning_kicks_steadily_at_the_rate() {
   m.tune(0);
   uint32_t after = 0;
   for (uint32_t t = 50000; t < 110000; t += PM_CANDLE_TICK_MS) { m.led(t, PM_CANDLE_TICK_MS); if (m.kick(t)) after++; }
-  TEST_ASSERT_TRUE(after < 57 * 3);  // bursts and rests again: well under steady
+  TEST_ASSERT_TRUE(after < 57 * 3 && after > 57 * 2);  // resting runs again: a little under steady
 }
 
 // The wobble follows the flicker: kicks during a gust are wider than at
@@ -134,11 +134,12 @@ static void test_coil_follows_the_flicker() {
     m.led(t, PM_CANDLE_TICK_MS);
     uint16_t w = m.kick(t);
     if (!w) continue;
-    if (m.gusting()) { if (w > gust_hi) gust_hi = w; }
+    if (m.pumping()) { if (w > gust_hi) gust_hi = w; }
     else { if (w < rest_lo) rest_lo = w; if (w > rest_hi) rest_hi = w; }
   }
   TEST_ASSERT_TRUE(rest_lo < rest_hi);          // varies at rest
-  TEST_ASSERT_TRUE(rest_hi <= cfg.kick_ms * 1.1f + 1);
+  TEST_ASSERT_TRUE(rest_hi <= cfg.kick_ms + 1);
+  TEST_ASSERT_TRUE(rest_lo >= cfg.kick_ms * 0.6f - 1);
   TEST_ASSERT_TRUE(gust_hi > cfg.kick_ms * 1.3f); // harder in a gust
   TEST_ASSERT_TRUE(gust_hi <= 100);
 }

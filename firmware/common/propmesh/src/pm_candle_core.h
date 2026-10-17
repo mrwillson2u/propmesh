@@ -8,9 +8,9 @@
 //    stutters, then an overshoot) — gaps between events are exponential,
 //    so it never feels periodic.
 //  - Coil: kicks near the flame's own swing frequency, and the wobble
-//    follows the flicker: at rest, irregular sets of kicks at varying
-//    strength with rests and the odd lull; during a gust, continuous kicks
-//    in phase, harder the deeper the gust, so the swing builds with it.
+//    follows the flicker: at rest, continuous kicks whose strength drifts
+//    (the swing never dies); from just before a gust to just after it,
+//    in-phase kicks at full strength so the swing peaks with the flicker.
 // Dropped from the sketch: its auto-off timer and mode switch (the show
 // schedule does that), battery compensation (a board-wide battery sense
 // will do it for every output), the IR input and the serial tuning keys
@@ -21,6 +21,8 @@
 #include "pm_config.h"
 
 #define PM_CANDLE_TICK_MS 5  // the sketch's 200 Hz flicker update
+#define PUMP_LEAD_MS 400     // the coil starts pumping this long before a gust's dip
+#define PUMP_TAIL_MS 1200    // and keeps pumping this long after it ends
 
 class PmCandleCore {
  public:
@@ -91,30 +93,35 @@ class PmCandleCore {
     float period = 100000.0f / (tune_chz ? tune_chz : c.swing_chz ? c.swing_chz : 1);
     uint16_t width = tune_chz && tune_kick ? tune_kick : c.kick_ms;
     float drama = c.drama10 / 10.0f;
-    if (!tune_chz && (gust_on || sputter_on)) {
-      // A gust: pump in phase for the whole gust so the swing builds, and
-      // harder the deeper the gust — the wobble follows the flicker (Colin,
-      // 2026-10-17). Up to 1.7× the kick at full drama, capped for heat.
+    // A gust, from PUMP_LEAD_MS before the light dips (the firmware knows it
+    // is coming) to PUMP_TAIL_MS after: pump in phase at full strength, so
+    // the swing peaks with the flicker instead of after it. A pendulum takes
+    // several swings to build, and the first version let it die between sets
+    // and then couldn't catch up with a violent flicker (Colin, 2026-10-17).
+    bool pre = !gust_on && !sputter_on && next_gust && (int32_t)(now - (next_gust - PUMP_LEAD_MS)) >= 0;
+    if (gust_on || sputter_on) pump_until = now + PUMP_TAIL_MS;
+    pumping_now = pre || gust_on || sputter_on || (int32_t)(now - pump_until) < 0;
+    if (!tune_chz && pumping_now) {
       next_kick = now + (uint32_t)(period * (1.0f + 0.02f * range(-1, 1)));
       kicks_left = 0;
-      float w = c.kick_ms * (1.0f + 0.7f * env_now * clampf(drama, 0, 1));
+      float w = c.kick_ms * (1.0f + 0.7f * clampf(drama, 0, 1));
       if (sputter_on) w *= 1.15f;
       return c.coil ? (uint16_t)clampf(w, 4, 100) : 0;
     }
     if (kicks_left <= 0) {
-      // At rest the wobble is never regular: sets of 2-6 kicks, each set at
-      // its own strength (0.75-1.1× the kick), rests of 0.3-2 s, and now and
-      // then a lull of 2-5 s. Drama shortens the rests and lengthens the sets.
-      kicks_left = irange(2, 4 + (int)(2 * drama + 0.5f));
-      burst_scale = range(0.75f, 1.1f);
-      float rest = range(300, 2000) * (1.3f - 0.5f * clampf(drama, 0, 1.5f) / 1.5f);
-      if (rand01() < 0.2f) rest = range(2000, 5000);
-      next_kick = now + (uint32_t)rest;
+      // At rest the swing is never allowed to die: kicks keep coming at the
+      // rate, in runs of 4-10 whose strength drifts between 0.6× and 1.0×
+      // the kick, with a short pause (0.2-0.6 s, about one swing) between
+      // runs and one kick in ten skipped — variety without losing momentum.
+      kicks_left = irange(4, 10);
+      burst_scale = clampf(burst_scale + range(-0.2f, 0.2f), 0.6f, 1.0f);
+      next_kick = now + (uint32_t)range(200, 600);
       return 0;
     }
     kicks_left--;
-    next_kick = now + (uint32_t)(period * (1.0f + 0.05f * range(-1, 1)));
+    next_kick = now + (uint32_t)(period * (1.0f + 0.04f * range(-1, 1)));
     if (tune_chz) return width;
+    if (rand01() < 0.1f) return 0;  // the skipped kick
     return c.coil ? (uint16_t)clampf(width * burst_scale, 4, 100) : 0;
   }
 
@@ -133,6 +140,7 @@ class PmCandleCore {
     gust_dur = 1600;
   }
   bool gusting() const { return gust_on || sputter_on; }
+  bool pumping() const { return pumping_now; }  // the coil is in its gust pattern (lead, gust, tail)
 
  private:
   static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -190,6 +198,8 @@ class PmCandleCore {
   uint16_t tune_chz = 0;
   uint8_t tune_kick = 0;
   bool tune_burst = false;
-  float env_now = 0;        // the gust envelope this tick, for the coil
-  float burst_scale = 1.0f; // this rest-pattern set's strength
+  float env_now = 0;        // the gust envelope this tick
+  float burst_scale = 0.9f; // the resting run's strength, drifting 0.6-1.0
+  uint32_t pump_until = 0;  // pumping continues until this after a gust
+  bool pumping_now = false;
 };
