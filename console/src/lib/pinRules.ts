@@ -86,6 +86,11 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
       if (k.drama10 > 15 || k.floor > 30 || k.gust_s < 2 || k.sputter_s > 3600 ||
           k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80) add("candle_settings", true, i);
     }
+    if (c.kind === "BATTERY") {
+      const d = c.divider ?? 2;
+      if (!(d >= 1 && d <= 20)) add("battery_divider", true, i);
+      if (cfg.channels.slice(0, i).some((o) => o.kind === "BATTERY")) add("battery_dup", true, i);
+    }
     ledc += f.ledc;
     rmt += f.rmt;
   });
@@ -117,6 +122,8 @@ export function issueText(board: Board, cfg: NodeConfig, it: Issue): string {
     case "ble_no_key": return "Bluetooth lights need the BRMesh key (8 hex digits) — enter it above the light list";
     case "pixel_count": return `${who}: pixel count must be 1–${STRIP_MAX_PIXELS}`;
     case "candle_settings": return `${who}: candle settings out of range — drama 0–1.5, floor 0–30 %, gusts every 2–255 s, sputters every 0–3600 s, swing 0.5–8 Hz, kick 4–80 ms`;
+    case "battery_divider": return `${who}: the divider ratio must be 1–20 — (top resistor + bottom resistor) ÷ bottom resistor; two equal resistors = 2.0`;
+    case "battery_dup": return "One battery input per board is enough — the heartbeat carries one reading";
     case "fire_matrix": return `${who}: the fire's columns × height must equal the pixel count (${c?.pixels ?? "?"}), at least 2 tall`;
     case "pwm_budget": return `Too many PWM outputs — this board has ${board.ledcChannels} PWM channels (a motor uses 2)`;
     case "strip_budget": return `Too many LED strips — this board drives ${board.rmtTxChannels}`;

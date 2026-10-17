@@ -22,6 +22,7 @@ export interface ChannelCfg {
   effect?: StripEffect; // strips: what they show — the set color, or a running effect the color only switches on/off
   fire?: FireCfg; // when effect is "fire"
   candle?: CandleCfg; // CANDLE (active_low: the LED is on when its pin is LOW)
+  divider?: number; // BATTERY: (R_top + R_bottom) / R_bottom; 100k / 100k = 2.0
   light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
 
@@ -121,6 +122,7 @@ export function newChannel(cfg: NodeConfig, kind: ChannelKindName, gpio: number)
   if (kind === "LED_STRIP") { c.pixels = 30; c.order = "grb"; c.effect = "solid"; }
   if (kind === "SPI_STRIP") { c.pixels = 8; c.order = "bgr"; c.effect = "solid"; }
   if (kind === "CANDLE") { c.active_low = false; c.candle = { ...CANDLE_DEFAULTS }; }
+  if (kind === "BATTERY") c.divider = 2;
   return c;
 }
 

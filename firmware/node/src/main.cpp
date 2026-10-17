@@ -120,7 +120,7 @@ static uint32_t next_period = PM_HEARTBEAT_PERIOD_MS;
 // Battery voltage on a board whose profile has a sense pin (the HUZZAH32:
 // VBAT through 2:1 on GPIO 35). 0 = this board has none.
 static uint16_t battery_mv() {
-  if (!BOARD.battery_gpio) return 0;
+  if (!BOARD.battery_gpio) return pm_channels_battery_mv();  // a divider assigned in the console, or 0
   uint32_t sum = 0;
   for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(BOARD.battery_gpio);
   return (uint16_t)(sum / 8 * BOARD.battery_divider);

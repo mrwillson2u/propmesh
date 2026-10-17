@@ -1622,6 +1622,24 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   ALL → dark and still, coil cold; a 30-minute run with a finger on the
   coil for heat.
 
+## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
+
+Colin added a resistor divider to the C6 in the candle. New function
+`BATTERY` (ChannelKind 10): one ADC pin (`need: adc`), config
+`divider` (float, stored ×100, 1.0–20.0; validator `battery_divider`),
+one per board (`battery_dup`). The driver samples 8× every 2 s and keeps
+mV at the battery as the channel's value (read-only, like DIGITAL_IN).
+`pm_channels_battery_mv()` feeds the heartbeat's `battery_mv` when the
+board profile has no sense pin of its own (the Feather's wins). Percent:
+`pm_battery.h` `pm_lipo_pct()` — a resting 1S lithium curve in 5 % steps,
+mirrored in `console/lib/battery.ts`; shown as "3.87 V · 62 %" in the
+TEST column (re-read every 5 s while the page is open), the roster and
+the Yard. Host tests: curve endpoints, 50 % at 3.84 V, monotonic; config
+round trip, ADC-pin rule, divider range, one per board. Site: "Reading
+the battery on a board without a sense pin". Not calibrated against a
+meter yet: the C6's ADC and the resistors' tolerance both move the
+reading — compare with the meter and adjust the divider value.
+
 ## 7. Bench test — Stage 1
 
 1. Flash: `pio run -d firmware/node -t upload`. **Close any serial

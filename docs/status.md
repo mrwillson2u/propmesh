@@ -40,6 +40,7 @@ Head", Feather):
 | ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
 | ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
 | Battery repeater: relay during the show, sleep outside it (generic-boards §6m) | built 2026-10-14, **simulator only** |
+| Battery voltage from a resistor divider (`BATTERY` input, LiPo percent; generic-boards §6o) | built 2026-10-17, **not on hardware** |
 | Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | built 2026-10-15, **simulator only** |
 | Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |

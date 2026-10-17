@@ -83,6 +83,8 @@ struct PmChannelCfg {
   uint8_t effect = PM_EFFECT_SOLID;
   PmFireCfg fire;                 // when effect == PM_EFFECT_FIRE
   PmCandleCfg candle;             // CANDLE (active_low: the LED is on when its pin is LOW)
+  // BATTERY: the divider's ratio × 100 — (R_top + R_bottom) / R_bottom; 100k / 100k = 200.
+  uint16_t batt_div100 = 200;
 };
 
 inline bool pm_kind_is_strip(uint8_t kind) {

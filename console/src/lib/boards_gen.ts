@@ -65,6 +65,7 @@ export const FUNCTIONS: Record<ChannelKindName, FunctionDef> = {
   BLE_LIGHT: { kind: "BLE_LIGHT", label: "BLE flood light (BRMesh)", pins: [], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 2147483647 },
   SPI_STRIP: { kind: "SPI_STRIP", label: "LED strip (SK9822 / APA102, clocked)", pins: [{ role: "DATA", need: 0x02 }, { role: "CLOCK", need: 0x02 }], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 16777215 },
   CANDLE: { kind: "CANDLE", label: "Candle (flicker LED + flame coil)", pins: [{ role: "LIGHT", need: 0x02 }, { role: "COIL", need: 0x02 }], ledc: 1, rmt: 0, pwmHz: 1000, min: 0, max: 1000 },
+  BATTERY: { kind: "BATTERY", label: "Battery voltage (divider)", pins: [{ role: "SENSE", need: 0x10 }], ledc: 0, rmt: 0, pwmHz: 0, min: 0, max: 65535 },
 };
 
 export const BOARDS: Record<string, Board> = {

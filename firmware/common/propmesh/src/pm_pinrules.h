@@ -127,6 +127,11 @@ inline PmIssues pm_validate(const pm_board_t &board, const PmNodeConfig &cfg) {
           k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80)
         out.add("candle_settings", true, i);
     }
+    if (c.kind == PM_CHANNEL_KIND_BATTERY) {
+      if (c.batt_div100 < 100 || c.batt_div100 > 2000) out.add("battery_divider", true, i);
+      for (uint8_t j = 0; j < i; j++)
+        if (cfg.channels[j].kind == PM_CHANNEL_KIND_BATTERY) out.add("battery_dup", true, i);
+    }
     ledc += f->ledc;
     rmt += f->rmt;
   }

@@ -99,6 +99,10 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
       k.swing_chz = cj["swing_chz"] | k.swing_chz;  k.kick_ms = cj["kick_ms"] | k.kick_ms;
       k.coil = cj["coil"] | k.coil;
     }
+    if (c.kind == PM_CHANNEL_KIND_BATTERY) {
+      float div = jc["divider"] | 2.0f;
+      c.batt_div100 = (uint16_t)(div * 100 + 0.5f);
+    }
     long light = jc["light"] | (long)c.light_id;
     if (light < 0 || light > 255) return "light must be 1-255";
     c.light_id = (uint8_t)light;
@@ -178,6 +182,9 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
         break;
       case PM_CHANNEL_KIND_BLE_LIGHT:
         jc["light"] = c.light_id;
+        break;
+      case PM_CHANNEL_KIND_BATTERY:
+        jc["divider"] = c.batt_div100 / 100.0f;
         break;
       case PM_CHANNEL_KIND_CANDLE: {
         jc["active_low"] = c.active_low;

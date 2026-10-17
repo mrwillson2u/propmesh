@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
+import { battText } from "../../lib/battery";
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
   type ColorOrder, type FireCfg, type StripEffect,
@@ -96,6 +97,13 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
+  // A battery input's reading changes slowly: re-read it every 5 s while
+  // the page is open (inputs otherwise only push changes as events).
+  useEffect(() => {
+    if (!applied.channels.some((c) => c.kind === "BATTERY")) return;
+    const t = setInterval(() => { node.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined); }, 5000);
+    return () => clearInterval(t);
+  }, [applied, node]);
 
   // ---- save -----------------------------------------------------------
 
@@ -322,7 +330,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                   </select>
                   {c ? (
                     <>
-                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
@@ -641,6 +649,12 @@ function Options({ c, pin, in2, onChange }: {
           {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
         </>
       )}
+      {c.kind === "BATTERY" && (
+        <label style={optLabel} title="The resistor divider's ratio: (top resistor + bottom resistor) ÷ bottom resistor. Two equal resistors (100k and 100k) = 2.00. The reading is the pin's voltage times this.">divider
+          <NumberInput value={c.divider ?? 2} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
+          <span style={mono(500, 10.5, C.t5)}>: 1</span>
+        </label>
+      )}
       {c.kind === "CANDLE" && (
         <>
           <label style={optLabel} title={`The LED is on ${pin.label}. The coil pulses to swing the flame; it drives a transistor, never the coil directly.`}>coil
@@ -881,6 +895,8 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
 
   if (c.kind === "DIGITAL_IN")
     return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;
+  if (c.kind === "BATTERY")
+    return <span style={mono(700, 11, v < 3500 ? C.amber : C.green)} title="Read every 2 s; percent from a resting 1S lithium curve">{v ? battText(v) : "—"}</span>;
   if (c.kind === "RELAY")
     return (
       <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>

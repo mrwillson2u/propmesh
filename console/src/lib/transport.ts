@@ -466,7 +466,7 @@ class SimLink implements NodeLink {
       const hb: Heartbeat = {
         node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
-        batt: 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
+        batt: n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
       };
       this.events.emit({ evt: "heartbeat", ...hb });
@@ -611,7 +611,7 @@ class SimLink implements NodeLink {
           ok: true,
           channels: n.cfg.channels.map((c) => ({
             kind: c.kind, index: c.index,
-            value: n.values.get(`${c.kind}_${c.index}`) ?? (c.kind === "SERVO" ? -1 : 0),
+            value: n.values.get(`${c.kind}_${c.index}`) ?? (c.kind === "SERVO" ? -1 : c.kind === "BATTERY" ? 3870 : 0),
           })),
         };
       case "mesh": {

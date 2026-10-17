@@ -51,5 +51,9 @@ bool pm_candle_event(uint8_t index, bool sputter);
 // kick_ms 0 = the configured width.
 bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms, bool burst);
 
+// The BATTERY input's latest reading (mV at the battery), 0 if none assigned.
+// A board profile's own sense pin takes precedence (main.cpp).
+uint16_t pm_channels_battery_mv();
+
 void pm_on_input(pm_input_handler_t handler);
 void pm_channels_loop();
