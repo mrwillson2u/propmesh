@@ -1585,6 +1585,22 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   than claimed, and the finder gained **Bursts** (`"burst": true` on the
   tune command: the normal 3–5-kick sets with rests, at the tuned rate
   and width). To be tried.
+- **Found it (2026-10-16, Colin with the meter):** the coil wasn't getting
+  current. Holding GPIO 2 on as a relay, the coil saw a 2 V spike that
+  fell to under 0.1 V, the candle LED went out and the SuperMini's charge
+  LED lit — the rail collapsing. The coil is 26 Ω (140 mA from a LiPo if
+  fed directly). Resistance, power off: BAT+ → coil+ **180 Ω**, coil+ →
+  LED+ **67 Ω**, the added "100 Ω" LED feed reads **117 Ω** in circuit.
+  So the stock chain is BAT+ → 100 Ω (added) → LED+ → **47 Ω** → the
+  removed charge pump's output node → **20 Ω** → coil+: the charge pump
+  used to drive that node, and without it the coil is fed through ~180 Ω.
+  Fix: lift the 47 Ω, wire switched BAT+ to the 20 Ω's battery-side pad
+  (the 20 Ω stays as the stock coil limit: ~2.4 V, ~90 mA per kick on a
+  LiPo; bridge it for the full 140 mA if the swing is weak), LED keeps
+  its 100 Ω (~12 mA). Verify: BAT+ → coil+ ≈ 20 Ω, coil+ → LED+ open.
+  Board designator noted by Colin: **R5** (which of the three — to
+  confirm). Lesson for the hold test: a 2 s hold is only a valid coil
+  test when the coil's supply can source it; here it never could.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
