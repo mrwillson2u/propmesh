@@ -75,6 +75,13 @@ static void servo_out(const PmChannelCfg &c, int32_t v) {
   ledcWrite(c.pins[0], pm_pulse_duty(pm_servo_pulse_us(c, v), pwm_hz(c.kind), SERVO_BITS));
 }
 
+// A BATTERY input: 8 samples through the divider's ratio, in millivolts.
+static int32_t read_battery(const PmChannelCfg &c) {
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(c.pins[0]);
+  return (int32_t)(sum / 8 * c.batt_div100 / 100);
+}
+
 static bool read_input(const PmChannelCfg &c) {
   return (digitalRead(c.pins[0]) == HIGH) != c.active_low;
 }
@@ -180,13 +187,6 @@ static void strip_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
 }
 static uint32_t last_fire_ms, last_candle_ms, last_batt_ms;
 #define BATT_SAMPLE_MS 2000
-
-// A BATTERY input: 8 samples through the divider's ratio, in millivolts.
-static int32_t read_battery(const PmChannelCfg &c) {
-  uint32_t sum = 0;
-  for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(c.pins[0]);
-  return (int32_t)(sum / 8 * c.batt_div100 / 100);
-}
 
 // Put a level on the pins with no smoothing — a ramp's own interpolation
 // is the motion.
