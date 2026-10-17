@@ -1629,6 +1629,19 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   ALL → dark and still, coil cold; a 30-minute run with a finger on the
   coil for heat.
 
+- **Drafts (2026-10-17, Colin's ask):** candles in the same `draft` (1–8,
+  console A–H) gust and sputter together, on any board. No message: each
+  mesh second is a lottery, `hash(draft, second) % gust_s == 0` starts a
+  gust in that second (same odds as the local timer, ~1/gust_s per
+  second) and the hash picks its depth, length and speed, so every
+  candle in the draft runs the same gust from the same instant (the mesh
+  clock agrees to ms); sputters likewise with `sputter_s`. Shimmer, wander
+  and the coil's drifting strength stay individual. Without a conductor
+  (`pm_time_synced()` false) a candle falls back to its own timers. The
+  coil's 400 ms pre-gust pump is off in a draft (the gust isn't known
+  ahead). Host test: two candles in draft 3 never disagree over an hour;
+  draft 4 is independent.
+
 ## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
 
 Colin added a resistor divider to the C6 in the candle. New function

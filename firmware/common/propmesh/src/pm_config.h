@@ -57,6 +57,9 @@ struct PmCandleCfg {
   uint16_t swing_chz = 270;   // flame swing frequency, Hz × 100 (50-800): match the flame's own
   uint8_t kick_ms = 25;       // coil pulse width (4-80)
   bool coil = true;           // swing the flame at all
+  // Draft (docs §6n): candles with the same draft (1-8) gust and sputter
+  // together, decided from the shared mesh clock — no messages. 0 = alone.
+  uint8_t draft = 0;
 };
 #define PM_CANDLE_MAX_SPUTTER_S 3600
 

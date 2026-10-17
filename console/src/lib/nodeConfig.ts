@@ -54,6 +54,7 @@ export interface CandleCfg {
   swing_chz: number; // flame swing frequency, Hz × 100 (50–800)
   kick_ms: number; // coil pulse width (4–80)
   coil: boolean; // swing the flame at all
+  draft?: number; // 1-8: candles in the same draft gust and sputter together (from the mesh clock); 0/absent = alone
 }
 export const CANDLE_DEFAULTS: CandleCfg = { drama10: 10, floor: 3, gust_s: 18, sputter_s: 150, swing_chz: 270, kick_ms: 25, coil: true };
 

@@ -860,6 +860,7 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
           <b> swing</b> — the coil's kick rate; match the flame's own swing with <b>Find the swing…</b> in the TEST column.
           <b> kick</b> — how long each coil pulse lasts: longer is harder and warmer; the finder helps pick the lightest kick that still swings fully.
           <b> swing the flame</b> — off keeps the flame piece still while the LED flickers.
+          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them; each keeps its own shimmer and sway.
           {" "}<a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" style={{ color: C.amber }}>Wiring and tuning guide ↗</a>
         </span>
       )}
@@ -877,6 +878,12 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
         <NumberInput value={k.kick_ms} onChange={(v) => onChange({ kick_ms: v })} min={4} max={80} integer style={small} /> ms</label>
       <label style={optLabel} title="Off: the flame piece stays still, the LED still flickers">
         <input type="checkbox" checked={k.coil} onChange={(e) => onChange({ coil: e.target.checked })} /> swing the flame</label>
+      <label style={optLabel} title="Candles in the same draft gust and sputter at the same moment, as if one breath of wind crossed them all — on any board, worked out from the mesh clock. Each keeps its own shimmer and sway. Alone: its own random timing.">draft
+        <select value={k.draft ?? 0} onChange={(e) => onChange({ draft: Number(e.target.value) })} style={field}>
+          <option value={0}>alone</option>
+          {["A", "B", "C", "D", "E", "F", "G", "H"].map((n, i) => <option key={n} value={i + 1}>{n}</option>)}
+        </select>
+      </label>
     </span>
   );
 }

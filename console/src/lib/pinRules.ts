@@ -84,7 +84,7 @@ export function validate(board: Board, cfg: NodeConfig): Issue[] {
     if (c.kind === "CANDLE") {
       const k = c.candle ?? CANDLE_DEFAULTS;
       if (k.drama10 > 15 || k.floor > 30 || k.gust_s < 2 || k.sputter_s > 3600 ||
-          k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80) add("candle_settings", true, i);
+          k.swing_chz < 50 || k.swing_chz > 800 || k.kick_ms < 4 || k.kick_ms > 80 || (k.draft ?? 0) > 8) add("candle_settings", true, i);
     }
     if (c.kind === "BATTERY") {
       const d = c.divider ?? 2;

@@ -39,6 +39,31 @@ class PmCandleCore {
     kicks_left = 0;
   }
 
+  // A draft (c.draft 1-8): every candle in it gusts and sputters at the
+  // same moment with the same shape, worked out from the shared mesh clock
+  // and the draft's number — no messages, and it works out of radio range.
+  // Each mesh second is a lottery: hash(draft, second) decides whether a
+  // gust (or sputter) starts in that second, with the same odds as the
+  // candle's own timers (1 / gust_s per second), and the hash also picks
+  // the gust's depth, length and speed so they match. Call once per tick
+  // before led(); `synced` false (no conductor) = back to the local timers.
+  void draft_tick(uint32_t now, bool synced, int64_t mesh_us) {
+    if (!c.draft || !synced) { draft_live = false; return; }
+    draft_live = true;
+    int64_t sec = mesh_us / 1000000;
+    if (sec == draft_sec) return;
+    draft_sec = sec;
+    uint32_t h = mix((uint32_t)sec * 0x9E3779B1u ^ (c.draft * 0x85EBCA6Bu));
+    if (!gust_on && !sputter_on && c.gust_s && (h % c.gust_s) == 0) {
+      gust(now);
+      gust_dur = 600 + (h >> 8) % 1600;
+      gust_depth = clampf((0.5f + ((h >> 16) % 300) / 1000.0f) * c.drama10 / 10.0f, 0, 0.92f);
+      gust_hz = 8.0f + ((h >> 24) % 40) / 10.0f;
+    }
+    uint32_t h2 = mix(h ^ 0x5bd1e995u);
+    if (!sputter_on && c.sputter_s && (h2 % c.sputter_s) == 0) sputter(now);
+  }
+
   // Brightness 0..1 for the LED at `now`, before gamma. Call every tick
   // (dt_ms since the last call).
   float led(uint32_t now, uint32_t dt_ms) {
@@ -54,11 +79,12 @@ class PmCandleCore {
     }
     shimmer += (shimmer_to - shimmer) * 0.25f;
 
-    if (!gust_on && !sputter_on && due(now, next_gust)) {
+    // The candle's own timers — unless a draft decides for it.
+    if (!draft_live && !gust_on && !sputter_on && due(now, next_gust)) {
       gust(now);
       next_gust = now + (uint32_t)(exp_rand((float)c.gust_s) * 1000);
     }
-    if (c.sputter_s && !sputter_on && due(now, next_sputter)) {
+    if (!draft_live && c.sputter_s && !sputter_on && due(now, next_sputter)) {
       sputter(now);
       next_sputter = now + (uint32_t)(exp_rand((float)c.sputter_s) * 1000);
     }
@@ -98,7 +124,7 @@ class PmCandleCore {
     // the swing peaks with the flicker instead of after it. A pendulum takes
     // several swings to build, and the first version let it die between sets
     // and then couldn't catch up with a violent flicker (Colin, 2026-10-17).
-    bool pre = !gust_on && !sputter_on && next_gust && (int32_t)(now - (next_gust - PUMP_LEAD_MS)) >= 0;
+    bool pre = !draft_live && !gust_on && !sputter_on && next_gust && (int32_t)(now - (next_gust - PUMP_LEAD_MS)) >= 0;
     if (gust_on || sputter_on) pump_until = now + PUMP_TAIL_MS;
     pumping_now = pre || gust_on || sputter_on || (int32_t)(now - pump_until) < 0;
     if (!tune_chz && pumping_now) {
@@ -146,6 +172,10 @@ class PmCandleCore {
   static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
   static float lerpf(float a, float b, float t) { return a + (b - a) * clampf(t, 0, 1); }
   static bool due(uint32_t now, uint32_t at) { return (int32_t)(now - at) >= 0; }
+  static uint32_t mix(uint32_t x) {  // a small integer hash (murmur3 finalizer)
+    x ^= x >> 16; x *= 0x85EBCA6Bu; x ^= x >> 13; x *= 0xC2B2AE35u; x ^= x >> 16;
+    return x;
+  }
   float rand01() {  // xorshift32
     rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
     return (rng >> 8) * (1.0f / 16777216.0f);
@@ -202,4 +232,6 @@ class PmCandleCore {
   float burst_scale = 0.9f; // the resting run's strength, drifting 0.6-1.0
   uint32_t pump_until = 0;  // pumping continues until this after a gust
   bool pumping_now = false;
+  bool draft_live = false;   // a draft is deciding the gusts this tick
+  int64_t draft_sec = -1;    // the last mesh second judged
 };

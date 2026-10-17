@@ -144,6 +144,32 @@ static void test_coil_follows_the_flicker() {
   TEST_ASSERT_TRUE(gust_hi <= 100);
 }
 
+// Candles in the same draft gust at the same mesh second with the same
+// shape; a different draft (or no draft) is independent of them.
+static void test_draft_syncs_gusts_across_candles() {
+  PmCandleCfg a; a.draft = 3;
+  PmCandleCfg b; b.draft = 3;
+  PmCandleCfg other; other.draft = 4;
+  PmCandleCore ca, cb, co;
+  ca.begin(a, 0, 1); cb.begin(b, 0, 999); co.begin(other, 0, 5);
+  uint32_t same = 0, starts_a = 0, starts_o = 0, differ = 0;
+  bool wa = false, wo = false;
+  for (uint32_t t = 0; t < 3600000; t += PM_CANDLE_TICK_MS) {
+    int64_t mesh_us = (int64_t)t * 1000 + 777000000LL;  // mesh time: any offset, shared
+    ca.draft_tick(t, true, mesh_us); cb.draft_tick(t, true, mesh_us); co.draft_tick(t, true, mesh_us);
+    ca.led(t, PM_CANDLE_TICK_MS); cb.led(t, PM_CANDLE_TICK_MS); co.led(t, PM_CANDLE_TICK_MS);
+    if (ca.gusting() != cb.gusting()) differ++;
+    if (ca.gusting() && !wa) starts_a++;
+    if (co.gusting() && !wo) starts_o++;
+    wa = ca.gusting(); wo = co.gusting();
+    if (ca.gusting() && co.gusting()) same++;
+  }
+  TEST_ASSERT_EQUAL_UINT32(0, differ);          // a and b always agree
+  TEST_ASSERT_TRUE(starts_a > 100 && starts_a < 400);  // ~1 per 18 s over an hour
+  TEST_ASSERT_TRUE(starts_o > 100 && starts_o < 400);
+  TEST_ASSERT_TRUE(same < (uint32_t)(starts_a * 100));  // drafts 3 and 4 mostly don't overlap
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_flicker_stays_in_range_and_never_goes_dark);
@@ -153,5 +179,6 @@ int main() {
   RUN_TEST(test_candle_config_round_trips_and_validates);
   RUN_TEST(test_tuning_kicks_steadily_at_the_rate);
   RUN_TEST(test_coil_follows_the_flicker);
+  RUN_TEST(test_draft_syncs_gusts_across_candles);
   return UNITY_END();
 }
