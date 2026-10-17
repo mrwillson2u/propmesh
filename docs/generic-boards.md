@@ -1608,6 +1608,13 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   wired switched BAT+ to that node — the 20 Ω stays as the stock coil
   limit — and **the flame swings.** First coil-driven motion from
   PropMesh. Rate, kick and the finder's numbers: to be noted when tuned.
+- **The wobble follows the flicker (2026-10-17, Colin's ask).** At rest:
+  sets of 2–6 kicks (more at high drama), each set at 0.75–1.1× the kick,
+  rests 0.3–2 s shortened by drama, a 2–5 s lull one time in five. In a
+  gust: continuous in-phase kicks at kick × (1 + 0.7 × envelope × drama),
+  ×1.15 in a sputter, capped at 100 ms for heat. Host test
+  `test_coil_follows_the_flicker`. The console's CANDLE row has a **?**
+  that explains every knob and links the site page.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune

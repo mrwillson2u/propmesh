@@ -806,9 +806,24 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
 
 function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<CandleCfg>) => void }) {
   const small: React.CSSProperties = { ...num, width: 64 };
+  const [help, setHelp] = useState(false);
   return (
     <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
+      <span onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
+      {help && (
+        <span style={{ flexBasis: "100%", ...sys(400, 11.5, C.t3), lineHeight: 1.45, padding: "4px 2px 6px" }}>
+          The LED flickers in four layers: a slow <b>wander</b>, a fast <b>shimmer</b>, random <b>gusts</b> (quick dips) and rare <b>sputters</b> (a near-blowout that stutters and flares back).
+          The coil swings the flame piece in irregular sets of kicks, and pumps harder during a gust, so the wobble follows the flicker.<br />
+          <b>drama</b> — how strong the shimmer and the gust dips are, and how hard the coil pumps in a gust: 0 is a calm flame, 1 a real candle, 1.5 one in a draft.
+          <b> floor</b> — the dimmest the LED ever gets, so a sputter never looks like the candle died (3 % lets it; 30 % keeps it steady).
+          <b> gust every</b> / <b>sputter every</b> — average seconds between them; the gaps are random, never a beat. Sputter 0 = never.
+          <b> swing</b> — the coil's kick rate; match the flame's own swing with <b>Find the swing…</b> in the TEST column.
+          <b> kick</b> — how long each coil pulse lasts: longer is harder and warmer; the finder helps pick the lightest kick that still swings fully.
+          <b> swing the flame</b> — off keeps the flame piece still while the LED flickers.
+          {" "}<a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" style={{ color: C.amber }}>Wiring and tuning guide ↗</a>
+        </span>
+      )}
       <label style={optLabel} title="Scales every effect: 0 = a calm, steady flame; 1 = normal; 1.5 = wild">drama
         <NumberInput value={k.drama10 / 10} onChange={(v) => onChange({ drama10: Math.round(v * 10) })} min={0} max={1.5} digits={1} style={small} /></label>
       <label style={optLabel} title="The dimmest the flame ever gets, even mid-sputter">floor

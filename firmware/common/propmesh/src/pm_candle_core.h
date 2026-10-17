@@ -7,9 +7,10 @@
 //    8-12 Hz under an envelope) and rare sputters (a near-blowout with
 //    stutters, then an overshoot) — gaps between events are exponential,
 //    so it never feels periodic.
-//  - Coil: kicks near the flame's own swing frequency. At rest, bursts of
-//    3-5 kicks then 0.5-1.5 s of rest (the stock board's pattern); during
-//    a gust, continuous longer kicks in phase so the swing builds.
+//  - Coil: kicks near the flame's own swing frequency, and the wobble
+//    follows the flicker: at rest, irregular sets of kicks at varying
+//    strength with rests and the odd lull; during a gust, continuous kicks
+//    in phase, harder the deeper the gust, so the swing builds with it.
 // Dropped from the sketch: its auto-off timer and mode switch (the show
 // schedule does that), battery compensation (a board-wide battery sense
 // will do it for every output), the IR input and the serial tuning keys
@@ -61,6 +62,7 @@ class PmCandleCore {
     }
 
     float env = envelope(now), g = 1.0f;
+    env_now = env;
     if (env > 0) {
       gust_phase += (dt_ms / 1000.0f) * gust_hz * range(0.85f, 1.15f);
       g = 1.0f - gust_depth * env * dip(gust_phase);
@@ -88,20 +90,32 @@ class PmCandleCore {
     }
     float period = 100000.0f / (tune_chz ? tune_chz : c.swing_chz ? c.swing_chz : 1);
     uint16_t width = tune_chz && tune_kick ? tune_kick : c.kick_ms;
+    float drama = c.drama10 / 10.0f;
     if (!tune_chz && (gust_on || sputter_on)) {
-      // Pump in phase for the whole gust: the swing builds.
+      // A gust: pump in phase for the whole gust so the swing builds, and
+      // harder the deeper the gust — the wobble follows the flicker (Colin,
+      // 2026-10-17). Up to 1.7× the kick at full drama, capped for heat.
       next_kick = now + (uint32_t)(period * (1.0f + 0.02f * range(-1, 1)));
       kicks_left = 0;
-      return c.coil ? (uint16_t)(c.kick_ms * 1.4f) : 0;
+      float w = c.kick_ms * (1.0f + 0.7f * env_now * clampf(drama, 0, 1));
+      if (sputter_on) w *= 1.15f;
+      return c.coil ? (uint16_t)clampf(w, 4, 100) : 0;
     }
     if (kicks_left <= 0) {
-      kicks_left = irange(3, 5);
-      next_kick = now + (uint32_t)irange(500, 1500);
+      // At rest the wobble is never regular: sets of 2-6 kicks, each set at
+      // its own strength (0.75-1.1× the kick), rests of 0.3-2 s, and now and
+      // then a lull of 2-5 s. Drama shortens the rests and lengthens the sets.
+      kicks_left = irange(2, 4 + (int)(2 * drama + 0.5f));
+      burst_scale = range(0.75f, 1.1f);
+      float rest = range(300, 2000) * (1.3f - 0.5f * clampf(drama, 0, 1.5f) / 1.5f);
+      if (rand01() < 0.2f) rest = range(2000, 5000);
+      next_kick = now + (uint32_t)rest;
       return 0;
     }
     kicks_left--;
     next_kick = now + (uint32_t)(period * (1.0f + 0.05f * range(-1, 1)));
-    return tune_chz || c.coil ? width : 0;
+    if (tune_chz) return width;
+    return c.coil ? (uint16_t)clampf(width * burst_scale, 4, 100) : 0;
   }
 
   void gust(uint32_t now) {
@@ -176,4 +190,6 @@ class PmCandleCore {
   uint16_t tune_chz = 0;
   uint8_t tune_kick = 0;
   bool tune_burst = false;
+  float env_now = 0;        // the gust envelope this tick, for the coil
+  float burst_scale = 1.0f; // this rest-pattern set's strength
 };
