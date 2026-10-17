@@ -1618,7 +1618,8 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   0.6–1.0×, 0.2–0.6 s pauses, one kick in ten skipped — the swing never
   dies; from 400 ms *before* a gust's dip (the firmware schedules the
   gust, so it knows) to 1.2 s after, in-phase kicks at kick × (1 + 0.7 ×
-  drama), ×1.15 in a sputter, capped at 100 ms. Host test
+  drama), ×1.15 in a sputter, capped at 100 ms. **On the candle
+  (2026-10-17): "looking how I envisioned" — Colin.** Host test
   `test_coil_follows_the_flicker`. The console's CANDLE row has a **?**
   that explains every knob and links the site page.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
@@ -1644,7 +1645,10 @@ the Yard. Host tests: curve endpoints, 50 % at 3.84 V, monotonic; config
 round trip, ADC-pin rule, divider range, one per board. Site: "Reading
 the battery on a board without a sense pin". Not calibrated against a
 meter yet: the C6's ADC and the resistors' tolerance both move the
-reading — compare with the meter and adjust the divider value.
+reading — compare with the meter and adjust the divider value. **On the
+candle's C6 (2026-10-17):** console 3.79 V against the meter's 3.83 V with
+two nominally equal resistors — 1.1 % low, within tolerance; divider
+2.00 → 2.02 corrects it.
 
 ## 7. Bench test — Stage 1
 

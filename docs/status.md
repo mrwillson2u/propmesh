@@ -37,11 +37,11 @@ Head", Feather):
 | Battery boards: leaf role, listen windows, deep sleep, wake pins | ✅ built; Feather partly tested |
 | SK9822/APA102 clocked strips + fire effect (FastLED Fire2023 math) | built, **not on hardware** |
 | pm_ws2812 (WS2812 on the IDF RMT driver, replaced NeoPixel) | built, **not on hardware** |
-| ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
+| ESP32-C6 SuperMini profile + NimBLE floods | mesh, OTA, candle, battery sense ✅ hardware 2026-10-15..17; floods, sleep, strips still untried |
 | ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
 | Battery repeater: relay during the show, sleep outside it (generic-boards §6m) | built 2026-10-14, **simulator only** |
-| Battery voltage from a resistor divider (`BATTERY` input, LiPo percent; generic-boards §6o) | built 2026-10-17, **not on hardware** |
-| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | built 2026-10-15, **simulator only** |
+| Battery voltage from a resistor divider (`BATTERY` input, LiPo percent; generic-boards §6o) | ✅ hardware 2026-10-17 (C6 in the candle; 1 % low before the divider tweak) |
+| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | ✅ hardware 2026-10-17: flicker, swing finder, wobble that follows the flicker, on the C6 in the candle |
 | Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
@@ -67,8 +67,6 @@ Run these with the boards in hand. Protocol: write out what to watch,
    LiPo with the relay toggle on, a DevKit out of the bridge's range;
    the DevKit should appear only while the Feather relays, and drop
    when it sleeps. Meter both tiers.
-1d. **Electric candle** — generic-boards §6n "Bench test": the C6 in the
-   candle, flicker, gust, sputter, swing tuning, coil temperature.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
