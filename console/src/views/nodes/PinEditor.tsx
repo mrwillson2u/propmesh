@@ -333,7 +333,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
+                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
@@ -580,8 +580,9 @@ function toValues(channels: unknown): Record<string, number> {
 const optLabel: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, ...sys(500, 11, C.t4) };
 const num: React.CSSProperties = { ...field, width: 64, ...mono(500, 11.5, C.t1) };
 
-function Options({ c, pin, in2, onChange }: {
+function Options({ c, pin, in2, onChange, reading }: {
   c: ChannelCfg; pin: BoardPin; in2: BoardPin[]; onChange: (p: Partial<ChannelCfg>) => void;
+  reading?: number; // BATTERY: the board's current reading, mV, for the calibration helper
 }) {
   const activeLow = (text: string, hint?: string) => (
     <label style={optLabel} title={hint}>
@@ -649,12 +650,7 @@ function Options({ c, pin, in2, onChange }: {
           {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
         </>
       )}
-      {c.kind === "BATTERY" && (
-        <label style={optLabel} title="The resistor divider's ratio: (top resistor + bottom resistor) ÷ bottom resistor. Two equal resistors (100k and 100k) = 2.00. The reading is the pin's voltage times this.">divider
-          <NumberInput value={c.divider ?? 2} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
-          <span style={mono(500, 10.5, C.t5)}>: 1</span>
-        </label>
-      )}
+      {c.kind === "BATTERY" && <BatteryOptions c={c} onChange={onChange} reading={reading} />}
       {c.kind === "CANDLE" && (
         <>
           <label style={optLabel} title={`The LED is on ${pin.label}. The coil pulses to swing the flame; it drives a transistor, never the coil directly.`}>coil
@@ -813,6 +809,35 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <button onClick={() => { onSwing(chz, kick); stop(); }} style={{ ...btn(true), fontWeight: 700 }} title="Put this rate and kick in the candle's settings (then Save to node)">Use {hz} Hz · {kick} ms</button>
         <button onClick={stop} style={btn()}>Stop</button>
         <span style={mono(500, 10.5, C.t4)}>the board stops on its own after 2 min</span>
+      </span>
+    </span>
+  );
+}
+
+// The divider's ratio, with the formula and a calibration helper: type what
+// the meter reads at the battery and it works out the ratio that makes the
+// console agree (resistor tolerance and the chip's ADC both shift it;
+// 1 % low on the first real one, 2026-10-17).
+function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p: Partial<ChannelCfg>) => void; reading?: number }) {
+  const [meter, setMeter] = useState<number | undefined>(undefined);
+  const div = c.divider ?? 2;
+  const suggested = meter && reading ? Math.round(div * (meter * 1000) / reading * 100) / 100 : undefined;
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
+      <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
+        <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
+      </label>
+      <span style={mono(500, 10.5, C.t4)}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} title="Measure the battery with a meter and type it here; the ratio that makes the console agree is worked out from the board's current reading.">
+        <span style={sys(500, 11.5, C.t3)}>meter reads</span>
+        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="V" />
+        <span style={sys(500, 11.5, C.t3)}>V</span>
+        {suggested && reading ? (
+          <>
+            <span style={mono(500, 10.5, C.t4)}>console {(reading / 1000).toFixed(2)} V → divider {suggested.toFixed(2)}</span>
+            <button onClick={() => { onChange({ divider: suggested }); setMeter(undefined); }} style={btn(true)} disabled={suggested === div}>Use {suggested.toFixed(2)}</button>
+          </>
+        ) : meter && !reading ? <span style={mono(500, 10.5, C.t5)}>save first, so the board has a reading to compare</span> : null}
       </span>
     </span>
   );
