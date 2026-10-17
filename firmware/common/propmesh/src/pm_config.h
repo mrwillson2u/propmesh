@@ -57,6 +57,9 @@ struct PmCandleCfg {
   uint16_t swing_chz = 270;   // flame swing frequency, Hz × 100 (50-800): match the flame's own
   uint8_t kick_ms = 25;       // coil pulse width (4-80)
   bool coil = true;           // swing the flame at all
+  // Draft (docs §6n): candles with the same draft (1-8) gust and sputter
+  // together, decided from the shared mesh clock — no messages. 0 = alone.
+  uint8_t draft = 0;
 };
 #define PM_CANDLE_MAX_SPUTTER_S 3600
 
@@ -83,6 +86,8 @@ struct PmChannelCfg {
   uint8_t effect = PM_EFFECT_SOLID;
   PmFireCfg fire;                 // when effect == PM_EFFECT_FIRE
   PmCandleCfg candle;             // CANDLE (active_low: the LED is on when its pin is LOW)
+  // BATTERY: the divider's ratio × 100 — (R_top + R_bottom) / R_bottom; 100k / 100k = 200.
+  uint16_t batt_div100 = 200;
 };
 
 inline bool pm_kind_is_strip(uint8_t kind) {

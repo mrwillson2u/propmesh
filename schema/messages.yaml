@@ -72,6 +72,7 @@ enums:
     BLE_LIGHT: 7              # BRMesh BLE flood light — no pin; the node broadcasts its color over Bluetooth
     SPI_STRIP: 8              # clocked addressable pixels (SK9822 / APA102): DATA + CLOCK, bit-banged
     CANDLE: 9                 # electric candle: a flickering LED (PWM) + the coil that swings the flame
+    BATTERY: 10               # battery voltage through a resistor divider on an analog pin (read-only)
 
 # Reusable structs (must be defined before the messages that use them)
 structs:

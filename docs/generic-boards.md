@@ -1568,12 +1568,100 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   the LED holds steady (85 % of the set level): with the flicker running
   Colin couldn't tell whether the flame moved at all (2026-10-16). Host test: 57
   kicks in 20 s at 2.85 Hz, never the gust width, a trial width applies.
+- **First run on the candle (2026-10-16, Colin).** C6 (e076df14) with
+  LED on GPIO 1 (on = LOW) and coil on GPIO 2, build 8022b97. The LED
+  flickers. The finder's sweep didn't step (timer reset on every render —
+  fixed, PR #28) and the flicker hid any flame motion (LED held steady
+  while tuning, PR #27). With the sweep working, Colin measured the
+  drive pulsing at the 2.70 Hz shown, but saw **no flame movement — not
+  even with GPIO 2 held on for 2 s as a relay.** So the coil isn't acting
+  on the magnet: either not energized (Q3 not switching from 3.3 V
+  through R2, or its supply cut when the stock chips came off) or
+  mechanical (flame piece stuck, magnet out of reach, open coil). Next:
+  meter across the coil leads during a hold; coil leads briefly across
+  the battery with the board off; flame piece swung by hand (count the
+  swings: that is the resonant rate). If Q3 won't switch from 3.3 V, an
+  AO3400A in its place, driven straight from the pin. Colin then noticed
+  the stock drive rests between sets of kicks; a centered magnet gets no
+  sideways torque from a steady pull, so the 2 s hold was a weaker test
+  than claimed, and the finder gained **Bursts** (`"burst": true` on the
+  tune command: the normal 3–5-kick sets with rests, at the tuned rate
+  and width). To be tried.
+- **Found it (2026-10-16, Colin with the meter):** the coil wasn't getting
+  current. *Measured:* holding GPIO 2 on as a relay, the coil saw a 2 V
+  spike that fell to under 0.1 V, the candle LED went out and the
+  SuperMini's charge LED lit — the rail collapsing. Coil 26 Ω (140 mA
+  from a LiPo if fed directly). Power off: BAT+ → coil+ **180 Ω**, coil+ →
+  LED+ **67 Ω**, the added 100 Ω LED feed reads **117 Ω** in circuit.
+  *Inferred, not seen:* 117 + 67 ≈ 180, and the only resistors on the
+  board that make 67 are a 47 and a 20 — so the coil's supply reaches it
+  through the LED node and those two, a chain the removed charge pump
+  presumably used to drive. **Fix that doesn't depend on the inference:**
+  switched BAT+ straight to coil+ (the coil's own supply lead), and lift
+  one end of either the 47 or the 20 so battery voltage on coil+ can't
+  feed the LED a second way (it would double the LED's ~12 mA). Verify:
+  BAT+ → coil+ ≈ 0 Ω, coil+ → LED+ open. Kicks are then 140 mA; a
+  resistor in the new wire tames it if too strong. Designator noted by
+  Colin: **R5** (which one — to confirm). Lesson: a 2 s hold is only a
+  valid coil test when the coil's supply can source it; here it never
+  could.
+- **Working (2026-10-17).** Colin confirmed the chain by continuity (the
+  20 Ω's far pad shares a node with one end of the 47 Ω), lifted the 47 Ω,
+  wired switched BAT+ to that node — the 20 Ω stays as the stock coil
+  limit — and **the flame swings.** First coil-driven motion from
+  PropMesh. Rate, kick and the finder's numbers: to be noted when tuned.
+- **The wobble follows the flicker (2026-10-17, Colin's ask).** First cut:
+  sets of 2–6 kicks with rests and lulls, pumping scaled by the gust
+  envelope. On the candle: *less* motion, and a violent flicker couldn't
+  build momentum in time — a pendulum needs several swings, and the rests
+  let it die. Now: at rest, runs of 4–10 kicks whose strength drifts
+  0.6–1.0×, 0.2–0.6 s pauses, one kick in ten skipped — the swing never
+  dies; from 400 ms *before* a gust's dip (the firmware schedules the
+  gust, so it knows) to 1.2 s after, in-phase kicks at kick × (1 + 0.7 ×
+  drama), ×1.15 in a sputter, capped at 100 ms. **On the candle
+  (2026-10-17): "looking how I envisioned" — Colin.** Host test
+  `test_coil_follows_the_flicker`. The console's CANDLE row has a **?**
+  that explains every knob and links the site page.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
   swing ±0.05 Hz for the largest motion and note the value; Out and STOP
   ALL → dark and still, coil cold; a 30-minute run with a finger on the
   coil for heat.
+
+- **Drafts (2026-10-17, Colin's ask):** candles in the same `draft` (1–8,
+  console A–H) gust and sputter together, on any board. No message: each
+  mesh second is a lottery, `hash(draft, second) % gust_s == 0` starts a
+  gust in that second (same odds as the local timer, ~1/gust_s per
+  second) and the hash picks its depth, length and speed, so every
+  candle in the draft runs the same gust from the same instant (the mesh
+  clock agrees to ms); sputters likewise with `sputter_s`. Shimmer, wander
+  and the coil's drifting strength stay individual. Without a conductor
+  (`pm_time_synced()` false) a candle falls back to its own timers. The
+  coil's 400 ms pre-gust pump is off in a draft (the gust isn't known
+  ahead). Host test: two candles in draft 3 never disagree over an hour;
+  draft 4 is independent.
+
+## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
+
+Colin added a resistor divider to the C6 in the candle. New function
+`BATTERY` (ChannelKind 10): one ADC pin (`need: adc`), config
+`divider` (float, stored ×100, 1.0–20.0; validator `battery_divider`),
+one per board (`battery_dup`). The driver samples 8× every 2 s and keeps
+mV at the battery as the channel's value (read-only, like DIGITAL_IN).
+`pm_channels_battery_mv()` feeds the heartbeat's `battery_mv` when the
+board profile has no sense pin of its own (the Feather's wins). Percent:
+`pm_battery.h` `pm_lipo_pct()` — a resting 1S lithium curve in 5 % steps,
+mirrored in `console/lib/battery.ts`; shown as "3.87 V · 62 %" in the
+TEST column (re-read every 5 s while the page is open), the roster and
+the Yard. Host tests: curve endpoints, 50 % at 3.84 V, monotonic; config
+round trip, ADC-pin rule, divider range, one per board. Site: "Reading
+the battery on a board without a sense pin". Not calibrated against a
+meter yet: the C6's ADC and the resistors' tolerance both move the
+reading — compare with the meter and adjust the divider value. **On the
+candle's C6 (2026-10-17):** console 3.79 V against the meter's 3.83 V with
+two nominally equal resistors — 1.1 % low, within tolerance; divider
+2.00 → 2.02 corrects it.
 
 ## 7. Bench test — Stage 1
 

@@ -22,6 +22,7 @@ export interface ChannelCfg {
   effect?: StripEffect; // strips: what they show — the set color, or a running effect the color only switches on/off
   fire?: FireCfg; // when effect is "fire"
   candle?: CandleCfg; // CANDLE (active_low: the LED is on when its pin is LOW)
+  divider?: number; // BATTERY: (R_top + R_bottom) / R_bottom; 100k / 100k = 2.0
   light?: number; // BLE_LIGHT: the light's number in the BRMesh app
 }
 
@@ -53,6 +54,7 @@ export interface CandleCfg {
   swing_chz: number; // flame swing frequency, Hz × 100 (50–800)
   kick_ms: number; // coil pulse width (4–80)
   coil: boolean; // swing the flame at all
+  draft?: number; // 1-8: candles in the same draft gust and sputter together (from the mesh clock); 0/absent = alone
 }
 export const CANDLE_DEFAULTS: CandleCfg = { drama10: 10, floor: 3, gust_s: 18, sputter_s: 150, swing_chz: 270, kick_ms: 25, coil: true };
 
@@ -121,6 +123,7 @@ export function newChannel(cfg: NodeConfig, kind: ChannelKindName, gpio: number)
   if (kind === "LED_STRIP") { c.pixels = 30; c.order = "grb"; c.effect = "solid"; }
   if (kind === "SPI_STRIP") { c.pixels = 8; c.order = "bgr"; c.effect = "solid"; }
   if (kind === "CANDLE") { c.active_low = false; c.candle = { ...CANDLE_DEFAULTS }; }
+  if (kind === "BATTERY") c.divider = 2;
   return c;
 }
 
