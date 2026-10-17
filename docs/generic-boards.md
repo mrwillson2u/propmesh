@@ -1603,6 +1603,11 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   Colin: **R5** (which one — to confirm). Lesson: a 2 s hold is only a
   valid coil test when the coil's supply can source it; here it never
   could.
+- **Working (2026-10-17).** Colin confirmed the chain by continuity (the
+  20 Ω's far pad shares a node with one end of the 47 Ω), lifted the 47 Ω,
+  wired switched BAT+ to that node — the 20 Ω stays as the stock coil
+  limit — and **the flame swings.** First coil-driven motion from
+  PropMesh. Rate, kick and the finder's numbers: to be noted when tuned.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
