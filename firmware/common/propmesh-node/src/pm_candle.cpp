@@ -66,7 +66,11 @@ void PmCandle::update(uint32_t now, int32_t level) {
   if (dt > 100) dt = 100;  // after a stall, don't leap
   last_ms = now;
   lit = true;
+  // Finding the swing: hold the LED steady at the set brightness so the eye
+  // sees only the flame piece moving (the flicker made it impossible to
+  // judge, 2026-10-16). The model still runs so it carries on seamlessly.
   float b = core.led(now, dt);
+  if (core.tuning()) b = 0.85f;
   led(powf(b, CANDLE_GAMMA) * (level / 1000.0f));
   uint16_t w = core.kick(now);
   if (w && timer) {

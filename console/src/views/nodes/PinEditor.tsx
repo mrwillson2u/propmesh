@@ -800,7 +800,7 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
         <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 0.50 to 6.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
         <button onClick={() => { setBurst(!burst); send(chz, kick, !burst); }} style={btn(burst)} title="Kick in sets of 3–5 with a rest between, like the normal flicker, instead of steadily. A rest lets the next set catch the flame at a different point in its swing, which can start it moving when steady kicks don't.">{burst ? "Bursts" : "Steady"}</button>
-        <span style={mono(500, 10.5, C.t4)}>no gusts · watch the flame piece for the widest swing</span>
+        <span style={mono(500, 10.5, C.t4)}>steady light, no gusts · watch the flame piece for the widest swing</span>
       </span>
       <span style={row}>
         <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>KICK</span>
