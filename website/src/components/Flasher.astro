@@ -11,7 +11,9 @@ const boards = readdirSync(join(root, "boards"))
   .filter((f) => f.endsWith(".yaml") && f !== "functions.yaml")
   .map((f) => parse(readFileSync(join(root, "boards", f), "utf8")))
   .sort((a, b) => a.name.localeCompare(b.name))
-  .map((b) => ({ id: b.id, name: b.name + (b.status === "untested" ? " (not yet tried)" : b.status === "partial" ? " (partly tested)" : ""), built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")) }));
+  .map((b) => ({ id: b.id, name: b.name + (b.status === "untested" ? " (not yet tried)" : b.status === "partial" ? " (partly tested)" : ""), built: existsSync(join(process.cwd(), "public", "firmware", b.id, "manifest.json")),
+    // Native USB (the port is part of the chip): the installer can't reboot the board into install mode itself.
+    nativeUsb: /^ESP32-(C3|C6|S3|S2|H2)/i.test(String(b.mcu)) }));
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const first = boards.find((b) => b.id === "esp32-devkit-v1") ?? boards[0];
 const anyBuilt = boards.some((b) => b.built);
@@ -21,10 +23,20 @@ const anyBuilt = boards.some((b) => b.built);
   <label class="pick">
     <span>1. Your board</span>
     <select id="pm-board">
-      {boards.map((b) => <option value={b.id} selected={b.id === first.id} data-built={b.built ? "1" : ""}>{b.name}</option>)}
+      {boards.map((b) => <option value={b.id} selected={b.id === first.id} data-built={b.built ? "1" : ""} data-native={b.nativeUsb ? "1" : ""}>{b.name}</option>)}
     </select>
   </label>
-  <div class="step">2. Plug it into this computer with a USB cable that carries data (not a charge-only one).</div>
+  <div class="step" id="pm-step2">2. Plug it into this computer with a USB cable that carries data (not a charge-only one).</div>
+  <div class="native" id="pm-native" hidden={!first.nativeUsb}>
+    <b>This board's USB port is part of the chip</b>, so the installer can't restart it into install mode by itself. Put it there by hand, every time:
+    <ol>
+      <li>Close anything using the board's port, including a console tab connected over USB.</li>
+      <li>Unplug the board. <b>Hold BOOT</b>, plug it in, keep holding for a second, release. Allow the connection if your computer asks.</li>
+      <li>Press <b>Install PropMesh</b> and pick the port that just appeared.</li>
+      <li>When it finishes, <b>press RESET</b> or unplug and replug: the new firmware doesn't start on its own.</li>
+    </ol>
+    If it says <i>Failed to initialize</i>, the port belonged to the old firmware. Unplug and start again from step 2.
+  </div>
   <div class="go">
     <span>3.</span>
     <esp-web-install-button id="pm-install" manifest={`${base}/firmware/${first.id}/manifest.json`}>
@@ -50,6 +62,7 @@ const anyBuilt = boards.some((b) => b.built);
     const o = sel.selectedOptions[0];
     btn.setAttribute("manifest", `${base}/firmware/${sel.value}/manifest.json`);
     missing.hidden = !!o.dataset.built;
+    document.getElementById("pm-native").hidden = !o.dataset.native;
     document.getElementById("pm-update").hidden = !o.dataset.built;
     document.getElementById("pm-update-link").setAttribute("href", `${base}/firmware/${sel.value}/propmesh-${sel.value}-update.bin`);
     btn.style.display = o.dataset.built ? "" : "none";
@@ -69,5 +82,8 @@ const anyBuilt = boards.some((b) => b.built);
   .go { display: flex; align-items: center; gap: 0.75rem; }
   .install { font: inherit; font-weight: 700; padding: 0.6rem 1.2rem; border: 0; border-radius: 0.5rem; cursor: pointer; background: var(--sl-color-accent); color: var(--sl-color-black); }
   .small { font-size: 0.9rem; color: var(--sl-color-gray-2); margin: 0; }
+  .native { font-size: 0.92rem; line-height: 1.5; padding: 0.75rem 1rem; border-left: 3px solid var(--sl-color-accent); background: var(--sl-color-black); border-radius: 0.4rem; }
+  .native ol { margin: 0.4rem 0 0.4rem 1.2rem; padding: 0; }
+  .native li { margin: 0.15rem 0; }
   .warn { color: var(--sl-color-orange-high, #e8a33a); font-weight: 500; margin: 0; }
 </style>

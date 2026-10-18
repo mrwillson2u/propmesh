@@ -1012,7 +1012,15 @@ The board from the lantern fire test, as a third profile:
   sleep the port re-enumerates, so a USB-connected console drops and
   reconnects on every wake — on battery, talk to it over the mesh
   instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;
-  if the port isn't found, hold BOOT while plugging in.
+  if the port isn't found, hold BOOT while plugging in. **From the browser
+  installer (2026-10-17, Colin):** auto-reset into download mode over the
+  USB-Serial/JTAG port is unreliable on a Mac ("Failed to initialize"),
+  and a fresh board's factory demo reboots so the port flaps in the
+  chooser. Dependable sequence: close anything holding the port (a USB
+  console tab), unplug, hold BOOT, plug in, release, Install, pick the
+  port that just appeared, then press RESET afterwards (the ROM doesn't
+  start the new image by itself). The flash page shows these steps when a
+  native-USB board is selected. To confirm on Colin's next new board.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
   Bluetooth stack doesn't change sleep: on battery the off tier is deep
   sleep (radio off, Bluetooth included). The limit on both chips is the prebuilt Arduino SDK:
