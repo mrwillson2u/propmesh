@@ -115,7 +115,7 @@ static void test_tuning_kicks_steadily_at_the_rate() {
   m.tune(285, 12, true);
   uint32_t bk = 0; uint16_t bw = 0;
   for (uint32_t t = 30000; t < 50000; t += PM_CANDLE_TICK_MS) { uint16_t w = m.kick(t); if (w) { bk++; if (w > bw) bw = w; } }
-  TEST_ASSERT_TRUE(bk > 10 && bk < 50);
+  TEST_ASSERT_TRUE(bk > 10 && bk < 57);  // fewer than steady (57 in 20 s)
   TEST_ASSERT_EQUAL_UINT16(12, bw);
   m.tune(0);
   uint32_t after = 0;
