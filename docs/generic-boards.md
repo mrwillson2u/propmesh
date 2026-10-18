@@ -1030,6 +1030,25 @@ The board from the lantern fire test, as a third profile:
   time: did the Mac's accessory prompt appear; is the lit LED the blue
   GPIO 15 one or the green charge one; does the board appear in System
   Report → USB at all. Rule for the docs meanwhile: LED on = retry.
+  **Resolved from the datasheet and the board schematic (2026-10-17).**
+  ESP32-C6 datasheet §3.1: download boot needs **GPIO8 = 1 and GPIO9 = 0**
+  at reset, and Table 3-1 says GPIO8 is **floating** by default (only
+  GPIO9 has a weak pull-up). The SuperMini schematic
+  (mischianti.org/wp-content/uploads/2026/04/esp32-c6-supermini-board-schematic.pdf)
+  ties GPIO8 only to the WS2812's DIN — high impedance — so holding BOOT
+  gives download mode only when GPIO8 happens to float high; floating
+  low is the undefined 0/0 combination, the "sometimes" Colin sees. Fix:
+  hold GPIO8 high during the BOOT press — a jumper from pin 8 to 3V3
+  while plugging in, or a permanent 10 kΩ pull-up (the WS2812 DIN idles
+  high, harmless; PropMesh drives it when assigned). The same schematic
+  settles the LEDs: PD4 **green** on the TP4054's CHRG pin (on charging,
+  off full, blinks with no battery — the "BAT"/"CL" pair by the USB
+  socket), PD2 **blue** on **GPIO15 via 1 kΩ to GND, lit when GPIO15 is
+  HIGH**; GPIO15 (the JTAG-source strap) has no internal pull either.
+  What lights the blue LED in the failed state isn't proven, but it is
+  no longer needed to diagnose it. The C3 SuperMini has the same
+  GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
+  default pull before assuming the same trick.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
   Bluetooth stack doesn't change sleep: on battery the off tier is deep
   sleep (radio off, Bluetooth included). The limit on both chips is the prebuilt Arduino SDK:

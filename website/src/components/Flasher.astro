@@ -31,12 +31,12 @@ const anyBuilt = boards.some((b) => b.built);
     <b>This board's USB port is part of the chip</b>, so the installer can't restart it into install mode by itself. Put it there by hand, every time:
     <ol>
       <li>Close anything using the board's port, including a console tab connected over USB.</li>
-      <li>Unplug the board. <b>Hold BOOT</b>, plug it in, keep holding for a second, release. Allow the connection if your computer asks.</li>
+      <li>Unplug the board. <b>Hold BOOT</b>, plug it in, keep holding for a second, release. Allow the connection if your computer asks.<br /><span class="sub">On a <b>C6 SuperMini</b> this only works some of the time, because the chip also reads pin <b>8</b> at that moment and nothing on the board holds it. Make it certain: while holding BOOT, touch a jumper wire from the pin marked <b>8</b> to <b>3V3</b> as you plug in, then remove it. A 10 kΩ resistor soldered between those two pins makes it permanent.</span></li>
       <li>Press <b>Install PropMesh</b> and pick the port that just appeared.</li>
       <li>When it finishes, <b>press RESET</b> or unplug and replug: the new firmware doesn't start on its own.</li>
     </ol>
     If it says <i>Failed to initialize</i>, the port belonged to the old firmware. Unplug and start again from step 2.
-    If an <b>LED next to the USB socket lights up</b> as you plug in, that attempt won't work and no port will appear: unplug and do step 2 again, button down before the plug goes in.
+    If an <b>LED next to the USB socket lights up</b> as you plug in, that attempt won't work and no port will appear: unplug and do step 2 again, with the jumper.
   </div>
   <div class="go">
     <span>3.</span>
@@ -86,5 +86,6 @@ const anyBuilt = boards.some((b) => b.built);
   .native { font-size: 0.92rem; line-height: 1.5; padding: 0.75rem 1rem; border-left: 3px solid var(--sl-color-accent); background: var(--sl-color-black); border-radius: 0.4rem; }
   .native ol { margin: 0.4rem 0 0.4rem 1.2rem; padding: 0; }
   .native li { margin: 0.15rem 0; }
+  .native .sub { display: block; margin-top: 0.2rem; color: var(--sl-color-gray-2); font-size: 0.88rem; }
   .warn { color: var(--sl-color-orange-high, #e8a33a); font-weight: 500; margin: 0; }
 </style>
