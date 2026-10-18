@@ -136,18 +136,20 @@ class PmCandleCore {
     }
     if (kicks_left <= 0) {
       // At rest the swing is never allowed to die: kicks keep coming at the
-      // rate, in runs of 4-10 whose strength drifts between 0.6× and 1.0×
-      // the kick, with a short pause (0.2-0.6 s, about one swing) between
-      // runs and one kick in ten skipped — variety without losing momentum.
+      // rate, in runs of 4-10 whose strength drifts between 0.75× and 1.0×
+      // the kick, with a short pause (0.15-0.45 s, about one swing) between
+      // runs and one kick in fourteen skipped — variety without losing
+      // momentum. (Was 0.6×, 0.2-0.6 s, one in ten: on the candle the resting
+      // flame read as a little too still, 2026-10-18.)
       kicks_left = irange(4, 10);
-      burst_scale = clampf(burst_scale + range(-0.2f, 0.2f), 0.6f, 1.0f);
-      next_kick = now + (uint32_t)range(200, 600);
+      burst_scale = clampf(burst_scale + range(-0.15f, 0.15f), 0.75f, 1.0f);
+      next_kick = now + (uint32_t)range(150, 450);
       return 0;
     }
     kicks_left--;
     next_kick = now + (uint32_t)(period * (1.0f + 0.04f * range(-1, 1)));
     if (tune_chz) return width;
-    if (rand01() < 0.1f) return 0;  // the skipped kick
+    if (rand01() < 0.07f) return 0;  // the skipped kick
     return c.coil ? (uint16_t)clampf(width * burst_scale, 4, 100) : 0;
   }
 
@@ -229,7 +231,7 @@ class PmCandleCore {
   uint8_t tune_kick = 0;
   bool tune_burst = false;
   float env_now = 0;        // the gust envelope this tick
-  float burst_scale = 0.9f; // the resting run's strength, drifting 0.6-1.0
+  float burst_scale = 0.9f; // the resting run's strength, drifting 0.75-1.0
   uint32_t pump_until = 0;  // pumping continues until this after a gust
   bool pumping_now = false;
   bool draft_live = false;   // a draft is deciding the gusts this tick

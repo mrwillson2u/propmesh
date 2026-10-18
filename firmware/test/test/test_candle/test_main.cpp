@@ -139,7 +139,7 @@ static void test_coil_follows_the_flicker() {
   }
   TEST_ASSERT_TRUE(rest_lo < rest_hi);          // varies at rest
   TEST_ASSERT_TRUE(rest_hi <= cfg.kick_ms + 1);
-  TEST_ASSERT_TRUE(rest_lo >= cfg.kick_ms * 0.6f - 1);
+  TEST_ASSERT_TRUE(rest_lo >= cfg.kick_ms * 0.75f - 1);
   TEST_ASSERT_TRUE(gust_hi > cfg.kick_ms * 1.3f); // harder in a gust
   TEST_ASSERT_TRUE(gust_hi <= 100);
 }

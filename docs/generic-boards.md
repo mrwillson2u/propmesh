@@ -1652,7 +1652,9 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   build momentum in time — a pendulum needs several swings, and the rests
   let it die. Now: at rest, runs of 4–10 kicks whose strength drifts
   0.6–1.0×, 0.2–0.6 s pauses, one kick in ten skipped — the swing never
-  dies; from 400 ms *before* a gust's dip (the firmware schedules the
+  dies (2026-10-18: lifted to 0.75–1.0×, 0.15–0.45 s pauses, one in
+  fourteen skipped — the resting flame read as a touch too still); from
+  400 ms *before* a gust's dip (the firmware schedules the
   gust, so it knows) to 1.2 s after, in-phase kicks at kick × (1 + 0.7 ×
   drama), ×1.15 in a sputter, capped at 100 ms. **On the candle
   (2026-10-17): "looking how I envisioned" — Colin.** Host test
