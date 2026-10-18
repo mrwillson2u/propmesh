@@ -1021,12 +1021,15 @@ The board from the lantern fire test, as a third profile:
   port that just appeared, then press RESET afterwards (the ROM doesn't
   start the new image by itself). The flash page shows these steps when a
   native-USB board is selected. To confirm on Colin's next new board.
-  Colin also sees the **blue LED (GPIO 15) light on some BOOT-and-plug
-  attempts, and those never show a port or install**. Reading (inferred,
-  not observed): BOOT wasn't registered at power-up and the factory demo
-  booted — it lights that LED and opens no CDC port; install mode (the
-  ROM) leaves the LED dark. So: LED on = retry, button down before the
-  plug goes in.
+  Colin also sees an **LED by the USB socket (silkscreen "CL") light on
+  some BOOT-and-plug attempts, and those never show a port or install**;
+  a fresh board plugged in normally keeps it off, so it is *not* the
+  factory demo (first guess, withdrawn). "CL" is usually the charge
+  indicator, driven by the charger, which would make it a symptom of how
+  power/USB came up rather than a chip state. Unknown. To settle it next
+  time: did the Mac's accessory prompt appear; is the lit LED the blue
+  GPIO 15 one or the green charge one; does the board appear in System
+  Report → USB at all. Rule for the docs meanwhile: LED on = retry.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
   Bluetooth stack doesn't change sleep: on battery the off tier is deep
   sleep (radio off, Bluetooth included). The limit on both chips is the prebuilt Arduino SDK:
