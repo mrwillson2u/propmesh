@@ -67,6 +67,10 @@ Run these with the boards in hand. Protocol: write out what to watch,
    LiPo with the relay toggle on, a DevKit out of the bridge's range;
    the DevKit should appear only while the Feather relays, and drop
    when it sleeps. Meter both tiers.
+1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
+   SuperMini and a DevKit at the same spot in the yard, compare RSSI on
+   the Yard. Puts a number on the C6's ceramic antenna for its board
+   page; the C3 is the one with the known range complaint.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
