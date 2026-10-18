@@ -62,8 +62,9 @@ static const pm_function_t PM_FUNCTIONS[] = {
     {PM_CHANNEL_KIND_BLE_LIGHT, "BLE_LIGHT", 0, {0}, {nullptr}, 0, 0, 0, 0, 2147483647},
     {PM_CHANNEL_KIND_SPI_STRIP, "SPI_STRIP", 2, {PM_CAP_OUT, PM_CAP_OUT}, {"DATA", "CLOCK"}, 0, 0, 0, 0, 16777215},
     {PM_CHANNEL_KIND_CANDLE, "CANDLE", 2, {PM_CAP_OUT, PM_CAP_OUT}, {"LIGHT", "COIL"}, 1, 0, 1000, 0, 1000},
+    {PM_CHANNEL_KIND_BATTERY, "BATTERY", 1, {PM_CAP_ADC}, {"SENSE"}, 0, 0, 0, 0, 65535},
 };
-#define PM_FUNCTION_COUNT 9
+#define PM_FUNCTION_COUNT 10
 
 // ESP32-C3 SuperMini — ESP32-C3FH4
 static const pm_board_pin_t PM_BOARD_ESP32_C3_SUPERMINI_PINS[] = {

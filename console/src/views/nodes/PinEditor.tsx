@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
+import { battText } from "../../lib/battery";
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
   type ColorOrder, type FireCfg, type StripEffect,
@@ -96,6 +97,13 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
+  // A battery input's reading changes slowly: re-read it every 5 s while
+  // the page is open (inputs otherwise only push changes as events).
+  useEffect(() => {
+    if (!applied.channels.some((c) => c.kind === "BATTERY")) return;
+    const t = setInterval(() => { node.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined); }, 5000);
+    return () => clearInterval(t);
+  }, [applied, node]);
 
   // ---- save -----------------------------------------------------------
 
@@ -322,12 +330,12 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                   </select>
                   {c ? (
                     <>
-                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} />
+                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
-                        onCandle={(event, chz, ms) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
+                        onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
                           on: cal?.code === channelCode(c),
@@ -572,8 +580,9 @@ function toValues(channels: unknown): Record<string, number> {
 const optLabel: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, ...sys(500, 11, C.t4) };
 const num: React.CSSProperties = { ...field, width: 64, ...mono(500, 11.5, C.t1) };
 
-function Options({ c, pin, in2, onChange }: {
+function Options({ c, pin, in2, onChange, reading }: {
   c: ChannelCfg; pin: BoardPin; in2: BoardPin[]; onChange: (p: Partial<ChannelCfg>) => void;
+  reading?: number; // BATTERY: the board's current reading, mV, for the calibration helper
 }) {
   const activeLow = (text: string, hint?: string) => (
     <label style={optLabel} title={hint}>
@@ -641,6 +650,7 @@ function Options({ c, pin, in2, onChange }: {
           {c.effect === "fire" && <FireOptions f={c.fire ?? FIRE_DEFAULTS} onChange={(p) => onChange({ fire: { ...(c.fire ?? FIRE_DEFAULTS), ...p } })} />}
         </>
       )}
+      {c.kind === "BATTERY" && <BatteryOptions c={c} onChange={onChange} reading={reading} />}
       {c.kind === "CANDLE" && (
         <>
           <label style={optLabel} title={`The LED is on ${pin.label}. The coil pulses to swing the flame; it drives a transistor, never the coil directly.`}>coil
@@ -744,22 +754,35 @@ function Health({ hello }: { hello: NodeHello }) {
 // 2 minutes.
 function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
   lit: boolean; light: () => void; current: number; currentKick: number;
-  onCandle: (event: "tune", chz: number, ms?: number) => void; onSwing: (chz: number, kick_ms: number) => void;
+  onCandle: (event: "tune", chz: number, ms?: number, burst?: boolean) => void; onSwing: (chz: number, kick_ms: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [chz, setChz] = useState(current);
   const [kick, setKick] = useState(currentKick);
   const [sweeping, setSweeping] = useState(false);
-  const LO = 100, HI = 500, STEP = 10, HOLD_MS = 2500;  // 1.00–5.00 Hz, 0.10 Hz every 2.5 s
-  const send = (c: number, k: number) => { setChz(c); setKick(k); onCandle("tune", c, k); };
+  const [burst, setBurst] = useState(false);
+  const LO = 50, HI = 600, STEP = 10, HOLD_MS = 2500;  // 0.50–6.00 Hz, 0.10 Hz every 2.5 s (a floppy flame can swing under 1 Hz)
+  // The parent re-renders every time a board reports in (every second or
+  // two), and `onCandle` is a fresh function each time. The sweep timer
+  // must not restart on those renders — it never reached 2.5 s on the
+  // first real try (2026-10-16) — so it reads the latest values through
+  // refs and depends only on `sweeping`.
+  const latest = useRef({ chz, kick, burst, onCandle, open });
+  latest.current = { chz, kick, burst, onCandle, open };
+  const send = (c: number, k: number, b = burst) => { setChz(c); setKick(k); onCandle("tune", c, k, b); };
   const start = () => { if (!lit) light(); setOpen(true); setSweeping(false); send(current, currentKick); };
   const stop = () => { setSweeping(false); setOpen(false); onCandle("tune", 0); };
   useEffect(() => {
     if (!sweeping) return;
-    const t = setInterval(() => setChz((c) => { const n = c + STEP > HI ? LO : c + STEP; onCandle("tune", n, kick); return n; }), HOLD_MS);
+    const t = setInterval(() => {
+      const { chz: c, kick: k, burst: b, onCandle: send } = latest.current;
+      const n = c + STEP > HI ? LO : c + STEP;
+      setChz(n);
+      send("tune", n, k, b);
+    }, HOLD_MS);
     return () => clearInterval(t);
-  }, [sweeping, kick, onCandle]);
-  useEffect(() => () => { if (open) onCandle("tune", 0); }, []);  // leaving the page stops the kicks
+  }, [sweeping]);
+  useEffect(() => () => { if (latest.current.open) latest.current.onCandle("tune", 0); }, []);  // leaving the page stops the kicks
   if (!open)
     return <button onClick={start} style={{ ...btn(), alignSelf: "flex-start" }} title="Kick the coil steadily while the rate sweeps, and watch which rate swings the flame furthest; then find the lightest kick that still swings it">Find the swing…</button>;
   const hz = (chz / 100).toFixed(2);
@@ -771,8 +794,9 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
         <span style={{ ...mono(800, 22, C.t1), minWidth: 84, textAlign: "right" }}>{hz} Hz</span>
         <button onClick={() => send(Math.max(LO, chz - 5), kick)} style={btn()} title="0.05 Hz slower">−</button>
         <button onClick={() => send(Math.min(HI, chz + 5), kick)} style={btn()} title="0.05 Hz faster">+</button>
-        <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 1.00 to 5.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
-        <span style={mono(500, 10.5, C.t4)}>steady kicks, steady light, no gusts · watch the flame piece for the widest swing</span>
+        <button onClick={() => setSweeping(!sweeping)} style={btn(sweeping)} title="Step 0.10 Hz every 2.5 s from 0.50 to 6.00 Hz, round and round">{sweeping ? "Pause sweep" : "Sweep"}</button>
+        <button onClick={() => { setBurst(!burst); send(chz, kick, !burst); }} style={btn(burst)} title="Kick in sets of 3–5 with a rest between, like the normal flicker, instead of steadily. A rest lets the next set catch the flame at a different point in its swing, which can start it moving when steady kicks don't.">{burst ? "Bursts" : "Steady"}</button>
+        <span style={mono(500, 10.5, C.t4)}>steady light, no gusts · watch the flame piece for the widest swing</span>
       </span>
       <span style={row}>
         <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em", width: 64 }}>KICK</span>
@@ -790,11 +814,56 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
   );
 }
 
+// The divider's ratio, with the formula and a calibration helper: type what
+// the meter reads at the battery and it works out the ratio that makes the
+// console agree (resistor tolerance and the chip's ADC both shift it;
+// 1 % low on the first real one, 2026-10-17).
+function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p: Partial<ChannelCfg>) => void; reading?: number }) {
+  const [meter, setMeter] = useState<number | undefined>(undefined);
+  const div = c.divider ?? 2;
+  const suggested = meter && reading ? Math.round(div * (meter * 1000) / reading * 100) / 100 : undefined;
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
+      <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
+        <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
+      </label>
+      <span style={mono(500, 10.5, C.t4)}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} title="Measure the battery with a meter and type it here; the ratio that makes the console agree is worked out from the board's current reading.">
+        <span style={sys(500, 11.5, C.t3)}>meter reads</span>
+        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="V" />
+        <span style={sys(500, 11.5, C.t3)}>V</span>
+        {suggested && reading ? (
+          <>
+            <span style={mono(500, 10.5, C.t4)}>console {(reading / 1000).toFixed(2)} V → divider {suggested.toFixed(2)}</span>
+            <button onClick={() => { onChange({ divider: suggested }); setMeter(undefined); }} style={btn(true)} disabled={suggested === div}>Use {suggested.toFixed(2)}</button>
+          </>
+        ) : meter && !reading ? <span style={mono(500, 10.5, C.t5)}>save first, so the board has a reading to compare</span> : null}
+      </span>
+    </span>
+  );
+}
+
 function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<CandleCfg>) => void }) {
   const small: React.CSSProperties = { ...num, width: 64 };
+  const [help, setHelp] = useState(false);
   return (
     <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
+      <span onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
+      {help && (
+        <span style={{ flexBasis: "100%", ...sys(400, 11.5, C.t3), lineHeight: 1.45, padding: "4px 2px 6px" }}>
+          The LED flickers in four layers: a slow <b>wander</b>, a fast <b>shimmer</b>, random <b>gusts</b> (quick dips) and rare <b>sputters</b> (a near-blowout that stutters and flares back).
+          The coil swings the flame piece in irregular sets of kicks, and pumps harder during a gust, so the wobble follows the flicker.<br />
+          <b>drama</b> — how strong the shimmer and the gust dips are, and how hard the coil pumps in a gust: 0 is a calm flame, 1 a real candle, 1.5 one in a draft.
+          <b> floor</b> — the dimmest the LED ever gets, so a sputter never looks like the candle died (3 % lets it; 30 % keeps it steady).
+          <b> gust every</b> / <b>sputter every</b> — average seconds between them; the gaps are random, never a beat. Sputter 0 = never.
+          <b> swing</b> — the coil's kick rate; match the flame's own swing with <b>Find the swing…</b> in the TEST column.
+          <b> kick</b> — how long each coil pulse lasts: longer is harder and warmer; the finder helps pick the lightest kick that still swings fully.
+          <b> swing the flame</b> — off keeps the flame piece still while the LED flickers.
+          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them; each keeps its own shimmer and sway.
+          {" "}<a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" style={{ color: C.amber }}>Wiring and tuning guide ↗</a>
+        </span>
+      )}
       <label style={optLabel} title="Scales every effect: 0 = a calm, steady flame; 1 = normal; 1.5 = wild">drama
         <NumberInput value={k.drama10 / 10} onChange={(v) => onChange({ drama10: Math.round(v * 10) })} min={0} max={1.5} digits={1} style={small} /></label>
       <label style={optLabel} title="The dimmest the flame ever gets, even mid-sputter">floor
@@ -809,6 +878,12 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
         <NumberInput value={k.kick_ms} onChange={(v) => onChange({ kick_ms: v })} min={4} max={80} integer style={small} /> ms</label>
       <label style={optLabel} title="Off: the flame piece stays still, the LED still flickers">
         <input type="checkbox" checked={k.coil} onChange={(e) => onChange({ coil: e.target.checked })} /> swing the flame</label>
+      <label style={optLabel} title="Candles in the same draft gust and sputter at the same moment, as if one breath of wind crossed them all — on any board, worked out from the mesh clock. Each keeps its own shimmer and sway. Alone: its own random timing.">draft
+        <select value={k.draft ?? 0} onChange={(e) => onChange({ draft: Number(e.target.value) })} style={field}>
+          <option value={0}>alone</option>
+          {["A", "B", "C", "D", "E", "F", "G", "H"].map((n, i) => <option key={n} value={i + 1}>{n}</option>)}
+        </select>
+      </label>
     </span>
   );
 }
@@ -843,7 +918,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
 
 function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
   c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
-  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
+  onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number, burst?: boolean) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
@@ -852,6 +927,8 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
 
   if (c.kind === "DIGITAL_IN")
     return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;
+  if (c.kind === "BATTERY")
+    return <span style={mono(700, 11, v < 3500 ? C.amber : C.green)} title="Read every 2 s; percent from a resting 1S lithium curve">{v ? battText(v) : "—"}</span>;
   if (c.kind === "RELAY")
     return (
       <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>

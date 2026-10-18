@@ -29,8 +29,8 @@ mcu: ESP32-C6FH4
 board_type: C6_SUPERMINI      # BoardType in schema/messages.yaml
 # How far this board has been tried on real hardware — shown on the docs
 # site's board pages (tested / partial / untested). Update it after a bench test.
-status: untested
-status_note: "Profile and firmware are built (Bluetooth floods through NimBLE, deep sleep) but it has not been flashed onto a real board yet. Expect surprises, and please report them."
+status: partial
+status_note: "Runs on the mesh and takes updates over the air; drives an electric candle (LED + coil) and reads a battery through a divider. Bluetooth floods, deep sleep and LED strips are built but not yet tried on this board. Plugged into a computer with no serial monitor open it hung every few minutes until 2026-10-16 (fixed)."
 pinout_url: https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-datasheet-schema-and-specs/
 # No `header`: SuperMini vendors order the pins differently, so the console
 # shows this board as a list of GPIO numbers, not a drawing.

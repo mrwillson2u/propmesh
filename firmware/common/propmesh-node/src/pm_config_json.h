@@ -98,6 +98,11 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
       k.gust_s = cj["gust_s"] | k.gust_s;  k.sputter_s = cj["sputter_s"] | k.sputter_s;
       k.swing_chz = cj["swing_chz"] | k.swing_chz;  k.kick_ms = cj["kick_ms"] | k.kick_ms;
       k.coil = cj["coil"] | k.coil;
+      k.draft = cj["draft"] | k.draft;
+    }
+    if (c.kind == PM_CHANNEL_KIND_BATTERY) {
+      float div = jc["divider"] | 2.0f;
+      c.batt_div100 = (uint16_t)(div * 100 + 0.5f);
     }
     long light = jc["light"] | (long)c.light_id;
     if (light < 0 || light > 255) return "light must be 1-255";
@@ -179,6 +184,9 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
       case PM_CHANNEL_KIND_BLE_LIGHT:
         jc["light"] = c.light_id;
         break;
+      case PM_CHANNEL_KIND_BATTERY:
+        jc["divider"] = c.batt_div100 / 100.0f;
+        break;
       case PM_CHANNEL_KIND_CANDLE: {
         jc["active_low"] = c.active_low;
         JsonObject cj = jc["candle"].to<JsonObject>();
@@ -186,6 +194,7 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
         cj["drama10"] = k.drama10;  cj["floor"] = k.floor;  cj["gust_s"] = k.gust_s;
         cj["sputter_s"] = k.sputter_s;  cj["swing_chz"] = k.swing_chz;  cj["kick_ms"] = k.kick_ms;
         cj["coil"] = k.coil;
+        if (k.draft) cj["draft"] = k.draft;
         break;
       }
     }
