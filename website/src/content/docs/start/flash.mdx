@@ -14,7 +14,9 @@ This is the firmware the project runs on its own yard, but it is beta software a
 
 <Flasher />
 
-When you press **Install PropMesh**, the browser asks which USB device to use. Pick the one that appears when you plug the board in. It is often named **CP210x**, **CH340** or **USB JTAG/serial**. Installing takes about a minute. Then [connect to the board from the console](/propmesh/start/first-scare/#3-connect-the-console).
+When you press **Install PropMesh**, the browser asks which USB device to use. Pick the one that appears when you plug the board in. It is often named **CP210x**, **CH340** or **USB JTAG/serial**. Installing takes about a minute.
+
+When it finishes, the installer shows a small menu for the board that is still plugged in. **Install PropMesh for …** there means install it *again* on this same board, which you don't need. **Logs & Console** shows the board's own log live in the browser, handy if something isn't working. Close the menu with the **×**, press **RESET** on a C3 or C6, and [connect to the board from the console](/propmesh/start/first-scare/#3-connect-the-console).
 
 <Aside type="caution" title="Erase or keep?">
 The installer may offer to erase the board first. On a board that has never run PropMesh, erase it. On a board that already runs PropMesh, skip the erase so it keeps its name and pin setup.
