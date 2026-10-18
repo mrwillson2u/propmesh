@@ -1645,7 +1645,51 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   20 Ω's far pad shares a node with one end of the 47 Ω), lifted the 47 Ω,
   wired switched BAT+ to that node — the 20 Ω stays as the stock coil
   limit — and **the flame swings.** First coil-driven motion from
-  PropMesh. Rate, kick and the finder's numbers: to be noted when tuned.
+  PropMesh. Finder result on this candle (read back from the board's
+  config, 2026-10-18): **swing 3.35 Hz, kick 40 ms**, LED on GPIO 1,
+  coil on GPIO 2, both active-low.
+- **Brownout after an update (2026-10-18).** Two OTAs of the rest-sway
+  build in a row finished (`end ok` after 389 s and 314 s) and the candle
+  came back on the *previous* build, reset reason `brownout (supply
+  sagged)`, uptime about 18 s at the first hello — so the new image died
+  within seconds of its first boot and the bootloader rolled back. The
+  image itself is not the suspect: the only firmware changes since the
+  build on the board are inside the candle model (drafts, rest sway);
+  nothing new runs at boot. Between attempts the board ran for minutes
+  with no further brownout, and the candle output was off (coil cold)
+  throughout. The asymmetry that makes this look like "the new build
+  fails" is the rollback rule: a fresh image gets **one** boot to prove
+  itself, while the old image may brown out at boot and simply retry.
+  So the likely cause is a supply that is marginal at the C6's boot
+  surge (radio start, a few hundred mA for a moment), and the candle
+  board's switched BAT+ path (its slide switch, traces, Colin's wires)
+  plus the SuperMini's LDO headroom at 3.9 V decide whether a given boot
+  survives. Battery read 3.99 then 3.92 V during the attempts, well above
+  any limit, so it is sag under the surge, not a flat cell. To check and
+  fix: where the SuperMini's 5V pin is fed from (BAT+ side, not the LED
+  node); a 100–470 µF capacitor across the SuperMini's 5V and GND, as
+  close to the board as possible; short, thick feed wires. A software
+  softening worth adding later: stop the radio and switch outputs off a
+  moment before the OTA restart so the supply is at rest when the surge
+  comes. `tools/bridge.py ota` now reports a rollback in plain words with
+  the uptime and the seconds since `end`. **Third attempt, same result:**
+  `back: 2ecf9a9 … brownout … up 11 s, 15 s after end`. The restart is
+  1 s after `end`, so the new image lived under 3 s: it dies during
+  start-up (the radio comes up in the first second), every time, while
+  the old image then boots and runs on the same supply. Three for three
+  is not luck, so something about the *first* boot of a fresh image is
+  different, and the two candidates are: the supply right after five
+  minutes of flash writing and radio traffic (a sagged cell plus a lossy
+  feed path), or a boot-after-software-reset difference (a brownout
+  reset follows a hold-off with the load gone). The test that separates
+  them: run the same OTA with the SuperMini fed from a USB supply instead
+  of the candle's cell — if it takes, it is the supply, and a 100–470 µF
+  capacitor at the SuperMini's 5V/GND plus a direct, short feed from BAT+
+  is the fix; if it still rolls back, the fault is in the restart path
+  and the firmware should stop the radio, hold the output pins off and
+  pause half a second before the restart. The browser installer over USB
+  is the way to get this build onto the candle meanwhile. Nothing is
+  broken: the candle runs the previous build as before.
 - **The wobble follows the flicker (2026-10-17, Colin's ask).** First cut:
   sets of 2–6 kicks with rests and lulls, pumping scaled by the gust
   envelope. On the candle: *less* motion, and a violent flicker couldn't

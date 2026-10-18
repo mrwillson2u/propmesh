@@ -67,6 +67,13 @@ Run these with the boards in hand. Protocol: write out what to watch,
    LiPo with the relay toggle on, a DevKit out of the bridge's range;
    the DevKit should appear only while the Feather relays, and drop
    when it sleeps. Meter both tiers.
+1d. **Candle: OTA rolls back with a brownout** — generic-boards §6n
+   "Brownout after an update": three OTAs of the rest-sway build on
+   2026-10-18 each came back on the old build, reset reason brownout,
+   the new image dead within 3 s of its first boot. Decider: the same
+   OTA with the SuperMini on a USB supply instead of the cell. Then
+   either a 100–470 µF capacitor and a direct BAT+ feed, or a gentler
+   restart in the firmware. Meanwhile flash it over USB.
 1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
