@@ -98,12 +98,21 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
   // A battery input's reading changes slowly: re-read it every 5 s while
-  // the page is open (inputs otherwise only push changes as events).
+  // the page is open (inputs otherwise only push changes as events). The
+  // node target is a fresh object on every parent render, and heartbeats
+  // re-render the parent every second or two — so the timer lives on a
+  // ref and restarts only when the board or its channels change; keyed on
+  // `node` it was cleared before it ever fired (2026-10-18).
+  const nodeRef = useRef(node);
+  nodeRef.current = node;
+  const hasBattery = applied.channels.some((c) => c.kind === "BATTERY");
+  const reread = () => nodeRef.current.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined);
   useEffect(() => {
-    if (!applied.channels.some((c) => c.kind === "BATTERY")) return;
-    const t = setInterval(() => { node.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined); }, 5000);
+    if (!hasBattery) return;
+    const t = setInterval(reread, 5000);
     return () => clearInterval(t);
-  }, [applied, node]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasBattery, hello.node]);
 
   // ---- save -----------------------------------------------------------
 
@@ -334,7 +343,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
-                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)}
+                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
@@ -916,8 +925,9 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
   );
 }
 
-function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
+function Test({ c, value, disabled, onFire, onCandle, onSwing, cal, onReread }: {
   c: ChannelCfg; value: number | undefined; disabled: boolean; onFire: (v: number) => void;
+  onReread?: () => void; // BATTERY: read the board now
   onCandle?: (event: "gust" | "sputter" | "tune", chz?: number, ms?: number, burst?: boolean) => void; onSwing?: (chz: number, kick_ms: number) => void; cal?: Cal;
 }) {
   const f = FUNCTIONS[c.kind];
@@ -928,7 +938,12 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal }: {
   if (c.kind === "DIGITAL_IN")
     return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;
   if (c.kind === "BATTERY")
-    return <span style={mono(700, 11, v < 3500 ? C.amber : C.green)} title="Read every 2 s; percent from a resting 1S lithium curve">{v ? battText(v) : "—"}</span>;
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={mono(700, 11, v < 3500 ? C.amber : C.green)} title="The board samples every 2 s; this re-reads it every 5 s while the page is open. Percent from a resting 1S lithium curve.">{v ? battText(v) : "—"}</span>
+        <button onClick={onReread} style={btn(false)} title="Read the board now">↻ READ NOW</button>
+      </span>
+    );
   if (c.kind === "RELAY")
     return (
       <span style={{ display: "flex", alignItems: "center", gap: 10, ...dim }}>
