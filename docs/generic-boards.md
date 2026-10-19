@@ -1693,6 +1693,20 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   brownout reset and readings jumping between 3.1 and 4.2 V later that
   evening were Colin handling the candle and its battery lead — not
   evidence either way.)
+- **Running on the cell (2026-10-18 evening).** The candle's board is set
+  to *mains* power, so it never sleeps and the radio runs all day: the
+  cell read 3.99 V at 02:40 and 3.53 V at 21:00, and at that level the
+  board browned out (reset eight minutes before the reading) and came
+  back with the output off — "the candle went out". Two fixes, neither
+  firmware: tick **On battery** for the board, so it deep-sleeps outside
+  the show and listens in windows during it (the LED and coil keep
+  running; only the radio naps); and give it an **ambient loop** — one
+  sequence, one step, Candle 1 → full, *Ambient loop* every 10 min. The
+  show's mode machinery then owns the candle: it lights whenever the
+  show is Ambient or Armed, including seconds after a restart (ambient
+  loops start on entering a mode), and goes out with Off, the schedule
+  or STOP ALL. A per-output "on at boot" would fight exactly that
+  machinery, so it is not added. Documented on the site's candle page.
 - **The wobble follows the flicker (2026-10-17, Colin's ask).** First cut:
   sets of 2–6 kicks with rests and lulls, pumping scaled by the gust
   envelope. On the candle: *less* motion, and a violent flicker couldn't

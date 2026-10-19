@@ -73,7 +73,9 @@ Run these with the boards in hand. Protocol: write out what to watch,
    the new image dead within 3 s of its first boot. Decider: the same
    OTA with the SuperMini on a USB supply instead of the cell. Then
    either a 100–470 µF capacitor and a direct BAT+ feed, or a gentler
-   restart in the firmware. Meanwhile flash it over USB.
+   restart in the firmware. Meanwhile flash it over USB. Also: the
+   candle drained its cell to 3.53 V in a day because it is set to mains
+   power — tick On battery, and light it with an ambient loop (§6n).
 1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board

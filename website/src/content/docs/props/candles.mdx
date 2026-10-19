@@ -55,3 +55,7 @@ Each candle's flame piece has its own natural swing, like a pendulum, and the co
 The candle's **TEST** column has a brightness slider, **Light** and **Out**, and **Gust** and **Sputter** buttons to try the effects on demand.
 
 In a sequence, a candle is a track like an LED dimmer: its value is the brightness of the flicker, 0 puts it out, and it can fade. A candle that fades up at dusk as part of an ambient loop, and gusts when a scare goes off nearby, is a few steps.
+
+**To keep it lit all evening**, make it an ambient loop: a new sequence with one step, the candle at full brightness, with **Ambient loop** turned on and **every** set to 600 s. The candle then lights whenever the show is Ambient or Armed, including a few seconds after the board restarts, and goes out with Off, the schedule or STOP ALL. A board restarts with every output off, so without a loop a candle stays dark until something turns it on.
+
+**If the candle runs on its own cell**, tick **On battery** for the board. Left on mains power the board never sleeps and the radio runs all day, which empties a small cell in about a day. On battery it sleeps outside the show and the flicker and the coil work as before during it. See [Battery boards](/propmesh/props/battery/).
