@@ -1689,12 +1689,10 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   and the firmware should stop the radio, hold the output pins off and
   pause half a second before the restart. The browser installer over USB
   is the way to get this build onto the candle meanwhile. Nothing is
-  broken: the candle runs the previous build as before. Later the same
-  evening the candle browned out once more on its own, with no update in
-  flight (uptime reset, reason brownout), while its reading went to
-  4.21 V — a charger plugged in, or the candle handled. So the restart
-  surge is one trigger among others, and the supply question comes
-  first.
+  broken: the candle runs the previous build as before. (A further
+  brownout reset and readings jumping between 3.1 and 4.2 V later that
+  evening were Colin handling the candle and its battery lead — not
+  evidence either way.)
 - **The wobble follows the flicker (2026-10-17, Colin's ask).** First cut:
   sets of 2–6 kicks with rests and lulls, pumping scaled by the gust
   envelope. On the candle: *less* motion, and a violent flicker couldn't
