@@ -4,6 +4,7 @@
 // positions are remembered per browser, since a board knows nothing
 // about where it sits in the yard.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { battText } from "../../lib/battery";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
@@ -520,7 +521,7 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
           ].filter(Boolean).join(" · ")} />
         )}
         <Stat k="UPTIME" v={uptime(hb?.up)} />
-        {hb && hb.batt > 0 && <Stat k="BATTERY" v={`${(hb.batt / 1000).toFixed(2)} V`} color={hb.batt < 3500 ? C.amber : undefined} />}
+        {hb && hb.batt > 0 && <Stat k="BATTERY" v={battText(hb.batt)} color={hb.batt < 3500 ? C.amber : undefined} />}
         <Stat k="FREE MEMORY" v={hb ? `${hb.heap} KB` : "—"} />
         <Stat k="FIRMWARE" v={e.hello ? `fw ${e.hello.fw}` : hb ? `fw ${hb.fw}` : "—"} />
         <Stat k="NODE ID" v={n.id} />

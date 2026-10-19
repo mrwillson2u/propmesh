@@ -35,6 +35,20 @@ A sleeping board wakes the moment its own sensor fires, but only from certain pi
 Anything that needs it awake. While the show runs, a scare that involves a battery board starts about a second after the sensor fires instead of almost at once, because the cue has to wait for the board's next listen window. While the show is off, it only wakes for its own sensor. Use it for props that do their own thing, such as a sensor and a light on the same board, and keep props with tight timing on mains power.
 </Aside>
 
+## Reading the battery on a board without a sense pin
+
+The Feather reports its battery voltage on its own. The SuperMinis and the DevKit don't have a sense pin, but two resistors give them one.
+
+Wire two equal resistors in series from the battery's + to ground, 100 kΩ each, and connect their midpoint to an analog pin. Equal resistors halve the voltage, which brings a full 4.2 V cell down to 2.1 V, inside what the pin can read. Values of 47 kΩ to 220 kΩ all work; higher values waste less battery.
+
+In the console, assign that pin to **Battery voltage (divider)** and set **divider** to the ratio: (top resistor + bottom resistor) ÷ bottom resistor, so two equal resistors are 2.00. The formula is shown next to the field. Resistors and the chip's analog input both have tolerances, so after saving, measure the battery with a meter and type the figure into **meter reads**: the console works out the ratio that makes its reading agree, and **Use** applies it. The TEST column shows the voltage and a percentage, for example **3.87 V · 62 %**, and the same figure appears beside the board in the roster and on the Yard.
+
+<Aside type="note" title="About the percentage">
+The percentage comes from a typical resting curve for a single lithium cell. A cell's voltage sags while it works, so a board that has just pulsed a coil or lit a strip reads a little low, and recovers when it rests. Treat the percentage as a guide, not a gauge. Below about 3.5 V the reading turns amber.
+</Aside>
+
+Analog-capable pins on each board are marked **analog** in its pin table. On the C6 SuperMini they are GPIO 0 to 6; on the C3 SuperMini, GPIO 0 to 4.
+
 ## A battery board as a repeater
 
 Sometimes the far corner of the yard is out of radio range of everything else, and there's no outlet to power a board in between. A battery board can bridge that gap by passing messages along, which the mesh calls **relaying**. A relay can't doze, though. Anything sent while it sleeps is simply lost, so a relay has to keep its radio on, and that costs about 100 mA. There are two ways to set one up.

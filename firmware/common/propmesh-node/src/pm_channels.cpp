@@ -75,6 +75,13 @@ static void servo_out(const PmChannelCfg &c, int32_t v) {
   ledcWrite(c.pins[0], pm_pulse_duty(pm_servo_pulse_us(c, v), pwm_hz(c.kind), SERVO_BITS));
 }
 
+// A BATTERY input: 8 samples through the divider's ratio, in millivolts.
+static int32_t read_battery(const PmChannelCfg &c) {
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(c.pins[0]);
+  return (int32_t)(sum / 8 * c.batt_div100 / 100);
+}
+
 static bool read_input(const PmChannelCfg &c) {
   return (digitalRead(c.pins[0]) == HIGH) != c.active_low;
 }
@@ -155,6 +162,11 @@ static bool attach(const PmChannelCfg &c, Runtime &r) {
       ok = pm_ble_start();
       pm_ble_set_key(active.brmesh_key);
       break;
+    case PM_CHANNEL_KIND_BATTERY:
+      pinMode(c.pins[0], INPUT);
+      analogReadResolution(12);
+      r.value = read_battery(c);
+      break;
     case PM_CHANNEL_KIND_DIGITAL_IN:
       pinMode(c.pins[0], c.pull == PM_PULL_UP ? INPUT_PULLUP
                        : c.pull == PM_PULL_DOWN ? INPUT_PULLDOWN : INPUT);
@@ -173,7 +185,8 @@ static void strip_out(const PmChannelCfg &c, Runtime &r, int32_t v) {
   r.strip->fill((uint32_t)v & 0xFFFFFF);
   r.strip->show();
 }
-static uint32_t last_fire_ms, last_candle_ms;
+static uint32_t last_fire_ms, last_candle_ms, last_batt_ms;
+#define BATT_SAMPLE_MS 2000
 
 // Put a level on the pins with no smoothing — a ramp's own interpolation
 // is the motion.
@@ -275,7 +288,7 @@ const PmNodeConfig &pm_channels_config() { return active; }
 
 bool pm_channel_set(uint8_t kind, uint8_t index, int32_t value) {
   int i = find(kind, index);
-  if (i < 0 || kind == PM_CHANNEL_KIND_DIGITAL_IN) return false;
+  if (i < 0 || kind == PM_CHANNEL_KIND_DIGITAL_IN || kind == PM_CHANNEL_KIND_BATTERY) return false;  // inputs
   write(active.channels[i], rt[i], pm_clamp_value(*pm_function(kind), value));
   return true;
 }
@@ -321,7 +334,7 @@ int32_t pm_channel_get(uint8_t kind, uint8_t index) {
 void pm_channels_all_off() {
   for (uint8_t i = 0; i < active.channel_count; i++) {
     const PmChannelCfg &c = active.channels[i];
-    if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN) continue;
+    if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN || c.kind == PM_CHANNEL_KIND_BATTERY) continue;
     write(c, rt[i], c.kind == PM_CHANNEL_KIND_SERVO ? -1 : 0);
   }
 }
@@ -358,6 +371,11 @@ void pm_channels_loop() {
       r.strip->show();
     }
   }
+  if ((uint32_t)(now - last_batt_ms) >= BATT_SAMPLE_MS) {
+    last_batt_ms = now;
+    for (uint8_t i = 0; i < active.channel_count; i++)
+      if (active.channels[i].kind == PM_CHANNEL_KIND_BATTERY) rt[i].value = read_battery(active.channels[i]);
+  }
   if ((uint32_t)(now - last_candle_ms) >= PM_CANDLE_TICK_MS) {
     last_candle_ms = now;
     for (uint8_t i = 0; i < active.channel_count; i++)
@@ -379,9 +397,22 @@ void pm_channels_loop() {
   }
 }
 
+bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms, bool burst) {
+  int i = find(PM_CHANNEL_KIND_CANDLE, index);
+  if (i < 0 || !rt[i].candle) return false;
+  rt[i].candle->tune(chz, kick_ms, burst, millis());
+  return true;
+}
+
 bool pm_candle_event(uint8_t index, bool sputter) {
   int i = find(PM_CHANNEL_KIND_CANDLE, index);
   if (i < 0 || !rt[i].candle) return false;
   if (sputter) rt[i].candle->sputter(millis()); else rt[i].candle->gust(millis());
   return true;
+}
+
+uint16_t pm_channels_battery_mv() {
+  for (uint8_t i = 0; i < active.channel_count; i++)
+    if (active.channels[i].kind == PM_CHANNEL_KIND_BATTERY) return (uint16_t)(rt[i].value > 65535 ? 65535 : rt[i].value < 0 ? 0 : rt[i].value);
+  return 0;
 }

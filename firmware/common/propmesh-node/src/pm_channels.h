@@ -47,6 +47,13 @@ void pm_channels_all_off();
 
 // A candle's gust or near-blowout, now (the console's test buttons).
 bool pm_candle_event(uint8_t index, bool sputter);
+// Steady coil kicks at chz (Hz × 100) to find the flame's own swing; 0 stops.
+// kick_ms 0 = the configured width.
+bool pm_candle_tune(uint8_t index, uint16_t chz, uint8_t kick_ms, bool burst);
+
+// The BATTERY input's latest reading (mV at the battery), 0 if none assigned.
+// A board profile's own sense pin takes precedence (main.cpp).
+uint16_t pm_channels_battery_mv();
 
 void pm_on_input(pm_input_handler_t handler);
 void pm_channels_loop();

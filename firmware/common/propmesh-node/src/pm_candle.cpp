@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <esp_timer.h>
 #include <math.h>
+#include "pm_mesh.h"
 
 #define CANDLE_BITS 12
 #define CANDLE_MAX ((1 << CANDLE_BITS) - 1)
@@ -44,19 +45,34 @@ void PmCandle::led(float duty) {
 }
 
 void PmCandle::off() {
+  if (core.tuning()) tune(0, 0, false, millis());
   if (timer) esp_timer_stop((esp_timer_handle_t)timer);
   digitalWrite(coil_pin, LOW);
   led(0);
   lit = false;
 }
 
+void PmCandle::tune(uint16_t chz, uint8_t kick_ms, bool burst, uint32_t now) {
+  if (kick_ms && (kick_ms < 4 || kick_ms > 80)) kick_ms = 0;  // the config's limits
+  core.tune(chz, kick_ms, burst);
+  tune_until_ms = chz ? now + PM_CANDLE_TUNE_MAX_MS : 0;
+  if (chz) Serial.printf("candle: tuning — %s %u ms kicks at %u.%02u Hz for up to %d s\n", burst ? "bursts of" : "steady", kick_ms, chz / 100, chz % 100, PM_CANDLE_TUNE_MAX_MS / 1000);
+  else Serial.println("candle: tuning off");
+}
+
 void PmCandle::update(uint32_t now, int32_t level) {
+  if (core.tuning() && (int32_t)(now - tune_until_ms) >= 0) tune(0, 0, false, now);
   if (level <= 0) { if (lit) off(); return; }
   uint32_t dt = lit ? now - last_ms : PM_CANDLE_TICK_MS;
   if (dt > 100) dt = 100;  // after a stall, don't leap
   last_ms = now;
   lit = true;
+  // Finding the swing: hold the LED steady at the set brightness so the eye
+  // sees only the flame piece moving (the flicker made it impossible to
+  // judge, 2026-10-16). The model still runs so it carries on seamlessly.
+  core.draft_tick(now, pm_time_synced(), pm_time_synced() ? pm_mesh_time_us() : 0);
   float b = core.led(now, dt);
+  if (core.tuning()) b = 0.85f;
   led(powf(b, CANDLE_GAMMA) * (level / 1000.0f));
   uint16_t w = core.kick(now);
   if (w && timer) {

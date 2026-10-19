@@ -11,7 +11,7 @@ export const GUIDE_ORDER: ChannelKindName[] = ["SERVO", "MOTOR", "RELAY", "LED_S
 // Plural, lower-case names for sentences ("better for servos").
 export const SHORT: Record<ChannelKindName, string> = {
   RELAY: "relays", LED: "LED dimmers", SERVO: "servos", MOTOR: "DC motors",
-  LED_STRIP: "LED strips", SPI_STRIP: "clocked LED strips", CANDLE: "candles", DIGITAL_IN: "sensors & buttons", BLE_LIGHT: "Bluetooth lights",
+  LED_STRIP: "LED strips", SPI_STRIP: "clocked LED strips", CANDLE: "candles", BATTERY: "battery sense", DIGITAL_IN: "sensors & buttons", BLE_LIGHT: "Bluetooth lights",
 };
 
 export const isBest = (p: BoardPin, k: ChannelKindName) => p.best === k;

@@ -37,10 +37,11 @@ Head", Feather):
 | Battery boards: leaf role, listen windows, deep sleep, wake pins | ✅ built; Feather partly tested |
 | SK9822/APA102 clocked strips + fire effect (FastLED Fire2023 math) | built, **not on hardware** |
 | pm_ws2812 (WS2812 on the IDF RMT driver, replaced NeoPixel) | built, **not on hardware** |
-| ESP32-C6 SuperMini profile + NimBLE floods | built, **never flashed** |
+| ESP32-C6 SuperMini profile + NimBLE floods | mesh, OTA, candle, battery sense ✅ hardware 2026-10-15..17; floods, sleep, strips still untried |
 | ESP32-C3 SuperMini profile (GPIO deep-sleep wake path) | built 2026-10-14, **never flashed** |
 | Battery repeater: relay during the show, sleep outside it (generic-boards §6m) | built 2026-10-14, **simulator only** |
-| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | built 2026-10-15, **simulator only** |
+| Battery voltage from a resistor divider (`BATTERY` input, LiPo percent; generic-boards §6o) | ✅ hardware 2026-10-17 (C6 in the candle; 1 % low before the divider tweak) |
+| Electric candle output (flicker LED + flame coil, from the candle sketch; generic-boards §6n) | ✅ hardware 2026-10-17: flicker, swing finder, wobble that follows the flicker, on the C6 in the candle |
 | Board `variants` notes (sellers' versions) on site pages and in the console Pinout panel | ✅ built 2026-10-14 |
 | Docs site https://mrwillson2u.github.io/propmesh/ with browser flasher and hosted console (`?sim=1`) | ✅ live; flasher **not yet used on a real board** |
 
@@ -66,8 +67,19 @@ Run these with the boards in hand. Protocol: write out what to watch,
    LiPo with the relay toggle on, a DevKit out of the bridge's range;
    the DevKit should appear only while the Feather relays, and drop
    when it sleeps. Meter both tiers.
-1d. **Electric candle** — generic-boards §6n "Bench test": the C6 in the
-   candle, flicker, gust, sputter, swing tuning, coil temperature.
+1d. **Candle: OTA rolls back with a brownout** — generic-boards §6n
+   "Brownout after an update": three OTAs of the rest-sway build on
+   2026-10-18 each came back on the old build, reset reason brownout,
+   the new image dead within 3 s of its first boot. Decider: the same
+   OTA with the SuperMini on a USB supply instead of the cell. Then
+   either a 100–470 µF capacitor and a direct BAT+ feed, or a gentler
+   restart in the firmware. Meanwhile flash it over USB. Also: the
+   candle drained its cell to 3.53 V in a day because it is set to mains
+   power — tick On battery, and light it with an ambient loop (§6n).
+1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
+   SuperMini and a DevKit at the same spot in the yard, compare RSSI on
+   the Yard. Puts a number on the C6's ceramic antenna for its board
+   page; the C3 is the one with the known range complaint.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).

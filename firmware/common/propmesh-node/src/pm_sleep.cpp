@@ -3,12 +3,14 @@
 // sleep, not all three (2026-10-11). "On battery" on such a board still
 // makes it a leaf; it just never sleeps.
 #ifdef PM_NO_SLEEP
+#include <esp_wifi.h>
 #include "pm_sleep.h"
 #include "pm_pinrules.h"
 void pm_sleep_begin() {}
 void pm_sleep_after_boot(const PmNodeConfig &) {}
 void pm_sleep_apply(const PmNodeConfig &) {}
 void pm_sleep_loop() {}
+void pm_sleep_radio_reapply() { esp_wifi_set_ps(WIFI_PS_NONE); }
 void pm_sleep_hold(uint32_t) {}
 bool pm_sleep_holding() { return true; }
 bool pm_sleep_supported() { return false; }
@@ -213,6 +215,13 @@ static void release_check_in() {
 }
 const char *pm_sleep_wake_cause() { return cause; }
 int pm_sleep_wake_gpio() { return wake_gpio; }
+
+static void set_show_tier(bool on);
+void pm_sleep_radio_reapply() {
+  bool t = show_tier;
+  show_tier = !t;       // so set_show_tier runs its branch again on a fresh driver
+  set_show_tier(t);
+}
 
 // Show tier (stage 2): the radio listens window_ms of every interval_ms.
 static void set_show_tier(bool on) {

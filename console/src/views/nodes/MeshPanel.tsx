@@ -3,6 +3,7 @@
 // Requests for remote nodes go through the USB node over ESP-NOW.
 // docs/generic-boards.md.
 import { useCallback, useState } from "react";
+import { battText } from "../../lib/battery";
 import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
@@ -137,7 +138,7 @@ export default function MeshPanel() {
               <span style={sys(600, 12, asleep ? C.t3 : missing ? C.red : en.hello ? C.t1 : C.t3)}>{en.hello?.name || en.node}</span>
               {asleep && <span style={mono(500, 10.5, C.t4)}>☾ asleep</span>}
               {listening && <span title="listening in windows between cues" style={mono(500, 10.5, C.t4)}>☾ {en.hb!.listen} ms</span>}
-              {battery && en.hb && en.hb.batt > 0 && <span style={mono(500, 10.5, en.hb.batt < 3500 ? C.amber : C.t4)}>{(en.hb.batt / 1000).toFixed(2)} V</span>}
+              {battery && en.hb && en.hb.batt > 0 && <span style={mono(500, 10.5, en.hb.batt < 3500 ? C.amber : C.t4)}>{battText(en.hb.batt)}</span>}
               {!en.hello && <span style={mono(500, 10.5, C.t4)}>connecting…</span>}
               {en.usb && tag(directLabel(link), C.t2, C.raised)}
               {bridge && tag("BRIDGE", C.emberT, C.emberBg)}

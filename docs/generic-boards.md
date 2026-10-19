@@ -1012,7 +1012,43 @@ The board from the lantern fire test, as a third profile:
   sleep the port re-enumerates, so a USB-connected console drops and
   reconnects on every wake — on battery, talk to it over the mesh
   instead. Flashing: the same `pio run -e esp32-c6-supermini -t upload`;
-  if the port isn't found, hold BOOT while plugging in.
+  if the port isn't found, hold BOOT while plugging in. **From the browser
+  installer (2026-10-17, Colin):** auto-reset into download mode over the
+  USB-Serial/JTAG port is unreliable on a Mac ("Failed to initialize"),
+  and a fresh board's factory demo reboots so the port flaps in the
+  chooser. Dependable sequence: close anything holding the port (a USB
+  console tab), unplug, hold BOOT, plug in, release, Install, pick the
+  port that just appeared, then press RESET afterwards (the ROM doesn't
+  start the new image by itself). The flash page shows these steps when a
+  native-USB board is selected. To confirm on Colin's next new board.
+  Colin also sees an **LED by the USB socket (silkscreen "CL") light on
+  some BOOT-and-plug attempts, and those never show a port or install**;
+  a fresh board plugged in normally keeps it off, so it is *not* the
+  factory demo (first guess, withdrawn). "CL" is usually the charge
+  indicator, driven by the charger, which would make it a symptom of how
+  power/USB came up rather than a chip state. Unknown. To settle it next
+  time: did the Mac's accessory prompt appear; is the lit LED the blue
+  GPIO 15 one or the green charge one; does the board appear in System
+  Report → USB at all. Rule for the docs meanwhile: LED on = retry.
+  **Resolved from the datasheet and the board schematic (2026-10-17).**
+  ESP32-C6 datasheet §3.1: download boot needs **GPIO8 = 1 and GPIO9 = 0**
+  at reset, and Table 3-1 says GPIO8 is **floating** by default (only
+  GPIO9 has a weak pull-up). The SuperMini schematic
+  (mischianti.org/wp-content/uploads/2026/04/esp32-c6-supermini-board-schematic.pdf)
+  ties GPIO8 only to the WS2812's DIN — high impedance — so holding BOOT
+  gives download mode only when GPIO8 happens to float high; floating
+  low is the undefined 0/0 combination, the "sometimes" Colin sees. Fix:
+  hold GPIO8 high during the BOOT press — a jumper from pin 8 to 3V3
+  while plugging in, or a permanent 10 kΩ pull-up (the WS2812 DIN idles
+  high, harmless; PropMesh drives it when assigned). The same schematic
+  settles the LEDs: PD4 **green** on the TP4054's CHRG pin (on charging,
+  off full, blinks with no battery — the "BAT"/"CL" pair by the USB
+  socket), PD2 **blue** on **GPIO15 via 1 kΩ to GND, lit when GPIO15 is
+  HIGH**; GPIO15 (the JTAG-source strap) has no internal pull either.
+  What lights the blue LED in the failed state isn't proven, but it is
+  no longer needed to diagnose it. The C3 SuperMini has the same
+  GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
+  default pull before assuming the same trick.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
   Bluetooth stack doesn't change sleep: on battery the off tier is deep
   sleep (radio off, Bluetooth included). The limit on both chips is the prebuilt Arduino SDK:
@@ -1165,6 +1201,21 @@ the instruments to catch it next time, and a self-heal.
   in the boot event and `hello.last`; the console's node editor shows
   **Last restart** (reason, uptime) and **Before that** (the saved
   record) whenever either is worth reading.
+- **Caught (2026-10-18 evening):** the bridge (DevKit, build d73db6b)
+  rebooted itself after 10651 s up. `hello.last`: *mute: rebooted —
+  neighbors heard but none hear us for 120 s; send errors 492 (last
+  ESP_ERR_ESPNOW_NO_MEM)*. The radio restart two minutes earlier had not
+  cleared it; the reboot did (afterwards WiFi up at −26 dBm, channel 11,
+  `tx_err` 0). From the console this is the bridge dropping off WiFi
+  for a few minutes and coming back by itself. So the fault is the
+  ESP-NOW send queue filling — frames queue and never leave while the
+  WiFi link itself stays up. What jams it is still open. To look at
+  next time, *before* it reboots: `mesh` (`tx_err` climbing with
+  `unheard_s`), whether the router moved channel (the station follows
+  the AP; `mesh.channel` after a reboot says where ESP-NOW ended up),
+  and how many consoles were attached. The self-heal worked as
+  designed; the two-minute mute window could shrink once the cause is
+  known.
 - **Next time it happens:** open the board in the console (over WiFi,
   or USB) *before* power-cycling — `hello.last`, `mesh.tx_err` and
   `unheard_s` say what happened, and if the detector fired the board
@@ -1555,12 +1606,176 @@ into PropMesh so it turns on and off, and is tuned, from the console.
 - **Open hardware question:** in deep sleep the coil pin floats. If Q3's
   base has no pull-down on that board, add 10 kΩ to ground (the site page
   says so) — or the firmware will need to hold the pin through sleep.
+- **Swing finder (2026-10-16).** Colin couldn't find the flame's rate by
+  editing and saving. The sketch had a "steady kick" key for this; now
+  `core.tune(chz)` kicks every cycle at `chz` with no rests and no gust
+  pumping, `{"cmd":"candle","event":"tune","chz":285}` (0 stops), and the
+  driver stops it after 2 min (`PM_CANDLE_TUNE_MAX_MS`) or on Out. The
+  console's **Find the swing…** sweeps 1.00–5.00 Hz by 0.10 every 2.5 s,
+  ± nudges by 0.05; a KICK row nudges the pulse width by 2 ms (`"ms"` on
+  the tune command, rides along without saving) — the method is: at the
+  found rate, shorten until the swing shrinks, then one step back up;
+  **Use** writes `swing_chz` and `kick_ms` into the draft. While tuning
+  the LED holds steady (85 % of the set level): with the flicker running
+  Colin couldn't tell whether the flame moved at all (2026-10-16). Host test: 57
+  kicks in 20 s at 2.85 Hz, never the gust width, a trial width applies.
+- **First run on the candle (2026-10-16, Colin).** C6 (e076df14) with
+  LED on GPIO 1 (on = LOW) and coil on GPIO 2, build 8022b97. The LED
+  flickers. The finder's sweep didn't step (timer reset on every render —
+  fixed, PR #28) and the flicker hid any flame motion (LED held steady
+  while tuning, PR #27). With the sweep working, Colin measured the
+  drive pulsing at the 2.70 Hz shown, but saw **no flame movement — not
+  even with GPIO 2 held on for 2 s as a relay.** So the coil isn't acting
+  on the magnet: either not energized (Q3 not switching from 3.3 V
+  through R2, or its supply cut when the stock chips came off) or
+  mechanical (flame piece stuck, magnet out of reach, open coil). Next:
+  meter across the coil leads during a hold; coil leads briefly across
+  the battery with the board off; flame piece swung by hand (count the
+  swings: that is the resonant rate). If Q3 won't switch from 3.3 V, an
+  AO3400A in its place, driven straight from the pin. Colin then noticed
+  the stock drive rests between sets of kicks; a centered magnet gets no
+  sideways torque from a steady pull, so the 2 s hold was a weaker test
+  than claimed, and the finder gained **Bursts** (`"burst": true` on the
+  tune command: the normal 3–5-kick sets with rests, at the tuned rate
+  and width). To be tried.
+- **Found it (2026-10-16, Colin with the meter):** the coil wasn't getting
+  current. *Measured:* holding GPIO 2 on as a relay, the coil saw a 2 V
+  spike that fell to under 0.1 V, the candle LED went out and the
+  SuperMini's charge LED lit — the rail collapsing. Coil 26 Ω (140 mA
+  from a LiPo if fed directly). Power off: BAT+ → coil+ **180 Ω**, coil+ →
+  LED+ **67 Ω**, the added 100 Ω LED feed reads **117 Ω** in circuit.
+  *Inferred, not seen:* 117 + 67 ≈ 180, and the only resistors on the
+  board that make 67 are a 47 and a 20 — so the coil's supply reaches it
+  through the LED node and those two, a chain the removed charge pump
+  presumably used to drive. **Fix that doesn't depend on the inference:**
+  switched BAT+ straight to coil+ (the coil's own supply lead), and lift
+  one end of either the 47 or the 20 so battery voltage on coil+ can't
+  feed the LED a second way (it would double the LED's ~12 mA). Verify:
+  BAT+ → coil+ ≈ 0 Ω, coil+ → LED+ open. Kicks are then 140 mA; a
+  resistor in the new wire tames it if too strong. Designator noted by
+  Colin: **R5** (which one — to confirm). Lesson: a 2 s hold is only a
+  valid coil test when the coil's supply can source it; here it never
+  could.
+- **Working (2026-10-17).** Colin confirmed the chain by continuity (the
+  20 Ω's far pad shares a node with one end of the 47 Ω), lifted the 47 Ω,
+  wired switched BAT+ to that node — the 20 Ω stays as the stock coil
+  limit — and **the flame swings.** First coil-driven motion from
+  PropMesh. Finder result on this candle (read back from the board's
+  config, 2026-10-18): **swing 3.35 Hz, kick 40 ms**, LED on GPIO 1,
+  coil on GPIO 2, both active-low.
+- **Brownout after an update (2026-10-18).** Two OTAs of the rest-sway
+  build in a row finished (`end ok` after 389 s and 314 s) and the candle
+  came back on the *previous* build, reset reason `brownout (supply
+  sagged)`, uptime about 18 s at the first hello — so the new image died
+  within seconds of its first boot and the bootloader rolled back. The
+  image itself is not the suspect: the only firmware changes since the
+  build on the board are inside the candle model (drafts, rest sway);
+  nothing new runs at boot. Between attempts the board ran for minutes
+  with no further brownout, and the candle output was off (coil cold)
+  throughout. The asymmetry that makes this look like "the new build
+  fails" is the rollback rule: a fresh image gets **one** boot to prove
+  itself, while the old image may brown out at boot and simply retry.
+  So the likely cause is a supply that is marginal at the C6's boot
+  surge (radio start, a few hundred mA for a moment), and the candle
+  board's switched BAT+ path (its slide switch, traces, Colin's wires)
+  plus the SuperMini's LDO headroom at 3.9 V decide whether a given boot
+  survives. Battery read 3.99 then 3.92 V during the attempts, well above
+  any limit, so it is sag under the surge, not a flat cell. To check and
+  fix: where the SuperMini's 5V pin is fed from (BAT+ side, not the LED
+  node); a 100–470 µF capacitor across the SuperMini's 5V and GND, as
+  close to the board as possible; short, thick feed wires. A software
+  softening worth adding later: stop the radio and switch outputs off a
+  moment before the OTA restart so the supply is at rest when the surge
+  comes. `tools/bridge.py ota` now reports a rollback in plain words with
+  the uptime and the seconds since `end`. **Third attempt, same result:**
+  `back: 2ecf9a9 … brownout … up 11 s, 15 s after end`. The restart is
+  1 s after `end`, so the new image lived under 3 s: it dies during
+  start-up (the radio comes up in the first second), every time, while
+  the old image then boots and runs on the same supply. Three for three
+  is not luck, so something about the *first* boot of a fresh image is
+  different, and the two candidates are: the supply right after five
+  minutes of flash writing and radio traffic (a sagged cell plus a lossy
+  feed path), or a boot-after-software-reset difference (a brownout
+  reset follows a hold-off with the load gone). The test that separates
+  them: run the same OTA with the SuperMini fed from a USB supply instead
+  of the candle's cell — if it takes, it is the supply, and a 100–470 µF
+  capacitor at the SuperMini's 5V/GND plus a direct, short feed from BAT+
+  is the fix; if it still rolls back, the fault is in the restart path
+  and the firmware should stop the radio, hold the output pins off and
+  pause half a second before the restart. The browser installer over USB
+  is the way to get this build onto the candle meanwhile. Nothing is
+  broken: the candle runs the previous build as before. (A further
+  brownout reset and readings jumping between 3.1 and 4.2 V later that
+  evening were Colin handling the candle and its battery lead — not
+  evidence either way.)
+- **Running on the cell (2026-10-18 evening).** The candle's board is set
+  to *mains* power, so it never sleeps and the radio runs all day: the
+  cell read 3.99 V at 02:40 and 3.53 V at 21:00, and at that level the
+  board browned out (reset eight minutes before the reading) and came
+  back with the output off — "the candle went out". Two fixes, neither
+  firmware: tick **On battery** for the board, so it deep-sleeps outside
+  the show and listens in windows during it (the LED and coil keep
+  running; only the radio naps); and give it an **ambient loop** — one
+  sequence, one step, Candle 1 → full, *Ambient loop* every 10 min. The
+  show's mode machinery then owns the candle: it lights whenever the
+  show is Ambient or Armed, including seconds after a restart (ambient
+  loops start on entering a mode), and goes out with Off, the schedule
+  or STOP ALL. A per-output "on at boot" would fight exactly that
+  machinery, so it is not added. Documented on the site's candle page.
+- **The wobble follows the flicker (2026-10-17, Colin's ask).** First cut:
+  sets of 2–6 kicks with rests and lulls, pumping scaled by the gust
+  envelope. On the candle: *less* motion, and a violent flicker couldn't
+  build momentum in time — a pendulum needs several swings, and the rests
+  let it die. Now: at rest, runs of 4–10 kicks whose strength drifts
+  0.6–1.0×, 0.2–0.6 s pauses, one kick in ten skipped — the swing never
+  dies (2026-10-18: lifted to 0.75–1.0×, 0.15–0.45 s pauses, one in
+  fourteen skipped — the resting flame read as a touch too still); from
+  400 ms *before* a gust's dip (the firmware schedules the
+  gust, so it knows) to 1.2 s after, in-phase kicks at kick × (1 + 0.7 ×
+  drama), ×1.15 in a sputter, capped at 100 ms. **On the candle
+  (2026-10-17): "looking how I envisioned" — Colin.** Host test
+  `test_coil_follows_the_flicker`. The console's CANDLE row has a **?**
+  that explains every knob and links the site page.
 - **Bench test (to do):** C6 in the candle, LED and coil assigned, LED on
   = LOW. Watch: Light → steady flicker with occasional gusts; Gust → quick
   dips and a big swing; Sputter → near-blowout, stutter, flare; tune
   swing ±0.05 Hz for the largest motion and note the value; Out and STOP
   ALL → dark and still, coil cold; a 30-minute run with a finger on the
   coil for heat.
+
+- **Drafts (2026-10-17, Colin's ask):** candles in the same `draft` (1–8,
+  console A–H) gust and sputter together, on any board. No message: each
+  mesh second is a lottery, `hash(draft, second) % gust_s == 0` starts a
+  gust in that second (same odds as the local timer, ~1/gust_s per
+  second) and the hash picks its depth, length and speed, so every
+  candle in the draft runs the same gust from the same instant (the mesh
+  clock agrees to ms); sputters likewise with `sputter_s`. Shimmer, wander
+  and the coil's drifting strength stay individual. Without a conductor
+  (`pm_time_synced()` false) a candle falls back to its own timers. The
+  coil's 400 ms pre-gust pump is off in a draft (the gust isn't known
+  ahead). Host test: two candles in draft 3 never disagree over an hour;
+  draft 4 is independent.
+
+## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
+
+Colin added a resistor divider to the C6 in the candle. New function
+`BATTERY` (ChannelKind 10): one ADC pin (`need: adc`), config
+`divider` (float, stored ×100, 1.0–20.0; validator `battery_divider`),
+one per board (`battery_dup`). The driver samples 8× every 2 s and keeps
+mV at the battery as the channel's value (read-only, like DIGITAL_IN).
+`pm_channels_battery_mv()` feeds the heartbeat's `battery_mv` when the
+board profile has no sense pin of its own (the Feather's wins). Percent:
+`pm_battery.h` `pm_lipo_pct()` — a resting 1S lithium curve in 5 % steps,
+mirrored in `console/lib/battery.ts`; shown as "3.87 V · 62 %" in the
+TEST column (re-read every 5 s while the page is open), the roster and
+the Yard. Host tests: curve endpoints, 50 % at 3.84 V, monotonic; config
+round trip, ADC-pin rule, divider range, one per board. Site: "Reading
+the battery on a board without a sense pin". Not calibrated against a
+meter yet: the C6's ADC and the resistors' tolerance both move the
+reading — compare with the meter and adjust the divider value. **On the
+candle's C6 (2026-10-17):** console 3.79 V against the meter's 3.83 V with
+two nominally equal resistors — 1.1 % low, within tolerance; divider
+2.00 → 2.02 corrects it.
 
 ## 7. Bench test — Stage 1
 

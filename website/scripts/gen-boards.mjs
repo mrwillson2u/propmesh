@@ -84,7 +84,7 @@ function boardPage(b) {
     `| **Chip** | ${esc(b.mcu)} |`,
     `| **Dimmers, servos & motors** | ${b.ledc_channels} PWM channels (a motor takes 2) |`,
     `| **LED strips (WS2812)** | up to ${strips} |`,
-    `| **Battery** | ${b.battery ? "built-in LiPo connector and charger; battery level is reported" : "no; power it from USB or a 5 V supply"} |`,
+    `| **Battery** | ${b.battery ? "built-in LiPo connector and charger; battery level is reported" : "no built-in sense; power it from USB or a 5 V supply, or add a two-resistor divider to read a battery ([Battery props](/propmesh/props/battery/#reading-the-battery-on-a-board-without-a-sense-pin))"} |`,
     `| **Firmware** | \`${b.id}\`, [install it from your browser](/propmesh/start/flash/?board=${b.id}) |`, "");
   L.push("## Pinout", "");
   if (b.header) {

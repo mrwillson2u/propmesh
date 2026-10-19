@@ -7,9 +7,10 @@
 //    8-12 Hz under an envelope) and rare sputters (a near-blowout with
 //    stutters, then an overshoot) — gaps between events are exponential,
 //    so it never feels periodic.
-//  - Coil: kicks near the flame's own swing frequency. At rest, bursts of
-//    3-5 kicks then 0.5-1.5 s of rest (the stock board's pattern); during
-//    a gust, continuous longer kicks in phase so the swing builds.
+//  - Coil: kicks near the flame's own swing frequency, and the wobble
+//    follows the flicker: at rest, continuous kicks whose strength drifts
+//    (the swing never dies); from just before a gust to just after it,
+//    in-phase kicks at full strength so the swing peaks with the flicker.
 // Dropped from the sketch: its auto-off timer and mode switch (the show
 // schedule does that), battery compensation (a board-wide battery sense
 // will do it for every output), the IR input and the serial tuning keys
@@ -20,6 +21,8 @@
 #include "pm_config.h"
 
 #define PM_CANDLE_TICK_MS 5  // the sketch's 200 Hz flicker update
+#define PUMP_LEAD_MS 400     // the coil starts pumping this long before a gust's dip
+#define PUMP_TAIL_MS 1200    // and keeps pumping this long after it ends
 
 class PmCandleCore {
  public:
@@ -34,6 +37,31 @@ class PmCandleCore {
     next_sputter = c.sputter_s ? now_ms + (uint32_t)(exp_rand((float)c.sputter_s) * 1000) : 0;
     next_kick = now_ms;
     kicks_left = 0;
+  }
+
+  // A draft (c.draft 1-8): every candle in it gusts and sputters at the
+  // same moment with the same shape, worked out from the shared mesh clock
+  // and the draft's number — no messages, and it works out of radio range.
+  // Each mesh second is a lottery: hash(draft, second) decides whether a
+  // gust (or sputter) starts in that second, with the same odds as the
+  // candle's own timers (1 / gust_s per second), and the hash also picks
+  // the gust's depth, length and speed so they match. Call once per tick
+  // before led(); `synced` false (no conductor) = back to the local timers.
+  void draft_tick(uint32_t now, bool synced, int64_t mesh_us) {
+    if (!c.draft || !synced) { draft_live = false; return; }
+    draft_live = true;
+    int64_t sec = mesh_us / 1000000;
+    if (sec == draft_sec) return;
+    draft_sec = sec;
+    uint32_t h = mix((uint32_t)sec * 0x9E3779B1u ^ (c.draft * 0x85EBCA6Bu));
+    if (!gust_on && !sputter_on && c.gust_s && (h % c.gust_s) == 0) {
+      gust(now);
+      gust_dur = 600 + (h >> 8) % 1600;
+      gust_depth = clampf((0.5f + ((h >> 16) % 300) / 1000.0f) * c.drama10 / 10.0f, 0, 0.92f);
+      gust_hz = 8.0f + ((h >> 24) % 40) / 10.0f;
+    }
+    uint32_t h2 = mix(h ^ 0x5bd1e995u);
+    if (!sputter_on && c.sputter_s && (h2 % c.sputter_s) == 0) sputter(now);
   }
 
   // Brightness 0..1 for the LED at `now`, before gamma. Call every tick
@@ -51,16 +79,18 @@ class PmCandleCore {
     }
     shimmer += (shimmer_to - shimmer) * 0.25f;
 
-    if (!gust_on && !sputter_on && due(now, next_gust)) {
+    // The candle's own timers — unless a draft decides for it.
+    if (!draft_live && !gust_on && !sputter_on && due(now, next_gust)) {
       gust(now);
       next_gust = now + (uint32_t)(exp_rand((float)c.gust_s) * 1000);
     }
-    if (c.sputter_s && !sputter_on && due(now, next_sputter)) {
+    if (!draft_live && c.sputter_s && !sputter_on && due(now, next_sputter)) {
       sputter(now);
       next_sputter = now + (uint32_t)(exp_rand((float)c.sputter_s) * 1000);
     }
 
     float env = envelope(now), g = 1.0f;
+    env_now = env;
     if (env > 0) {
       gust_phase += (dt_ms / 1000.0f) * gust_hz * range(0.85f, 1.15f);
       g = 1.0f - gust_depth * env * dip(gust_phase);
@@ -70,23 +100,57 @@ class PmCandleCore {
   }
 
   // Width of a coil kick that starts at `now` (ms), or 0 for none.
+  // Tuning (the sketch's "steady kicking, resonance hunt"): kick every
+  // cycle at `chz` with no rests and no gust pumping, so the eye judges
+  // one thing — how far the flame swings at this rate. 0 = back to normal.
+  // `kick_ms` 0 = the configured width. `burst`: kick in the normal sets of
+  // 3-5 with rests between, instead of steadily — a rest lets the next set
+  // catch the flame at a different phase, which can start a swing that
+  // steady kicking at a slightly wrong rate never does (Colin, 2026-10-16).
+  void tune(uint16_t chz, uint8_t kick_ms = 0, bool burst = false) { tune_chz = chz; tune_kick = kick_ms; tune_burst = burst; }
+  uint16_t tuning() const { return tune_chz; }
+
   uint16_t kick(uint32_t now) {
     if (!due(now, next_kick)) return 0;
-    float period = 100000.0f / (c.swing_chz ? c.swing_chz : 1);
-    if (gust_on || sputter_on) {
-      // Pump in phase for the whole gust: the swing builds.
+    if (tune_chz && !tune_burst) {
+      next_kick = now + (uint32_t)(100000.0f / tune_chz);
+      return tune_kick ? tune_kick : c.kick_ms;
+    }
+    float period = 100000.0f / (tune_chz ? tune_chz : c.swing_chz ? c.swing_chz : 1);
+    uint16_t width = tune_chz && tune_kick ? tune_kick : c.kick_ms;
+    float drama = c.drama10 / 10.0f;
+    // A gust, from PUMP_LEAD_MS before the light dips (the firmware knows it
+    // is coming) to PUMP_TAIL_MS after: pump in phase at full strength, so
+    // the swing peaks with the flicker instead of after it. A pendulum takes
+    // several swings to build, and the first version let it die between sets
+    // and then couldn't catch up with a violent flicker (Colin, 2026-10-17).
+    bool pre = !draft_live && !gust_on && !sputter_on && next_gust && (int32_t)(now - (next_gust - PUMP_LEAD_MS)) >= 0;
+    if (gust_on || sputter_on) pump_until = now + PUMP_TAIL_MS;
+    pumping_now = pre || gust_on || sputter_on || (int32_t)(now - pump_until) < 0;
+    if (!tune_chz && pumping_now) {
       next_kick = now + (uint32_t)(period * (1.0f + 0.02f * range(-1, 1)));
       kicks_left = 0;
-      return c.coil ? (uint16_t)(c.kick_ms * 1.4f) : 0;
+      float w = c.kick_ms * (1.0f + 0.7f * clampf(drama, 0, 1));
+      if (sputter_on) w *= 1.15f;
+      return c.coil ? (uint16_t)clampf(w, 4, 100) : 0;
     }
     if (kicks_left <= 0) {
-      kicks_left = irange(3, 5);
-      next_kick = now + (uint32_t)irange(500, 1500);
+      // At rest the swing is never allowed to die: kicks keep coming at the
+      // rate, in runs of 4-10 whose strength drifts between 0.75× and 1.0×
+      // the kick, with a short pause (0.15-0.45 s, about one swing) between
+      // runs and one kick in fourteen skipped — variety without losing
+      // momentum. (Was 0.6×, 0.2-0.6 s, one in ten: on the candle the resting
+      // flame read as a little too still, 2026-10-18.)
+      kicks_left = irange(4, 10);
+      burst_scale = clampf(burst_scale + range(-0.15f, 0.15f), 0.75f, 1.0f);
+      next_kick = now + (uint32_t)range(150, 450);
       return 0;
     }
     kicks_left--;
-    next_kick = now + (uint32_t)(period * (1.0f + 0.05f * range(-1, 1)));
-    return c.coil ? c.kick_ms : 0;
+    next_kick = now + (uint32_t)(period * (1.0f + 0.04f * range(-1, 1)));
+    if (tune_chz) return width;
+    if (rand01() < 0.07f) return 0;  // the skipped kick
+    return c.coil ? (uint16_t)clampf(width * burst_scale, 4, 100) : 0;
   }
 
   void gust(uint32_t now) {
@@ -104,11 +168,16 @@ class PmCandleCore {
     gust_dur = 1600;
   }
   bool gusting() const { return gust_on || sputter_on; }
+  bool pumping() const { return pumping_now; }  // the coil is in its gust pattern (lead, gust, tail)
 
  private:
   static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
   static float lerpf(float a, float b, float t) { return a + (b - a) * clampf(t, 0, 1); }
   static bool due(uint32_t now, uint32_t at) { return (int32_t)(now - at) >= 0; }
+  static uint32_t mix(uint32_t x) {  // a small integer hash (murmur3 finalizer)
+    x ^= x >> 16; x *= 0x85EBCA6Bu; x ^= x >> 13; x *= 0xC2B2AE35u; x ^= x >> 16;
+    return x;
+  }
   float rand01() {  // xorshift32
     rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
     return (rng >> 8) * (1.0f / 16777216.0f);
@@ -158,4 +227,13 @@ class PmCandleCore {
   float stutter = 0.05f;
   uint32_t next_kick = 0;
   int kicks_left = 0;
+  uint16_t tune_chz = 0;
+  uint8_t tune_kick = 0;
+  bool tune_burst = false;
+  float env_now = 0;        // the gust envelope this tick
+  float burst_scale = 0.9f; // the resting run's strength, drifting 0.75-1.0
+  uint32_t pump_until = 0;  // pumping continues until this after a gust
+  bool pumping_now = false;
+  bool draft_live = false;   // a draft is deciding the gusts this tick
+  int64_t draft_sec = -1;    // the last mesh second judged
 };

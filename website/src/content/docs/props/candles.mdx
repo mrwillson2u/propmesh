@@ -1,52 +1,61 @@
 ---
 title: Electric candles
-description: Put a board inside a flameless candle with a swinging flame, and make its flicker part of the show.
+description: A flameless candle's flickering LED and swinging flame, run from a board as one output.
 sidebar:
   order: 7
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Many flameless candles have a plastic flame on a pivot, lit from below by a single LED, with a small coil underneath that nudges the flame so it sways. With the candle's own chip removed, a PropMesh board can drive the LED and the coil, so the candle flickers, sways and sputters on cue, and goes dark when the show does.
+Many flameless candles have a plastic flame on a pivot, lit from below by one LED, with a small coil underneath that nudges the flame so it sways. A PropMesh board can drive both as a single **Candle** output: the LED flickers like a real flame, the coil keeps the flame swaying, and the candle lights, gusts and goes dark with the show.
 
-<Aside type="caution" title="Not yet tested on a real candle">
-The candle output is new. Its flicker comes from a sketch that ran on a real candle, but the PropMesh version has only run in the console's simulator and in automated tests. Please report how it looks.
-</Aside>
-
-## Wiring
-
-You need two pins: one for the LED and one for the coil.
-
-- **The LED.** Most candle boards feed the LED from the battery through a resistor and switch its other leg to ground. Connect that leg to a board pin, and tick **LED on = LOW** in the console. If instead the pin feeds the LED directly (pin → resistor → LED → ground), leave it unticked.
-- **The coil.** Never connect the coil straight to a pin. The candle board drives it through a transistor; connect a board pin to the transistor's input, usually through the resistor that is already there.
-- **Power.** The candle's battery can power the board through its 5V or VIN pin. The slide switch then turns everything off.
-
-<Aside type="tip" title="Check before you power it">
-If the coil's transistor has no resistor from its input to ground, the coil can twitch while the board starts up. A 10 kΩ resistor from the transistor's input to ground keeps it still.
+<Aside type="note" title="Where this has run">
+One candle so far, on an ESP32-C6 SuperMini, in October 2026. A guide to fitting a board inside a candle is coming separately. This page covers the console side.
 </Aside>
 
 ## Setting it up in the console
 
-Assign the LED's pin to **Candle (flicker LED + flame coil)**, then choose the **coil** pin beside it. The **CANDLE** settings shape the flame:
+Assign the LED's pin to **Candle (flicker LED + flame coil)**. Two options sit beside it:
+
+- **coil**: the pin that drives the coil.
+- **LED on = LOW**: tick this if the LED lights when its pin is pulled low. Most candle boards sink the LED through the pin, so this is usually on.
+
+The **CANDLE** settings shape the flame. The **?** next to the label shows this same summary in the console.
 
 | Setting | What it changes |
 |---|---|
-| **drama** | how strong every effect is: 0 is a calm, steady flame, 1 is normal, 1.5 is wild |
-| **floor** | the dimmest the flame ever gets, even as it nearly blows out |
-| **gust every** | the average time between gusts: quick dips with a big swing of the flame |
+| **drama** | how strong every effect is: 0 is a calm, steady flame, 1 is a real candle, 1.5 is one in a draft. It also sets how hard the coil pumps in a gust. |
+| **floor** | the dimmest the LED ever gets. 3 % lets a sputter look like a near-blowout; 30 % keeps the candle looking steady. |
+| **gust every** | the average time between gusts: quick dips in the light with a big swing of the flame |
 | **sputter every** | the average time between near-blowouts, where the flame stutters and flares back. 0 turns them off. |
-| **swing** | how often the coil kicks. Match it to the flame's own swing. |
+| **swing** | how often the coil kicks. Match it to the flame's own swing with **Find the swing…**. |
 | **kick** | how long each coil pulse lasts. Longer kicks swing harder and use more battery. |
 | **swing the flame** | untick to keep the flame still while the LED flickers |
+| **draft** | candles in the same draft, A to H, gust and sputter at the same moment, as if one breath of wind crossed them all. They can be on different boards. Each still has its own shimmer and sway. **Alone** means its own random timing. |
 
 Gusts and sputters come at random intervals around those averages, so the flicker never falls into a rhythm.
 
-### Tuning the swing
+The coil follows the flicker. At rest it keeps the flame swinging with kicks whose strength drifts up and down, so the sway varies but never dies away. Just before a gust it starts pumping harder, up to about 1.7 times the kick at full drama, and keeps going for a second after, so the flame swings most as the light dips.
 
-Each candle's flame piece has its own natural swing. Press **Light**, then change **swing** in small steps, about 0.05 Hz at a time, and save after each one. At the right setting the flame swings noticeably further. Keep **kick** as short as still gives a good swing; a coil that gets warm is being pushed too hard.
+Several candles on a table or along a path look best in one **draft**: they all dip and sway in the same instant, then go back to flickering on their own. This works from the mesh clock, so it needs no extra wiring and keeps working even when the candles can't hear each other directly.
+
+## Finding the swing
+
+Each candle's flame piece has its own natural swing, like a pendulum, and the coil moves it furthest when its kicks land at that rate. Press **Find the swing…** in the candle's TEST column. The board then kicks the coil at one rate with no gusts, and holds the LED steady instead of flickering, so all you have to judge is how far the flame piece swings. Use the brightness slider to make the light dimmer or brighter while you watch.
+
+- **Sweep** steps the rate up by 0.10 Hz every 2.5 seconds, from 0.5 Hz to 6 Hz and around again. Watch the flame and note the rate where it swings widest. The sweet spot is usually between 2 and 4 Hz.
+- **−** and **+** nudge the rate by 0.05 Hz. Pause the sweep near the widest swing and nudge until the motion peaks.
+- **Steady / Bursts** switches between kicking every cycle and kicking in sets with a rest between. If steady kicks don't get the flame going, try bursts: the rests let a set catch the flame at a different point in its swing.
+- **Then the kick.** With the rate found, use the **KICK** row's **−** to shorten each pulse by 2 ms at a time. When the swing visibly shrinks, go back up one step. The lightest kick that still swings the flame fully is the one that keeps the coil cool and the battery lasting.
+- **Use** puts the rate and the kick into the candle's settings. Then press **Save to node**.
+- **Stop** ends the kicks. The board also stops on its own after two minutes, because the coil warms under steady kicking.
 
 ## In the show
 
 The candle's **TEST** column has a brightness slider, **Light** and **Out**, and **Gust** and **Sputter** buttons to try the effects on demand.
 
 In a sequence, a candle is a track like an LED dimmer: its value is the brightness of the flicker, 0 puts it out, and it can fade. A candle that fades up at dusk as part of an ambient loop, and gusts when a scare goes off nearby, is a few steps.
+
+**To keep it lit all evening**, make it an ambient loop: a new sequence with one step, the candle at full brightness, with **Ambient loop** turned on and **every** set to 600 s. The candle then lights whenever the show is Ambient or Armed, including a few seconds after the board restarts, and goes out with Off, the schedule or STOP ALL. A board restarts with every output off, so without a loop a candle stays dark until something turns it on.
+
+**If the candle runs on its own cell**, tick **On battery** for the board. Left on mains power the board never sleeps and the radio runs all day, which empties a small cell in about a day. On battery it sleeps outside the show and the flicker and the coil work as before during it. See [Battery boards](/propmesh/props/battery/).
