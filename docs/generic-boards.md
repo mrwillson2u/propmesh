@@ -1398,6 +1398,37 @@ the instruments to catch it next time, and a self-heal.
      captive-portal setup already planned.
   The `tx_inflight` counters stay: a leak would still show there.
 
+  **Built (2026-10-19, 08:00–09:00 UTC; PR #34), steps 0 and 1; step 2
+  skipped on Colin's call; step 3 stays longer-term.**
+  - *Headroom:* the show engine exists only once a board has a sequence
+    or a rule to hold (`ensure_show()`; every reader copes with none),
+    and a WebSocket client's 4 KB buffer exists only while a message is
+    arriving. Bridge free heap idle: **32 → 70.7 KB**, largest block
+    30.7 → 65.5 KB, low-water since boot 1.2 → 55.9 KB. The C6 node:
+    188 → 222 KB. The router's burst now costs the bridge about 40 KB
+    (68.5 → 28.5 KB and back); **0 failed allocations** across six
+    minutes of bursts, against one a minute before.
+  - *Rebuild:* `pm_mesh_recover` takes the whole driver down and up
+    (`WiFi.mode(WIFI_OFF)` → `WIFI_STA`, which is `esp_wifi_deinit` in
+    this core); `pm_radio_rebuild` wraps it, notes why in last words
+    with the counters, re-applies the sleep tier's power mode and wake
+    window (`pm_sleep_radio_reapply`) and has a bridge rejoin the router
+    at once (`pm_wifi_rejoin`). Forced over the API on the bridge: **away
+    4 s**, back on WiFi and the mesh, still conductor, no reboot. On the
+    C6: back in seconds, synced, all neighbors heard.
+  - *Trigger:* the mute watchdog rebuilds after **15 s** unheard when the
+    heap has refused the driver an allocation or `esp_now_send` has
+    failed since the board was last heard (the two-minute path stays as
+    the fallback; a second mute after a rebuild still reboots, at most
+    three in a row). `mesh` reports `radio_rebuilds` and
+    `radio_rebuilt_s_ago`; `{"cmd":"mesh","recover":true}` forces one.
+  - *Not done, not needed now:* reassembly down to 2 slots, the yard map
+    streamed. The rule that keeps this fixed is in CLAUDE.md (bridge heap
+    ≥ 70 KB idle). Nodes without WiFi also gain the 32 KB once updated;
+    Prop keeps its engine because it holds the show's parts.
+  - *Open:* the AP-mode bridge (step 3 above), with the captive-portal
+    setup; Prop's September mute, which this chain does not explain.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
