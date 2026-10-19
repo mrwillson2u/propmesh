@@ -337,17 +337,19 @@ static uint8_t s_drop_n;
 static uint32_t s_heap_prev;
 // Failed allocations (heap_caps hook): the exact moment "no memory"
 // becomes real, with the size asked for and the function that asked.
-struct AllocFail { uint32_t up_ms; uint32_t size; char fn[24]; };
+struct AllocFail { uint32_t up_ms; uint32_t size; uint32_t caps; char fn[24]; char task[16]; };
 #define FAIL_RING 6
 static AllocFail s_fails[FAIL_RING];
 static uint8_t s_fail_n;
 static volatile uint32_t s_fail_count;
-static void on_alloc_failed(size_t size, uint32_t, const char *fn) {
+static void on_alloc_failed(size_t size, uint32_t caps, const char *fn) {
   s_fail_count++;
   AllocFail &a = s_fails[s_fail_n];
   s_fail_n = (s_fail_n + 1) % FAIL_RING;
-  a.up_ms = millis(); a.size = size;
+  a.up_ms = millis(); a.size = size; a.caps = caps;
   strlcpy(a.fn, fn ? fn : "?", sizeof(a.fn));
+  const char *t = pcTaskGetName(nullptr);  // whose allocation it was: wifi, tcpip_thread, loopTask, mdns...
+  strlcpy(a.task, t ? t : "?", sizeof(a.task));
 }
 void pm_api_heap_tick(uint8_t step) {
   uint32_t f = ESP.getFreeHeap();
@@ -370,7 +372,7 @@ static void heap_report(JsonObject resp) {
   for (uint8_t i = 0; i < FAIL_RING; i++) {
     const AllocFail &a = s_fails[(s_fail_n + i) % FAIL_RING];
     if (!a.up_ms) continue;
-    JsonArray e = fa.add<JsonArray>(); e.add(a.up_ms / 1000); e.add(a.size); e.add(a.fn);
+    JsonArray e = fa.add<JsonArray>(); e.add(a.up_ms / 1000); e.add(a.size); e.add(a.fn); e.add(a.task); e.add(a.caps);
   }
   JsonArray dr = resp["heap_drops"].to<JsonArray>();
   for (uint8_t i = 0; i < DROP_RING; i++) {
