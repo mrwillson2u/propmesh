@@ -287,10 +287,11 @@ static void mute_watch() {
   const pm_stats_t *st = pm_stats();
   // With what the radio and the heap looked like at that moment (docs §6j):
   // frames accepted but never completed, and free heap / largest block.
-  snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s); inflight %lu; heap %lu/%lu",
+  snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s); inflight %lu; heap %lu/%lu; alloc fails %lu",
            (unsigned long)(unheard / 1000), (unsigned long)st->tx_err,
            st->last_tx_err ? esp_err_to_name(st->last_tx_err) : "none",
-           (unsigned long)pm_mesh_tx_inflight(), (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
+           (unsigned long)pm_mesh_tx_inflight(), (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap(),
+           (unsigned long)pm_api_alloc_failures());
   if (stage == 0) {
     pm_lastwords_note("mute: radio restarted", detail);
     Serial.printf("mesh: MUTE — %s; restarting ESP-NOW\n", detail);
@@ -318,22 +319,26 @@ static void confirm_image() {
   pm_ota_mark_valid();
 }
 
+// Heap forensics (docs §6j): a sample after every step, numbered so a
+// drop can be laid at a step's door. 1 serial, 2 channels, 3 show,
+// 4 sync, 5 ota, 6 wifi, 7 ws, 8 mesh, 9 sleep, 10 link, 11 election,
+// 12 heartbeat, 13 mute watch, 0 top of loop.
 void loop() {
   esp_task_wdt_reset();
-  pm_api_heap_tick();
-  serial_loop();
-  pm_channels_loop();
-  pm_show_loop();
+  pm_api_heap_tick(0);
+  serial_loop();        pm_api_heap_tick(1);
+  pm_channels_loop();   pm_api_heap_tick(2);
+  pm_show_loop();       pm_api_heap_tick(3);
   if (!mesh_up) return;
-  pm_sync_loop();
+  pm_sync_loop();       pm_api_heap_tick(4);
   confirm_image();
-  pm_ota_loop();
-  pm_wifi_loop();
-  ws_loop();
-  pm_mesh_loop();
-  pm_sleep_loop();
-  pm_link_loop();
-  election();
-  heartbeat();
-  mute_watch();
+  pm_ota_loop();        pm_api_heap_tick(5);
+  pm_wifi_loop();       pm_api_heap_tick(6);
+  ws_loop();            pm_api_heap_tick(7);
+  pm_mesh_loop();       pm_api_heap_tick(8);
+  pm_sleep_loop();      pm_api_heap_tick(9);
+  pm_link_loop();       pm_api_heap_tick(10);
+  election();           pm_api_heap_tick(11);
+  heartbeat();          pm_api_heap_tick(12);
+  mute_watch();         pm_api_heap_tick(13);
 }

@@ -13,6 +13,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_show.h"
 #include "pm_ble_tx.h"
 #include "pm_ws.h"
+#include <esp_heap_caps.h>
 #include "pm_lastwords.h"
 #include "pm_sync.h"
 
@@ -325,14 +326,58 @@ struct HeapMark { uint32_t up_s; uint32_t before, after; char cmd[12]; };
 static HeapMark *s_ring;           // heap-allocated in pm_api_begin (static RAM is full)
 static uint8_t s_ring_n;           // next slot
 static uint32_t s_heap_win_min = 0xFFFFFFFF, s_heap_win_at;
-void pm_api_heap_tick() {
-  uint32_t f = ESP.getFreeHeap();
-  if (f < s_heap_win_min) { s_heap_win_min = f; s_heap_win_at = millis() / 1000; }
+static uint8_t s_heap_win_step;    // which loop step had just run when the window's minimum was seen
+// Sudden drops: free heap falling 6 KB+ between two consecutive samples,
+// with the loop step that had just run (the step's own allocation, or
+// another task's that landed during it). Last 8.
+#define DROP_RING 8
+struct HeapDrop { uint32_t up_ms; uint32_t from, to; uint8_t step; };
+static HeapDrop s_drops[DROP_RING];
+static uint8_t s_drop_n;
+static uint32_t s_heap_prev;
+// Failed allocations (heap_caps hook): the exact moment "no memory"
+// becomes real, with the size asked for and the function that asked.
+struct AllocFail { uint32_t up_ms; uint32_t size; char fn[24]; };
+#define FAIL_RING 6
+static AllocFail s_fails[FAIL_RING];
+static uint8_t s_fail_n;
+static volatile uint32_t s_fail_count;
+static void on_alloc_failed(size_t size, uint32_t, const char *fn) {
+  s_fail_count++;
+  AllocFail &a = s_fails[s_fail_n];
+  s_fail_n = (s_fail_n + 1) % FAIL_RING;
+  a.up_ms = millis(); a.size = size;
+  strlcpy(a.fn, fn ? fn : "?", sizeof(a.fn));
 }
+void pm_api_heap_tick(uint8_t step) {
+  uint32_t f = ESP.getFreeHeap();
+  if (f < s_heap_win_min) { s_heap_win_min = f; s_heap_win_at = millis() / 1000; s_heap_win_step = step; }
+  if (s_heap_prev && s_heap_prev > f + 6144) {
+    HeapDrop &d = s_drops[s_drop_n];
+    s_drop_n = (s_drop_n + 1) % DROP_RING;
+    d.up_ms = millis(); d.from = s_heap_prev; d.to = f; d.step = step;
+  }
+  s_heap_prev = f;
+}
+uint32_t pm_api_alloc_failures() { return s_fail_count; }
 static void heap_report(JsonObject resp) {
   resp["heap_win_min"] = s_heap_win_min == 0xFFFFFFFF ? 0 : s_heap_win_min;  // lowest loop sample since the last `mesh`
   resp["heap_win_at_s"] = s_heap_win_at;
+  resp["heap_win_step"] = s_heap_win_step;  // main.cpp loop step numbers
   s_heap_win_min = 0xFFFFFFFF;
+  resp["alloc_fails"] = s_fail_count;
+  JsonArray fa = resp["alloc_fail_ring"].to<JsonArray>();
+  for (uint8_t i = 0; i < FAIL_RING; i++) {
+    const AllocFail &a = s_fails[(s_fail_n + i) % FAIL_RING];
+    if (!a.up_ms) continue;
+    JsonArray e = fa.add<JsonArray>(); e.add(a.up_ms / 1000); e.add(a.size); e.add(a.fn);
+  }
+  JsonArray dr = resp["heap_drops"].to<JsonArray>();
+  for (uint8_t i = 0; i < DROP_RING; i++) {
+    const HeapDrop &d = s_drops[(s_drop_n + i) % DROP_RING];
+    if (!d.up_ms) continue;
+    JsonArray e = dr.add<JsonArray>(); e.add(d.up_ms); e.add(d.from); e.add(d.to); e.add(d.step);
+  }
   resp["ws_clients"] = pm_ws_clients();
   if (!s_ring) return;
   JsonArray a = resp["heap_ring"].to<JsonArray>();
@@ -346,7 +391,10 @@ static void heap_report(JsonObject resp) {
 
 static void api_handle_inner(JsonObjectConst req, JsonObject resp);
 void pm_api_handle(JsonObjectConst req, JsonObject resp) {
-  if (!s_ring) { s_ring = (HeapMark *)calloc(HEAP_RING, sizeof(HeapMark)); }
+  if (!s_ring) {
+    s_ring = (HeapMark *)calloc(HEAP_RING, sizeof(HeapMark));
+    heap_caps_register_failed_alloc_callback(on_alloc_failed);
+  }
   uint32_t heap_before = ESP.getFreeHeap();
   api_handle_inner(req, resp);
   if (s_ring) {
