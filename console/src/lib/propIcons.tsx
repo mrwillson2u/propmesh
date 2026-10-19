@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 export type PropType =
   | "skull" | "zombie" | "spider" | "tombstone" | "witch" | "cauldron"
   | "pumpkin" | "ghost" | "bat" | "scarecrow" | "coffin" | "tree"
-  | "lantern" | "lights" | "fog" | "speaker" | "sensor" | "hub"
+  | "lantern" | "candle" | "lights" | "fog" | "speaker" | "sensor" | "hub"
   | "generic";
 
 export const PROP_TYPES: { id: PropType; label: string }[] = [
@@ -27,6 +27,7 @@ export const PROP_TYPES: { id: PropType; label: string }[] = [
   { id: "scarecrow", label: "Scarecrow" },
   { id: "tree", label: "Dead tree" },
   { id: "lantern", label: "Lantern" },
+  { id: "candle", label: "Candle" },
   { id: "lights", label: "String lights" },
   { id: "fog", label: "Fogger" },
   { id: "speaker", label: "Speaker" },
@@ -141,6 +142,14 @@ const PATHS: Record<PropType, ReactNode> = {
       <path d="M8.6 6.2 7.8 17h8.4l-.8-10.8" />
       <path d="M7.4 19.2h9.2M7.8 17v2.2M16.2 17v2.2" />
       <path d="M12 9.6c-1.1 1.4-1.6 2.3-1.6 3.1a1.6 1.6 0 0 0 3.2 0c0-.8-.5-1.7-1.6-3.1z" {...F} />
+    </>
+  ),
+  candle: (
+    <>
+      <path d="M8.2 10.5h7.6v9.3a1.2 1.2 0 0 1-1.2 1.2H9.4a1.2 1.2 0 0 1-1.2-1.2z" />
+      <path d="M8.2 12.6c1.2.9 2.4.9 3.8 0 1.4.9 2.6.9 3.8 0" />
+      <path d="M12 10.5V8.6" />
+      <path d="M12 2.9c-1.4 1.7-2.1 2.9-2.1 3.9a2.1 2.1 0 0 0 4.2 0c0-1-.7-2.2-2.1-3.9z" {...F} />
     </>
   ),
   lights: (
@@ -332,6 +341,17 @@ const ART: Record<PropType, ReactNode> = {
       <rect x="7" y="5.2" width="10" height="1.8" rx=".6" fill={K.brass} /><rect x="7" y="17" width="10" height="2.2" rx=".6" fill={K.brass} />
       <path d="M12 9c-1.3 1.6-1.9 2.7-1.9 3.6a1.9 1.9 0 0 0 3.8 0c0-.9-.6-2-1.9-3.6z" fill={K.flame} />
       <path d="M12 11.4c-.6.8-.8 1.3-.8 1.6a.8.8 0 0 0 1.6 0c0-.3-.2-.8-.8-1.6z" fill={K.glow} />
+    </>
+  ),
+  candle: (
+    <>
+      <path d="M8 10.6h8v9.4a1.3 1.3 0 0 1-1.3 1.3H9.3A1.3 1.3 0 0 1 8 20z" fill={K.bone} />
+      <path d="M8 10.6h8v2.2c-1.3 1-2.7 1-4 0-1.3 1-2.7 1-4 0z" fill={K.white} />
+      <path d="M8 10.6h2.6v9.4H9.3A1.3 1.3 0 0 1 8 20z" fill={K.stone} opacity=".35" />
+      <path d="M12 10.6V8.4" stroke={K.ink} strokeWidth="1" strokeLinecap="round" />
+      <ellipse cx="12" cy="6.4" rx="3.4" ry="4.2" fill={K.glow} opacity=".28" />
+      <path d="M12 2.6c-1.5 1.8-2.2 3.1-2.2 4.1a2.2 2.2 0 0 0 4.4 0c0-1-.7-2.3-2.2-4.1z" fill={K.flame} />
+      <path d="M12 5.2c-.7.9-1 1.5-1 1.9a1 1 0 0 0 2 0c0-.4-.3-1-1-1.9z" fill={K.glow} />
     </>
   ),
   lights: (
