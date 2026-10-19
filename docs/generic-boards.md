@@ -1201,6 +1201,21 @@ the instruments to catch it next time, and a self-heal.
   in the boot event and `hello.last`; the console's node editor shows
   **Last restart** (reason, uptime) and **Before that** (the saved
   record) whenever either is worth reading.
+- **Caught (2026-10-18 evening):** the bridge (DevKit, build d73db6b)
+  rebooted itself after 10651 s up. `hello.last`: *mute: rebooted —
+  neighbors heard but none hear us for 120 s; send errors 492 (last
+  ESP_ERR_ESPNOW_NO_MEM)*. The radio restart two minutes earlier had not
+  cleared it; the reboot did (afterwards WiFi up at −26 dBm, channel 11,
+  `tx_err` 0). From the console this is the bridge dropping off WiFi
+  for a few minutes and coming back by itself. So the fault is the
+  ESP-NOW send queue filling — frames queue and never leave while the
+  WiFi link itself stays up. What jams it is still open. To look at
+  next time, *before* it reboots: `mesh` (`tx_err` climbing with
+  `unheard_s`), whether the router moved channel (the station follows
+  the AP; `mesh.channel` after a reboot says where ESP-NOW ended up),
+  and how many consoles were attached. The self-heal worked as
+  designed; the two-minute mute window could shrink once the cause is
+  known.
 - **Next time it happens:** open the board in the console (over WiFi,
   or USB) *before* power-cycling — `hello.last`, `mesh.tx_err` and
   `unheard_s` say what happened, and if the detector fired the board
