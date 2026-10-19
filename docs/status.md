@@ -86,15 +86,18 @@ Run these with the boards in hand. Protocol: write out what to watch,
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
    page; the C3 is the one with the known range complaint.
-1f. **Bridge mute reboots — cause found 2026-10-19** (generic-boards
-   §6j): the router sends a 77-packet mDNS burst every minute; the
-   bridge's WiFi driver wants a 2308-byte receive buffer per frame, up
-   to 74 KB, against 32 KB free; its allocations fail once a minute
-   even idle, and under load the failures reach the transmit path,
-   which is ESP_ERR_ESPNOW_NO_MEM and the mute. Decide the fix order:
-   heap headroom first (PmShow only when a board has a part, 32 KB),
-   then recovery as a full driver teardown tripped by failed
-   allocations. Instruments are on the bridge; watch log every 2 min.
+1f. **Bridge mute reboots — cause found and fixed 2026-10-19**
+   (generic-boards §6j): the router's once-a-minute mDNS burst made the
+   bridge's WiFi driver ask for ~40 KB of receive buffers against 32 KB
+   free; under load the failures reached the transmit path. Built in
+   PR #34: the show engine only where a board holds a part (bridge heap
+   32 → 71 KB, 0 failed allocations since), and recovery as a full
+   driver rebuild tripped on evidence after 15 s (bridge away 4 s, no
+   reboot). On the bridge and the C6 since 2026-10-19; Skellitor Head
+   and Prop get it with the next update. Field check: the watch log on
+   the server (`~/propmesh-logs/bridge-watch.log`) should show `fails 0`
+   and no `mute` for days. Still open: the AP-mode bridge (longer term),
+   and Prop's September mute, which this does not explain.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
