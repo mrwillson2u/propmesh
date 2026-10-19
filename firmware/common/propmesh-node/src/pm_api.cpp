@@ -168,6 +168,11 @@ static void cmd_mesh(JsonObject resp) {
   resp["tx_failed"] = st->tx_failed;      // completions that got no air time
   resp["tx_inflight"] = pm_mesh_tx_inflight();  // accepted, never completed: the leak (docs §6j)
   if (pm_mesh_tx_stuck_ms()) resp["tx_stuck_s"] = pm_mesh_tx_stuck_ms() / 1000;
+  // Heap, because the driver's TX buffers come from it: free now, the
+  // largest piece (fragmentation), and the low-water mark since boot.
+  resp["heap"] = ESP.getFreeHeap();
+  resp["heap_max_block"] = ESP.getMaxAllocHeap();
+  resp["heap_min"] = ESP.getMinFreeHeap();
   if (pm_mesh_unheard_ms()) resp["unheard_s"] = pm_mesh_unheard_ms() / 1000;  // neighbors heard, none hear us
   pm_neighbor_t nb[PM_MAX_NEIGHBORS];
   uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);
