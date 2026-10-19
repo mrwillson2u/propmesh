@@ -1261,9 +1261,45 @@ the instruments to catch it next time, and a self-heal.
      The biggest change of the three; worth it only if 1–2 still leave
      visible gaps.
 
+  **Inside the library (2026-10-19).** The leak cannot be read: ESP-IDF is
+  open source except the WiFi MAC, PHY and ESP-NOW layers, which ship as
+  precompiled archives (`libespnow.a`, `libnet80211.a`, `libpp.a`,
+  `libcore.a`, `libphy.a`) with headers only. Disassembling them (xtensa
+  objdump on the archives in the Arduino 3.3.12 package) gives the path
+  of the failure: `esp_now_send` → `mt_send` → `ieee80211_send_action_
+  vendor_spec` → `ieee80211_construct_action_vendor_spec` → `ieee80211_
+  alloc_action_vendor_spec`; when that returns null the construct step
+  returns the generic `ESP_ERR_NO_MEM` (0x101) and `mt_send` translates
+  it to `ESP_ERR_ESPNOW_NO_MEM`. The allocator underneath is `esf_buf_
+  alloc` in `libpp.a`: a static cache first, then the dynamic pool
+  (`CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM` = 32 in these builds), then a
+  default handler, then null. So "no memory" means every transmit buffer
+  is owned by a frame the driver never finished. The library's
+  statistics dumps (`esp_wifi_statis_dump`, `esf_buf_statis_dump`),
+  which the issue reporters used to watch their buffers go missing, are
+  useless in Arduino builds: the open log wrapper they print through
+  (`lib_printf` in `libesp_wifi.a`) is compiled with the maximum log
+  level ERROR, so it formats the line and discards it. The pool's
+  globals (`g_eb_list_desc`, `eb_space`) are named but their layout is
+  not, so the counters are not read directly either.
+
+  **What can be measured, from our side:** the ESP-NOW send callback —
+  which the mesh had never registered. Every frame the radio accepts
+  should complete with one; a frame whose completion never comes is a
+  buffer gone for good. `pm_mesh` now counts `tx_sent`, `tx_done`,
+  `tx_failed` and reports `tx_inflight` (sent − done) and `tx_stuck_s`
+  in `mesh` (PR #34). On the bridge, `tx_inflight` sampled by the watch
+  below should sit near zero between sends; a floor that climbs over
+  hours is the leak, its slope the rate, and the pool size (about 32 +
+  cache) the time to the next mute. That also decides between the fix
+  steps: if the floor climbs steadily, prevention (step 3) is needed; if
+  it jumps at events (OTA, a console attaching, a WiFi retry), those
+  events are the trigger and step 2's fast recovery is enough.
+  Nothing acts on the counters yet.
+
   **Instrument:** `tools/bridge.py watch` logs the bridge's channel, WiFi,
-  `tx`/`tx_err`/`last_tx_err`, `unheard_s`, neighbors and every board's
-  heap and uptime once a minute, each sample its own short connection so
+  `tx`/`tx_err`/`last_tx_err`, the send-callback counters above,
+  `unheard_s`, neighbors and every board's heap and uptime once a minute, each sample its own short connection so
   it never holds a console slot. Running on the server since 2026-10-19
   00:45 UTC into `~/propmesh-logs/bridge-watch.log`.
 - **Next time it happens:** open the board in the console (over WiFi,
