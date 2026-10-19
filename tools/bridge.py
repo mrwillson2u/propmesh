@@ -146,7 +146,15 @@ def cmd_ota(b, a):
     t_end = time.time()
     time.sleep(15)
     for _ in range(8):
-        h = b.ask("hello", node=a.node, timeout=12)
+        try:
+            h = b.ask("hello", node=a.node, timeout=12)
+        except OSError:  # the bridge itself was updated: its socket died with it
+            try:
+                b = Bridge(a.host)
+            except OSError:
+                time.sleep(4)
+                continue
+            h = b.ask("hello", node=a.node, timeout=12)
         if h and h.get("ok"):
             print("back:", h.get("build"), "reset:", h.get("reset"), f"up {h.get('up_s')} s,",
                   f"{time.time() - t_end:.0f} s after end")
