@@ -19,3 +19,5 @@ bool pm_node_apply(const PmNodeConfig &cfg);
 
 // Fills `resp` (always sets "ok"; echoes "id" when the request has one).
 void pm_api_handle(JsonObjectConst req, JsonObject resp);
+// Call from the main loop: samples free heap for `mesh`'s heap_win_min.
+void pm_api_heap_tick();

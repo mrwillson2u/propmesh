@@ -12,6 +12,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_channels.h"
 #include "pm_show.h"
 #include "pm_ble_tx.h"
+#include "pm_ws.h"
 #include "pm_lastwords.h"
 #include "pm_sync.h"
 
@@ -141,6 +142,7 @@ static void cmd_state(JsonObject resp) {
   }
 }
 
+static void heap_report(JsonObject resp);
 static void cmd_mesh(JsonObject resp) {
   resp["synced"] = pm_time_synced();
   resp["role"] = pm_role();
@@ -173,6 +175,7 @@ static void cmd_mesh(JsonObject resp) {
   resp["heap"] = ESP.getFreeHeap();
   resp["heap_max_block"] = ESP.getMaxAllocHeap();
   resp["heap_min"] = ESP.getMinFreeHeap();
+  heap_report(resp);
   if (pm_mesh_unheard_ms()) resp["unheard_s"] = pm_mesh_unheard_ms() / 1000;  // neighbors heard, none hear us
   pm_neighbor_t nb[PM_MAX_NEIGHBORS];
   uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);
@@ -313,7 +316,48 @@ static void cmd_ble_pair(JsonObjectConst req, JsonObject resp) {
   resp["number"] = number;
 }
 
+// Heap forensics (docs §6j): the main loop samples free heap; `mesh`
+// reports the lowest value since it was last asked, and the last 16
+// commands handled with the heap before and after each — the way to see
+// which request, if any, is eating the bridge.
+#define HEAP_RING 16
+struct HeapMark { uint32_t up_s; uint32_t before, after; char cmd[12]; };
+static HeapMark *s_ring;           // heap-allocated in pm_api_begin (static RAM is full)
+static uint8_t s_ring_n;           // next slot
+static uint32_t s_heap_win_min = 0xFFFFFFFF, s_heap_win_at;
+void pm_api_heap_tick() {
+  uint32_t f = ESP.getFreeHeap();
+  if (f < s_heap_win_min) { s_heap_win_min = f; s_heap_win_at = millis() / 1000; }
+}
+static void heap_report(JsonObject resp) {
+  resp["heap_win_min"] = s_heap_win_min == 0xFFFFFFFF ? 0 : s_heap_win_min;  // lowest loop sample since the last `mesh`
+  resp["heap_win_at_s"] = s_heap_win_at;
+  s_heap_win_min = 0xFFFFFFFF;
+  resp["ws_clients"] = pm_ws_clients();
+  if (!s_ring) return;
+  JsonArray a = resp["heap_ring"].to<JsonArray>();
+  for (uint8_t i = 0; i < HEAP_RING; i++) {
+    const HeapMark &m = s_ring[(s_ring_n + i) % HEAP_RING];
+    if (!m.cmd[0]) continue;
+    JsonArray e = a.add<JsonArray>();
+    e.add(m.up_s); e.add(m.cmd); e.add(m.before); e.add(m.after);
+  }
+}
+
+static void api_handle_inner(JsonObjectConst req, JsonObject resp);
 void pm_api_handle(JsonObjectConst req, JsonObject resp) {
+  if (!s_ring) { s_ring = (HeapMark *)calloc(HEAP_RING, sizeof(HeapMark)); }
+  uint32_t heap_before = ESP.getFreeHeap();
+  api_handle_inner(req, resp);
+  if (s_ring) {
+    HeapMark &m = s_ring[s_ring_n];
+    s_ring_n = (s_ring_n + 1) % HEAP_RING;
+    m.up_s = millis() / 1000; m.before = heap_before; m.after = ESP.getFreeHeap();
+    strlcpy(m.cmd, req["cmd"] | "?", sizeof(m.cmd));
+  }
+}
+
+static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
   if (!req["id"].isNull()) resp["id"] = req["id"];
   resp["ok"] = true;
   const char *cmd = req["cmd"] | "";

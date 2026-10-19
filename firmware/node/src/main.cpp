@@ -283,11 +283,14 @@ static void mute_watch() {
     return;
   }
   heard_since_ms = now;
-  char detail[96];
+  char detail[160];
   const pm_stats_t *st = pm_stats();
-  snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s)",
+  // With what the radio and the heap looked like at that moment (docs §6j):
+  // frames accepted but never completed, and free heap / largest block.
+  snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s); inflight %lu; heap %lu/%lu",
            (unsigned long)(unheard / 1000), (unsigned long)st->tx_err,
-           st->last_tx_err ? esp_err_to_name(st->last_tx_err) : "none");
+           st->last_tx_err ? esp_err_to_name(st->last_tx_err) : "none",
+           (unsigned long)pm_mesh_tx_inflight(), (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
   if (stage == 0) {
     pm_lastwords_note("mute: radio restarted", detail);
     Serial.printf("mesh: MUTE — %s; restarting ESP-NOW\n", detail);
@@ -317,6 +320,7 @@ static void confirm_image() {
 
 void loop() {
   esp_task_wdt_reset();
+  pm_api_heap_tick();
   serial_loop();
   pm_channels_loop();
   pm_show_loop();
