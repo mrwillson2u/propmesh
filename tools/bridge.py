@@ -197,7 +197,9 @@ def cmd_watch(b, a):
                  f"sent {m.get('tx_sent', '-')} done {m.get('tx_done', '-')} failed {m.get('tx_failed', '-')} "
                  f"inflight {m.get('tx_inflight', '-')} stuck {m.get('tx_stuck_s', 0)} s "
                  f"unheard {m.get('unheard_s', 0)} s "
-                 f"bheap {m.get('heap', '-')}/{m.get('heap_max_block', '-')}/{m.get('heap_min', '-')} nbrs {nb} heap {hb}")
+                 f"bheap {m.get('heap', '-')}/{m.get('heap_max_block', '-')}/{m.get('heap_min', '-')} "
+                 f"win {m.get('heap_win_min', '-')}@{m.get('heap_win_at_s', '-')}s fails {m.get('alloc_fails', '-')} ws {m.get('ws_clients', '-')} "
+                 f"ring {';'.join(f'{e[0]}:{e[1]}:{e[2]}>{e[3]}' for e in (m.get('heap_ring') or []))} nbrs {nb} heap {hb}")
         elif m is not None:
             emit(f"mesh: NO REPLY {m}")
         time.sleep(max(0, a.every - (time.time() - t0)))
