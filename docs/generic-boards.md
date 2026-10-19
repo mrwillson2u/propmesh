@@ -1297,6 +1297,67 @@ the instruments to catch it next time, and a self-heal.
   events are the trigger and step 2's fast recovery is enough.
   Nothing acts on the counters yet.
 
+  **Measured overnight (2026-10-19, 01:15–01:50 UTC), bridge on the
+  instrumented build.** The send callback is now registered and counted
+  (PR #34). Through two full transfers (18k frames each, relays
+  included) and the idle time between, `tx_inflight` never left zero:
+  every frame the radio accepted completed. So the driver leak of
+  #18682 did not show in 36k frames on this build; it is not excluded at
+  the 60–100k counts the reporters saw, and the counters keep running.
+  What did show is the bridge's **heap**. The `mesh` command now reports
+  free heap, the largest block, the low-water mark since boot, the
+  lowest main-loop sample since it was last asked, the WebSocket client
+  count, and the last 16 commands with the heap before and after each
+  (same PR). Scripted runs, each against a fresh window, with one
+  console attached throughout (Colin's browser, polling every 6 s):
+
+  | Bridge, DevKit V1 | free | largest block | lowest loop sample |
+  |---|---|---|---|
+  | idle, 100 s | 31.9 KB | 30.7 KB | 27.0 KB |
+  | a second console loading the Yard and Nodes pages (45 requests in 40 s) | 32.0 KB | 30.7 KB | **15.1 KB** |
+  | an OTA to a node through the bridge, 6 min | 26.6 KB | **12.3 KB** | **4.4 KB** |
+  | low-water mark since boot, two boots | | | **1.2 KB** and 11.8 KB |
+
+  The WiFi driver's dynamic transmit buffers (the pool the disassembly
+  points at) are `malloc`ed from this heap: a frame costs about its own
+  size plus a descriptor, and 32 may be outstanding. At 4 KB free that
+  is two or three frames; at the boot low-water mark it is none. A
+  failed `malloc` there is the same `ESP_ERR_ESPNOW_NO_MEM` as the leak.
+  Heap starvation also fits the part the leak did not: a mute within
+  minutes of a fresh boot, when two consoles reconnect at once and ask
+  every board hello, get_yard, set_clock and the show sync in a burst.
+  Where the bridge's RAM goes (`nm` on the DevKit image; DRAM is one
+  320 KB pool shared by static data and heap, so static bytes are heap
+  bytes not available): `PmShow` **31.9 KB** on the heap (16 sequences ×
+  96 steps, preallocated — on a bridge, which has no channels, it holds
+  nothing); reassembly `s_reasm` 13.0 KB static (3 slots × 4320);
+  `emit` and `on_api` reply buffers 4.4 + 4.3 KB static; the serial line
+  4.1 KB static; two `PmSequence` temporaries 2 × 2.0 KB static; the
+  WebSocket buffers 2 × 4.1 KB on the heap while consoles are attached;
+  up to 6 pending request texts × 4.3 KB on the heap during an OTA; and
+  ArduinoJson documents for every reply (the yard map alone is a 7.7 KB
+  reply). The DevKit's `RAM:` line is 96.7 KB, past the 95.5 KB rule in
+  CLAUDE.md.
+
+  **Revised proposal (replaces the three steps above; Colin to say):**
+  0. **Heap headroom on the bridge first**, because it is the one cause
+     we have evidence for and it is ours to fix: allocate `PmShow` only
+     when a board has a part to play (saves 31.9 KB on every bridge);
+     allocate a WebSocket client's buffer only while a message is being
+     received; reassembly down to 2 slots; and have the yard map stream
+     from its file to the socket instead of through a document. About
+     45 KB more free, which doubles the bridge's margin.
+  1. Recovery as a full driver teardown (`WiFi.mode(WIFI_OFF)` then
+     `WIFI_STA`, ESP-NOW re-init) — still right for a wedge of either
+     kind, since it also returns the driver's buffers.
+  2. Act on `tx_stuck_s` only if `tx_inflight` ever reads non-zero in
+     the watch log; the detector is in place, nothing uses it.
+  The mute record (`hello.last`) now carries `inflight` and `heap /
+  largest block` at the moment it fires, which settles leak-or-heap on
+  the next occurrence without anyone watching. Logs on the server:
+  `~/propmesh-logs/heap-experiments.log`, `bridge-ota-experiment.log`,
+  `bridge-watch.log`.
+
   **Instrument:** `tools/bridge.py watch` logs the bridge's channel, WiFi,
   `tx`/`tx_err`/`last_tx_err`, the send-callback counters above,
   `unheard_s`, neighbors and every board's heap and uptime once a minute, each sample its own short connection so

@@ -71,10 +71,14 @@ Run these with the boards in hand. Protocol: write out what to watch,
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
    page; the C3 is the one with the known range complaint.
-1f. **Bridge mute reboots** — matched to esp-idf #18682 (ESP-NOW TX
-   buffer leak, IDF 5.5.x): generic-boards §6j has the record, the
-   three-step fix proposal and the `bridge.py watch` log. Decide which
-   steps to build; the watch log on the server catches the next one.
+1f. **Bridge mute reboots** — generic-boards §6j: the symptom matches
+   esp-idf #18682 (ESP-NOW TX buffer leak), but overnight 2026-10-19 the
+   new send-callback counters showed no leak in 36k frames, while the
+   bridge's heap fell to 4.4 KB during an OTA and 1.2 KB at boot — the
+   WiFi driver's TX buffers come from that heap. Decide on the revised
+   proposal (heap headroom first: PmShow only when a board has a part,
+   32 KB). The mute record now carries heap and in-flight figures, and
+   the watch log on the server runs every 2 min.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
