@@ -1407,7 +1407,66 @@ the instruments to catch it next time, and a self-heal.
   reply). The DevKit's `RAM:` line is 96.7 KB, past the 95.5 KB rule in
   CLAUDE.md.
 
-  **Revised proposal (replaces the three steps above; Colin to say):**
+  **Cause found (2026-10-19, 02:30–03:00 UTC).** Two more instruments
+  (PR #34): the heap library's failed-allocation hook, recording the
+  size, the function and the *task* of every allocation that fails; and
+  a drop ring that lays each sudden fall in free heap at the door of the
+  loop step that had just run. With the yard idle and only the sampler
+  attached, the bridge logged a failed allocation **once a minute, to
+  the second**, every time the same: **2308 bytes, `heap_caps_malloc`,
+  task `wifi`, caps internal** — a maximum 802.11 frame (2304) plus
+  four: the driver's dynamic *receive* buffer. The loop's lowest sample
+  in those seconds was 0.3–3 KB, and 25 KB in every other second. Our
+  own request handling never showed below 34 KB in the command ring, and
+  controlled bursts from the server (30 × 1400 B multicast, unicast or
+  broadcast) did not trip it. Sampling the LAN at 50 ms and converting
+  the bridge's failure uptimes to wall time put the failure at 02:59:24
+  on a LAN multicast burst of **72 packets inside 50 ms** at 02:59:24.6;
+  the earlier failures sit on the same once-a-minute peaks. Joining the
+  groups names the sender: **the router, 192.168.175.1** — 77 mDNS
+  packets (`_services._dns-sd._udp.local` enumeration) inside 100 ms,
+  plus 14 SSDP NOTIFYs, every minute. The access point forwards every
+  one to the wireless side; the bridge, associated to it, receives them
+  all; the driver asks the heap for a 2308-byte buffer per frame, up to
+  32 outstanding (`CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM` = 32, so up to
+  74 KB) before lwIP has looked at a single one; the bridge has 32 KB.
+  The frames are not for us and lwIP would drop them, but by then the
+  heap is gone, and *any* allocation the driver makes in that window
+  fails — a transmit buffer for an ESP-NOW frame among them, which is
+  `ESP_ERR_ESPNOW_NO_MEM`. When the window is long or repeated (an OTA
+  holds the heap 20 KB lower; a second console 6 KB; a console loading
+  the Yard 17 KB), the failures reach the transmit path, and the
+  reporters' observation in #18682 is the rest: a driver whose transmit
+  allocations have failed does not come back with an ESP-NOW re-init,
+  only with a full teardown or a reboot. Prop's September mute (not a
+  bridge, no WiFi) is not explained by this and stays open.
+
+  So: the mesh is fine, the radio is fine, the bridge is a station on a
+  home LAN with less than one burst of headroom. Any bridge on any LAN
+  with a chatty router or a Sonos/Chromecast/printer will meet this.
+
+  **Fix, in order (Colin to say which):**
+  0. **Heap headroom on the bridge**, the one lever that covers every
+     trigger: allocate `PmShow` only when a board has a part to play
+     (saves 31.9 KB on every bridge, which doubles the margin on its
+     own); allocate a WebSocket client's buffer only while a message is
+     being received; reassembly down to 2 slots; the yard map streamed
+     from file to socket. Target: 70 KB free idle, enough for a full
+     burst at the driver's maximum.
+  1. Recovery as a full driver teardown (`WiFi.mode(WIFI_OFF)` then
+     `WIFI_STA`, ESP-NOW re-init), since a wedged driver does not
+     recover otherwise; and trip it from the failed-allocation count
+     climbing together with `unheard_s`, not only from the 2-minute
+     mute — seconds instead of four minutes.
+  2. On the LAN, optional: the router's mDNS/UPnP discovery features are
+     what burst; turning off what is not used stops the burst at the
+     source (the yard's bridge should not depend on it, hence 0 and 1).
+  3. Longer term: a bridge that is its own access point (the console
+     joins the bridge) hears no LAN multicast at all — part of the
+     captive-portal setup already planned.
+  The `tx_inflight` counters stay: a leak would still show there.
+
+  **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
      when a board has a part to play (saves 31.9 KB on every bridge);
