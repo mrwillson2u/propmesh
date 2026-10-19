@@ -23,7 +23,22 @@ typedef struct {
   uint32_t relay_overrun; // relay queue full — frame not forwarded
   uint32_t tx_err;        // esp_now_send refused a frame (ours or a relay)
   int32_t last_tx_err;    // its esp_err_t, 0 = none yet
+  // Frames the radio accepted vs. frames it reported done (the send
+  // callback). The difference is what the driver still holds: a count
+  // that only ever grows is the WiFi TX buffer leak of esp-idf #18682
+  // (docs §6j) — when it reaches the pool, every send fails NO_MEM.
+  volatile uint32_t tx_sent;      // esp_now_send returned ESP_OK
+  volatile uint32_t tx_done;      // send callbacks, any status
+  volatile uint32_t tx_failed;    // of those, status != success (no air time)
+  volatile uint32_t tx_done_ms;   // millis() of the last callback
 } pm_stats_t;
+
+// Frames handed to the radio whose completion has not come back.
+uint32_t pm_mesh_tx_inflight();
+// Non-zero when the radio looks wedged: 8+ frames in flight and no
+// completion for 5 s — the time since the last one (ms). Nothing acts on
+// it yet; `mesh` reports it and bridge.py watch logs it.
+uint32_t pm_mesh_tx_stuck_ms();
 
 // Bring up WiFi STA + ESP-NOW on `channel` and join network `net_id`.
 // `role` is pm_node_role_t flags; PM_NODE_ROLE_RELAY enables rebroadcast,

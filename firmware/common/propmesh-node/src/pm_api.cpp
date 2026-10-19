@@ -163,6 +163,11 @@ static void cmd_mesh(JsonObject resp) {
   resp["tx"] = st->tx;
   resp["tx_err"] = st->tx_err;
   if (st->last_tx_err) resp["last_tx_err"] = esp_err_to_name(st->last_tx_err);
+  resp["tx_sent"] = st->tx_sent;          // accepted by the radio (ours + relays)
+  resp["tx_done"] = st->tx_done;          // completions reported back
+  resp["tx_failed"] = st->tx_failed;      // completions that got no air time
+  resp["tx_inflight"] = pm_mesh_tx_inflight();  // accepted, never completed: the leak (docs §6j)
+  if (pm_mesh_tx_stuck_ms()) resp["tx_stuck_s"] = pm_mesh_tx_stuck_ms() / 1000;
   if (pm_mesh_unheard_ms()) resp["unheard_s"] = pm_mesh_unheard_ms() / 1000;  // neighbors heard, none hear us
   pm_neighbor_t nb[PM_MAX_NEIGHBORS];
   uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);

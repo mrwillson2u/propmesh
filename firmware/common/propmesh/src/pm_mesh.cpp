@@ -256,6 +256,25 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   }
 }
 
+// The radio finished with a frame (WiFi task context): count it. A frame
+// that never gets here keeps its driver buffer for good — see pm_stats_t.
+static void on_sent(const esp_now_send_info_t *, esp_now_send_status_t status) {
+  s_stats.tx_done++;
+  if (status != ESP_NOW_SEND_SUCCESS) s_stats.tx_failed++;
+  s_stats.tx_done_ms = millis();
+}
+
+uint32_t pm_mesh_tx_inflight() {
+  uint32_t sent = s_stats.tx_sent, done = s_stats.tx_done;
+  return sent > done ? sent - done : 0;
+}
+
+uint32_t pm_mesh_tx_stuck_ms() {
+  if (pm_mesh_tx_inflight() < 8) return 0;
+  uint32_t since = millis() - s_stats.tx_done_ms;
+  return since > 5000 ? since : 0;
+}
+
 bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   s_net_id = net_id;
   s_role = role;
@@ -282,6 +301,7 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   peer.ifidx = WIFI_IF_STA;
   if (esp_now_add_peer(&peer) != ESP_OK) return false;
 
+  esp_now_register_send_cb(on_sent);
   return esp_now_register_recv_cb(on_recv) == ESP_OK;
 }
 
@@ -310,6 +330,8 @@ bool pm_mesh_recover(uint8_t ch) {
   peer.ifidx = WIFI_IF_STA;
   if (esp_now_add_peer(&peer) != ESP_OK) return false;
   if (esp_now_register_recv_cb(on_recv) != ESP_OK) return false;
+  esp_now_register_send_cb(on_sent);
+  s_stats.tx_done_ms = millis();  // a fresh radio starts a fresh clock on "stuck"
   pm_mesh_set_channel(ch);
   return true;
 }
@@ -378,6 +400,7 @@ bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
   s_stats.tx++;
   esp_err_t err = esp_now_send(BCAST, buf, sizeof(hdr) + len);
   if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
+  else s_stats.tx_sent++;
   return err == ESP_OK;
 }
 
@@ -410,6 +433,7 @@ void pm_mesh_loop() {
     }
     esp_err_t err = esp_now_send(BCAST, s_relay[i].frame, s_relay[i].len);
     if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
+    else s_stats.tx_sent++;
     s_relay[i].used = false;
     s_stats.relayed++;
   }
