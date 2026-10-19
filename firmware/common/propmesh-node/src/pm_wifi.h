@@ -9,6 +9,7 @@
 // Join (or leave) WiFi according to the config: bridge + ssid = join.
 void pm_wifi_apply(const PmNodeConfig &cfg);
 void pm_wifi_loop();
+void pm_wifi_rejoin();  // after a radio rebuild: try the router again now, not on the retry clock
 bool pm_wifi_configured();
 bool pm_wifi_connected();
 const char *pm_wifi_ip();     // "" when not connected

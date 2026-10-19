@@ -71,8 +71,17 @@ static void hand_forget(uint8_t kind, uint8_t index) {
 // left the scheduler nothing for its timer task and every ESP32 build
 // boot-looped — "assert failed: vApplicationGetTimerTaskMemory"
 // (2026-10-12, twice). Never freed.
+// The engine is 31.9 KB (16 sequences × 96 steps, preallocated) — on a
+// bridge, which drives no pins and holds no part, that was a third of the
+// free heap for nothing, and the WiFi driver's receive buffers come from
+// that heap (docs §6j, 2026-10-19). So it exists only once this board has
+// a sequence or a rule to hold; every reader copes with its absence.
 static PmShow *showp;
 #define show (*showp)
+static bool ensure_show() {
+  if (!showp) showp = new (std::nothrow) PmShow();
+  return showp != nullptr;
+}
 static PmPlayer player;
 static PmTriggers triggers;
 static PmCueMemory cues;
@@ -115,9 +124,11 @@ static bool save() {
   JsonDocument doc;
   doc["v"] = 1;
   JsonArray seqs = doc["sequences"].to<JsonArray>();
-  for (uint8_t i = 0; i < show.seq_count; i++) pm_sequence_to_json(show.seqs[i], seqs.add<JsonObject>());
-  pm_rules_to_json(show.rules, show.rule_count, doc["rules"].to<JsonArray>());
-  if (show.rules_at) doc["rules_at"] = show.rules_at;
+  if (showp) {
+    for (uint8_t i = 0; i < show.seq_count; i++) pm_sequence_to_json(show.seqs[i], seqs.add<JsonObject>());
+    pm_rules_to_json(show.rules, show.rule_count, doc["rules"].to<JsonArray>());
+    if (show.rules_at) doc["rules_at"] = show.rules_at;
+  }
   File f = LittleFS.open(TMP, "w");
   if (!f) return false;
   bool ok = serializeJson(doc, f) > 0;
@@ -191,17 +202,18 @@ static void load_schedule() {
 }
 
 void pm_show_begin() {
-  if (!showp) showp = new PmShow();
   load_schedule();
   load_manual();
   load_parked();
-  show.clear();
+  if (showp) show.clear();
   File f = LittleFS.open(PATH, "r");
   if (!f) return;
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, f);
   f.close();
   if (err) return;
+  if (!doc["sequences"].size() && !doc["rules"].size()) return;  // nothing to hold: no engine
+  if (!ensure_show()) { Serial.println("show: no memory for the engine — this board's part is off"); return; }
   static PmSequence s;
   for (JsonVariantConst j : doc["sequences"].as<JsonArrayConst>())
     if (!pm_sequence_from_json(j, s)) show.put(s);
@@ -227,7 +239,7 @@ static void emit_cue(uint32_t src, uint16_t seq, uint16_t cue_id, bool played) {
 }
 
 static bool play(uint16_t seq_id, int64_t start_us, uint32_t offset_ms) {
-  PmSequence *s = show.find(seq_id);
+  PmSequence *s = showp ? show.find(seq_id) : nullptr;
   if (!s || mode == PM_MODE_OFF) return false;
   int64_t now = esp_timer_get_time();
   if (start_us > now + MAX_FUTURE_US || start_us < now - MAX_LATE_US) start_us = now;
@@ -382,7 +394,7 @@ static void eval_mode() {
 // Start each ambient sequence's repeat when its period comes round on
 // the mesh clock — the same instant on every node.
 static void ambient_tick() {
-  if (mode == PM_MODE_OFF) return;
+  if (mode == PM_MODE_OFF || !showp) return;
   bool synced = pm_time_synced();
   int64_t mesh_ms = (synced ? pm_mesh_time_us() : esp_timer_get_time()) / 1000;
   for (uint8_t i = 0; i < show.seq_count; i++) {
@@ -452,10 +464,10 @@ void pm_show_follow_mode(uint8_t manual, uint32_t at, uint32_t until) {
 }
 
 int64_t pm_show_seq_at(uint16_t id) {
-  PmSequence *q = show.find(id);
+  PmSequence *q = showp ? show.find(id) : nullptr;
   return q ? (int64_t)q->at : -1;
 }
-uint32_t pm_show_rules_at() { return show.rules_at; }
+uint32_t pm_show_rules_at() { return showp ? show.rules_at : 0; }
 void pm_show_arm(bool on) { pm_show_set_mode(on ? PM_MODE_ARMED : PM_MODE_OFF); }
 bool pm_show_armed() { return mode == PM_MODE_ARMED; }
 uint8_t pm_show_mode() { return mode; }
@@ -511,22 +523,25 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     resp["armed"] = mode == PM_MODE_ARMED;
     put_mode(resp);
     JsonArray seqs = resp["sequences"].to<JsonArray>();
-    for (uint8_t i = 0; i < show.seq_count; i++) {
-      JsonObject j = seqs.add<JsonObject>();
-      pm_sequence_summary(show.seqs[i], j);
-      // A pin change can orphan steps; say so rather than fail silently.
-      const char *bad = pm_check_sequence(show.seqs[i], pm_channels_config());
-      if (bad) j["problem"] = bad;
+    JsonArray rules = resp["rules"].to<JsonArray>();
+    if (showp) {
+      for (uint8_t i = 0; i < show.seq_count; i++) {
+        JsonObject j = seqs.add<JsonObject>();
+        pm_sequence_summary(show.seqs[i], j);
+        // A pin change can orphan steps; say so rather than fail silently.
+        const char *bad = pm_check_sequence(show.seqs[i], pm_channels_config());
+        if (bad) j["problem"] = bad;
+      }
+      pm_rules_to_json(show.rules, show.rule_count, rules);
     }
-    pm_rules_to_json(show.rules, show.rule_count, resp["rules"].to<JsonArray>());
     JsonObject sync = resp["sync"].to<JsonObject>();  // what this board holds, for the console
     sync["sched_at"] = sched_at;
     sync["mode_at"] = mode_at;
-    sync["rules_at"] = show.rules_at;
+    sync["rules_at"] = showp ? show.rules_at : 0;
     return true;
   }
   if (!strcmp(cmd, "get_sequence")) {
-    PmSequence *s = show.find(req["seq"] | 0);  // "seq", never "id": that is the request number
+    PmSequence *s = showp ? show.find(req["seq"] | 0) : nullptr;  // "seq", never "id": that is the request number
     if (!s) { fail(resp, "no such sequence on this node"); return true; }
     pm_sequence_to_json(*s, resp["sequence"].to<JsonObject>());
     return true;
@@ -537,6 +552,7 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     if (!err) err = pm_check_sequence(s, pm_channels_config());
     if (err) { fail(resp, err); return true; }
     if (req["at"].is<uint32_t>() || !s.at) s.at = req_at(req);
+    if (!ensure_show()) { fail(resp, "out of memory for the show engine"); return true; }
     PmSequence *have = show.find(s.id);
     if (have && stale(resp, s.at, have->at)) return true;
     player.stop_all();  // the store moves under any running pointer
@@ -546,11 +562,12 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "delete_sequence")) {
+    if (!showp) return true;  // deleting what isn't there is fine
     PmSequence *have = show.find(req["seq"] | 0);
     if (have && stale(resp, req_at(req), have->at)) return true;
     player.stop_all();
     reset_loops();
-    show.remove(req["seq"] | 0);  // deleting what isn't there is fine
+    show.remove(req["seq"] | 0);
     if (!save()) fail(resp, "could not save to flash");
     return true;
   }
@@ -564,6 +581,7 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     if (!err) err = pm_check_rules(rules, n, pm_channels_config());
     if (err) { delete[] rules; fail(resp, err); return true; }
     uint32_t at = req_at(req);
+    if (!ensure_show()) { delete[] rules; fail(resp, "out of memory for the show engine"); return true; }
     if (stale(resp, at, show.rules_at)) { delete[] rules; return true; }
     memcpy(show.rules, rules, sizeof(PmRule) * PM_MAX_RULES);
     delete[] rules;

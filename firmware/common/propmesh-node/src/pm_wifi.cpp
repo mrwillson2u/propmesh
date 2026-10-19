@@ -115,6 +115,17 @@ void pm_wifi_loop() {
   }
 }
 
+void pm_wifi_rejoin() {
+  if (!want) return;
+  was_up = false;  // the driver was torn down: the next "joined" is news
+  retry_ms = RETRY_FIRST_MS;
+  WiFi.persistent(false);
+  WiFi.setAutoReconnect(false);
+  WiFi.setSleep(false);
+  begin_attempt();
+  Serial.printf("wifi: rejoining %s after the radio rebuild\n", ssid);
+}
+
 bool pm_wifi_configured() { return want; }
 bool pm_wifi_connected() { return want && WiFi.status() == WL_CONNECTED; }
 const char *pm_wifi_ip() { return pm_wifi_connected() ? ip : ""; }

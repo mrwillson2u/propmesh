@@ -13,6 +13,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_show.h"
 #include "pm_ble_tx.h"
 #include "pm_ws.h"
+#include "pm_radio.h"
 #include <esp_heap_caps.h>
 #include "pm_lastwords.h"
 #include "pm_sync.h"
@@ -170,6 +171,8 @@ static void cmd_mesh(JsonObject resp) {
   resp["tx_done"] = st->tx_done;          // completions reported back
   resp["tx_failed"] = st->tx_failed;      // completions that got no air time
   resp["tx_inflight"] = pm_mesh_tx_inflight();  // accepted, never completed: the leak (docs §6j)
+  resp["radio_rebuilds"] = pm_radio_rebuilds();
+  if (pm_radio_last_rebuild_ms()) resp["radio_rebuilt_s_ago"] = (millis() - pm_radio_last_rebuild_ms()) / 1000;
   if (pm_mesh_tx_stuck_ms()) resp["tx_stuck_s"] = pm_mesh_tx_stuck_ms() / 1000;
   // Heap, because the driver's TX buffers come from it: free now, the
   // largest piece (fragmentation), and the low-water mark since boot.
@@ -473,7 +476,10 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
     if (pm_show_mode() != 0) pm_show_hand_clear();
     pm_channels_all_off();
   }
-  else if (!strcmp(cmd, "mesh")) cmd_mesh(resp);
+  else if (!strcmp(cmd, "mesh")) {
+    if (req["recover"] | false) resp["recovered"] = pm_radio_rebuild("asked over the API");  // docs §6j test hook
+    cmd_mesh(resp);
+  }
   else if (!strcmp(cmd, "ble_scan")) cmd_ble_scan(req, resp);
   else if (!strcmp(cmd, "ble_found")) cmd_ble_found(resp);
   else if (!strcmp(cmd, "ble_pair")) cmd_ble_pair(req, resp);

@@ -320,9 +320,17 @@ void pm_mesh_set_channel(uint8_t ch) {
 }
 void pm_mesh_on_channel(void (*cb)(uint8_t)) { s_channel_cb = cb; }
 
+// The whole WiFi driver down and up, not just ESP-NOW: a driver whose
+// transmit allocations have failed keeps its wedged queue through an
+// ESP-NOW re-init and only lets go with esp_wifi_deinit — which is what
+// WiFi.mode(WIFI_OFF) does in this core (docs §6j, esp-idf #18682). A
+// bridge loses its WiFi association here; pm_wifi rejoins.
 bool pm_mesh_recover(uint8_t ch) {
-  WiFi.mode(WIFI_STA);
   esp_now_deinit();  // harmless if it was already gone
+  WiFi.mode(WIFI_OFF);
+  delay(50);
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
   if (esp_now_init() != ESP_OK) return false;
   esp_now_peer_info_t peer = {};
   memcpy(peer.peer_addr, BCAST, 6);

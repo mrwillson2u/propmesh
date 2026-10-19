@@ -19,6 +19,7 @@ void pm_sleep_begin();
 void pm_sleep_after_boot(const PmNodeConfig &cfg);
 void pm_sleep_apply(const PmNodeConfig &cfg);
 void pm_sleep_loop();
+void pm_sleep_radio_reapply();  // after pm_mesh_recover: the driver forgot its power mode and wake window
 void pm_sleep_hold(uint32_t ms);    // keep awake at least this long
 bool pm_sleep_holding();
 bool pm_sleep_supported();  // false on a mains-board build (PM_NO_SLEEP)

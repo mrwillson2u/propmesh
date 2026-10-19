@@ -23,6 +23,7 @@
 #include "pm_pinrules.h"
 #include "pm_show.h"
 #include "pm_lastwords.h"
+#include "pm_radio.h"
 #include "pm_sync.h"
 
 #ifndef PM_CHANNEL
@@ -265,18 +266,27 @@ void setup() {
 // First restart ESP-NOW; if two more minutes go by still unheard, reboot.
 // At most 3 such reboots in a row (an honestly one-way link at the edge
 // of range mustn't reboot forever); being heard for 10 min resets that.
+// With evidence, sooner: unheard for 15 s while the heap has refused the
+// driver an allocation or esp_now_send has failed since we were last
+// heard — the wedge of docs §6j — rebuilds the radio at once instead of
+// after two minutes. The rebuild is the whole driver (pm_radio).
 #define MUTE_MS 120000
+#define MUTE_EVIDENCE_MS 15000
 RTC_NOINIT_ATTR static uint32_t rtc_mute_magic, rtc_mute_reboots;
 static void mute_watch() {
-  static uint8_t stage;  // 0 fine, 1 radio restarted
+  static uint8_t stage;  // 0 fine, 1 radio rebuilt
   static uint32_t heard_since_ms = millis();
   static uint32_t last_check_ms;
+  static uint32_t fails_when_heard, txerr_when_heard;
   uint32_t now = millis();
   if (now - last_check_ms < 1000) return;
   last_check_ms = now;
   if (rtc_mute_magic != 0x4D555445) { rtc_mute_magic = 0x4D555445; rtc_mute_reboots = 0; }
   uint32_t unheard = pm_mesh_unheard_ms();
-  if (unheard < MUTE_MS) {
+  const pm_stats_t *st = pm_stats();
+  if (unheard == 0) { fails_when_heard = pm_api_alloc_failures(); txerr_when_heard = st->tx_err; }
+  bool evidence = pm_api_alloc_failures() != fails_when_heard || st->tx_err != txerr_when_heard;
+  if (unheard < MUTE_MS && !(stage == 0 && unheard >= MUTE_EVIDENCE_MS && evidence)) {
     if (unheard == 0 && stage) { Serial.println("mesh: heard again"); stage = 0; }
     if (unheard == 0 && now - heard_since_ms > 600000) rtc_mute_reboots = 0;
     if (unheard) heard_since_ms = now;
@@ -284,7 +294,6 @@ static void mute_watch() {
   }
   heard_since_ms = now;
   char detail[160];
-  const pm_stats_t *st = pm_stats();
   // With what the radio and the heap looked like at that moment (docs §6j):
   // frames accepted but never completed, and free heap / largest block.
   snprintf(detail, sizeof(detail), "neighbors heard but none hear us for %lu s; send errors %lu (last %s); inflight %lu; heap %lu/%lu; alloc fails %lu",
@@ -293,10 +302,9 @@ static void mute_watch() {
            (unsigned long)pm_mesh_tx_inflight(), (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap(),
            (unsigned long)pm_api_alloc_failures());
   if (stage == 0) {
-    pm_lastwords_note("mute: radio restarted", detail);
-    Serial.printf("mesh: MUTE — %s; restarting ESP-NOW\n", detail);
-    pm_mesh_recover(pm_mesh_channel());
-    pm_mesh_unheard_reset();
+    char why[64];
+    snprintf(why, sizeof(why), "mute: none hear us for %lu s%s", (unsigned long)(unheard / 1000), evidence ? " with the heap or sends failing" : "");
+    pm_radio_rebuild(why);
     stage = 1;
   } else if (rtc_mute_reboots < 3) {
     rtc_mute_reboots++;
