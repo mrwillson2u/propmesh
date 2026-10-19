@@ -192,8 +192,10 @@ def cmd_watch(b, a):
             hb = " ".join(f"{n}:{h}KB@{u}s" for n, (h, u) in sorted(heap.items()))
             nb = ",".join(f"{n['node']}@{n['rssi']}" for n in m.get("neighbors", []))
             emit(f"ch {m.get('channel')} wifi {m.get('wifi')} rssi {m.get('wifi_rssi')} tx {m.get('tx')} "
-                 f"tx_err {m.get('tx_err')} last {m.get('last_tx_err', '-')} unheard {m.get('unheard_s', 0)} s "
-                 f"nbrs {nb} heap {hb}")
+                 f"tx_err {m.get('tx_err')} last {m.get('last_tx_err', '-')} "
+                 f"sent {m.get('tx_sent', '-')} done {m.get('tx_done', '-')} failed {m.get('tx_failed', '-')} "
+                 f"inflight {m.get('tx_inflight', '-')} stuck {m.get('tx_stuck_s', 0)} s "
+                 f"unheard {m.get('unheard_s', 0)} s nbrs {nb} heap {hb}")
         elif m is not None:
             emit(f"mesh: NO REPLY {m}")
         time.sleep(max(0, a.every - (time.time() - t0)))
