@@ -158,6 +158,47 @@ def cmd_ota(b, a):
     print("no hello from the board yet — check the console")
 
 
+def cmd_watch(b, a):
+    """Log the bridge's mesh counters every N s to stdout (and a file with --log) until Ctrl-C.
+    Each sample is its own short connection, so a console slot is never held: the bridge
+    keeps two, and the oldest is dropped when a third arrives. One line per sample; the
+    send-error count climbing while unheard_s grows is the radio wedging (docs §6j)."""
+    out = open(a.log, "a") if a.log else None
+    def emit(line):
+        line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}"
+        print(line, flush=True)
+        if out:
+            out.write(line + "\n")
+            out.flush()
+    emit(f"watch: bridge {a.host} every {a.every:g} s")
+    try:
+        b.s.close()
+    except OSError:
+        pass
+    while True:
+        t0 = time.time()
+        try:
+            c = Bridge(a.host)
+            m = c.ask("mesh", timeout=8)
+            heap = {}
+            for e in c.frames(a.listen):  # a few seconds of heartbeats: every board's heap and uptime
+                if isinstance(e, dict) and e.get("evt") == "heartbeat":
+                    heap[e.get("node")] = (e.get("heap"), e.get("up"))
+            c.s.close()
+        except OSError as e:
+            emit(f"NO CONNECTION: {e}")
+            m = None
+        if m and m.get("ok"):
+            hb = " ".join(f"{n}:{h}KB@{u}s" for n, (h, u) in sorted(heap.items()))
+            nb = ",".join(f"{n['node']}@{n['rssi']}" for n in m.get("neighbors", []))
+            emit(f"ch {m.get('channel')} wifi {m.get('wifi')} rssi {m.get('wifi_rssi')} tx {m.get('tx')} "
+                 f"tx_err {m.get('tx_err')} last {m.get('last_tx_err', '-')} unheard {m.get('unheard_s', 0)} s "
+                 f"nbrs {nb} heap {hb}")
+        elif m is not None:
+            emit(f"mesh: NO REPLY {m}")
+        time.sleep(max(0, a.every - (time.time() - t0)))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", default=os.environ.get("PROPMESH_BRIDGE", "propmesh.local"))
@@ -172,9 +213,13 @@ def main():
     s = sub.add_parser("ota", help="update one board's firmware over the mesh")
     s.add_argument("node")
     s.add_argument("image")
+    s = sub.add_parser("watch", help="log the bridge's mesh counters (send errors, unheard, heap) until Ctrl-C")
+    s.add_argument("--every", type=float, default=60, help="seconds between samples (default 60)")
+    s.add_argument("--listen", type=float, default=6, help="seconds of heartbeats to collect per sample (default 6)")
+    s.add_argument("--log", help="also append each line to this file")
     a = p.parse_args()
     b = connect(a.host)
-    {"ask": cmd_ask, "status": cmd_status, "ota": cmd_ota}[a.what](b, a)
+    {"ask": cmd_ask, "status": cmd_status, "ota": cmd_ota, "watch": cmd_watch}[a.what](b, a)
 
 
 if __name__ == "__main__":

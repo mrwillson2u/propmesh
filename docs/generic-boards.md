@@ -1269,21 +1269,71 @@ the instruments to catch it next time, and a self-heal.
   in the boot event and `hello.last`; the console's node editor shows
   **Last restart** (reason, uptime) and **Before that** (the saved
   record) whenever either is worth reading.
-- **Caught (2026-10-18 evening):** the bridge (DevKit, build d73db6b)
-  rebooted itself after 10651 s up. `hello.last`: *mute: rebooted —
-  neighbors heard but none hear us for 120 s; send errors 492 (last
-  ESP_ERR_ESPNOW_NO_MEM)*. The radio restart two minutes earlier had not
-  cleared it; the reboot did (afterwards WiFi up at −26 dBm, channel 11,
-  `tx_err` 0). From the console this is the bridge dropping off WiFi
-  for a few minutes and coming back by itself. So the fault is the
-  ESP-NOW send queue filling — frames queue and never leave while the
-  WiFi link itself stays up. What jams it is still open. To look at
-  next time, *before* it reboots: `mesh` (`tx_err` climbing with
-  `unheard_s`), whether the router moved channel (the station follows
-  the AP; `mesh.channel` after a reboot says where ESP-NOW ended up),
-  and how many consoles were attached. The self-heal worked as
-  designed; the two-minute mute window could shrink once the cause is
-  known.
+- **Caught, and matched to a known ESP-IDF bug (2026-10-18/19).** The
+  bridge (DevKit, build d73db6b, Arduino core 3.3.12 on ESP-IDF 5.5.5)
+  rebooted itself twice: at 22:46:48 UTC after 10651 s up — `hello.last`:
+  *mute: rebooted — neighbors heard but none hear us for 120 s; send
+  errors 492 (last ESP_ERR_ESPNOW_NO_MEM)* — and again at 22:51:16, four
+  and a half minutes into the next run, with 743 errors. The radio
+  restart two minutes before each reboot had not cleared it. After the
+  second reboot: WiFi up at −26 dBm, channel 11, `tx_err` 0, and no
+  trouble for hours since (an 18k-frame OTA included). From the console
+  this was the bridge dropping off WiFi for a few minutes at a time.
+
+  **What it is.** espressif/esp-idf
+  [#18682](https://github.com/espressif/esp-idf/issues/18682) (opened
+  June 2026, still open, IDF 5.5.4/5.5.5 — ours): ESP-NOW broadcast
+  sends leak WiFi TX buffers. Send-complete callbacks stop coming for
+  some frames, their buffers are never returned to the pool, and after
+  tens of thousands of frames (20k to 103k in the reports) `esp_now_send`
+  returns `ESP_ERR_ESPNOW_NO_MEM` on every call. Receiving keeps working.
+  `esp_now_deinit`/`init` does not recover it, nor `esp_wifi_stop`/
+  `start`; a full driver teardown (`esp_wifi_deinit` + `init` — in the
+  Arduino core, `WiFi.mode(WIFI_OFF)` then `WIFI_STA`, which does both)
+  recovers in about a second, and so does a reboot. That is exactly the
+  shape here: `pm_mesh_recover` is ESP-NOW-only, so stage 1 could not
+  help, and the stage-2 reboot did. It also fits Prop's September mute
+  (received everything, sent nothing, nothing in the log — the "root
+  cause still unknown" above). Same family: [#19238](https://github.com/espressif/esp-idf/issues/19238)
+  (C5, IDF 6.1, TX stops for good under TCP load while RX keeps working).
+  Reporters' workarounds, unconfirmed by Espressif: pace sends to one in
+  flight, clocked by the send callback with a 2 s dead-man; keep blocking
+  work off the loop; a clean channel. No fix from Espressif as of
+  October 2026. For scale: the bridge's own sends run at about 0.4/s
+  idle (1200 in 50 min) and an OTA is about 18k in five minutes, with
+  relays (every frame heard is rebroadcast) on top — so a day of idle
+  mesh is one OTA's worth, and the yard on show night is well inside the
+  reported range.
+
+  **What does not fit:** the second mute began within the first minutes
+  of a fresh boot. A fresh driver has a fresh pool, so either the first
+  reboot came up into the same jam from outside (a busy channel) or the
+  detector misjudged a fresh boot. The watch log (below) is there to
+  catch which.
+
+  **Proposed fix, not built — Colin to say which:**
+  1. `pm_mesh_recover` becomes the full teardown: `WiFi.mode(WIFI_OFF)`,
+     `WIFI_STA`, ESP-NOW init, peer, callbacks, channel; the bridge then
+     rejoins WiFi on its own schedule (`pm_wifi_loop`). Stage 1 would
+     then actually work, in a second or two, uptime and state kept.
+  2. Register a send callback and count frames in flight; when callbacks
+     stop (eight or more outstanding and none completing for 5 s),
+     rebuild the radio at once and note it in last words — the bridge
+     back in seconds instead of four minutes, before anyone notices.
+     `mesh` reports `tx_cb` and `tx_inflight`.
+  3. The prevention the reporters found: a one-in-flight send queue in
+     `pm_mesh` (sends and relays alike), the next frame dispatched from
+     the loop when the last completed, TIME beacons re-stamped at
+     dispatch so queueing never becomes clock error. The DevKit's static
+     RAM is already at 96.6 KB, so the queue is heap-allocated in init.
+     The biggest change of the three; worth it only if 1–2 still leave
+     visible gaps.
+
+  **Instrument:** `tools/bridge.py watch` logs the bridge's channel, WiFi,
+  `tx`/`tx_err`/`last_tx_err`, `unheard_s`, neighbors and every board's
+  heap and uptime once a minute, each sample its own short connection so
+  it never holds a console slot. Running on the server since 2026-10-19
+  00:45 UTC into `~/propmesh-logs/bridge-watch.log`.
 - **Next time it happens:** open the board in the console (over WiFi,
   or USB) *before* power-cycling — `hello.last`, `mesh.tx_err` and
   `unheard_s` say what happened, and if the detector fired the board
