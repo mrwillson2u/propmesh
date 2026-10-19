@@ -147,8 +147,12 @@ void pm_ws_loop() {
   for (int i = 0; i < WS_CLIENTS; i++) {
     WsClient &c = clients[i];
     if (!c.sock) { if (c.buf) drop(c); continue; }
+    if (!c.open && !c.buf) { drop(c); continue; }  // mid-handshake with no buffer: can't happen, be safe
     if (!c.sock.connected()) { drop(c); continue; }
     while (c.sock.available() && c.len < WS_MAX_MSG) {
+      // The 4 KB buffer exists only while bytes are arriving: an idle
+      // console held 4 KB of the bridge's thin heap for nothing (docs §6j).
+      if (!c.buf && !(c.buf = (uint8_t *)malloc(WS_MAX_MSG + 1))) { drop(c); break; }
       c.buf[c.len++] = (uint8_t)c.sock.read();
       c.last_rx_ms = now;
       if (!c.open) {
@@ -163,6 +167,7 @@ void pm_ws_loop() {
       }
     }
     if (c.sock && c.len >= WS_MAX_MSG) drop(c);  // garbage, or a message too big
+    if (c.sock && c.open && c.buf && c.len == 0) { free(c.buf); c.buf = nullptr; }  // between messages: give it back
     if (c.sock && (uint32_t)(now - c.last_rx_ms) > WS_IDLE_MS) drop(c);
     // Ping an open client now and then: a dead one errors on the write
     // (or never pongs, and the idle timeout gets it).
