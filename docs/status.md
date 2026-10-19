@@ -71,6 +71,10 @@ Run these with the boards in hand. Protocol: write out what to watch,
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
    page; the C3 is the one with the known range complaint.
+1f. **Bridge mute reboots** — matched to esp-idf #18682 (ESP-NOW TX
+   buffer leak, IDF 5.5.x): generic-boards §6j has the record, the
+   three-step fix proposal and the `bridge.py watch` log. Decide which
+   steps to build; the watch log on the server catches the next one.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
