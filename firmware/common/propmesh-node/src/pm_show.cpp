@@ -482,7 +482,7 @@ static void put_mode(JsonObject resp) {
   uint8_t on = 0;
   for (uint8_t i = 0; i < cfg.channel_count; i++) {
     const PmChannelCfg &c = cfg.channels[i];
-    if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN) continue;
+    if (c.kind == PM_CHANNEL_KIND_DIGITAL_IN || c.kind == PM_CHANNEL_KIND_BATTERY) continue;  // inputs
     int32_t v = pm_channel_get(c.kind, c.index);
     if (c.kind == PM_CHANNEL_KIND_SERVO ? v >= 0 : v != 0) on++;
   }

@@ -114,6 +114,7 @@ def cmd_ota(b, a):
     """Stream an app image (firmware.bin, not .factory.bin) to one board: WiFi → bridge → mesh."""
     img = open(a.image, "rb").read()
     sha = hashlib.sha256(img).hexdigest()
+    before = (b.ask("hello", node=a.node, timeout=12) or {}).get("build")  # to tell a rollback afterwards
     r = b.ask("ota_begin", node=a.node, size=len(img), sha256=sha, timeout=12)
     print("begin:", r, flush=True)
     if not r or not r.get("ok"):
@@ -141,11 +142,16 @@ def cmd_ota(b, a):
             last = time.time()
             print(f"  {off * 100 // len(img)} %  {time.time() - t0:.0f} s", flush=True)
     print("end:", b.ask("ota_end", node=a.node, timeout=12), f"after {time.time() - t0:.0f} s", flush=True)
+    t_end = time.time()
     time.sleep(15)
     for _ in range(8):
         h = b.ask("hello", node=a.node, timeout=12)
         if h and h.get("ok"):
-            print("back:", h.get("build"), "reset:", h.get("reset"))
+            print("back:", h.get("build"), "reset:", h.get("reset"), f"up {h.get('up_s')} s,",
+                  f"{time.time() - t_end:.0f} s after end")
+            if h.get("build") == before:
+                print("the board is on the SAME build as before: the new image did not survive its first boot "
+                      "and the bootloader rolled back (reset reason above says why it died)")
             return
         time.sleep(4)
     print("no hello from the board yet — check the console")
