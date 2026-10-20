@@ -1055,6 +1055,18 @@ The board from the lantern fire test, as a third profile:
   (green LED off), and the console reads the charger's voltage while
   plugged in, not the cell's resting voltage. For a big cell, charge it
   off-board; the SuperMini's charger is for small ones.
+  Raising it (Colin asked, 2026-10-20; not done): the TP4054 sets
+  I = 1000 / R_PROG (10 kΩ → 100 mA), 500 mA at most, so 2 kΩ is the
+  ceiling; a resistor soldered on top of PR3 in parallel avoids
+  removing the 0201 (10 k ∥ 2.49 k ≈ 2 k → 500 mA; 10 k ∥ 4.99 k ≈
+  3.3 k → 300 mA). The chip limits its own junction to ~120 °C by
+  cutting current, so it can't cook itself, but in SOT-23-5 on this
+  board it dissipates (5 V − V_cell) × I — up to 1 W at 500 mA on a
+  flat cell — and will throttle to well under 500 mA while the board
+  runs hot next to the module, inside the candle. The cell must take
+  it (≤ 1C: 500 mA needs ≥ 500 mAh) and the USB supply must give
+  ~600 mA. 300 mA is the comfortable choice. The PROG pin reads the
+  real charge current: I = V_PROG / R_PROG × 1000.
   What lights the blue LED in the failed state isn't proven, but it is
   no longer needed to diagnose it. The C3 SuperMini has the same
   GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
