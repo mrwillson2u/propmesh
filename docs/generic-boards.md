@@ -1045,6 +1045,16 @@ The board from the lantern fire test, as a third profile:
   off full, blinks with no battery — the "BAT"/"CL" pair by the USB
   socket), PD2 **blue** on **GPIO15 via 1 kΩ to GND, lit when GPIO15 is
   HIGH**; GPIO15 (the JTAG-source strap) has no internal pull either.
+  And the charger (2026-10-20, the candle took a night to reach 3.96 V):
+  the TP4054's PROG pin has **PR3 = 10 kΩ**, which sets the charge
+  current at **100 mA**. Power path: USB VBUS → PD1 → VCC → the 3.3 V
+  regulator; BAT → PD2 → VCC. So on USB the board itself runs from USB
+  and the whole 100 mA goes into the cell, less whatever hangs off the
+  cell directly (the candle's LED and coil, 10–25 mA while lit). A cell
+  of 1500–2000 mAh from empty is 15–20 hours, charging ends at 4.2 V
+  (green LED off), and the console reads the charger's voltage while
+  plugged in, not the cell's resting voltage. For a big cell, charge it
+  off-board; the SuperMini's charger is for small ones.
   What lights the blue LED in the failed state isn't proven, but it is
   no longer needed to diagnose it. The C3 SuperMini has the same
   GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
