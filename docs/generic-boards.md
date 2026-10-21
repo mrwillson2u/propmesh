@@ -696,6 +696,24 @@ first.
   Prop and Skellitor Head reappeared on 11 on their own. Note: the
   devkit's USB-serial chip stays enumerated through an ESP32 reboot, so
   the console does *not* lose the port when the bridge updates.
+  **A board that has never heard anyone searches differently (2026-10-21).**
+  Fresh out of the installer a board starts on channel 1; with the 1 s
+  dwell it had one chance in three per pass of catching the bridge on
+  11, and a new C6 sat on 1 for ten minutes as its own conductor, its
+  heartbeats reaching the bridge once a minute with an empty neighbor
+  list, every request to it timing out. Now, until it has heard a frame
+  from any PropMesh board: the first sweep starts 5 s after boot, each
+  channel gets a heartbeat period plus a second (6 s), the first valid
+  frame from our net ends the sweep on that channel (nodes sit where the
+  bridge is), and sweeps repeat after a 5 s rest instead of two minutes.
+  Worst case to join: one pass, about 80 s. A board that has heard
+  someone keeps the old rules, so a bridgeless mesh still spends only a
+  tenth of its time off channel. **Tried on that C6 (2026-10-21):**
+  stored channel set to 1 over USB, power-cycled; its heartbeat reached
+  the bridge from channel 10 at 59 s after boot (the sweep's tenth step:
+  5 s + 9 × 6 s), and from 11, hearing the bridge, at 64 s. One pass,
+  no hands. (A first reading of 60 s was taken before the power-cycle
+  and measured nothing; this one is the test.)
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the

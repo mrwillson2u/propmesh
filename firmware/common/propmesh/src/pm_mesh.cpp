@@ -86,6 +86,17 @@ void pm_mesh_set_stale_ms(uint32_t ms) { s_stale_ms = ms; }
 #define BRIDGE_LOST_MS 30000
 #define SCAN_RETRY_MS 120000
 #define SCAN_DWELL_MS 1000
+// A board that has never heard anyone (fresh out of the installer, on the
+// default channel) has nothing to lose by searching properly: a dwell
+// longer than a heartbeat period, so one pass is enough, the first frame
+// from any PropMesh board ends it, and it sweeps again after a short rest
+// instead of two minutes. A 1 s dwell gave a new C6 one chance in three
+// per pass of catching the bridge on 11, and it sat on 1 for ten minutes
+// as its own conductor (2026-10-21).
+#define FRESH_DWELL_MS (PM_HEARTBEAT_PERIOD_MS + 1000)
+#define FRESH_START_MS 5000
+#define FRESH_REST_MS 5000
+static bool s_heard_peer;  // any valid frame from our net since boot
 
 // Relay queue: frames waiting out their jitter before rebroadcast.
 // Small and fixed — under cue/heartbeat load this rarely holds >2 frames.
@@ -123,6 +134,16 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   const uint8_t *payload = data + sizeof(hdr);
   uint8_t plen = len - sizeof(hdr);
   int8_t rssi = info->rx_ctrl ? info->rx_ctrl->rssi : 0;
+
+  // Someone from our net on this channel: a fresh board's search is over
+  // (nodes sit on the bridge's channel, so this is where the mesh lives).
+  if (!s_heard_peer) {
+    s_heard_peer = true;
+    if (s_scan_ch && !s_last_bridge_ms) {
+      s_scan_ch = 0;
+      if (s_channel_cb) s_channel_cb(s_channel);
+    }
+  }
 
   // A heartbeat that has not been relayed came straight off this node's
   // radio, so its source is a direct neighbor. Heartbeats always go out
@@ -355,8 +376,9 @@ bool pm_mesh_scanning() { return s_scan_ch != 0; }
 // where we were (the bridge is simply off), try again in 2 min.
 static void follow_bridge(uint32_t now) {
   if (s_role & PM_NODE_ROLE_BRIDGE) return;
+  bool fresh = !s_last_bridge_ms && !s_heard_peer;  // never heard a soul
   if (s_scan_ch) {
-    if ((uint32_t)(now - s_scan_step_ms) < SCAN_DWELL_MS) return;
+    if ((uint32_t)(now - s_scan_step_ms) < (fresh ? FRESH_DWELL_MS : SCAN_DWELL_MS)) return;
     s_scan_step_ms = now;
     if (s_scan_ch >= 13) {  // nothing on any channel
       s_scan_ch = 0;
@@ -368,9 +390,14 @@ static void follow_bridge(uint32_t now) {
     return;
   }
   uint32_t since = now - (s_last_bridge_ms ? s_last_bridge_ms : 0);
-  // Listening in windows: allow the sync tolerance before calling the bridge gone.
-  if (since < (s_stale_ms > BRIDGE_LOST_MS ? s_stale_ms : BRIDGE_LOST_MS)) return;
-  if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < SCAN_RETRY_MS) return;
+  if (fresh) {
+    if (since < FRESH_START_MS) return;
+    if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < 13 * FRESH_DWELL_MS + FRESH_REST_MS) return;
+  } else {
+    // Listening in windows: allow the sync tolerance before calling the bridge gone.
+    if (since < (s_stale_ms > BRIDGE_LOST_MS ? s_stale_ms : BRIDGE_LOST_MS)) return;
+    if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < SCAN_RETRY_MS) return;
+  }
   s_last_scan_ms = now ? now : 1;
   s_scan_home = pm_mesh_channel();
   s_scan_ch = 1;
