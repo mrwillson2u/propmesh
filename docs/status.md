@@ -76,6 +76,12 @@ Run these with the boards in hand. Protocol: write out what to watch,
    restart in the firmware. Meanwhile flash it over USB. Also: the
    candle drained its cell to 3.53 V in a day because it is set to mains
    power — tick On battery, and light it with an ambient loop (§6n).
+1d2. **Fresh board finds the mesh** — §6d note of 2026-10-21: a new
+   C6 on channel 1 took ten minutes to find the bridge on 11. Fix built
+   (6 s dwell, stop on any frame, repeat): watch a fresh board join
+   within about 80 s of power-on. Until then, a board that won't show
+   up can be put on the bridge's channel over USB with
+   `{"cmd":"mesh_channel","ch":11}`.
 1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
