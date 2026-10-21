@@ -216,6 +216,10 @@ tunnel for that). No login: anyone on the home network can open it.
   (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
   at boot). `systemctl --user status propmesh-console`.
 - Update after merging to dev: `~/bin/propmesh-console-update`.
+  If Chrome says "address unreachable" for that page while Safari or
+  `curl` loads it, quit Chrome fully (Cmd-Q) and reopen: its network
+  process keeps stale routes after a change of network (2026-10-21).
+  Port 5181 is only a temporary dev server; 5180 is the console.
 
 **Not in git — copy or recreate deliberately**
 - **Claude's memory** — `~/.claude/projects/<path>/memory/` on the Mac
