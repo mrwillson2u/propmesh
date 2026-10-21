@@ -79,7 +79,7 @@ Run these with the boards in hand. Protocol: write out what to watch,
 1d2. **Fresh board finds the mesh** — §6d note of 2026-10-21: a new
    C6 on channel 1 took ten minutes to find the bridge on 11. Fix built
    and ✅ tried on that C6 the same night: from channel 1 at power-on to
-   hearing the bridge in 60 s. A board on an older build that won't
+   hearing the bridge in 64 s. A board on an older build that won't
    show up can still be put on the bridge's channel over USB with
    `{"cmd":"mesh_channel","ch":11}`.
 1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
