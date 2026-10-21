@@ -40,7 +40,7 @@ pinout_url: https://mischianti.org/esp32-c6-supermini-high-resolution-pinout-dat
 variants:
   - "Header order differs between sellers. Go by the GPIO numbers printed on the board."
   - "Most have a WS2812 pixel on GPIO 8 and a blue status LED on GPIO 15. One seller's version is reported to put the pixel elsewhere; if GPIO 8 does nothing, that may be why."
-  - "Some versions have battery pads (**B+** / **B−** or **BAT**) with a small charger behind them, and a green charging LED. Others have none. Either way there is no battery-sense pin, so the console can't show the battery voltage on this board."
+  - "Some versions have battery pads (**B+** / **B−** or **BAT**) with a small charger behind them (a TP4054 set to 100 mA, so a 2000 mAh cell takes most of a day from empty; the green LED is on while charging and off when full) and others have none. There is no battery-sense pin, so the console shows the battery voltage only if you add a resistor divider to an ADC pin."
   - "The RGB pixel and the power LED draw about a milliamp even when the pixel is off, which is most of this board's deep-sleep current. People who need months on a battery remove them."
 ledc_channels: 6              # the C6 has 6 LEDC channels (ESP32: 16)
 rmt_tx_channels: 2            # 2 RMT TX channels → at most 2 strips
