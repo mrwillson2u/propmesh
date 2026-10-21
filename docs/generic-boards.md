@@ -708,8 +708,10 @@ first.
   bridge is), and sweeps repeat after a 5 s rest instead of two minutes.
   Worst case to join: one pass, about 80 s. A board that has heard
   someone keeps the old rules, so a bridgeless mesh still spends only a
-  tenth of its time off channel. To be tried on the new C6: stored
-  channel set to 1 over USB, power-cycle, time to join.
+  tenth of its time off channel. **Tried on that C6 (2026-10-21):**
+  stored channel set to 1 over USB, power-cycled; heartbeat on channel
+  11 at 55 s after boot, hearing the bridge at 60 s, in the console
+  right after. One pass, no hands.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
