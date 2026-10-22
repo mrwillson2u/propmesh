@@ -23,7 +23,9 @@ struct WsClient {
 };
 static WsClient clients[WS_CLIENTS];
 
+static void (*on_close)(uint8_t);
 static void drop(WsClient &c) {
+  if (on_close && (c.sock || c.open)) on_close((uint8_t)(&c - clients));
   c.sock.stop();
   free(c.buf);
   c.buf = nullptr;
@@ -183,6 +185,8 @@ void pm_ws_loop() {
 // frame in that time is dropped (the console reconnects by itself).
 // (availableForWrite() is not implemented for these sockets — it returns
 // 0 — so gating on it silenced every client, 2026-10-11.)
+void pm_ws_on_close(void (*cb)(uint8_t)) { on_close = cb; }
+
 void pm_ws_send_to(uint8_t client, const char *json, size_t len) {
   if (client >= WS_CLIENTS) return;
   WsClient &c = clients[client];

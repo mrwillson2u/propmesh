@@ -73,6 +73,7 @@ static void ws_loop() {
   if (!started && pm_wifi_connected()) {
     started = true;
     pm_ws_begin(81, [](char *l, size_t n, uint8_t c) { pm_link_request(l, n, (int8_t)c); });
+    pm_ws_on_close([](uint8_t c) { pm_link_forget_client((int8_t)c); });
   }
   pm_ws_loop();
 }

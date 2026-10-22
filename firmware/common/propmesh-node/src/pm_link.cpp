@@ -392,6 +392,10 @@ void pm_link_input(uint8_t index, bool active) {
   send_frame(PM_MSG_TYPE_STATE, &st, sizeof(st));
 }
 
+void pm_link_forget_client(int8_t client) {
+  for (Pending &p : s_pending) if (p.used && !p.cb && p.client == client) drop(p);
+}
+
 void pm_link_event(JsonDocument &evt) {
   int8_t was = s_reply_to;  // an event raised while answering a request still goes to everyone
   s_reply_to = PM_TO_ALL;

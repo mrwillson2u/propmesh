@@ -29,6 +29,9 @@ void pm_link_begin(pm_line_out_t out);
 // every reply and match by request number, so two consoles' numbers
 // colliding handed one the other's reply or timeout (2026-10-21).
 void pm_link_request(const char *json, size_t len, int8_t from);
+// A console left: forget its unanswered requests, so a new console in the
+// same slot can never receive a reply meant for the old one.
+void pm_link_forget_client(int8_t client);
 // This node's own request to another node (a follower pulling the show
 // from the conductor, docs §6k). `cb` gets the reply JSON, or nullptr
 // after 3 tries with no answer. One in flight per caller is plenty.
