@@ -732,9 +732,10 @@ first.
   are on demand, so an idle slot costs a socket. **Tested on the bridge
   (2026-10-21):** two clients sending identical request numbers 1–40 at
   once, one asking `hello`, the other `mesh`: 40/40 correct each, no
-  cross-talk, nothing unanswered. The same over the mesh to a node is
-  to be run when one is powered: with none on, each client got only its
-  own `no reply from node`, which is the right half of the answer.
+  cross-talk, nothing unanswered. The same over the mesh to a C6
+  (identical numbers 100–109, one client asking its `hello`, the other
+  its `state`): 10/10 correct each, no cross-talk. With no board on,
+  each client got only its own `no reply from node`, also right.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
