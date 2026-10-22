@@ -34,7 +34,7 @@ class Bridge:
         if b" 101 " not in head.split(b"\r\n", 1)[0]:
             raise ConnectionError(head.split(b"\r\n", 1)[0].decode(errors="replace"))
         self.buf = head.split(b"\r\n\r\n", 1)[1]
-        self.n = 1000
+        self.n = 0  # unused: request numbers are random (see ask)
         self.events = []  # unsolicited messages (heartbeats, sensor events) seen while waiting
 
     def send(self, obj):
@@ -68,8 +68,9 @@ class Bridge:
 
     def ask(self, cmd, timeout=8, **body):
         """Send one request; return its reply, or None on timeout."""
-        self.n += 1
-        i = self.n
+        # Random, like the console's: the bridge answers the asking client
+        # only, and a random 52-bit number keeps that true by itself too.
+        i = random.getrandbits(52) or 1
         self.send({"cmd": cmd, "id": i, **body})
         for m in self.frames(timeout):
             if m.get("id") == i:

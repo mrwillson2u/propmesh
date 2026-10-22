@@ -140,7 +140,18 @@ abstract class LineLink implements NodeLink {
   protected abstract writeLine(line: string): Promise<void>;
   abstract close(): Promise<void>;
 
-  private nextId = 1;
+  // Request numbers are random, not a counter: two consoles on one bridge
+  // used to collide once a counter had climbed into the other's range, and
+  // the bridge handed each the other's reply (2026-10-21). The bridge now
+  // routes replies to the asking client, and a random 52-bit number means
+  // a collision stays impossible even if that routing changes some day.
+  private newId(): number {
+    const r = new Uint32Array(2);
+    crypto.getRandomValues(r);
+    let id = r[0] * 0x100000 + (r[1] & 0xFFFFF);  // 52 bits, a safe integer
+    while (id === 0 || this.pending.has(id)) id = (id + 1) % 0x10000000000000;
+    return id;
+  }
   private pending = new Map<number, { resolve: (r: Reply) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   protected events = new Listeners<NodeEvent>();
   private logs = new Listeners<string>();
@@ -185,7 +196,7 @@ abstract class LineLink implements NodeLink {
     // body field of the same name silently replaced it (get_sequence
     // {id} did, 2026-10-05) and the reply never matched — refuse loudly.
     if ("id" in body) return Promise.reject(new Error(`"${cmd}": "id" is reserved for the request number — name the field something else`));
-    const id = this.nextId++;
+    const id = this.newId();
     return new Promise<Reply>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
