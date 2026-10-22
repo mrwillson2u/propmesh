@@ -725,7 +725,16 @@ first.
   reply or "no reply from node"; a page reload restarted his numbers
   and it worked. Replies now go only to the client that asked
   (`pm_link_request` carries the slot; `pm_ws_send_to`); events still
-  go to everyone.
+  go to everyone. Request numbers in the console and `bridge.py` are
+  random 52-bit values now, not counters, so a collision stays
+  impossible even if the routing ever changes. And the bridge takes
+  three consoles (a laptop, a phone, the server's watch tool); buffers
+  are on demand, so an idle slot costs a socket. **Tested on the bridge
+  (2026-10-21):** two clients sending identical request numbers 1–40 at
+  once, one asking `hello`, the other `mesh`: 40/40 correct each, no
+  cross-talk, nothing unanswered. The same over the mesh to a node is
+  to be run when one is powered: with none on, each client got only its
+  own `no reply from node`, which is the right half of the answer.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
