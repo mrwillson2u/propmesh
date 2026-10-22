@@ -14,7 +14,7 @@ this works alongside an open console tab.
 Bridge address: --host, else $PROPMESH_BRIDGE, else propmesh.local.
 Never touches a serial port (opening a devkit's USB port resets it).
 """
-import argparse, base64, hashlib, json, os, socket, struct, sys, time
+import argparse, base64, hashlib, json, os, random, socket, struct, sys, time
 
 
 class Bridge:
