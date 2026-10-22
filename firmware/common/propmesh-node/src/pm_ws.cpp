@@ -4,7 +4,7 @@
 #include <mbedtls/sha1.h>
 #include "pm_ws.h"
 
-#define WS_CLIENTS 2
+#define WS_CLIENTS 3  // a laptop, a phone in the yard, and the server's watch tool; buffers are on demand, so a slot idle costs a socket only
 #define WS_MAX_MSG 4096
 #define WS_IDLE_MS 90000  // drop a client that sends nothing (not even a pong) this long
 #define WS_PING_MS 20000  // server pings: a console that vanished without a close fails fast
