@@ -696,6 +696,24 @@ first.
   Prop and Skellitor Head reappeared on 11 on their own. Note: the
   devkit's USB-serial chip stays enumerated through an ESP32 reboot, so
   the console does *not* lose the port when the bridge updates.
+  **A board that has never heard anyone searches differently (2026-10-21).**
+  Fresh out of the installer a board starts on channel 1; with the 1 s
+  dwell it had one chance in three per pass of catching the bridge on
+  11, and a new C6 sat on 1 for ten minutes as its own conductor, its
+  heartbeats reaching the bridge once a minute with an empty neighbor
+  list, every request to it timing out. Now, until it has heard a frame
+  from any PropMesh board: the first sweep starts 5 s after boot, each
+  channel gets a heartbeat period plus a second (6 s), the first valid
+  frame from our net ends the sweep on that channel (nodes sit where the
+  bridge is), and sweeps repeat after a 5 s rest instead of two minutes.
+  Worst case to join: one pass, about 80 s. A board that has heard
+  someone keeps the old rules, so a bridgeless mesh still spends only a
+  tenth of its time off channel. **Tried on that C6 (2026-10-21):**
+  stored channel set to 1 over USB, power-cycled; its heartbeat reached
+  the bridge from channel 10 at 59 s after boot (the sweep's tenth step:
+  5 s + 9 × 6 s), and from 11, hearing the bridge, at 64 s. One pass,
+  no hands. (A first reading of 60 s was taken before the power-cycle
+  and measured nothing; this one is the test.)
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
@@ -1045,6 +1063,28 @@ The board from the lantern fire test, as a third profile:
   off full, blinks with no battery — the "BAT"/"CL" pair by the USB
   socket), PD2 **blue** on **GPIO15 via 1 kΩ to GND, lit when GPIO15 is
   HIGH**; GPIO15 (the JTAG-source strap) has no internal pull either.
+  And the charger (2026-10-20, the candle took a night to reach 3.96 V):
+  the TP4054's PROG pin has **PR3 = 10 kΩ**, which sets the charge
+  current at **100 mA**. Power path: USB VBUS → PD1 → VCC → the 3.3 V
+  regulator; BAT → PD2 → VCC. So on USB the board itself runs from USB
+  and the whole 100 mA goes into the cell, less whatever hangs off the
+  cell directly (the candle's LED and coil, 10–25 mA while lit). A cell
+  of 1500–2000 mAh from empty is 15–20 hours, charging ends at 4.2 V
+  (green LED off), and the console reads the charger's voltage while
+  plugged in, not the cell's resting voltage. For a big cell, charge it
+  off-board; the SuperMini's charger is for small ones.
+  Raising it (Colin asked, 2026-10-20; not done): the TP4054 sets
+  I = 1000 / R_PROG (10 kΩ → 100 mA), 500 mA at most, so 2 kΩ is the
+  ceiling; a resistor soldered on top of PR3 in parallel avoids
+  removing the 0201 (10 k ∥ 2.49 k ≈ 2 k → 500 mA; 10 k ∥ 4.99 k ≈
+  3.3 k → 300 mA). The chip limits its own junction to ~120 °C by
+  cutting current, so it can't cook itself, but in SOT-23-5 on this
+  board it dissipates (5 V − V_cell) × I — up to 1 W at 500 mA on a
+  flat cell — and will throttle to well under 500 mA while the board
+  runs hot next to the module, inside the candle. The cell must take
+  it (≤ 1C: 500 mA needs ≥ 500 mAh) and the USB supply must give
+  ~600 mA. 300 mA is the comfortable choice. The PROG pin reads the
+  real charge current: I = V_PROG / R_PROG × 1000.
   What lights the blue LED in the failed state isn't proven, but it is
   no longer needed to diagnose it. The C3 SuperMini has the same
   GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its

@@ -161,6 +161,11 @@ export default function App() {
           {VIEWS.filter((v) => v.name !== "Settings").map(navBtn)}
           <div style={{ flex: 1 }} />
           {navBtn(VIEWS.find((v) => v.name === "Settings")!)}
+          <a href="https://mrwillson2u.github.io/propmesh/" target="_blank" rel="noreferrer" title="The PropMesh docs: guides, board pages, the installer"
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 6, flex: "none",
+              border: "1px solid transparent", font: "500 12.5px system-ui", color: C.t3, textDecoration: "none" }}>
+            <span style={{ fontSize: 13 }}>?</span>Docs ↗
+          </a>
         </div>
         {!demo && (
           <div style={{ flex: "none", padding: "10px 12px", borderTop: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 7, font: `600 10.5px ${MONO}` }}>

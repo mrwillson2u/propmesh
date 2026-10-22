@@ -76,6 +76,12 @@ Run these with the boards in hand. Protocol: write out what to watch,
    restart in the firmware. Meanwhile flash it over USB. Also: the
    candle drained its cell to 3.53 V in a day because it is set to mains
    power — tick On battery, and light it with an ambient loop (§6n).
+1d2. **Fresh board finds the mesh** — §6d note of 2026-10-21: a new
+   C6 on channel 1 took ten minutes to find the bridge on 11. Fix built
+   and ✅ tried on that C6 the same night: from channel 1 at power-on to
+   hearing the bridge in 64 s. A board on an older build that won't
+   show up can still be put on the bridge's channel over USB with
+   `{"cmd":"mesh_channel","ch":11}`.
 1e. **C6 vs DevKit range** (low priority, Colin 2026-10-17): a C6
    SuperMini and a DevKit at the same spot in the yard, compare RSSI on
    the Yard. Puts a number on the C6's ceramic antenna for its board
@@ -216,6 +222,10 @@ tunnel for that). No login: anyone on the home network can open it.
   (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
   at boot). `systemctl --user status propmesh-console`.
 - Update after merging to dev: `~/bin/propmesh-console-update`.
+  If Chrome says "address unreachable" for that page while Safari or
+  `curl` loads it, quit Chrome fully (Cmd-Q) and reopen: its network
+  process keeps stale routes after a change of network (2026-10-21).
+  Port 5181 is only a temporary dev server; 5180 is the console.
 
 **Not in git — copy or recreate deliberately**
 - **Claude's memory** — `~/.claude/projects/<path>/memory/` on the Mac
