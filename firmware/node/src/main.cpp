@@ -56,10 +56,15 @@ static void on_input(uint8_t index, bool active) {
 }
 
 // Every reply and event goes up the cable and to any console on WiFi.
-static void out_line(const char *json, size_t len) {
-  Serial.write((const uint8_t *)json, len);
-  Serial.println();
-  pm_ws_send(json, len);
+// A reply goes to whoever asked (the USB console or one WebSocket client);
+// an event goes to everyone.
+static void out_line(const char *json, size_t len, int8_t to) {
+  if (to == PM_TO_ALL || to == PM_FROM_SERIAL) {
+    Serial.write((const uint8_t *)json, len);
+    Serial.println();
+  }
+  if (to == PM_TO_ALL) pm_ws_send(json, len);
+  else if (to >= 0) pm_ws_send_to((uint8_t)to, json, len);
 }
 
 // A bridge on WiFi serves consoles over WebSocket too (docs §6d stage B).
@@ -67,7 +72,7 @@ static void ws_loop() {
   static bool started;
   if (!started && pm_wifi_connected()) {
     started = true;
-    pm_ws_begin(81, [](char *l, size_t n) { pm_link_request(l, n); });
+    pm_ws_begin(81, [](char *l, size_t n, uint8_t c) { pm_link_request(l, n, (int8_t)c); });
   }
   pm_ws_loop();
 }
@@ -87,7 +92,7 @@ static void serial_loop() {
         resp["error"] = "line too long";
         send(resp);
       } else if (line_len) {
-        pm_link_request(line, line_len);
+        pm_link_request(line, line_len, PM_FROM_SERIAL);
       }
       line_len = 0;
       line_overflow = false;

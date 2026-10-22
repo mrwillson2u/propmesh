@@ -11,7 +11,7 @@
 #define WS_WRITE_MS 250   // longest one socket write may hold the main loop
 
 static WiFiServer *server;
-static void (*handler)(char *, size_t);
+static void (*handler)(char *, size_t, uint8_t);
 
 struct WsClient {
   WiFiClient sock;
@@ -81,7 +81,7 @@ static bool handshake(WsClient &c) {
 
 // Parse what's buffered as a client->server frame (masked). Returns bytes
 // consumed, 0 if incomplete, -1 to drop the client.
-static int frame(WsClient &c) {
+static int frame(WsClient &c, uint8_t idx) {
   if (c.len < 2) return 0;
   uint8_t *b = c.buf;
   uint8_t opcode = b[0] & 0x0F;
@@ -97,7 +97,7 @@ static int frame(WsClient &c) {
   switch (opcode) {
     case 0x1:  // text: one JSON request
       p[plen] = 0;
-      if (handler && plen) handler((char *)p, plen);
+      if (handler && plen) handler((char *)p, plen, idx);
       break;
     case 0x9: send_frame(c, 0xA, p, plen); break;  // ping -> pong
     case 0x8: return -1;                           // close
@@ -106,7 +106,7 @@ static int frame(WsClient &c) {
   return (int)(pos + 4 + plen);
 }
 
-void pm_ws_begin(uint16_t port, void (*on_line)(char *, size_t)) {
+void pm_ws_begin(uint16_t port, void (*on_line)(char *, size_t, uint8_t)) {
   if (server) return;
   handler = on_line;
   server = new WiFiServer(port);
@@ -159,7 +159,7 @@ void pm_ws_loop() {
         if (!handshake(c)) { drop(c); break; }
         continue;
       }
-      int used = frame(c);
+      int used = frame(c, (uint8_t)i);
       if (used < 0) { drop(c); break; }
       if (used > 0) {  // a frame may be followed by the start of the next
         memmove(c.buf, c.buf + used, c.len - used);
@@ -183,6 +183,16 @@ void pm_ws_loop() {
 // frame in that time is dropped (the console reconnects by itself).
 // (availableForWrite() is not implemented for these sockets — it returns
 // 0 — so gating on it silenced every client, 2026-10-11.)
+void pm_ws_send_to(uint8_t client, const char *json, size_t len) {
+  if (client >= WS_CLIENTS) return;
+  WsClient &c = clients[client];
+  if (!c.sock || !c.open) return;
+  if (!send_frame(c, 0x1, (const uint8_t *)json, len)) {
+    Serial.println("ws: console not keeping up — dropped");
+    drop(c);
+  }
+}
+
 void pm_ws_send(const char *json, size_t len) {
   for (int i = 0; i < WS_CLIENTS; i++) {
     WsClient &c = clients[i];

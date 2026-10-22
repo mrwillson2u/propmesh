@@ -714,6 +714,18 @@ first.
   5 s + 9 × 6 s), and from 11, hearing the bridge, at 64 s. One pass,
   no hands. (A first reading of 60 s was taken before the power-cycle
   and measured nothing; this one is the test.)
+  **Second night (2026-10-21):** stopping on any frame was wrong — two
+  fresh boards sweeping together could stop on each other's channel; now
+  only a bridge frame ends a sweep, "fresh" means no stored channel (a
+  configured board whose bridge is off keeps the slow search and its
+  show), and five empty sweeps drop a board to the slow search. Not the
+  cause of what Colin saw that night, which was the bridge sending
+  every reply to every console: request numbers from two consoles (his,
+  and the server's tools at 1001 up) collided, and his got the other's
+  reply or "no reply from node"; a page reload restarted his numbers
+  and it worked. Replies now go only to the client that asked
+  (`pm_link_request` carries the slot; `pm_ws_send_to`); events still
+  go to everyone.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
@@ -1086,7 +1098,14 @@ The board from the lantern fire test, as a third profile:
   ~600 mA. 300 mA is the comfortable choice. The PROG pin reads the
   real charge current: I = V_PROG / R_PROG × 1000.
   What lights the blue LED in the failed state isn't proven, but it is
-  no longer needed to diagnose it. The C3 SuperMini has the same
+  no longer needed to diagnose it. **Colin's rule from the second and
+  third boards (2026-10-21):** BOOT held at plug-in puts the *factory*
+  program into install mode every time, blue LED off; once PropMesh is
+  on the board, BOOT held at plug-in gives the lit blue LED and no USB
+  device every time, while plugging in *without* BOOT lets the
+  installer restart the board into install mode itself. So the site
+  now says: hold BOOT only for the factory program. Why the floating
+  GPIO8 reads differently under the two programs is still open. The C3 SuperMini has the same
   GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
   default pull before assuming the same trick.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
