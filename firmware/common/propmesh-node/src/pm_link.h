@@ -16,12 +16,22 @@
 #include "pm_config.h"
 
 // Where JSON lines for the console go (USB serial in firmware/node).
-typedef void (*pm_line_out_t)(const char *json, size_t len);
+// Where a line goes: a reply to the client that asked, an event to everyone.
+#define PM_TO_ALL (-2)       // events: every console and the serial port
+#define PM_FROM_SERIAL (-1)  // the USB console
+typedef void (*pm_line_out_t)(const char *json, size_t len, int8_t to);
 
 void pm_link_begin(pm_line_out_t out);
 
 // One request line from the console.
-void pm_link_request(const char *json, size_t len);
+// `from`: PM_FROM_SERIAL, or the WebSocket client slot the line came in on.
+// The reply goes back there and nowhere else: every console used to get
+// every reply and match by request number, so two consoles' numbers
+// colliding handed one the other's reply or timeout (2026-10-21).
+void pm_link_request(const char *json, size_t len, int8_t from);
+// A console left: forget its unanswered requests, so a new console in the
+// same slot can never receive a reply meant for the old one.
+void pm_link_forget_client(int8_t client);
 // This node's own request to another node (a follower pulling the show
 // from the conductor, docs §6k). `cb` gets the reply JSON, or nullptr
 // after 3 tries with no answer. One in flight per caller is plenty.

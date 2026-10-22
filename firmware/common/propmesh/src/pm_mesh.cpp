@@ -93,10 +93,19 @@ void pm_mesh_set_stale_ms(uint32_t ms) { s_stale_ms = ms; }
 // instead of two minutes. A 1 s dwell gave a new C6 one chance in three
 // per pass of catching the bridge on 11, and it sat on 1 for ten minutes
 // as its own conductor (2026-10-21).
+// Only a bridge ends a fresh sweep: two fresh boards sweeping together
+// heard each other on a channel with no bridge on it, stopped there, and
+// showed up in the console once per slow sweep with every request timing
+// out (2026-10-21). And "fresh" means never having followed a bridge —
+// no stored channel — so a configured board whose bridge is off keeps the
+// slow search and its show. A fresh board that finds no bridge in
+// FRESH_PASSES sweeps drops to the slow search too.
 #define FRESH_DWELL_MS (PM_HEARTBEAT_PERIOD_MS + 1000)
 #define FRESH_START_MS 5000
 #define FRESH_REST_MS 5000
-static bool s_heard_peer;  // any valid frame from our net since boot
+#define FRESH_PASSES 5
+static bool s_fresh;        // never followed a bridge (pm_mesh_set_fresh)
+static uint8_t s_fresh_passes;
 
 // Relay queue: frames waiting out their jitter before rebroadcast.
 // Small and fixed — under cue/heartbeat load this rarely holds >2 frames.
@@ -135,15 +144,6 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   uint8_t plen = len - sizeof(hdr);
   int8_t rssi = info->rx_ctrl ? info->rx_ctrl->rssi : 0;
 
-  // Someone from our net on this channel: a fresh board's search is over
-  // (nodes sit on the bridge's channel, so this is where the mesh lives).
-  if (!s_heard_peer) {
-    s_heard_peer = true;
-    if (s_scan_ch && !s_last_bridge_ms) {
-      s_scan_ch = 0;
-      if (s_channel_cb) s_channel_cb(s_channel);
-    }
-  }
 
   // A heartbeat that has not been relayed came straight off this node's
   // radio, so its source is a direct neighbor. Heartbeats always go out
@@ -340,6 +340,7 @@ void pm_mesh_set_channel(uint8_t ch) {
   s_channel = ch;
 }
 void pm_mesh_on_channel(void (*cb)(uint8_t)) { s_channel_cb = cb; }
+void pm_mesh_set_fresh(bool fresh) { s_fresh = fresh; }
 
 // The whole WiFi driver down and up, not just ESP-NOW: a driver whose
 // transmit allocations have failed keeps its wedged queue through an
@@ -376,7 +377,7 @@ bool pm_mesh_scanning() { return s_scan_ch != 0; }
 // where we were (the bridge is simply off), try again in 2 min.
 static void follow_bridge(uint32_t now) {
   if (s_role & PM_NODE_ROLE_BRIDGE) return;
-  bool fresh = !s_last_bridge_ms && !s_heard_peer;  // never heard a soul
+  bool fresh = s_fresh && !s_last_bridge_ms && s_fresh_passes < FRESH_PASSES;
   if (s_scan_ch) {
     if ((uint32_t)(now - s_scan_step_ms) < (fresh ? FRESH_DWELL_MS : SCAN_DWELL_MS)) return;
     s_scan_step_ms = now;
@@ -393,6 +394,7 @@ static void follow_bridge(uint32_t now) {
   if (fresh) {
     if (since < FRESH_START_MS) return;
     if (s_last_scan_ms && (uint32_t)(now - s_last_scan_ms) < 13 * FRESH_DWELL_MS + FRESH_REST_MS) return;
+    s_fresh_passes++;
   } else {
     // Listening in windows: allow the sync tolerance before calling the bridge gone.
     if (since < (s_stale_ms > BRIDGE_LOST_MS ? s_stale_ms : BRIDGE_LOST_MS)) return;

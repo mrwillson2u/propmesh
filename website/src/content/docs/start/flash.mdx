@@ -31,6 +31,8 @@ The installer may offer to erase the board first. On a board that has never run 
 
 **It starts, then fails to connect, or says "Failed to initialize."** The board isn't in install mode. On a DevKit or Feather: hold **BOOT**, press and release **EN** (or **RST**), let go of BOOT, and press Install again. On a C3 or C6 SuperMini, whose USB port is part of the chip, the installer can't restart it for you: unplug it, hold **BOOT** while plugging it in, then press Install and pick the port that just appeared. After installing, press **RESET** to start the new firmware. The steps show above the Install button when one of those boards is selected. On a C6 SuperMini the BOOT trick only works some of the time, because the chip also reads pin 8 as it starts and nothing on the board holds that pin either way. Touch a jumper wire from pin **8** to **3V3** while you hold BOOT and plug in, and it works every time. If an LED next to the USB socket lights as you plug it in, that attempt didn't take: unplug and try again with the jumper.
 
+**A C3 or C6 that already runs PropMesh: don't hold BOOT.** Once PropMesh is on the board, the installer restarts it into install mode by itself, so plug it in normally and press Install. Holding BOOT while plugging in a board that runs PropMesh leaves the chip stopped with the blue LED lit and no USB device showing; unplug it and plug it back in without BOOT. Holding BOOT is only for the factory program on a brand-new board.
+
 **The page says this browser isn't supported.** The installer needs **Chrome** or **Edge** on a desktop or laptop. Safari, Firefox and phone browsers can't talk to USB devices.
 
 <Aside title="Building it yourself">

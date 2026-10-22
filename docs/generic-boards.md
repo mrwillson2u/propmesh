@@ -714,6 +714,27 @@ first.
   5 s + 9 × 6 s), and from 11, hearing the bridge, at 64 s. One pass,
   no hands. (A first reading of 60 s was taken before the power-cycle
   and measured nothing; this one is the test.)
+  **Second night (2026-10-21):** stopping on any frame was wrong — two
+  fresh boards sweeping together could stop on each other's channel; now
+  only a bridge frame ends a sweep, "fresh" means no stored channel (a
+  configured board whose bridge is off keeps the slow search and its
+  show), and five empty sweeps drop a board to the slow search. Not the
+  cause of what Colin saw that night, which was the bridge sending
+  every reply to every console: request numbers from two consoles (his,
+  and the server's tools at 1001 up) collided, and his got the other's
+  reply or "no reply from node"; a page reload restarted his numbers
+  and it worked. Replies now go only to the client that asked
+  (`pm_link_request` carries the slot; `pm_ws_send_to`); events still
+  go to everyone. Request numbers in the console and `bridge.py` are
+  random 52-bit values now, not counters, so a collision stays
+  impossible even if the routing ever changes. And the bridge takes
+  three consoles (a laptop, a phone, the server's watch tool); buffers
+  are on demand, so an idle slot costs a socket. **Tested on the bridge
+  (2026-10-21):** two clients sending identical request numbers 1–40 at
+  once, one asking `hello`, the other `mesh`: 40/40 correct each, no
+  cross-talk, nothing unanswered. The same over the mesh to a node is
+  to be run when one is powered: with none on, each client got only its
+  own `no reply from node`, which is the right half of the answer.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
@@ -1086,7 +1107,14 @@ The board from the lantern fire test, as a third profile:
   ~600 mA. 300 mA is the comfortable choice. The PROG pin reads the
   real charge current: I = V_PROG / R_PROG × 1000.
   What lights the blue LED in the failed state isn't proven, but it is
-  no longer needed to diagnose it. The C3 SuperMini has the same
+  no longer needed to diagnose it. **Colin's rule from the second and
+  third boards (2026-10-21):** BOOT held at plug-in puts the *factory*
+  program into install mode every time, blue LED off; once PropMesh is
+  on the board, BOOT held at plug-in gives the lit blue LED and no USB
+  device every time, while plugging in *without* BOOT lets the
+  installer restart the board into install mode itself. So the site
+  now says: hold BOOT only for the factory program. Why the floating
+  GPIO8 reads differently under the two programs is still open. The C3 SuperMini has the same
   GPIO8/GPIO9 boot table with GPIO8 wired to its blue LED — check its
   default pull before assuming the same trick.
 - **Sleep on the C6: same tiers, same limit (checked 2026-10-11).** The
@@ -1241,21 +1269,258 @@ the instruments to catch it next time, and a self-heal.
   in the boot event and `hello.last`; the console's node editor shows
   **Last restart** (reason, uptime) and **Before that** (the saved
   record) whenever either is worth reading.
-- **Caught (2026-10-18 evening):** the bridge (DevKit, build d73db6b)
-  rebooted itself after 10651 s up. `hello.last`: *mute: rebooted —
-  neighbors heard but none hear us for 120 s; send errors 492 (last
-  ESP_ERR_ESPNOW_NO_MEM)*. The radio restart two minutes earlier had not
-  cleared it; the reboot did (afterwards WiFi up at −26 dBm, channel 11,
-  `tx_err` 0). From the console this is the bridge dropping off WiFi
-  for a few minutes and coming back by itself. So the fault is the
-  ESP-NOW send queue filling — frames queue and never leave while the
-  WiFi link itself stays up. What jams it is still open. To look at
-  next time, *before* it reboots: `mesh` (`tx_err` climbing with
-  `unheard_s`), whether the router moved channel (the station follows
-  the AP; `mesh.channel` after a reboot says where ESP-NOW ended up),
-  and how many consoles were attached. The self-heal worked as
-  designed; the two-minute mute window could shrink once the cause is
-  known.
+- **Caught, and matched to a known ESP-IDF bug (2026-10-18/19).** The
+  bridge (DevKit, build d73db6b, Arduino core 3.3.12 on ESP-IDF 5.5.5)
+  rebooted itself twice: at 22:46:48 UTC after 10651 s up — `hello.last`:
+  *mute: rebooted — neighbors heard but none hear us for 120 s; send
+  errors 492 (last ESP_ERR_ESPNOW_NO_MEM)* — and again at 22:51:16, four
+  and a half minutes into the next run, with 743 errors. The radio
+  restart two minutes before each reboot had not cleared it. After the
+  second reboot: WiFi up at −26 dBm, channel 11, `tx_err` 0, and no
+  trouble for hours since (an 18k-frame OTA included). From the console
+  this was the bridge dropping off WiFi for a few minutes at a time.
+
+  **What it is.** espressif/esp-idf
+  [#18682](https://github.com/espressif/esp-idf/issues/18682) (opened
+  June 2026, still open, IDF 5.5.4/5.5.5 — ours): ESP-NOW broadcast
+  sends leak WiFi TX buffers. Send-complete callbacks stop coming for
+  some frames, their buffers are never returned to the pool, and after
+  tens of thousands of frames (20k to 103k in the reports) `esp_now_send`
+  returns `ESP_ERR_ESPNOW_NO_MEM` on every call. Receiving keeps working.
+  `esp_now_deinit`/`init` does not recover it, nor `esp_wifi_stop`/
+  `start`; a full driver teardown (`esp_wifi_deinit` + `init` — in the
+  Arduino core, `WiFi.mode(WIFI_OFF)` then `WIFI_STA`, which does both)
+  recovers in about a second, and so does a reboot. That is exactly the
+  shape here: `pm_mesh_recover` is ESP-NOW-only, so stage 1 could not
+  help, and the stage-2 reboot did. It also fits Prop's September mute
+  (received everything, sent nothing, nothing in the log — the "root
+  cause still unknown" above). Same family: [#19238](https://github.com/espressif/esp-idf/issues/19238)
+  (C5, IDF 6.1, TX stops for good under TCP load while RX keeps working).
+  Reporters' workarounds, unconfirmed by Espressif: pace sends to one in
+  flight, clocked by the send callback with a 2 s dead-man; keep blocking
+  work off the loop; a clean channel. No fix from Espressif as of
+  October 2026. For scale: the bridge's own sends run at about 0.4/s
+  idle (1200 in 50 min) and an OTA is about 18k in five minutes, with
+  relays (every frame heard is rebroadcast) on top — so a day of idle
+  mesh is one OTA's worth, and the yard on show night is well inside the
+  reported range.
+
+  **What does not fit:** the second mute began within the first minutes
+  of a fresh boot. A fresh driver has a fresh pool, so either the first
+  reboot came up into the same jam from outside (a busy channel) or the
+  detector misjudged a fresh boot. The watch log (below) is there to
+  catch which.
+
+  **Proposed fix, not built — Colin to say which:**
+  1. `pm_mesh_recover` becomes the full teardown: `WiFi.mode(WIFI_OFF)`,
+     `WIFI_STA`, ESP-NOW init, peer, callbacks, channel; the bridge then
+     rejoins WiFi on its own schedule (`pm_wifi_loop`). Stage 1 would
+     then actually work, in a second or two, uptime and state kept.
+  2. Register a send callback and count frames in flight; when callbacks
+     stop (eight or more outstanding and none completing for 5 s),
+     rebuild the radio at once and note it in last words — the bridge
+     back in seconds instead of four minutes, before anyone notices.
+     `mesh` reports `tx_cb` and `tx_inflight`.
+  3. The prevention the reporters found: a one-in-flight send queue in
+     `pm_mesh` (sends and relays alike), the next frame dispatched from
+     the loop when the last completed, TIME beacons re-stamped at
+     dispatch so queueing never becomes clock error. The DevKit's static
+     RAM is already at 96.6 KB, so the queue is heap-allocated in init.
+     The biggest change of the three; worth it only if 1–2 still leave
+     visible gaps.
+
+  **Inside the library (2026-10-19).** The leak cannot be read: ESP-IDF is
+  open source except the WiFi MAC, PHY and ESP-NOW layers, which ship as
+  precompiled archives (`libespnow.a`, `libnet80211.a`, `libpp.a`,
+  `libcore.a`, `libphy.a`) with headers only. Disassembling them (xtensa
+  objdump on the archives in the Arduino 3.3.12 package) gives the path
+  of the failure: `esp_now_send` → `mt_send` → `ieee80211_send_action_
+  vendor_spec` → `ieee80211_construct_action_vendor_spec` → `ieee80211_
+  alloc_action_vendor_spec`; when that returns null the construct step
+  returns the generic `ESP_ERR_NO_MEM` (0x101) and `mt_send` translates
+  it to `ESP_ERR_ESPNOW_NO_MEM`. The allocator underneath is `esf_buf_
+  alloc` in `libpp.a`: a static cache first, then the dynamic pool
+  (`CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM` = 32 in these builds), then a
+  default handler, then null. So "no memory" means every transmit buffer
+  is owned by a frame the driver never finished. The library's
+  statistics dumps (`esp_wifi_statis_dump`, `esf_buf_statis_dump`),
+  which the issue reporters used to watch their buffers go missing, are
+  useless in Arduino builds: the open log wrapper they print through
+  (`lib_printf` in `libesp_wifi.a`) is compiled with the maximum log
+  level ERROR, so it formats the line and discards it. The pool's
+  globals (`g_eb_list_desc`, `eb_space`) are named but their layout is
+  not, so the counters are not read directly either.
+
+  **What can be measured, from our side:** the ESP-NOW send callback —
+  which the mesh had never registered. Every frame the radio accepts
+  should complete with one; a frame whose completion never comes is a
+  buffer gone for good. `pm_mesh` now counts `tx_sent`, `tx_done`,
+  `tx_failed` and reports `tx_inflight` (sent − done) and `tx_stuck_s`
+  in `mesh` (PR #34). On the bridge, `tx_inflight` sampled by the watch
+  below should sit near zero between sends; a floor that climbs over
+  hours is the leak, its slope the rate, and the pool size (about 32 +
+  cache) the time to the next mute. That also decides between the fix
+  steps: if the floor climbs steadily, prevention (step 3) is needed; if
+  it jumps at events (OTA, a console attaching, a WiFi retry), those
+  events are the trigger and step 2's fast recovery is enough.
+  Nothing acts on the counters yet.
+
+  **Measured overnight (2026-10-19, 01:15–01:50 UTC), bridge on the
+  instrumented build.** The send callback is now registered and counted
+  (PR #34). Through two full transfers (18k frames each, relays
+  included) and the idle time between, `tx_inflight` never left zero:
+  every frame the radio accepted completed. So the driver leak of
+  #18682 did not show in 36k frames on this build; it is not excluded at
+  the 60–100k counts the reporters saw, and the counters keep running.
+  What did show is the bridge's **heap**. The `mesh` command now reports
+  free heap, the largest block, the low-water mark since boot, the
+  lowest main-loop sample since it was last asked, the WebSocket client
+  count, and the last 16 commands with the heap before and after each
+  (same PR). Scripted runs, each against a fresh window, with one
+  console attached throughout (Colin's browser, polling every 6 s):
+
+  | Bridge, DevKit V1 | free | largest block | lowest loop sample |
+  |---|---|---|---|
+  | idle, 100 s | 31.9 KB | 30.7 KB | 27.0 KB |
+  | a second console loading the Yard and Nodes pages (45 requests in 40 s) | 32.0 KB | 30.7 KB | **15.1 KB** |
+  | an OTA to a node through the bridge, 6 min | 26.6 KB | **12.3 KB** | **4.4 KB** |
+  | low-water mark since boot, two boots | | | **1.2 KB** and 11.8 KB |
+
+  The WiFi driver's dynamic transmit buffers (the pool the disassembly
+  points at) are `malloc`ed from this heap: a frame costs about its own
+  size plus a descriptor, and 32 may be outstanding. At 4 KB free that
+  is two or three frames; at the boot low-water mark it is none. A
+  failed `malloc` there is the same `ESP_ERR_ESPNOW_NO_MEM` as the leak.
+  Heap starvation also fits the part the leak did not: a mute within
+  minutes of a fresh boot, when two consoles reconnect at once and ask
+  every board hello, get_yard, set_clock and the show sync in a burst.
+  Where the bridge's RAM goes (`nm` on the DevKit image; DRAM is one
+  320 KB pool shared by static data and heap, so static bytes are heap
+  bytes not available): `PmShow` **31.9 KB** on the heap (16 sequences ×
+  96 steps, preallocated — on a bridge, which has no channels, it holds
+  nothing); reassembly `s_reasm` 13.0 KB static (3 slots × 4320);
+  `emit` and `on_api` reply buffers 4.4 + 4.3 KB static; the serial line
+  4.1 KB static; two `PmSequence` temporaries 2 × 2.0 KB static; the
+  WebSocket buffers 2 × 4.1 KB on the heap while consoles are attached;
+  up to 6 pending request texts × 4.3 KB on the heap during an OTA; and
+  ArduinoJson documents for every reply (the yard map alone is a 7.7 KB
+  reply). The DevKit's `RAM:` line is 96.7 KB, past the 95.5 KB rule in
+  CLAUDE.md.
+
+  **Cause found (2026-10-19, 02:30–03:00 UTC).** Two more instruments
+  (PR #34): the heap library's failed-allocation hook, recording the
+  size, the function and the *task* of every allocation that fails; and
+  a drop ring that lays each sudden fall in free heap at the door of the
+  loop step that had just run. With the yard idle and only the sampler
+  attached, the bridge logged a failed allocation **once a minute, to
+  the second**, every time the same: **2308 bytes, `heap_caps_malloc`,
+  task `wifi`, caps internal** — a maximum 802.11 frame (2304) plus
+  four: the driver's dynamic *receive* buffer. The loop's lowest sample
+  in those seconds was 0.3–3 KB, and 25 KB in every other second. Our
+  own request handling never showed below 34 KB in the command ring, and
+  controlled bursts from the server (30 × 1400 B multicast, unicast or
+  broadcast) did not trip it. Sampling the LAN at 50 ms and converting
+  the bridge's failure uptimes to wall time put the failure at 02:59:24
+  on a LAN multicast burst of **72 packets inside 50 ms** at 02:59:24.6;
+  the earlier failures sit on the same once-a-minute peaks. Joining the
+  groups names the sender: **the router, 192.168.175.1** — 77 mDNS
+  packets (`_services._dns-sd._udp.local` enumeration) inside 100 ms,
+  plus 14 SSDP NOTIFYs, every minute. The access point forwards every
+  one to the wireless side; the bridge, associated to it, receives them
+  all; the driver asks the heap for a 2308-byte buffer per frame, up to
+  32 outstanding (`CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM` = 32, so up to
+  74 KB) before lwIP has looked at a single one; the bridge has 32 KB.
+  The frames are not for us and lwIP would drop them, but by then the
+  heap is gone, and *any* allocation the driver makes in that window
+  fails — a transmit buffer for an ESP-NOW frame among them, which is
+  `ESP_ERR_ESPNOW_NO_MEM`. When the window is long or repeated (an OTA
+  holds the heap 20 KB lower; a second console 6 KB; a console loading
+  the Yard 17 KB), the failures reach the transmit path, and the
+  reporters' observation in #18682 is the rest: a driver whose transmit
+  allocations have failed does not come back with an ESP-NOW re-init,
+  only with a full teardown or a reboot. Prop's September mute (not a
+  bridge, no WiFi) is not explained by this and stays open.
+
+  So: the mesh is fine, the radio is fine, the bridge is a station on a
+  home LAN with less than one burst of headroom. Any bridge on any LAN
+  with a chatty router or a Sonos/Chromecast/printer will meet this.
+
+  **Fix, in order (Colin to say which):**
+  0. **Heap headroom on the bridge**, the one lever that covers every
+     trigger: allocate `PmShow` only when a board has a part to play
+     (saves 31.9 KB on every bridge, which doubles the margin on its
+     own); allocate a WebSocket client's buffer only while a message is
+     being received; reassembly down to 2 slots; the yard map streamed
+     from file to socket. Target: 70 KB free idle, enough for a full
+     burst at the driver's maximum.
+  1. Recovery as a full driver teardown (`WiFi.mode(WIFI_OFF)` then
+     `WIFI_STA`, ESP-NOW re-init), since a wedged driver does not
+     recover otherwise; and trip it from the failed-allocation count
+     climbing together with `unheard_s`, not only from the 2-minute
+     mute — seconds instead of four minutes.
+  2. On the LAN, optional: the router's mDNS/UPnP discovery features are
+     what burst; turning off what is not used stops the burst at the
+     source (the yard's bridge should not depend on it, hence 0 and 1).
+  3. Longer term: a bridge that is its own access point (the console
+     joins the bridge) hears no LAN multicast at all — part of the
+     captive-portal setup already planned.
+  The `tx_inflight` counters stay: a leak would still show there.
+
+  **Built (2026-10-19, 08:00–09:00 UTC; PR #34), steps 0 and 1; step 2
+  skipped on Colin's call; step 3 stays longer-term.**
+  - *Headroom:* the show engine exists only once a board has a sequence
+    or a rule to hold (`ensure_show()`; every reader copes with none),
+    and a WebSocket client's 4 KB buffer exists only while a message is
+    arriving. Bridge free heap idle: **32 → 70.7 KB**, largest block
+    30.7 → 65.5 KB, low-water since boot 1.2 → 55.9 KB. The C6 node:
+    188 → 222 KB. The router's burst now costs the bridge about 40 KB
+    (68.5 → 28.5 KB and back); **0 failed allocations** across six
+    minutes of bursts, against one a minute before.
+  - *Rebuild:* `pm_mesh_recover` takes the whole driver down and up
+    (`WiFi.mode(WIFI_OFF)` → `WIFI_STA`, which is `esp_wifi_deinit` in
+    this core); `pm_radio_rebuild` wraps it, notes why in last words
+    with the counters, re-applies the sleep tier's power mode and wake
+    window (`pm_sleep_radio_reapply`) and has a bridge rejoin the router
+    at once (`pm_wifi_rejoin`). Forced over the API on the bridge: **away
+    4 s**, back on WiFi and the mesh, still conductor, no reboot. On the
+    C6: back in seconds, synced, all neighbors heard.
+  - *Trigger:* the mute watchdog rebuilds after **15 s** unheard when the
+    heap has refused the driver an allocation or `esp_now_send` has
+    failed since the board was last heard (the two-minute path stays as
+    the fallback; a second mute after a rebuild still reboots, at most
+    three in a row). `mesh` reports `radio_rebuilds` and
+    `radio_rebuilt_s_ago`; `{"cmd":"mesh","recover":true}` forces one.
+  - *Not done, not needed now:* reassembly down to 2 slots, the yard map
+    streamed. The rule that keeps this fixed is in CLAUDE.md (bridge heap
+    ≥ 70 KB idle). Nodes without WiFi also gain the 32 KB once updated;
+    Prop keeps its engine because it holds the show's parts.
+  - *Open:* the AP-mode bridge (step 3 above), with the captive-portal
+    setup; Prop's September mute, which this chain does not explain.
+
+  **Earlier proposal (superseded by the above):**
+  0. **Heap headroom on the bridge first**, because it is the one cause
+     we have evidence for and it is ours to fix: allocate `PmShow` only
+     when a board has a part to play (saves 31.9 KB on every bridge);
+     allocate a WebSocket client's buffer only while a message is being
+     received; reassembly down to 2 slots; and have the yard map stream
+     from its file to the socket instead of through a document. About
+     45 KB more free, which doubles the bridge's margin.
+  1. Recovery as a full driver teardown (`WiFi.mode(WIFI_OFF)` then
+     `WIFI_STA`, ESP-NOW re-init) — still right for a wedge of either
+     kind, since it also returns the driver's buffers.
+  2. Act on `tx_stuck_s` only if `tx_inflight` ever reads non-zero in
+     the watch log; the detector is in place, nothing uses it.
+  The mute record (`hello.last`) now carries `inflight` and `heap /
+  largest block` at the moment it fires, which settles leak-or-heap on
+  the next occurrence without anyone watching. Logs on the server:
+  `~/propmesh-logs/heap-experiments.log`, `bridge-ota-experiment.log`,
+  `bridge-watch.log`.
+
+  **Instrument:** `tools/bridge.py watch` logs the bridge's channel, WiFi,
+  `tx`/`tx_err`/`last_tx_err`, the send-callback counters above,
+  `unheard_s`, neighbors and every board's heap and uptime once a minute, each sample its own short connection so
+  it never holds a console slot. Running on the server since 2026-10-19
+  00:45 UTC into `~/propmesh-logs/bridge-watch.log`.
 - **Next time it happens:** open the board in the console (over WiFi,
   or USB) *before* power-cycling — `hello.last`, `mesh.tx_err` and
   `unheard_s` say what happened, and if the detector fired the board

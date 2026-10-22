@@ -14,7 +14,7 @@ this works alongside an open console tab.
 Bridge address: --host, else $PROPMESH_BRIDGE, else propmesh.local.
 Never touches a serial port (opening a devkit's USB port resets it).
 """
-import argparse, base64, hashlib, json, os, socket, struct, sys, time
+import argparse, base64, hashlib, json, os, random, socket, struct, sys, time
 
 
 class Bridge:
@@ -34,7 +34,7 @@ class Bridge:
         if b" 101 " not in head.split(b"\r\n", 1)[0]:
             raise ConnectionError(head.split(b"\r\n", 1)[0].decode(errors="replace"))
         self.buf = head.split(b"\r\n\r\n", 1)[1]
-        self.n = 1000
+        self.n = 0  # unused: request numbers are random (see ask)
         self.events = []  # unsolicited messages (heartbeats, sensor events) seen while waiting
 
     def send(self, obj):
@@ -68,8 +68,9 @@ class Bridge:
 
     def ask(self, cmd, timeout=8, **body):
         """Send one request; return its reply, or None on timeout."""
-        self.n += 1
-        i = self.n
+        # Random, like the console's: the bridge answers the asking client
+        # only, and a random 52-bit number keeps that true by itself too.
+        i = random.getrandbits(52) or 1
         self.send({"cmd": cmd, "id": i, **body})
         for m in self.frames(timeout):
             if m.get("id") == i:
@@ -145,7 +146,15 @@ def cmd_ota(b, a):
     t_end = time.time()
     time.sleep(15)
     for _ in range(8):
-        h = b.ask("hello", node=a.node, timeout=12)
+        try:
+            h = b.ask("hello", node=a.node, timeout=12)
+        except OSError:  # the bridge itself was updated: its socket died with it
+            try:
+                b = Bridge(a.host)
+            except OSError:
+                time.sleep(4)
+                continue
+            h = b.ask("hello", node=a.node, timeout=12)
         if h and h.get("ok"):
             print("back:", h.get("build"), "reset:", h.get("reset"), f"up {h.get('up_s')} s,",
                   f"{time.time() - t_end:.0f} s after end")
@@ -155,6 +164,52 @@ def cmd_ota(b, a):
             return
         time.sleep(4)
     print("no hello from the board yet — check the console")
+
+
+def cmd_watch(b, a):
+    """Log the bridge's mesh counters every N s to stdout (and a file with --log) until Ctrl-C.
+    Each sample is its own short connection, so a console slot is never held: the bridge
+    keeps two, and the oldest is dropped when a third arrives. One line per sample; the
+    send-error count climbing while unheard_s grows is the radio wedging (docs §6j)."""
+    out = open(a.log, "a") if a.log else None
+    def emit(line):
+        line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}"
+        print(line, flush=True)
+        if out:
+            out.write(line + "\n")
+            out.flush()
+    emit(f"watch: bridge {a.host} every {a.every:g} s")
+    try:
+        b.s.close()
+    except OSError:
+        pass
+    while True:
+        t0 = time.time()
+        try:
+            c = Bridge(a.host)
+            m = c.ask("mesh", timeout=8)
+            heap = {}
+            for e in c.frames(a.listen):  # a few seconds of heartbeats: every board's heap and uptime
+                if isinstance(e, dict) and e.get("evt") == "heartbeat":
+                    heap[e.get("node")] = (e.get("heap"), e.get("up"))
+            c.s.close()
+        except OSError as e:
+            emit(f"NO CONNECTION: {e}")
+            m = None
+        if m and m.get("ok"):
+            hb = " ".join(f"{n}:{h}KB@{u}s" for n, (h, u) in sorted(heap.items()))
+            nb = ",".join(f"{n['node']}@{n['rssi']}" for n in m.get("neighbors", []))
+            emit(f"ch {m.get('channel')} wifi {m.get('wifi')} rssi {m.get('wifi_rssi')} tx {m.get('tx')} "
+                 f"tx_err {m.get('tx_err')} last {m.get('last_tx_err', '-')} "
+                 f"sent {m.get('tx_sent', '-')} done {m.get('tx_done', '-')} failed {m.get('tx_failed', '-')} "
+                 f"inflight {m.get('tx_inflight', '-')} stuck {m.get('tx_stuck_s', 0)} s "
+                 f"unheard {m.get('unheard_s', 0)} s "
+                 f"bheap {m.get('heap', '-')}/{m.get('heap_max_block', '-')}/{m.get('heap_min', '-')} "
+                 f"win {m.get('heap_win_min', '-')}@{m.get('heap_win_at_s', '-')}s fails {m.get('alloc_fails', '-')} ws {m.get('ws_clients', '-')} "
+                 f"ring {';'.join(f'{e[0]}:{e[1]}:{e[2]}>{e[3]}' for e in (m.get('heap_ring') or []))} nbrs {nb} heap {hb}")
+        elif m is not None:
+            emit(f"mesh: NO REPLY {m}")
+        time.sleep(max(0, a.every - (time.time() - t0)))
 
 
 def main():
@@ -171,9 +226,13 @@ def main():
     s = sub.add_parser("ota", help="update one board's firmware over the mesh")
     s.add_argument("node")
     s.add_argument("image")
+    s = sub.add_parser("watch", help="log the bridge's mesh counters (send errors, unheard, heap) until Ctrl-C")
+    s.add_argument("--every", type=float, default=60, help="seconds between samples (default 60)")
+    s.add_argument("--listen", type=float, default=6, help="seconds of heartbeats to collect per sample (default 6)")
+    s.add_argument("--log", help="also append each line to this file")
     a = p.parse_args()
     b = connect(a.host)
-    {"ask": cmd_ask, "status": cmd_status, "ota": cmd_ota}[a.what](b, a)
+    {"ask": cmd_ask, "status": cmd_status, "ota": cmd_ota, "watch": cmd_watch}[a.what](b, a)
 
 
 if __name__ == "__main__":

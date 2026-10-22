@@ -37,6 +37,7 @@ struct Pending {
   uint32_t sent_ms;
   long long console_id;  // the console's "id", for the timeout reply
   bool has_console_id;
+  int8_t client;         // who asked: PM_FROM_SERIAL or a WebSocket slot
   pm_ask_cb_t cb;        // set: this node's own request (pm_link_ask), reply goes here
   void *ctx;
   char *text;
@@ -50,10 +51,12 @@ static Pending s_pending[MAX_PENDING];
 static uint16_t s_next_req;
 static uint32_t s_highest;
 
+static int8_t s_reply_to = PM_TO_ALL;  // who the line being built is for
+
 static void emit(JsonDocument &doc) {
   static char buf[PM_API_MAX_BYTES + 64];
   size_t n = serializeJson(doc, buf, sizeof(buf));
-  if (s_out) s_out(buf, n);
+  if (s_out) s_out(buf, n, s_reply_to);
 }
 
 static void node_hex(char out[9], uint32_t id) {
@@ -150,7 +153,13 @@ static void on_wake_reply(uint32_t src) {
   for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
 }
 
-void pm_link_request(const char *json, size_t len) {
+static void request_inner(const char *json, size_t len, int8_t from);
+void pm_link_request(const char *json, size_t len, int8_t from) {
+  s_reply_to = from;
+  request_inner(json, len, from);
+  s_reply_to = PM_TO_ALL;
+}
+static void request_inner(const char *json, size_t len, int8_t from) {
   JsonDocument req;
   if (deserializeJson(req, json, len)) return reply_error(false, 0, "not JSON");
   bool has_id = req["id"].is<long long>();
@@ -182,6 +191,7 @@ void pm_link_request(const char *json, size_t len) {
   p->sent_ms = millis();
   p->console_id = id;
   p->has_console_id = has_id;
+  p->client = from;
   if (pm_mesh_is_leaf(dst) && !leaf_awake(dst)) {
     p->waiting_wake = true;
     start_wake(dst);
@@ -228,7 +238,9 @@ static void retry_pending() {
       char hex[9], why[48];
       node_hex(hex, p.dst);
       snprintf(why, sizeof(why), "no reply from node %s", hex);
+      s_reply_to = p.client;
       reply_error(p.has_console_id, p.console_id, why);
+      s_reply_to = PM_TO_ALL;
       drop(p);
       continue;
     }
@@ -312,7 +324,7 @@ static void on_api(const RxFrame &f) {
     for (Pending &p : s_pending) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
       if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(msg, n, ctx); return; }
-      if (s_out) s_out(msg, n);  // the target's reply, verbatim
+      if (s_out) s_out(msg, n, p.client);  // the target's reply, verbatim, to whoever asked
       drop(p);
       return;
     }
@@ -380,7 +392,16 @@ void pm_link_input(uint8_t index, bool active) {
   send_frame(PM_MSG_TYPE_STATE, &st, sizeof(st));
 }
 
-void pm_link_event(JsonDocument &evt) { emit(evt); }
+void pm_link_forget_client(int8_t client) {
+  for (Pending &p : s_pending) if (p.used && !p.cb && p.client == client) drop(p);
+}
+
+void pm_link_event(JsonDocument &evt) {
+  int8_t was = s_reply_to;  // an event raised while answering a request still goes to everyone
+  s_reply_to = PM_TO_ALL;
+  emit(evt);
+  s_reply_to = was;
+}
 
 uint32_t pm_link_highest_seen() { return s_highest; }
 void pm_link_reset_highest_seen() { s_highest = pm_node_id(); }

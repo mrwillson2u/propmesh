@@ -143,6 +143,15 @@ Any time a schematic or layout is up for review, check — in this order:
   catches it). Transient buffers: `malloc` for the call, then free.
 - **IRAM is full** (381 B free): check `firmware.map` before adding a
   library; `PM_NO_BLE` / `PM_NO_SLEEP` are the escape hatches.
+- **A bridge needs ≥ ~70 KB free heap idle** (`mesh` → `heap`). The WiFi
+  driver allocates a 2308-byte receive buffer per frame of a LAN
+  broadcast burst, up to 32 at once; a home router's once-a-minute mDNS
+  burst costs ~40 KB, and when the heap runs out the driver's transmit
+  allocations fail too (ESP_ERR_ESPNOW_NO_MEM, the bridge goes mute —
+  docs §6j, 2026-10-19). That is why the show engine (32 KB) is created
+  only when a board holds a part and WebSocket buffers only while a
+  message arrives. No new static or long-lived allocation on the bridge
+  path without checking `heap` and `heap_win_min` afterwards.
 
 ## Firmware priorities
 
