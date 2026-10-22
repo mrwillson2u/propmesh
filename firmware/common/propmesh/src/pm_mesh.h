@@ -95,6 +95,9 @@ uint32_t pm_mesh_unheard_ms();
 void pm_mesh_unheard_reset();  // start judging afresh (after a radio restart)
 // Called when this node moves to a new channel (persist it for next boot).
 void pm_mesh_on_channel(void (*cb)(uint8_t));
+// True when this board has never followed a bridge (no stored channel):
+// it searches for one properly (6 s per channel, repeating) until it does.
+void pm_mesh_set_fresh(bool fresh);
 // Seconds since a bridge was last heard; 0xFFFF = never.
 uint16_t pm_mesh_bridge_age_s();
 
