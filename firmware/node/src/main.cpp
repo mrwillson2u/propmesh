@@ -216,6 +216,7 @@ void setup() {
   // Start on the channel the mesh was last found on (docs §6d).
   uint8_t ch = pm_store_channel_load();
   mesh_up = pm_mesh_init(ch ? ch : PM_CHANNEL, PM_NET_ID, PM_NODE_ROLE_RELAY);
+  pm_mesh_set_fresh(ch == 0);  // never followed a bridge: search for one properly (docs §6d)
   pm_mesh_on_channel([](uint8_t c) { pm_store_channel_save(c); Serial.printf("mesh: now on channel %u\n", c); });
   if (!mesh_up) Serial.println("pm_mesh_init FAILED — running without mesh");
   pm_link_begin(out_line);
