@@ -105,8 +105,12 @@ Run these with the boards in hand. Protocol: write out what to watch,
    built (PR #47): zero send errors from our own bursts, but the driver
    still fails under an OTA's TCP load with 48 KB free; the 15 s
    rebuild recovers in ~20 s and `bridge.py ota` now resumes across
-   it. Next headroom lever: the static reply/reassembly/serial buffers
-   (~26 KB) to on-demand.
+   it. Done the same night: buffers on demand (PR #54), backpressure on
+   OTA chunks and a narrower rebuild trigger (PR #55). Baseline after:
+   94 KB free idle, 45 KB at the bottom of a router burst, no failures
+   in fifteen minutes. Field check: `~/propmesh-logs/bridge-watch.log`
+   staying at `fails 0`, `rebuilds 0` over the coming days, and an OTA
+   through the bridge finishing without a rebuild.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).

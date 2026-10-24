@@ -1555,6 +1555,26 @@ the instruments to catch it next time, and a self-heal.
   "queued" decides whether one-in-flight limits the hardware queue at
   all — the 22 ms per frame observed says transmitted.
 
+  **Backpressure, and the rebuild trigger narrowed (2026-10-23, late;
+  PR #55).** Two more things from the same evening. The bridge turns an
+  OTA chunk away with "bridge busy" when its largest free block is under
+  44 KB (a chunk costs ~25 KB, the router's burst ~40 KB; the console
+  and `bridge.py` retry a moment later), and a forwarded request is
+  parsed for routing only — `id`, `node`, `cmd` — so a chunk's 3.6 KB
+  payload is no longer copied into a document. And the 15 s evidence
+  rebuild now fires only for frames handed to the radio that never
+  complete, at most once per ten minutes: a starved heap also makes
+  sends fail, and each rebuild re-allocated the driver's ~50 KB into a
+  more fragmented heap, so six rebuilds in eighteen minutes took the
+  bridge from 72 to 25 KB free and an 8 KB largest block, where only a
+  restart helps — hence the new `reboot` command. **Baseline on the
+  fresh bridge with all of it (queue, on-demand buffers, this), one
+  console, four boards relaying, fifteen idle minutes:** free heap
+  **94 KB** throughout, largest block 86–90 KB, the lowest point in any
+  router burst **45 KB**, zero failed allocations, zero send errors,
+  zero rebuilds, one lost frame. The same bridge read 32 KB free and
+  failed an allocation every minute a week ago.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
