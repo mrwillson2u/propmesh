@@ -61,3 +61,10 @@ a:hover { color: #ffa470; }
   .pm-pin > select { min-height: 44px; }
   .pm-pin > input { min-height: 44px; }
 }
+
+/* Hint on a phone: one faded line with an ⓘ, tap to open (ui.tsx Hint). */
+.pm-hint { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #12161c; border: 1px solid #1d222a; color: #8a93a0; font: 400 13px/1.5 system-ui; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.pm-hint-i { color: #d9a441; font: 700 14px/1.4 system-ui; flex: none; }
+.pm-hint-chev { color: #4f5763; flex: none; font-size: 12px; line-height: 1.6; }
+.pm-hint-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-hint-open .pm-hint-text { white-space: normal; color: #b4bcc8; }

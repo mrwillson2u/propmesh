@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { LandscapeHint, useLayout } from "../../lib/layout";
-import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput } from "../../ui";
+import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
@@ -536,11 +536,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   <button onClick={addStep} disabled={!outNodes.length} style={btn(false, !outNodes.length)}>+ Add step</button>
 
                 </div>
-                <div style={{ ...sys(400, 11, C.t5), marginTop: 8, lineHeight: 1.5 }}>
+                <Hint style={{ marginTop: 8 }}>
                   Each step says what an output should be at a time after the sequence starts. With <b>get there over</b> set,
                   a servo, LED or motor ramps to it from wherever it was, ending at that time; at 0 it jumps (servos then glide
                   with their smoothing setting). Two steps at the same time happen together, on every board, on the mesh clock.
-                </div>
+                </Hint>
               </div>
             ) : (
               <div style={sys(400, 12.5, C.t3)}>Pick a sequence, or create one.</div>

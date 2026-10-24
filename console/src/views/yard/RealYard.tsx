@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { battText } from "../../lib/battery";
 import { C, MONO } from "../../lib/tokens";
-import { mono, sys, Toggle, Sheet } from "../../ui";
+import { mono, sys, Toggle, Sheet, Hint } from "../../ui";
 import { useLayout } from "../../lib/layout";
 import { BOARDS } from "../../lib/boards_gen";
 import { counts, getConnection, useConnection, type Connection, checkinText } from "../../lib/connection";
@@ -601,9 +601,9 @@ function FloodDetail({ f, nameOf, onClose, onOpen }: {
         <div style={{ ...label, marginBottom: 8 }}>SENT BY</div>
         {f.senders.length === 0 && <div style={mono(500, 11, C.amber)}>no board holds this light — tick a sender in the Floods tab</div>}
         {f.senders.map((s) => <div key={s} style={{ ...sys(500, 12, C.t2), marginBottom: 4 }}>{nameOf(s)}</div>)}
-        <div style={{ ...sys(400, 11.5, C.t4), lineHeight: 1.5, marginTop: 12 }}>
+        <Hint style={{ marginTop: 12 }}>
           The light never answers, so this is what the boards last sent — not proof it's on or showing it.
-        </div>
+        </Hint>
       </div>
       <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.b1}` }}>
         <button onClick={onOpen} style={{ width: "100%", height: 36, background: C.emberBg, border: `1px solid ${C.ember}`, borderRadius: 6, ...sys(700, 12, C.emberT) }}>

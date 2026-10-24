@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 import { battText } from "../../lib/battery";
 import { C } from "../../lib/tokens";
 import { useLayout } from "../../lib/layout";
-import { Spinner, mono, sys } from "../../ui";
+import { Spinner, mono, sys, Hint } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
@@ -80,12 +80,12 @@ export default function MeshPanel() {
       <div style={{ display: "flex", flexDirection: phone ? "column" : "row", alignItems: phone ? "stretch" : "center", gap: 12, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         <div style={{ flex: 1 }}>
           <div style={sys(700, 12.5, C.t1)}>Connect to your bridge</div>
-          <div style={{ ...mono(500, 11, error || connectionError() ? C.red : C.t4), marginTop: 3 }}>
-            {error ?? connectionError() ?? (webSerialSupported()
+          {(error ?? connectionError())
+            ? <div style={{ ...mono(500, 11, C.red), marginTop: 3 }}>{error ?? connectionError()}</div>
+            : <Hint style={{ marginTop: phone ? 8 : 3 }}>{webSerialSupported()
               ? "Over WiFi (the bridge's address), or plug the bridge in and connect over USB. Every node it hears on the mesh shows up here."
               : phone ? "Type the bridge's address on your WiFi. Every node it hears on the mesh shows up here."
-              : "USB needs Web Serial — open the console in Chrome or Edge. The simulated mesh works anywhere.")}
-          </div>
+              : "USB needs Web Serial — open the console in Chrome or Edge. The simulated mesh works anywhere."}</Hint>}
         </div>
         <span style={{ display: "flex", alignItems: "center", gap: 6, order: phone ? 1 : 0 }} title="A bridge on your WiFi (set it up on its board page over USB first)">
           <input value={wifiAddr} onChange={(e) => setWifiAddr(e.target.value)} placeholder={DEFAULT_WIFI_URL}

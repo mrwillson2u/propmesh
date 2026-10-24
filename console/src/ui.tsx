@@ -66,11 +66,41 @@ export function Confirm({ title, children, okLabel = "OK", onOk, onCancel }: {
   );
 }
 
+// On a phone, type has a floor: the laptop's 9.5–12.5 px labels and
+// notes all land at 12.5–13 px (held at arm's length, 11 px is a squint),
+// and anything 13 px and up keeps its size. The flag follows the same
+// breakpoint as lib/layout; the app re-renders on that change, so the
+// inline fonts recompute. docs/console-phone.md §9.
+let phoneType = typeof matchMedia !== "undefined" && matchMedia("(max-width: 699px)").matches;
+if (typeof matchMedia !== "undefined") matchMedia("(max-width: 699px)").addEventListener("change", (e) => { phoneType = e.matches; });
+const px = (size: number): number => (!phoneType || size >= 13) ? size : Math.min(13, Math.max(12.5, size + 1.5));
+
 export const mono = (weight: number, size: number, color: string) =>
-  ({ font: `${weight} ${size}px ${MONO}`, color }) as const;
+  ({ font: `${weight} ${px(size)}px ${MONO}`, color }) as const;
 
 export const sys = (weight: number, size: number, color: string) =>
-  ({ font: `${weight} ${size}px system-ui`, color }) as const;
+  ({ font: `${weight} ${px(size)}px system-ui`, color }) as const;
+
+// A paragraph that explains something. On a laptop it is the paragraph.
+// On a phone it is one faded line with an ⓘ and a chevron — enough to
+// see there is something to read — and a tap opens the whole text;
+// another tap folds it back. The screen stays for controls, not prose.
+export function Hint({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState(phoneType);
+  useEffect(() => {
+    const m = matchMedia("(max-width: 699px)"); const on = () => setPhone(m.matches);
+    m.addEventListener("change", on); return () => m.removeEventListener("change", on);
+  }, []);
+  if (!phone) return <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5, ...style }}>{children}</div>;
+  return (
+    <div className={`pm-hint${open ? " pm-hint-open" : ""}`} onClick={() => setOpen(!open)} style={style} role="button" aria-expanded={open}>
+      <span className="pm-hint-i">ⓘ</span>
+      <span className="pm-hint-text">{children}</span>
+      <span className="pm-hint-chev">{open ? "▴" : "▾"}</span>
+    </div>
+  );
+}
 
 // "Still waiting on the mesh" — used wherever the console has sent a
 // request and nothing has come back yet, so a slow reply never looks

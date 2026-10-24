@@ -176,3 +176,28 @@ before the next; what the phone showed goes here, candidly.
 - Should a phone be allowed to Save to boards, or only to edit and ▶
   Play, leaving save to the laptop? (Proposed: allowed; the yard is
   where you know it is right.)
+
+## 9. Type and hints on a phone (2026-10-24)
+
+**Type has a floor.** The laptop console is set in 9.5–13 px labels; at
+arm's length on a phone 11 px is a squint. The two font helpers in
+`console/src/ui.tsx` (`sys`, `mono`) apply a floor under the phone
+breakpoint: anything below 13 px lands at 12.5–13 px, 13 px and up is
+unchanged. Every inline label grows at once; nothing is styled twice.
+Pin option rows are 14 px by their own rule (§5).
+
+**Explanations fold.** Long notes (how an update streams, what a step
+is, why a flood light's state is a guess) are a `Hint` in `ui.tsx`. On
+a laptop it is the paragraph it always was. On a phone it is one faded
+line with ⓘ and a chevron, the first words showing so you can see
+there is something to read; a tap opens the whole text, another folds
+it. Errors never fold: the connect panel shows an error in place of the
+hint, in red. Sites so far: connect panel, firmware panel (two), the
+sequence step note, the pin guide legend, the flood-light notes.
+
+**Not done:** `title=` tooltips never show on a phone (no hover). The
+candle and fire option boxes have their own `?` toggle, which works by
+tap. The rest of the tooltips are laptop-only until a long-press or a
+per-row ⓘ is added. The pinout drawing is laptop-sized; on a phone it
+starts folded (open stays remembered either way).
+

@@ -4,7 +4,7 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys, Hint } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import { battText } from "../../lib/battery";
 import { useLayout } from "../../lib/layout";
@@ -398,9 +398,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           );
         })}
         {draft.channels.some((c) => c.kind === "BLE_LIGHT") && (
-          <div style={{ ...sys(400, 11.5, C.t4), padding: "10px 0 0" }}>
+          <Hint style={{ marginTop: 10 }}>
             This board also sends to {draft.channels.filter((c) => c.kind === "BLE_LIGHT").length} flood light(s) — managed in the <b>Floods</b> tab, where they belong to the whole mesh.
-          </div>
+          </Hint>
         )}
       </div>}
     </div>
