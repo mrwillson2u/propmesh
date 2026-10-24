@@ -382,7 +382,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       {phone && (
                         <button className="pm-chev" aria-expanded={drawer?.gpio === pin.gpio} aria-label="What these settings do"
                           onClick={(e) => toggleDrawer(pin.gpio, (e.currentTarget as HTMLElement).closest(".pm-pin"))}>
-                          {drawer?.gpio === pin.gpio ? "▴" : "▾"}
+                          {drawer?.gpio === pin.gpio ? "✕" : "ⓘ"}
                         </button>
                       )}
                       {phone && drawer?.gpio === pin.gpio && (

@@ -197,8 +197,9 @@ sequence step note, the pin guide legend, the flood-light notes.
 
 **Tooltips become a drawer.** `title=` text never shows on a phone (no
 hover), and Colin ruled out long-press (no affordance) and a mark on
-every row (clutter). So each assigned pin's card has one chevron at the
-end of its header line; a tap opens a drawer under the header that lists
+every row (clutter). So each assigned pin's card has one ⓘ at the end
+of its header line (Colin prefers the ⓘ to a chevron: it says "info",
+the arrow only says "more"); a tap opens a drawer under the header that lists
 every setting on that pin with its explanation, gathered from the card's
 own labels at open, with the function's name and the pin's note on top
 and the wiring guide link for a candle. The candle and fire boxes' own
@@ -208,4 +209,4 @@ remembered either way).
 
 **Still laptop-only:** tooltips outside the pin cards (firmware panel
 buttons, show rules, flood pickers). Same pattern when needed: one
-chevron per group, a drawer, never per row.
+ⓘ per group, a drawer, never per row.
