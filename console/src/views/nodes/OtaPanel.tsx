@@ -23,7 +23,7 @@ const field: React.CSSProperties = {
   height: 30, padding: "0 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(500, 12.5, C.t1),
 };
 
-interface Served { build: string; size: number; sha256: string }
+interface Served { build: string; built?: number; size: number; sha256: string }
 type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: number; was?: string; upWas?: number; note?: string; progress?: number };
 const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
@@ -199,6 +199,13 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const servedBuild = mode === "mesh"
     ? (typeof image === "object" && image ? image.build : null)
     : (typeof served === "object" && served ? served.build : null);
+  const servedBuilt = mode === "mesh"
+    ? (typeof image === "object" && image ? image.built : undefined)
+    : (typeof served === "object" && served ? served.built : undefined);
+  // A board on a different build may be on a NEWER one (a branch build put
+  // on for testing): the build time says so, where commit names can't.
+  const newerThanServed = (en: Entry) => !!en.hello?.built && !!servedBuilt && en.hello.built > servedBuilt;
+  const branchOf = (build: string) => { const m = build.match(/@(.+)$/); return m ? m[1] : null; };
   const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
   const busy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
   // Over the mesh one image streams at a time — the bridge can carry no
@@ -290,6 +297,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           const j = jobs[en.node];
           const build = en.hello?.build ?? `fw ${en.hello?.fw}`;
           const current = servedBuild !== null && build === servedBuild;
+          const newer = !current && newerThanServed(en);
+          const branch = branchOf(build);
           const missing = isMissing(en, Date.now());
           return [
             <span key={en.node + "n"} style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -297,7 +306,9 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
               <span style={sys(600, 12.5, C.t1)}>{nameOf(en.node)}</span>
               {en.usb && <span style={mono(700, 9.5, C.t3)}>{directLabel(link)}</span>}
             </span>,
-            <span key={en.node + "b"} style={mono(600, 11.5, current ? C.green : C.t2)}>{build}{en.hello?.pending ? " · unconfirmed" : ""}</span>,
+            <span key={en.node + "b"} style={mono(600, 11.5, current ? C.green : newer ? C.amber : C.t2)} title={branch ? `a build from the ${branch} branch, not the published one` : undefined}>
+              {branch ? build.slice(0, build.indexOf("@")) : build}{branch && <span style={{ color: C.amber }}>@{branch}</span>}{en.hello?.pending ? " · unconfirmed" : ""}
+            </span>,
             <span key={en.node + "s"} style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, j?.state === "failed" ? C.red : j?.state === "done" ? C.green : C.t4) }}>
               {j?.state === "sending" && (
                 <>
@@ -312,7 +323,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
               {j?.state === "waiting" && <><Spinner size={10} /> {mode === "mesh" ? "image accepted — rebooting into it…" : "gone quiet — downloading, then rebooting…"}</>}
               {j?.state === "done" && `✓ updated — ${j.note}`}
               {j?.state === "failed" && `✕ ${j.note}`}
-              {!j && (current ? "up to date" : missing ? "not heard recently"
+              {!j && (current ? "up to date" : newer ? `newer than this site's build (built ${new Date((en.hello!.built!) * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}) — Update would put the older one on` : missing ? "not heard recently"
                 : onBoard[en.node]?.state === "downloading" && onBoard[en.node].written > 0
                   ? `paused at ${onBoard[en.node].progress} % received — Update resumes it (same image)`
                 // Firmware before 2026-10-09 reports a mesh transfer and a WiFi

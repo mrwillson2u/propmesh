@@ -252,6 +252,16 @@ tunnel for that). No login: anyone on the home network can open it.
   process keeps stale routes after a change of network (2026-10-21).
   Port 5181 is only a temporary dev server; 5180 is the console.
 
+**What a build's name means (2026-10-24):** `<commit>` is a build of
+`main`, the published release. `<commit>@dev` is from dev (the dev
+site's firmware). `<commit>@<branch>` is a branch build, put on a board
+by hand for testing. `+<hash>` after the commit means uncommitted edits
+were in it. Every build also carries the time it was built, which the
+console uses to say "newer than this site's build" for a board on a
+branch build instead of offering the older release; commit names have
+no order of their own. "Up to date" still means exactly the build this
+site serves.
+
 **The docs site, dev build, on the LAN (2026-10-23):**
 **http://ubuntubot.local:5190/propmesh/** — the whole site as the
 publish workflow builds it, from `origin/dev` instead of `main`:

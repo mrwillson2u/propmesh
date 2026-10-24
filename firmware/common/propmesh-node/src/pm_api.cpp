@@ -78,6 +78,7 @@ static void cmd_hello(JsonObject resp) {
   resp["node"] = id;
   resp["fw"] = PM_FW_VERSION;
   resp["build"] = PM_BUILD;
+  resp["built"] = (uint32_t)PM_BUILT;  // UTC seconds the image was built: orders builds, which commit names can't
   resp["reset"] = pm_reset_reason();
   resp["up_s"] = millis() / 1000;
   if (pm_lastwords_any()) pm_lastwords_to_json(resp["last"].to<JsonObject>());

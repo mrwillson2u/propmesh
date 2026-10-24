@@ -241,6 +241,7 @@ void setup() {
   evt["board"] = BOARD.id;
   evt["fw"] = PM_FW_VERSION;
   evt["build"] = PM_BUILD;
+  evt["built"] = (uint32_t)PM_BUILT;
   evt["pending"] = pm_ota_pending();  // a fresh OTA image, not yet proven
   evt["reset"] = pm_reset_reason();
   evt["wake"] = pm_sleep_wake_cause();
