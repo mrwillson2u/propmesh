@@ -52,6 +52,13 @@ on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
+- **A lit candle's `state` value (2026-10-24).** Colin saw a lit candle
+  read as "out" when its pins page opened. With a candle visibly lit,
+  `python3 tools/bridge.py ask <candle id> state` — CANDLE_1 non-zero
+  means the console showed a stale read (the page now re-reads every
+  5 s, fixed); zero means the firmware lights it past the runtime
+  value (a firmware fix). `docs/console-nodes-list.md` §5.
+
 Run these with the boards in hand. Protocol: write out what to watch,
 **wait for Colin's "go"**, make tests self-announcing (CLAUDE.md).
 
@@ -126,6 +133,14 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
 
 ## 3. Open bugs and loose ends
+
+- **Node list overhaul (2026-10-24)** — built: the roster (boards
+  remembered per browser, on the list at connect, asleep or not
+  heard), name order, zzz with sleep age, hide / forget for a dead
+  mains board, live `state` on a board's page. Waiting on Colin: the
+  layout (row / list beside the editor / cards) and with it the
+  reorder control; whether an overdue battery board turns red.
+  `docs/console-nodes-list.md`.
 
 - **C6 SuperMini crash-loop on its first real run (2026-10-15) —
   cause found, fix built, not yet on the board.** e076df14 on the release

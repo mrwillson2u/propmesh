@@ -31,6 +31,90 @@ export interface Entry {
   seen: number; // ms timestamp of the last heartbeat / hello
   firstSeen: number; // when the console first heard it
   helloTries: number; // hellos sent and not answered
+  // From the roster, not heard yet this session: shown (asleep or not
+  // heard) but not polled — a request to a sleeping board only times
+  // out on the bridge. Cleared by its first heartbeat.
+  remembered?: boolean;
+}
+
+// ---- the roster ---------------------------------------------------------
+// Boards this console has met on this mesh, kept in this browser so they
+// are on the list the moment it connects — a battery board asleep since
+// last night is otherwise invisible until its next check-in (Colin,
+// 2026-10-24: the candles "weren't visible" in the morning). Keyed by the
+// bridge's id: a mesh is its bridge. Also the user's choices about the
+// list: hidden boards (dead ones, taken off the list until they speak
+// again) and a hand order, for when the list is arranged by hand.
+export interface RosterEntry {
+  node: string;
+  hello: NodeHello;
+  lastSeen: number; // ms timestamp of the last heartbeat heard by any session here
+}
+export interface Roster {
+  boards: Record<string, RosterEntry>;
+  hidden: string[];
+  order: string[]; // node ids, first to last; ids not listed follow in name order
+}
+const ROSTER_KEY = "propmesh.roster.";
+const EMPTY_ROSTER: Roster = { boards: {}, hidden: [], order: [] };
+let roster: Roster = EMPTY_ROSTER;
+let rosterKey: string | null = null;
+let rosterDirty = 0;
+
+function loadRoster(bridgeId: string): Roster {
+  rosterKey = ROSTER_KEY + bridgeId;
+  try {
+    const r = JSON.parse(localStorage.getItem(rosterKey) ?? "null") as Partial<Roster> | null;
+    roster = { boards: r?.boards ?? {}, hidden: r?.hidden ?? [], order: r?.order ?? [] };
+  } catch { roster = { ...EMPTY_ROSTER }; }
+  return roster;
+}
+function saveRoster() {
+  if (!rosterKey) return;
+  try { localStorage.setItem(rosterKey, JSON.stringify(roster)); } catch { /* private mode */ }
+}
+// Writes are batched: a heartbeat every 5 s from every board would
+// otherwise rewrite the store constantly.
+function remember(node: string, hello: NodeHello | undefined, seen: number) {
+  if (!rosterKey) return;
+  const prev = roster.boards[node];
+  if (!hello && !prev) return;
+  roster = { ...roster, boards: { ...roster.boards, [node]: { node, hello: hello ?? prev!.hello, lastSeen: Math.max(seen, prev?.lastSeen ?? 0) } } };
+  if (!rosterDirty) rosterDirty = window.setTimeout(() => { rosterDirty = 0; saveRoster(); }, 2000);
+}
+export const getRoster = () => roster;
+export const isHidden = (node: string) => roster.hidden.includes(node);
+export function hideNode(node: string, hide: boolean) {
+  roster = { ...roster, hidden: hide ? [...new Set([...roster.hidden, node])] : roster.hidden.filter((n) => n !== node) };
+  saveRoster(); changed();
+}
+// Forget a board for good: off the roster and the list. It comes back
+// on its next heartbeat, as any new board would.
+export function forgetNode(node: string) {
+  const boards = { ...roster.boards }; delete boards[node];
+  roster = { boards, hidden: roster.hidden.filter((n) => n !== node), order: roster.order.filter((n) => n !== node) };
+  saveRoster();
+  if (current && current.entries[node]?.remembered) {
+    const entries = { ...current.entries }; delete entries[node];
+    current = { ...current, entries, selected: current.selected === node ? null : current.selected };
+  }
+  changed();
+}
+export function setOrder(order: string[]) { roster = { ...roster, order }; saveRoster(); changed(); }
+
+// The list as the views show it: the bridge (the board on the cable)
+// first, then the hand order if there is one, then by name — the same
+// order every time the console opens, not the order boards were heard
+// (2026-10-24). Hidden boards are left out unless asked for.
+export function orderedEntries(c: Connection, withHidden = false): Entry[] {
+  const pos = new Map(roster.order.map((n, i) => [n, i]));
+  const name = (e: Entry) => (e.hello?.name || "").toLowerCase();
+  return Object.values(c.entries)
+    .filter((e) => withHidden || !roster.hidden.includes(e.node))
+    .sort((a, b) => Number(b.usb) - Number(a.usb)
+      || (pos.get(a.node) ?? 1e9) - (pos.get(b.node) ?? 1e9)
+      || (name(a) && name(b) ? name(a).localeCompare(name(b)) : Number(!name(a)) - Number(!name(b)))
+      || a.node.localeCompare(b.node));
 }
 
 export interface LocalMesh {
@@ -104,6 +188,8 @@ export const getConnection = () => current;
 export const connectionError = () => lastError;
 
 export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.seen > MISSING_MS;
+// A battery board that has gone quiet is asleep, not lost (docs §6f).
+export const isAsleep = (en: Entry, now = Date.now()) => en.hello?.power === "battery" && isMissing(en, now);
 
 export function counts(c: Connection, now = Date.now()) {
   const all = Object.values(c.entries);
@@ -139,6 +225,12 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
     link, hello, selected: hello.node, lastEvent: t, activity: [],
     entries: { [hello.node]: { node: hello.node, usb: true, hello, seen: t, firstSeen: t, helloTries: 0 } },
   };
+  // Everyone this browser has met on this mesh, from the roster, before
+  // any of them has spoken: asleep (battery) or not heard yet (mains).
+  for (const r of Object.values(loadRoster(hello.node).boards)) {
+    if (r.node === hello.node) continue;
+    current.entries[r.node] = { node: r.node, usb: false, hello: r.hello, seen: r.lastSeen, firstSeen: t, helloTries: 0, remembered: true };
+  }
   const helloAt = new Map<string, number>([[hello.node, t]]);
   let meshAt = 0;
 
@@ -162,7 +254,11 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         // Uptime went backwards: it rebooted (a firmware update, a power
         // blip) — ask again who it is, since its build or role may differ.
         const prev = current.entries[hb.node]?.hb;
-        patch(hb.node, { hb, seen: Date.now() });
+        const was = current.entries[hb.node];
+        patch(hb.node, { hb, seen: Date.now(), remembered: false });
+        remember(hb.node, was?.hello, Date.now());
+        // A hidden board that speaks again is back on the list.
+        if (roster.hidden.includes(hb.node)) hideNode(hb.node, false);
         if (prev && hb.up < prev.up) refreshHello(hb.node);
       } else changed();
     } else if (e.evt === "input") {
@@ -187,6 +283,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
     if (!current) return;
     const now = Date.now();
     for (const en of Object.values(current.entries)) {
+      if (en.remembered) continue; // not heard yet this session: nothing to ask
       const last = helloAt.get(en.node);
       const due = en.usb ? last === undefined || now - last > 5000
         : last === undefined || now - last > (en.hello ? REFRESH_HELLO_MS : HELLO_RETRY_MS);
@@ -197,6 +294,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       target(link, en.usb ? null : en.node).request("hello").then((r) => {
         if (!r.ok) return;
         patch(en.node, { hello: r as unknown as NodeHello, seen: Date.now(), helloTries: 0 });
+        remember(en.node, r as unknown as NodeHello, Date.now());
         // The show schedule runs on the boards' wall clock: give each board
         // this device's time the first time it introduces itself (and the
         // USB board on every re-hello, cheap and keeps it fresh).
@@ -231,6 +329,7 @@ function log(a: Activity) {
 
 function end() {
   teardown?.();
+  if (rosterDirty) { clearTimeout(rosterDirty); rosterDirty = 0; saveRoster(); }
   current = null;
   changed();
 }
@@ -248,8 +347,9 @@ export function refreshHello(node: string) {
   const c = current;
   if (!c) return;
   const en = c.entries[node];
+  if (en?.remembered) return;
   target(c.link, en?.usb ? null : node).request("hello").then((r) => {
-    if (r.ok) patch(node, { hello: r as unknown as NodeHello, seen: Date.now() });
+    if (r.ok) { patch(node, { hello: r as unknown as NodeHello, seen: Date.now() }); remember(node, r as unknown as NodeHello, Date.now()); }
   }).catch(() => { /* the poll will catch up */ });
 }
 
@@ -289,7 +389,9 @@ async function everyNode(cmd: string, body: Record<string, unknown> = {}): Promi
   const c = current;
   if (!c) return [];
   body = { at: editStamp(), ...body };  // one stamp for every board's copy
-  const results = await Promise.all(Object.values(c.entries).map((n) =>
+  // A board from the roster that hasn't spoken this session is asleep or
+  // gone: asking it only ties up the bridge until the request times out.
+  const results = await Promise.all(Object.values(c.entries).filter((n) => !n.remembered).map((n) =>
     target(c.link, n.usb ? null : n.node).request(cmd, body)
       .then((r) => (r.ok ? null : n.node))
       .catch(() => n.node)));

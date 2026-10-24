@@ -394,7 +394,13 @@ const SIM_LOCAL = SIM_LOCAL_ID;
 const SIM_REMOTES = [
   { node: "5c0ffee1", hops: 0, rssi: -54, nbrs: [{ node: SIM_LOCAL_ID, rssi: -55 }, { node: "5c0ffee2", rssi: -77 }] },
   { node: "5c0ffee2", hops: 1, rssi: -77, nbrs: [{ node: "5c0ffee1", rssi: -79 }] },
+  // A battery board: awake for 25 s after the page loads, then asleep
+  // (no heartbeats) until its next check-in, 2 min later, for 20 s —
+  // the real sleep pattern at a small scale, so the list's asleep /
+  // remembered states can be seen without hardware.
+  { node: "5c0ffee3", hops: 0, rssi: -61, nbrs: [{ node: SIM_LOCAL_ID, rssi: -62 }], sleeps: true },
 ];
+const SIM_SLEEP_CYCLE_MS = 120000, SIM_SLEEP_CHECKIN_MS = 20000;
 
 // A step on the wire: [t, kind, index, value] or [..., dur, ease_in, ease_out].
 type SimStep = [number, string, number, number] | [number, string, number, number, number, number, number];
@@ -475,10 +481,16 @@ class SimLink implements NodeLink {
       const o = this.ota.get(r.node);
       if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
       if (o) return; // off the mesh while it downloads and reboots
+      if (r.sleeps) {
+        // On the wall clock, like a real board's check-in grid: awake for
+        // the first 20 s of every 2 min, so a page opened mid-cycle meets
+        // it asleep (and, once remembered, on the list anyway).
+        if (Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) return; // asleep
+      }
       const hb: Heartbeat = {
         node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
-        batt: n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
+        batt: r.sleeps || n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
       };
       this.events.emit({ evt: "heartbeat", ...hb });
@@ -490,13 +502,18 @@ class SimLink implements NodeLink {
   async request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
     const node = (body.node as string | undefined) ?? SIM_LOCAL;
     const n = this.nodes.get(node);
+    // A sleeping board hears nothing: the request times out, as on the mesh.
+    if (SIM_REMOTES.find((r) => r.node === node)?.sleeps && Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return { ok: false, error: `no reply from node ${node}` };
+    }
     if (node !== SIM_LOCAL) await new Promise((r) => setTimeout(r, 120)); // mesh round trip
     if (!n) return { ok: false, error: `no reply from node ${node}` };
     switch (cmd) {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? 300000, sleeps: true, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };

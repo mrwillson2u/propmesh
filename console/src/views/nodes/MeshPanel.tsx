@@ -17,7 +17,7 @@ import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
-  useConnection, type Entry, checkinText } from "../../lib/connection";
+  useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode } from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -26,6 +26,18 @@ const btn = (primary = false, disabled = false): React.CSSProperties => ({
   border: `1px solid ${primary ? C.ember : C.b3}`,
   ...sys(600, 11.5, primary ? C.emberT : C.t2),
 });
+
+// "3 h", "12 min", "40 s" — how long since a board was heard.
+export function ago(ms: number, short = false): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return short || !mm ? `${h} h` : `${h} h ${mm} min`;
+  const d = Math.floor(h / 24);
+  return short ? `${d} d` : `${d} d ${h % 24} h`;
+}
 
 // The firmware panel's "selected" id (not a node).
 const OTA = "ota";
@@ -41,6 +53,7 @@ export default function MeshPanel() {
   const { phone } = useLayout();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false); // hidden boards shown for a look
   const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
   const link = conn?.link ?? null;
   const entries = conn?.entries ?? {};
@@ -102,14 +115,14 @@ export default function MeshPanel() {
     );
   }
 
-  const list = (Object.values(entries) as Entry[]).sort((a, b) =>
-    Number(b.usb) - Number(a.usb) || (a.hb?.hops ?? 0) - (b.hb?.hops ?? 0) || a.node.localeCompare(b.node));
+  const hiddenCount = getRoster().hidden.filter((n) => entries[n]).length;
+  const list = conn ? orderedEntries(conn, showHidden) : [];
   const sel = selected ? entries[selected] : undefined;
   const selBoard = sel?.hello ? BOARDS[sel.hello.board] : undefined;
 
   const where = (en: Entry) => en.usb ? directLabel(link)
     : en.hb ? `mesh · ${en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · ${en.hb.rssi} dBm`
-    : "mesh";
+    : en.remembered ? `remembered — last heard ${ago(now - en.seen)} ago` : "mesh";
 
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
@@ -124,6 +137,7 @@ export default function MeshPanel() {
         </span>
         {list.map((en) => {
           const missing = isMissing(en, now);
+          const hidden = getRoster().hidden.includes(en.node);
           // A battery board that's gone quiet is asleep, not lost (docs §6f).
           const battery = en.hello?.power === "battery";
           const asleep = battery && missing;
@@ -134,26 +148,41 @@ export default function MeshPanel() {
           const on = en.node === selected;
           return (
             <button key={en.node} onClick={() => setSelected(en.node)}
-              title={`${en.node} · ${where(en)}${asleep ? ` · asleep — ${checkinText(en.hello?.checkin_ms)} (every ${en.hello?.checkin_ms ? Math.round(en.hello.checkin_ms / 60000) : "?"} min), or on its sensor` : missing ? " · not heard recently" : ""}${listening ? ` · listening ${en.hb!.listen} ms windows` : ""}${en.hello ? "" : " · asking it for its name and board"}`}
+              title={`${en.node} · ${where(en)}${asleep ? ` · asleep ${ago(now - en.seen)} — ${checkinText(en.hello?.checkin_ms)} (every ${en.hello?.checkin_ms ? Math.round(en.hello.checkin_ms / 60000) : "?"} min), or on its sensor` : missing ? ` · not heard for ${ago(now - en.seen)}` : ""}${listening ? ` · listening ${en.hb!.listen} ms windows` : ""}${en.hello ? "" : " · asking it for its name and board"}${hidden ? " · hidden" : ""}`}
               style={{
                 display: "flex", alignItems: "center", gap: 7, height: 32, padding: "0 10px", borderRadius: 6, cursor: "pointer",
                 background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}`,
+                opacity: hidden ? 0.45 : asleep ? 0.7 : 1,
               }}>
               {en.hello
                 ? <span style={{ width: 7, height: 7, borderRadius: "50%", background: asleep ? C.t4 : missing ? C.red : C.green }} />
                 : <Spinner size={10} />}
               <span style={sys(600, 12, asleep ? C.t3 : missing ? C.red : en.hello ? C.t1 : C.t3)}>{en.hello?.name || en.node}</span>
-              {asleep && <span style={mono(500, 10.5, C.t4)}>☾ asleep</span>}
+              {asleep && <span style={{ ...mono(700, 11, C.t4), letterSpacing: ".04em" }}>z<span style={{ fontSize: 9 }}>z</span><span style={{ fontSize: 7 }}>z</span> {ago(now - en.seen, true)}</span>}
               {listening && <span title="listening in windows between cues" style={mono(500, 10.5, C.t4)}>☾ {en.hb!.listen} ms</span>}
               {battery && en.hb && en.hb.batt > 0 && <span style={mono(500, 10.5, en.hb.batt < 3500 ? C.amber : C.t4)}>{battText(en.hb.batt)}</span>}
               {!en.hello && <span style={mono(500, 10.5, C.t4)}>connecting…</span>}
               {en.usb && tag(directLabel(link), C.t2, C.raised)}
               {bridge && tag("BRIDGE", C.emberT, C.emberBg)}
               {clock && <span title="Keeps the mesh clock (conductor)" style={mono(600, 11, C.t4)}>⏱</span>}
-              {!en.usb && en.hb && <span style={mono(500, 10.5, C.t4)}>{en.hb.rssi}</span>}
+              {!en.usb && en.hb && !missing && <span style={mono(500, 10.5, C.t4)}>{en.hb.rssi}</span>}
+              {missing && !asleep && !hidden && (
+                <span role="button" title="Hide this board until it speaks again" onClick={(e) => { e.stopPropagation(); hideNode(en.node, true); if (on) setSelected(null); }}
+                  style={{ ...mono(700, 12, C.t4), padding: "0 2px", marginLeft: 2 }}>✕</span>
+              )}
+              {hidden && (
+                <span role="button" title="Forget this board (it comes back if it ever speaks again)" onClick={(e) => { e.stopPropagation(); forgetNode(en.node); }}
+                  style={{ ...mono(700, 12, C.red), padding: "0 2px", marginLeft: 2 }}>forget</span>
+              )}
             </button>
           );
         })}
+        {hiddenCount > 0 && (
+          <button onClick={() => setShowHidden(!showHidden)} title={showHidden ? "Hide them again" : "Boards you hid — they come back by themselves when heard"}
+            style={{ height: 32, padding: "0 10px", borderRadius: 6, background: "none", border: `1px dashed ${C.b3}`, ...mono(600, 11, C.t4), cursor: "pointer" }}>
+            {showHidden ? "hide" : `+${hiddenCount} hidden`}
+          </button>
+        )}
         {list.length > 0 && (
           <button onClick={() => setSelected(FLOODS)} title="BRMesh flood lights — driven by every board you tick"
             style={{

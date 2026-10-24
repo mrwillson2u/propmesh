@@ -135,22 +135,27 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
-  // A battery input's reading changes slowly: re-read it every 5 s while
-  // the page is open (inputs otherwise only push changes as events). The
-  // node target is a fresh object on every parent render, and heartbeats
-  // re-render the parent every second or two — so the timer lives on a
-  // ref and restarts only when the board or its channels change; keyed on
-  // `node` it was cleared before it ever fired (2026-10-18).
+  // Outputs change without the console — a sequence lights the candle,
+  // a schedule turns things on — so the board's state is re-read every
+  // 5 s while its page is open, and again when the tab comes back into
+  // view (a candle lit by the show read as "out" here, 2026-10-24). The
+  // firmware counts `state` as background polling: it does not hold a
+  // battery board awake. The node target is a fresh object on every
+  // parent render, and heartbeats re-render the parent every second or
+  // two — so the timer lives on a ref and restarts only when the board
+  // changes; keyed on `node` it was cleared before it ever fired
+  // (2026-10-18).
   const nodeRef = useRef(node);
   nodeRef.current = node;
-  const hasBattery = applied.channels.some((c) => c.kind === "BATTERY");
   const reread = () => nodeRef.current.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined);
   useEffect(() => {
-    if (!hasBattery) return;
-    const t = setInterval(reread, 5000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasBattery, hello.node]);
+    if (!loaded) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") void reread(); }, 5000);
+    const onShow = () => { if (document.visibilityState === "visible") void reread(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, hello.node]);
 
   // ---- save -----------------------------------------------------------
 
