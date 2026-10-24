@@ -53,10 +53,14 @@ static uint32_t s_highest;
 
 static int8_t s_reply_to = PM_TO_ALL;  // who the line being built is for
 
+// The line buffer is borrowed from the heap for the call: static, it was
+// 4.4 KB of a bridge's RAM held for nothing between lines (docs §6j).
 static void emit(JsonDocument &doc) {
-  static char buf[PM_API_MAX_BYTES + 64];
-  size_t n = serializeJson(doc, buf, sizeof(buf));
+  char *buf = (char *)malloc(PM_API_MAX_BYTES + 64);
+  if (!buf) return;  // no memory: the line is lost; the console asks again
+  size_t n = serializeJson(doc, buf, PM_API_MAX_BYTES + 64);
   if (s_out) s_out(buf, n, s_reply_to);
+  free(buf);
 }
 
 static void node_hex(char out[9], uint32_t id) {
@@ -339,9 +343,11 @@ static void on_api(const RxFrame &f) {
   } else {
     pm_api_handle(req.as<JsonObjectConst>(), resp.to<JsonObject>());
   }
-  static char out[PM_API_MAX_BYTES];
-  size_t len = serializeJson(resp, out, sizeof(out));
+  char *out = (char *)malloc(PM_API_MAX_BYTES);  // for the call; send_chunked copies into frames
+  if (!out) return;
+  size_t len = serializeJson(resp, out, PM_API_MAX_BYTES);
   send_chunked(PM_MSG_TYPE_API_RESP, f.hdr.src_id, a.req_id, out, len);
+  free(out);
 }
 
 void pm_link_begin(pm_line_out_t out) {

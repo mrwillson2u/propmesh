@@ -1555,6 +1555,19 @@ the instruments to catch it next time, and a self-heal.
   "queued" decides whether one-in-flight limits the hardware queue at
   all — the 22 ms per frame observed says transmitted.
 
+  **Buffers on demand (2026-10-23 evening, PR #54).** After a bridge
+  serving five boards and two consoles crashed outright at 18 KB free
+  with 690 failed allocations, the static buffers went on demand: the
+  three reassembly slots (13 KB) exist only while a message is coming
+  in; the event/reply line buffer and the mesh reply buffer (4.4 + 4.3
+  KB) are borrowed from the heap per call; the serial line buffer (4 KB)
+  is allocated on the first serial byte, which a WiFi bridge never
+  sees; the two `PmSequence` temporaries (2 × 2 KB) are per call; and
+  the send queue is 16 frames with a 2.5 KB task stack. Static RAM on
+  the DevKit: **97.3 → 67.6 KB**, so the heap gains about 30 KB. The
+  CLAUDE.md rule now reads: on the bridge, no static or long-lived
+  buffer that is not in use most of the time.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
