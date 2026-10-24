@@ -886,7 +886,7 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
           <b> swing</b> — the coil's kick rate; match the flame's own swing with <b>Find the swing…</b> in the TEST column.
           <b> kick</b> — how long each coil pulse lasts: longer is harder and warmer; the finder helps pick the lightest kick that still swings fully.
           <b> swing the flame</b> — off keeps the flame piece still while the LED flickers.
-          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them; each keeps its own shimmer and sway.
+          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them: the same moment and strength, but each flame dips in its own rhythm and keeps its own shimmer and sway.
           {" "}<a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" style={{ color: C.amber }}>Wiring and tuning guide ↗</a>
         </span>
       )}

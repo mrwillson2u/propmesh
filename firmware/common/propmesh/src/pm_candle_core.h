@@ -54,20 +54,36 @@ class PmCandleCore {
     if (sec == draft_sec) return;
     draft_sec = sec;
     uint32_t h = mix((uint32_t)sec * 0x9E3779B1u ^ (c.draft * 0x85EBCA6Bu));
-    if (!gust_on && !sputter_on && c.gust_s && (h % c.gust_s) == 0) {
-      gust(now);
-      gust_dur = 600 + (h >> 8) % 1600;
-      gust_depth = clampf((0.5f + ((h >> 16) % 300) / 1000.0f) * c.drama10 / 10.0f, 0, 0.92f);
-      gust_hz = 8.0f + ((h >> 24) % 40) / 10.0f;
+    // The draft shares the moment and the strength of the wind; each candle
+    // answers in its own way — its own delay (a breath crosses the row, up to
+    // a third of a second), its own length, depth and dip rhythm from its
+    // own randomness. The first version copied the whole gust shape from
+    // the hash, and the lights dipped on exactly the same beat (Colin,
+    // 2026-10-22).
+    if (!gust_on && !sputter_on && !draft_gust_at && c.gust_s && (h % c.gust_s) == 0) {
+      draft_gust_at = now + (uint32_t)irange(0, 350);
+      draft_gust_strength = 0.8f + ((h >> 16) % 400) / 1000.0f;  // 0.8-1.2, the same for the whole draft
     }
     uint32_t h2 = mix(h ^ 0x5bd1e995u);
-    if (!sputter_on && c.sputter_s && (h2 % c.sputter_s) == 0) sputter(now);
+    if (!sputter_on && !draft_sputter_at && c.sputter_s && (h2 % c.sputter_s) == 0)
+      draft_sputter_at = now + (uint32_t)irange(0, 400);
   }
 
   // Brightness 0..1 for the LED at `now`, before gamma. Call every tick
   // (dt_ms since the last call).
   float led(uint32_t now, uint32_t dt_ms) {
     float d = c.drama10 / 10.0f;
+    if (draft_gust_at && due(now, draft_gust_at)) {  // the draft's gust reaches this candle
+      draft_gust_at = 0;
+      if (!gust_on && !sputter_on) {
+        gust(now);  // its own length, depth and rhythm...
+        gust_depth = clampf(gust_depth * draft_gust_strength, 0, 0.92f);  // ...at the wind's strength
+      }
+    }
+    if (draft_sputter_at && due(now, draft_sputter_at)) {
+      draft_sputter_at = 0;
+      if (!sputter_on) sputter(now);
+    }
     if (due(now, next_wander)) {
       wander_to = range(0.76f, 0.92f);
       next_wander = now + (uint32_t)range(300, 1500);
@@ -236,4 +252,6 @@ class PmCandleCore {
   bool pumping_now = false;
   bool draft_live = false;   // a draft is deciding the gusts this tick
   int64_t draft_sec = -1;    // the last mesh second judged
+  uint32_t draft_gust_at = 0, draft_sputter_at = 0;  // when the draft's gust/sputter reaches this candle (0 = none pending)
+  float draft_gust_strength = 1.0f;                  // the draft's shared strength for the next gust
 };

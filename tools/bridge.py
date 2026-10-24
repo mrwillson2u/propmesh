@@ -122,6 +122,10 @@ def cmd_ota(b, a):
         sys.exit(1)
     chunk, off, misses, t0, last, last_err = r.get("chunk", 2700), 0, 0, time.time(), 0, None
     while off < len(img):
+        # A breath between chunks: a bridge relaying for several nodes ran
+        # its heap down and its sends failed NO_MEM when chunks came back to
+        # back (2026-10-23). 60 ms costs about a minute per image.
+        time.sleep(a.pace / 1000.0)
         r = b.ask("ota_data", node=a.node, off=off, data=base64.b64encode(img[off:off + chunk]).decode(), timeout=9)
         if r and r.get("ok"):
             off, misses = r["written"], 0
@@ -226,6 +230,7 @@ def main():
     s = sub.add_parser("ota", help="update one board's firmware over the mesh")
     s.add_argument("node")
     s.add_argument("image")
+    s.add_argument("--pace", type=float, default=60, help="ms to wait between chunks (default 60; 0 = as fast as the mesh answers)")
     s = sub.add_parser("watch", help="log the bridge's mesh counters (send errors, unheard, heap) until Ctrl-C")
     s.add_argument("--every", type=float, default=60, help="seconds between samples (default 60)")
     s.add_argument("--listen", type=float, default=6, help="seconds of heartbeats to collect per sample (default 6)")

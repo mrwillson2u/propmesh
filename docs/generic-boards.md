@@ -2061,6 +2061,16 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   coil's 400 ms pre-gust pump is off in a draft (the gust isn't known
   ahead). Host test: two candles in draft 3 never disagree over an hour;
   draft 4 is independent.
+  **Own dips (2026-10-22, Colin on two candles in one draft):** the first
+  version copied the whole gust from the hash — start, length, depth
+  and dip rhythm — so the two flames dipped on exactly the same beat and
+  it read as one animation on two lamps. Now the hash decides only the
+  moment and the strength (0.8–1.2×, shared); each candle starts after
+  its own 0–350 ms delay (a breath crossing the row) and draws length,
+  depth and rhythm from its own randomness, scaled by the shared
+  strength; a draft sputter gets its own 0–400 ms delay. Host test: every
+  gust of one has the other's within 400 ms, and the two are never the
+  same tick for tick. To be seen on the candles.
 
 ## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
 
