@@ -201,6 +201,12 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     : (typeof served === "object" && served ? served.build : null);
   const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
   const busy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
+  // Over the mesh one image streams at a time — the bridge can carry no
+  // more — so while one is sending, every other Update is off (2026-10-23).
+  // Over WiFi the boards fetch their own images, so several at once is fine.
+  const streaming = mode === "mesh" ? Object.keys(jobs).find((n) => jobs[n]?.state === "sending") : undefined;
+  const oneAtATime = (node: string) => !!streaming && streaming !== node;
+  const oneAtATimeNote = streaming ? `one board at a time over the mesh — ${nameOf(streaming)} is being sent now` : undefined;
   const pill = (on: boolean): React.CSSProperties => ({
     ...btn(on), height: 26, padding: "0 10px",
   });
@@ -272,7 +278,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button onClick={() => void updateAll()} disabled={!ready} style={btn(true, !ready)}>Update all mesh boards</button>
+        <button onClick={() => void updateAll()} disabled={!ready || !!streaming} title={oneAtATimeNote} style={btn(true, !ready || !!streaming)}>Update all mesh boards</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "180px 130px 1fr 120px", gap: "6px 12px", alignItems: "center" }}>
@@ -317,11 +323,11 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
                   ? `downloading over WiFi… ${onBoard[en.node].progress} %`
                 : !ready ? "load an image above to update" : "")}
             </span>,
-            <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j)}
-              title={en.usb ? (link.via === "wifi"
+            <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j) || oneAtATime(en.node)}
+              title={oneAtATime(en.node) ? oneAtATimeNote : en.usb ? (link.via === "wifi"
                 ? "The console's own bridge: it reboots at the end and the console reconnects by itself. Over WiFi is the sturdier way to update this one."
                 : "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)") : undefined}
-              style={btn(false, !ready || busy(j))}>
+              style={btn(false, !ready || busy(j) || oneAtATime(en.node))}>
               {en.usb ? "Update (last)" : "Update"}
             </button>,
           ];
