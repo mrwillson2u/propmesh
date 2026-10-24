@@ -124,6 +124,11 @@ static struct {
 // next frame leaves when the last one's completion callback arrives, or
 // after TX_TIMEOUT_MS if it never does. Time beacons are stamped at the
 // moment they actually leave. Heap-allocated in init: static RAM is full.
+// Dispatch runs in its own small task, woken by the completion callback,
+// so the next frame leaves the moment the radio is free rather than on
+// the next pass of the main loop (which parses OTA chunks between passes:
+// pumped from the loop, an image took 13.6 min and the queue filled 30
+// times; 2026-10-23).
 #define TX_QUEUE 32
 #define TX_TIMEOUT_MS 60
 struct TxFrame { uint8_t len; uint8_t frame[sizeof(pm_frame_header_t) + PM_MAX_PAYLOAD]; };
@@ -132,6 +137,9 @@ static uint8_t s_txq_head, s_txq_count;
 static volatile bool s_tx_busy;
 static uint32_t s_tx_started_ms;
 static uint8_t s_tx_lost_streak;
+static portMUX_TYPE s_txq_mux = portMUX_INITIALIZER_UNLOCKED;
+static SemaphoreHandle_t s_tx_wake;
+static TaskHandle_t s_tx_task;
 
 // Election priority this node would beacon with: bridges outrank all.
 static uint8_t priority() { return (s_role & PM_NODE_ROLE_BRIDGE) ? 1 : 0; }
@@ -302,6 +310,7 @@ static void on_sent(const esp_now_send_info_t *, esp_now_send_status_t status) {
   s_stats.tx_done_ms = millis();
   s_tx_lost_streak = 0;
   s_tx_busy = false;
+  if (s_tx_wake) xSemaphoreGive(s_tx_wake);
 }
 
 // A time beacon is stamped as it leaves, so the time it sat in a queue
@@ -316,6 +325,8 @@ static void restamp_time(uint8_t *frame, uint8_t len, uint32_t now) {
     t->wall_ms = (uint64_t)s_wall.utc_ms(local_ms());
 }
 
+// One step of dispatch: if the radio is free (or has been silent past the
+// timeout) and a frame is waiting, send it. Called from the tx task.
 static void tx_pump(uint32_t now) {
   if (s_tx_busy) {
     if ((uint32_t)(now - s_tx_started_ms) < TX_TIMEOUT_MS) return;
@@ -323,16 +334,28 @@ static void tx_pump(uint32_t now) {
     s_tx_lost_streak++;
     s_tx_busy = false;
   }
-  if (!s_txq_count) return;
-  TxFrame &f = s_txq[s_txq_head];
+  TxFrame f;
+  portENTER_CRITICAL(&s_txq_mux);
+  if (!s_txq_count) { portEXIT_CRITICAL(&s_txq_mux); return; }
+  f = s_txq[s_txq_head];
   s_txq_head = (s_txq_head + 1) % TX_QUEUE;
   s_txq_count--;
+  portEXIT_CRITICAL(&s_txq_mux);
   restamp_time(f.frame, f.len, now);
   esp_err_t err = esp_now_send(BCAST, f.frame, f.len);
   if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; return; }
   s_stats.tx_sent++;
   s_tx_busy = true;
   s_tx_started_ms = now;
+}
+
+static void tx_task(void *) {
+  for (;;) {
+    // Woken by a completion or a new frame; or wake on the timeout to count
+    // a lost frame and move on.
+    xSemaphoreTake(s_tx_wake, pdMS_TO_TICKS(TX_TIMEOUT_MS));
+    tx_pump(millis());
+  }
 }
 
 // Queue a frame for sending; false if the queue is full (counted).
@@ -343,12 +366,15 @@ static bool txq_push(const uint8_t *frame, uint8_t len) {
     s_stats.tx_sent++;
     return true;
   }
-  if (s_txq_count >= TX_QUEUE) { s_stats.tx_queue_full++; return false; }
+  portENTER_CRITICAL(&s_txq_mux);
+  if (s_txq_count >= TX_QUEUE) { portEXIT_CRITICAL(&s_txq_mux); s_stats.tx_queue_full++; return false; }
   TxFrame &f = s_txq[(s_txq_head + s_txq_count) % TX_QUEUE];
   f.len = len;
   memcpy(f.frame, frame, len);
   s_txq_count++;
   if (s_txq_count > s_stats.tx_queue_max) s_stats.tx_queue_max = s_txq_count;
+  portEXIT_CRITICAL(&s_txq_mux);
+  if (s_tx_wake) xSemaphoreGive(s_tx_wake);
   return true;
 }
 
@@ -375,6 +401,11 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   if (role & PM_NODE_ROLE_CONDUCTOR)
     s_clock.become_conductor(s_node_id, priority(), millis());
   if (!s_txq) s_txq = (TxFrame *)calloc(TX_QUEUE, sizeof(TxFrame));
+  if (s_txq && !s_tx_wake) s_tx_wake = xSemaphoreCreateBinary();
+  if (s_txq && s_tx_wake && !s_tx_task &&
+      xTaskCreate(tx_task, "pm_tx", 3072, nullptr, 5, &s_tx_task) != pdPASS) {
+    free(s_txq); s_txq = nullptr;  // no task: frames go straight to the radio, as before
+  }
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();  // no AP association yet (a bridge joins WiFi later — pm_wifi)
@@ -520,7 +551,6 @@ void pm_on_receive(pm_rx_handler_t handler) { s_handler = handler; }
 
 void pm_mesh_loop() {
   uint32_t now = millis();
-  tx_pump(now);
 
   for (int i = 0; i < RELAY_QUEUE; i++) {
     if (!s_relay[i].used || (int32_t)(now - s_relay[i].due_ms) < 0) continue;
@@ -562,7 +592,6 @@ void pm_mesh_loop() {
     t.floods_at = s_stamps.floods_at;
     pm_send(PM_MSG_TYPE_TIME, &t, sizeof(t));
   }
-  tx_pump(millis());
 }
 
 int64_t pm_mesh_time_us() { return s_clock.mesh_us(esp_timer_get_time()); }
