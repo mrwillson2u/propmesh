@@ -274,27 +274,34 @@ void setup() {
 // First restart ESP-NOW; if two more minutes go by still unheard, reboot.
 // At most 3 such reboots in a row (an honestly one-way link at the edge
 // of range mustn't reboot forever); being heard for 10 min resets that.
-// With evidence, sooner: unheard for 15 s while the heap has refused the
-// driver an allocation or esp_now_send has failed since we were last
-// heard — the wedge of docs §6j — rebuilds the radio at once instead of
-// after two minutes. The rebuild is the whole driver (pm_radio).
+// With evidence, sooner: unheard for 15 s while frames handed to the
+// radio have gone missing (no completion — the wedge of docs §6j)
+// rebuilds the radio at once instead of after two minutes. Only that
+// signature: a starved heap also makes sends fail, and rebuilding the
+// driver re-allocates ~50 KB into a fragmented heap, which made the next
+// failure sooner — six rebuilds in eighteen minutes, 72 → 25 KB free
+// (2026-10-23). For a heap problem the two-minute path's reboot is the
+// cure. One rebuild per ten minutes at most; the rebuild is the whole
+// driver (pm_radio).
 #define MUTE_MS 120000
 #define MUTE_EVIDENCE_MS 15000
+#define REBUILD_COOLDOWN_MS 600000
 RTC_NOINIT_ATTR static uint32_t rtc_mute_magic, rtc_mute_reboots;
 static void mute_watch() {
   static uint8_t stage;  // 0 fine, 1 radio rebuilt
   static uint32_t heard_since_ms = millis();
   static uint32_t last_check_ms;
-  static uint32_t fails_when_heard, txerr_when_heard, lost_when_heard;
+  static uint32_t lost_when_heard, last_rebuild_ms;
   uint32_t now = millis();
   if (now - last_check_ms < 1000) return;
   last_check_ms = now;
   if (rtc_mute_magic != 0x4D555445) { rtc_mute_magic = 0x4D555445; rtc_mute_reboots = 0; }
   uint32_t unheard = pm_mesh_unheard_ms();
   const pm_stats_t *st = pm_stats();
-  if (unheard == 0) { fails_when_heard = pm_api_alloc_failures(); txerr_when_heard = st->tx_err; lost_when_heard = st->tx_lost; }
-  bool evidence = pm_api_alloc_failures() != fails_when_heard || st->tx_err != txerr_when_heard || st->tx_lost != lost_when_heard;
-  if (unheard < MUTE_MS && !(stage == 0 && unheard >= MUTE_EVIDENCE_MS && evidence)) {
+  if (unheard == 0) lost_when_heard = st->tx_lost;
+  bool evidence = st->tx_lost != lost_when_heard;
+  bool cool = !last_rebuild_ms || now - last_rebuild_ms > REBUILD_COOLDOWN_MS;
+  if (unheard < MUTE_MS && !(stage == 0 && cool && unheard >= MUTE_EVIDENCE_MS && evidence)) {
     if (unheard == 0 && stage) { Serial.println("mesh: heard again"); stage = 0; }
     if (unheard == 0 && now - heard_since_ms > 600000) rtc_mute_reboots = 0;
     if (unheard) heard_since_ms = now;
@@ -311,8 +318,9 @@ static void mute_watch() {
            (unsigned long)pm_api_alloc_failures());
   if (stage == 0) {
     char why[64];
-    snprintf(why, sizeof(why), "mute: none hear us for %lu s%s", (unsigned long)(unheard / 1000), evidence ? " with the heap or sends failing" : "");
-    pm_radio_rebuild(why);
+    snprintf(why, sizeof(why), "mute: none hear us for %lu s%s", (unsigned long)(unheard / 1000), evidence ? " with frames going missing" : "");
+    if (cool) { pm_radio_rebuild(why); last_rebuild_ms = now; }
+    else Serial.printf("mesh: MUTE — %s; radio rebuilt %lu s ago, not again so soon\n", why, (unsigned long)((now - last_rebuild_ms) / 1000));
     stage = 1;
   } else if (rtc_mute_reboots < 3) {
     rtc_mute_reboots++;

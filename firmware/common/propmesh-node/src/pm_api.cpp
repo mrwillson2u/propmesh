@@ -14,6 +14,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_ble_tx.h"
 #include "pm_ws.h"
 #include "pm_radio.h"
+#include <esp_timer.h>
 #include <esp_heap_caps.h>
 #include "pm_lastwords.h"
 #include "pm_sync.h"
@@ -424,6 +425,19 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
   if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
     pm_sleep_hold(600000);
   if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
+  // A restart on request: the one cure for a fragmented heap (docs §6j), and
+  // the bridge had none when it needed it (2026-10-23). The reply leaves
+  // first; pm_lastwords says it was asked for.
+  if (!strcmp(cmd, "reboot")) {
+    pm_lastwords_note("reboot", req["why"] | "asked over the API");
+    resp["rebooting"] = true;
+    pm_sleep_hold(0);
+    static esp_timer_handle_t t;
+    const esp_timer_create_args_t a = { .callback = [](void *) { esp_restart(); }, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "pm_reboot", .skip_unhandled_events = false };
+    if (!t) esp_timer_create(&a, &t);
+    esp_timer_start_once(t, 700000);  // 0.7 s: the reply gets out
+    return;
+  }
   if (!strcmp(cmd, "hello")) cmd_hello(resp);
   // The Yard's map (console lib/yardMap.ts): a drawing of the yard and
   // where every board sits, kept on the board the console connects to so
