@@ -362,6 +362,7 @@ bool pm_mesh_recover(uint8_t ch) {
   if (esp_now_register_recv_cb(on_recv) != ESP_OK) return false;
   esp_now_register_send_cb(on_sent);
   s_stats.tx_done_ms = millis();  // a fresh radio starts a fresh clock on "stuck"
+  s_stats.tx_sent = s_stats.tx_done;  // frames in flight when the driver went down never complete: not a leak
   pm_mesh_set_channel(ch);
   return true;
 }

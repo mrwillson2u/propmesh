@@ -1498,6 +1498,29 @@ the instruments to catch it next time, and a self-heal.
   - *Open:* the AP-mode bridge (step 3 above), with the captive-portal
     setup; Prop's September mute, which this chain does not explain.
 
+  **Under load, four nodes and two consoles (2026-10-23).** With four
+  boards relaying and two consoles attached, the bridge idles at
+  **49 KB** free, not 70; a 2.7 KB OTA chunk every mesh round trip on
+  top of that took it to a largest block of 15 KB, 40 failed
+  allocations, and `esp_now_send` refusing frames (`tx_err` 333,
+  NO_MEM). The evidence trigger fired as designed — `radio rebuilt:
+  mute: none hear us for 15 s with the heap or sends failing; alloc
+  fails 40; heap 24120/14836` — and the bridge came back without a
+  reboot, twice in one boot. The transfer in progress died with it,
+  since a rebuild drops the WebSocket. Then the bridge reset with
+  **brownout**: it sits on a bus-powered four-port USB hub on the
+  server together with a C6 candle, and the hub's 500 mA is shared.
+  Consequences: `bridge.py ota` now breathes 60 ms between chunks
+  (`--pace`), about a minute per image, and the bridge must have its
+  own supply — a wall adapter or a powered hub, never a hub shared with
+  a prop. The in-flight count also showed 10 frames outstanding for
+  hours after a forced rebuild on 10-21: frames handed to the driver
+  just before it was torn down never complete, which is accounting,
+  not a leak; `pm_mesh_recover` now resets the count. Still to decide:
+  the one-in-flight send queue (step 3 of the proposal above) for a
+  bridge serving a full yard, since 49 KB leaves one router burst of
+  room and an OTA eats the rest.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
