@@ -9,7 +9,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
-import { fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
+import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -223,7 +223,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={sys(500, 11.5, C.t4)}>Image:</span>
           <span style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => { if (source !== "release") { setImage(null); setImageErr(null); setSource("release"); } }} style={pill(source === "release")} title="The firmware published on the PropMesh site — the latest release, built for each board type">Latest release</button>
+            <button onClick={() => { if (source !== "release") { setImage(null); setImageErr(null); setSource("release"); } }} style={pill(source === "release")} title={RELEASE_IS_THIS_SITE ? "The firmware this site serves — a dev build, not the published release — built for each board type" : "The firmware published on the PropMesh site — the latest release, built for each board type"}>{RELEASE_IS_THIS_SITE ? "This site's build" : "Latest release"}</button>
             <button onClick={() => { if (source !== "own") { setImage(null); setImageErr(null); setSource("own"); } }} style={pill(source === "own")} title="A build of your own: from tools/ota_serve.py, or a .bin file">My own build</button>
           </span>
           {source === "release" && image === "loading" && <><Spinner /><span style={sys(400, 11.5, C.t4)}>loading from the PropMesh site…</span></>}
@@ -231,7 +231,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
             <span style={mono(600, 11, C.red)}>✕ couldn't load the release ({imageErr}) — is this computer online? <span onClick={() => void loadImage()} style={{ textDecoration: "underline", cursor: "pointer" }}>retry</span></span>
           )}
           {source === "release" && typeof image === "object" && image && (
-            <span style={mono(600, 11, C.green)}>✓ latest release · build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB — each board type gets its own</span>
+            <span style={mono(600, 11, C.green)}>✓ {RELEASE_IS_THIS_SITE ? "this site's build" : "latest release"} · build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB — each board type gets its own</span>
           )}
         </div>
       )}
