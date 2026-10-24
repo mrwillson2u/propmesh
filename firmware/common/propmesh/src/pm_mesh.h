@@ -31,13 +31,16 @@ typedef struct {
   volatile uint32_t tx_done;      // send callbacks, any status
   volatile uint32_t tx_failed;    // of those, status != success (no air time)
   volatile uint32_t tx_done_ms;   // millis() of the last callback
+  // The send queue (docs §6j): one frame in flight at a time.
+  uint32_t tx_lost;        // dispatched, no completion within the timeout — the driver dropped it
+  uint32_t tx_queue_full;  // frames refused because the queue was full
+  uint8_t tx_queue_max;    // deepest the queue has been since boot
 } pm_stats_t;
 
 // Frames handed to the radio whose completion has not come back.
 uint32_t pm_mesh_tx_inflight();
-// Non-zero when the radio looks wedged: 8+ frames in flight and no
-// completion for 5 s — the time since the last one (ms). Nothing acts on
-// it yet; `mesh` reports it and bridge.py watch logs it.
+// Non-zero when the radio looks wedged: eight dispatches in a row with no
+// completion — the time since the last completion (ms).
 uint32_t pm_mesh_tx_stuck_ms();
 
 // Bring up WiFi STA + ESP-NOW on `channel` and join network `net_id`.

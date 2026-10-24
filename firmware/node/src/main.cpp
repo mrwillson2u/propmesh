@@ -284,15 +284,15 @@ static void mute_watch() {
   static uint8_t stage;  // 0 fine, 1 radio rebuilt
   static uint32_t heard_since_ms = millis();
   static uint32_t last_check_ms;
-  static uint32_t fails_when_heard, txerr_when_heard;
+  static uint32_t fails_when_heard, txerr_when_heard, lost_when_heard;
   uint32_t now = millis();
   if (now - last_check_ms < 1000) return;
   last_check_ms = now;
   if (rtc_mute_magic != 0x4D555445) { rtc_mute_magic = 0x4D555445; rtc_mute_reboots = 0; }
   uint32_t unheard = pm_mesh_unheard_ms();
   const pm_stats_t *st = pm_stats();
-  if (unheard == 0) { fails_when_heard = pm_api_alloc_failures(); txerr_when_heard = st->tx_err; }
-  bool evidence = pm_api_alloc_failures() != fails_when_heard || st->tx_err != txerr_when_heard;
+  if (unheard == 0) { fails_when_heard = pm_api_alloc_failures(); txerr_when_heard = st->tx_err; lost_when_heard = st->tx_lost; }
+  bool evidence = pm_api_alloc_failures() != fails_when_heard || st->tx_err != txerr_when_heard || st->tx_lost != lost_when_heard;
   if (unheard < MUTE_MS && !(stage == 0 && unheard >= MUTE_EVIDENCE_MS && evidence)) {
     if (unheard == 0 && stage) { Serial.println("mesh: heard again"); stage = 0; }
     if (unheard == 0 && now - heard_since_ms > 600000) rtc_mute_reboots = 0;

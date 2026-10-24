@@ -101,8 +101,12 @@ Run these with the boards in hand. Protocol: write out what to watch,
    under load (four nodes, two consoles, an OTA) the bridge still ran
    out, the 15 s evidence rebuild caught it, and the bridge then
    browned out on the server's shared USB hub. **Give the bridge its
-   own supply.** `bridge.py ota` paces chunks now; the one-in-flight
-   send queue is the next step if a full yard shows the same.
+   own supply** (done 2026-10-23). The one-in-flight send queue is
+   built (PR #47): zero send errors from our own bursts, but the driver
+   still fails under an OTA's TCP load with 48 KB free; the 15 s
+   rebuild recovers in ~20 s and `bridge.py ota` now resumes across
+   it. Next headroom lever: the static reply/reassembly/serial buffers
+   (~26 KB) to on-demand.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
