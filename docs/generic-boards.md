@@ -1530,9 +1530,30 @@ the instruments to catch it next time, and a self-heal.
   clock error. `mesh` reports `tx_lost`, `tx_queue_full` and
   `tx_queue_max`; eight dispatches in a row without a completion is the
   new `tx_stuck_s`, and a growing `tx_lost` counts as evidence for the
-  15 s rebuild. Expected: `tx_err` stays 0 through an OTA, `tx_queue_max`
-  reaches about 18 (one chunk) and `tx_lost` stays near 0. To be
-  measured on the bridge with an OTA to a candle.
+  15 s rebuild. **Measured on the bridge, two OTAs to candles the same
+  evening (`~/propmesh-logs/send-queue-test.log`):**
+  - Dispatch from the main loop: a full image in 816 s with `tx_err` 0,
+    no rebuild, `tx_lost` 18 of 15.7k frames, but the queue filled 30
+    times (one frame left per loop pass, and the loop is slow while it
+    parses chunks).
+  - Dispatch from its own task, woken by the completion: twice the rate
+    (about 46 frames/s), queue never deeper than 4 — and then, 40 s in,
+    the driver refused 14 frames (NO_MEM) and lost 7 **with one frame in
+    flight and zero failed allocations**. The 15 s evidence rebuild
+    fired, the radio was back in about 20 s with no reboot, and the
+    transfer died with the socket.
+  So the queue removes our own bursts, which is right, but the driver
+  still fails under TCP (the chunks arriving over WiFi) plus ESP-NOW on
+  a bridge with 48 KB free and four nodes relaying; the rebuild is the
+  safety net that holds. Next: `bridge.py ota` reconnects and resumes
+  across a rebuild (PR #45); the idle heap with two consoles and four
+  nodes is 48 KB, where the router's burst again costs failed
+  allocations (7 in eight minutes), so more static-to-on-demand work
+  (reassembly 13 KB, the two 4.3 KB reply buffers, the 4 KB serial
+  line) is the remaining headroom lever; and the question whether
+  ESP-NOW's send callback for a broadcast means "transmitted" or only
+  "queued" decides whether one-in-flight limits the hardware queue at
+  all — the 22 ms per frame observed says transmitted.
 
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
