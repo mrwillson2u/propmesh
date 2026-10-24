@@ -12,7 +12,8 @@ import { ease } from "./ease";
 export interface NodeHello {
   node: string; // 8 hex digits
   fw: number;
-  build?: string; // git commit the firmware was built from ("+" = dirty tree)
+  build?: string; // git commit the firmware was built from; "+hash" = uncommitted edits, "@branch" = not the published branch
+  built?: number; // UTC seconds the image was built (firmware from 2026-10-24); orders builds, which commit names can't
   power?: "battery"; // on battery (a leaf; sleeps if its build can)
   sleeps?: boolean; // false: a mains-board build — "On battery" only stops it relaying
   ble?: boolean; // false: built without Bluetooth (the HUZZAH32) — can't drive floods. Absent on firmware before 2026-10-11

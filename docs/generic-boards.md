@@ -732,9 +732,10 @@ first.
   are on demand, so an idle slot costs a socket. **Tested on the bridge
   (2026-10-21):** two clients sending identical request numbers 1–40 at
   once, one asking `hello`, the other `mesh`: 40/40 correct each, no
-  cross-talk, nothing unanswered. The same over the mesh to a node is
-  to be run when one is powered: with none on, each client got only its
-  own `no reply from node`, which is the right half of the answer.
+  cross-talk, nothing unanswered. The same over the mesh to a C6
+  (identical numbers 100–109, one client asking its `hello`, the other
+  its `state`): 10/10 correct each, no cross-talk. With no board on,
+  each client got only its own `no reply from node`, also right.
 
 **A bridge that can't reach its router must not wreck the mesh
 (2026-10-08).** A station trying to join scans every channel, on the
@@ -1497,6 +1498,96 @@ the instruments to catch it next time, and a self-heal.
   - *Open:* the AP-mode bridge (step 3 above), with the captive-portal
     setup; Prop's September mute, which this chain does not explain.
 
+  **Under load, four nodes and two consoles (2026-10-23).** With four
+  boards relaying and two consoles attached, the bridge idles at
+  **49 KB** free, not 70; a 2.7 KB OTA chunk every mesh round trip on
+  top of that took it to a largest block of 15 KB, 40 failed
+  allocations, and `esp_now_send` refusing frames (`tx_err` 333,
+  NO_MEM). The evidence trigger fired as designed — `radio rebuilt:
+  mute: none hear us for 15 s with the heap or sends failing; alloc
+  fails 40; heap 24120/14836` — and the bridge came back without a
+  reboot, twice in one boot. The transfer in progress died with it,
+  since a rebuild drops the WebSocket. Then the bridge reset with
+  **brownout**: it sits on a bus-powered four-port USB hub on the
+  server together with a C6 candle, and the hub's 500 mA is shared.
+  Consequences: `bridge.py ota` now breathes 60 ms between chunks
+  (`--pace`), about a minute per image, and the bridge must have its
+  own supply — a wall adapter or a powered hub, never a hub shared with
+  a prop. The in-flight count also showed 10 frames outstanding for
+  hours after a forced rebuild on 10-21: frames handed to the driver
+  just before it was torn down never complete, which is accounting,
+  not a leak; `pm_mesh_recover` now resets the count. Still to decide:
+  the one-in-flight send queue (step 3 of the proposal above) for a
+  bridge serving a full yard, since 49 KB leaves one router burst of
+  room and an OTA eats the rest.
+
+  **The send queue (2026-10-23, PR #47).** Built after the OTA findings
+  above: every send and relay goes through a 32-frame queue
+  (heap-allocated in init, 7.4 KB) and one frame is in flight at a time
+  — the next leaves when the last one's completion callback arrives, or
+  after 60 ms if it never does (counted as `tx_lost`). Time beacons,
+  ours and relayed, are stamped as they leave, so queueing never becomes
+  clock error. `mesh` reports `tx_lost`, `tx_queue_full` and
+  `tx_queue_max`; eight dispatches in a row without a completion is the
+  new `tx_stuck_s`, and a growing `tx_lost` counts as evidence for the
+  15 s rebuild. **Measured on the bridge, two OTAs to candles the same
+  evening (`~/propmesh-logs/send-queue-test.log`):**
+  - Dispatch from the main loop: a full image in 816 s with `tx_err` 0,
+    no rebuild, `tx_lost` 18 of 15.7k frames, but the queue filled 30
+    times (one frame left per loop pass, and the loop is slow while it
+    parses chunks).
+  - Dispatch from its own task, woken by the completion: twice the rate
+    (about 46 frames/s), queue never deeper than 4 — and then, 40 s in,
+    the driver refused 14 frames (NO_MEM) and lost 7 **with one frame in
+    flight and zero failed allocations**. The 15 s evidence rebuild
+    fired, the radio was back in about 20 s with no reboot, and the
+    transfer died with the socket.
+  So the queue removes our own bursts, which is right, but the driver
+  still fails under TCP (the chunks arriving over WiFi) plus ESP-NOW on
+  a bridge with 48 KB free and four nodes relaying; the rebuild is the
+  safety net that holds. Next: `bridge.py ota` reconnects and resumes
+  across a rebuild (PR #45); the idle heap with two consoles and four
+  nodes is 48 KB, where the router's burst again costs failed
+  allocations (7 in eight minutes), so more static-to-on-demand work
+  (reassembly 13 KB, the two 4.3 KB reply buffers, the 4 KB serial
+  line) is the remaining headroom lever; and the question whether
+  ESP-NOW's send callback for a broadcast means "transmitted" or only
+  "queued" decides whether one-in-flight limits the hardware queue at
+  all — the 22 ms per frame observed says transmitted.
+
+  **Buffers on demand (2026-10-23 evening, PR #54).** After a bridge
+  serving five boards and two consoles crashed outright at 18 KB free
+  with 690 failed allocations, the static buffers went on demand: the
+  three reassembly slots (13 KB) exist only while a message is coming
+  in; the event/reply line buffer and the mesh reply buffer (4.4 + 4.3
+  KB) are borrowed from the heap per call; the serial line buffer (4 KB)
+  is allocated on the first serial byte, which a WiFi bridge never
+  sees; the two `PmSequence` temporaries (2 × 2 KB) are per call; and
+  the send queue is 16 frames with a 2.5 KB task stack. Static RAM on
+  the DevKit: **97.3 → 67.6 KB**, so the heap gains about 30 KB. The
+  CLAUDE.md rule now reads: on the bridge, no static or long-lived
+  buffer that is not in use most of the time.
+
+  **Backpressure, and the rebuild trigger narrowed (2026-10-23, late;
+  PR #55).** Two more things from the same evening. The bridge turns an
+  OTA chunk away with "bridge busy" when its largest free block is under
+  44 KB (a chunk costs ~25 KB, the router's burst ~40 KB; the console
+  and `bridge.py` retry a moment later), and a forwarded request is
+  parsed for routing only — `id`, `node`, `cmd` — so a chunk's 3.6 KB
+  payload is no longer copied into a document. And the 15 s evidence
+  rebuild now fires only for frames handed to the radio that never
+  complete, at most once per ten minutes: a starved heap also makes
+  sends fail, and each rebuild re-allocated the driver's ~50 KB into a
+  more fragmented heap, so six rebuilds in eighteen minutes took the
+  bridge from 72 to 25 KB free and an 8 KB largest block, where only a
+  restart helps — hence the new `reboot` command. **Baseline on the
+  fresh bridge with all of it (queue, on-demand buffers, this), one
+  console, four boards relaying, fifteen idle minutes:** free heap
+  **94 KB** throughout, largest block 86–90 KB, the lowest point in any
+  router burst **45 KB**, zero failed allocations, zero send errors,
+  zero rebuilds, one lost frame. The same bridge read 32 KB free and
+  failed an allocation every minute a week ago.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
@@ -2012,7 +2103,14 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   broken: the candle runs the previous build as before. (A further
   brownout reset and readings jumping between 3.1 and 4.2 V later that
   evening were Colin handling the candle and its battery lead — not
-  evidence either way.)
+  evidence either way.) **Fourth rollback, 2026-10-23:** the candle on
+  the server's bus-powered USB hub (shared with a Coral accelerator
+  that alone wants ~900 mA) took a full transfer, resumed twice across
+  bridge rebuilds, and again came back on the old build with a brownout
+  4 s into the new image's first boot. Four for four, every time on a
+  weak supply. Next: the site's USB installer from a laptop port or a
+  wall supply, which is also the test of whether the first boot of a
+  *fresh* image is the only boot that fails.
 - **Running on the cell (2026-10-18 evening).** The candle's board is set
   to *mains* power, so it never sleeps and the radio runs all day: the
   cell read 3.99 V at 02:40 and 3.53 V at 21:00, and at that level the
@@ -2060,6 +2158,16 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   coil's 400 ms pre-gust pump is off in a draft (the gust isn't known
   ahead). Host test: two candles in draft 3 never disagree over an hour;
   draft 4 is independent.
+  **Own dips (2026-10-22, Colin on two candles in one draft):** the first
+  version copied the whole gust from the hash — start, length, depth
+  and dip rhythm — so the two flames dipped on exactly the same beat and
+  it read as one animation on two lamps. Now the hash decides only the
+  moment and the strength (0.8–1.2×, shared); each candle starts after
+  its own 0–350 ms delay (a breath crossing the row) and draws length,
+  depth and rhythm from its own randomness, scaled by the shared
+  strength; a draft sputter gets its own 0–400 ms delay. Host test: every
+  gust of one has the other's within 400 ms, and the two are never the
+  same tick for tick. To be seen on the candles.
 
 ## 6o. Battery voltage from a divider (built 2026-10-17, not on hardware)
 

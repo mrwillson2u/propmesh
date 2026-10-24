@@ -121,12 +121,54 @@ def cmd_ota(b, a):
     if not r or not r.get("ok"):
         sys.exit(1)
     chunk, off, misses, t0, last, last_err = r.get("chunk", 2700), 0, 0, time.time(), 0, None
+    reconnects = 0
     while off < len(img):
-        r = b.ask("ota_data", node=a.node, off=off, data=base64.b64encode(img[off:off + chunk]).decode(), timeout=9)
+        # A breath between chunks: a bridge relaying for several nodes ran
+        # its heap down and its sends failed NO_MEM when chunks came back to
+        # back (2026-10-23). 60 ms costs about a minute per image.
+        time.sleep(a.pace / 1000.0)
+        try:
+            r = b.ask("ota_data", node=a.node, off=off, data=base64.b64encode(img[off:off + chunk]).decode(), timeout=9)
+        except OSError as e:
+            # The bridge rebuilt its radio or restarted: its socket dies with
+            # it. The board keeps the partial image for ten minutes, so
+            # reconnect, ask where it got to, and carry on from there.
+            reconnects += 1
+            if reconnects > 6:
+                print(f"gave up at {off}: the bridge keeps dropping the connection ({e})")
+                sys.exit(1)
+            print(f"  bridge connection lost at {off} ({e}) — reconnecting", flush=True)
+            b = None
+            for _ in range(12):
+                time.sleep(5)
+                try:
+                    b = Bridge(a.host)
+                    break
+                except OSError:
+                    pass
+            if not b:
+                print("gave up: the bridge did not come back within a minute")
+                sys.exit(1)
+            r = b.ask("ota_begin", node=a.node, size=len(img), sha256=sha, timeout=12)
+            if not r or not r.get("ok"):
+                print("resume refused:", r)
+                sys.exit(1)
+            off = r.get("written", 0)
+            print(f"  resumed at {off}", flush=True)
+            continue
         if r and r.get("ok"):
             off, misses = r["written"], 0
+            busy_since = None
         elif r and "offset" in (r.get("error") or ""):
             off = r["written"]  # the board already has more than we thought: resume there
+        elif r and "busy" in (r.get("error") or ""):
+            # The bridge is protecting its heap (docs §6j): wait, then the
+            # same chunk again. Not a miss — but not forever.
+            busy_since = locals().get("busy_since") or time.time()
+            if time.time() - busy_since > 120:
+                sys.exit(f"gave up at {off}: the bridge has been busy for two minutes ({r.get('error')})")
+            time.sleep(0.4)
+            continue
         else:
             misses += 1
             # Say what went wrong the first time it does, not only on giving
@@ -142,7 +184,12 @@ def cmd_ota(b, a):
         if time.time() - last > 20:
             last = time.time()
             print(f"  {off * 100 // len(img)} %  {time.time() - t0:.0f} s", flush=True)
-    print("end:", b.ask("ota_end", node=a.node, timeout=12), f"after {time.time() - t0:.0f} s", flush=True)
+    try:
+        end_reply = b.ask("ota_end", node=a.node, timeout=12)
+    except OSError:
+        b = Bridge(a.host)
+        end_reply = b.ask("ota_end", node=a.node, timeout=12)
+    print("end:", end_reply, f"after {time.time() - t0:.0f} s", flush=True)
     t_end = time.time()
     time.sleep(15)
     for _ in range(8):
@@ -226,6 +273,7 @@ def main():
     s = sub.add_parser("ota", help="update one board's firmware over the mesh")
     s.add_argument("node")
     s.add_argument("image")
+    s.add_argument("--pace", type=float, default=60, help="ms to wait between chunks (default 60; 0 = as fast as the mesh answers)")
     s = sub.add_parser("watch", help="log the bridge's mesh counters (send errors, unheard, heap) until Ctrl-C")
     s.add_argument("--every", type=float, default=60, help="seconds between samples (default 60)")
     s.add_argument("--listen", type=float, default=6, help="seconds of heartbeats to collect per sample (default 6)")

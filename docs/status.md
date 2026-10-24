@@ -97,7 +97,20 @@ Run these with the boards in hand. Protocol: write out what to watch,
    and Prop get it with the next update. Field check: the watch log on
    the server (`~/propmesh-logs/bridge-watch.log`) should show `fails 0`
    and no `mute` for days. Still open: the AP-mode bridge (longer term),
-   and Prop's September mute, which this does not explain.
+   and Prop's September mute, which this does not explain. 2026-10-23:
+   under load (four nodes, two consoles, an OTA) the bridge still ran
+   out, the 15 s evidence rebuild caught it, and the bridge then
+   browned out on the server's shared USB hub. **Give the bridge its
+   own supply** (done 2026-10-23). The one-in-flight send queue is
+   built (PR #47): zero send errors from our own bursts, but the driver
+   still fails under an OTA's TCP load with 48 KB free; the 15 s
+   rebuild recovers in ~20 s and `bridge.py ota` now resumes across
+   it. Done the same night: buffers on demand (PR #54), backpressure on
+   OTA chunks and a narrower rebuild trigger (PR #55). Baseline after:
+   94 KB free idle, 45 KB at the bottom of a router burst, no failures
+   in fifteen minutes. Field check: `~/propmesh-logs/bridge-watch.log`
+   staying at `fails 0`, `rebuilds 0` over the coming days, and an OTA
+   through the bridge finishing without a rebuild.
 2. **The lantern as a node** — §6h: C6, GPIO 20 data / 19 clock, 8 px BGR,
    fire, 2×4 zigzag. Same flame as the old sketch?
 3. **pm_ws2812 on a real WS2812 strip** (any ESP32 board).
@@ -238,6 +251,36 @@ tunnel for that). No login: anyone on the home network can open it.
   `curl` loads it, quit Chrome fully (Cmd-Q) and reopen: its network
   process keeps stale routes after a change of network (2026-10-21).
   Port 5181 is only a temporary dev server; 5180 is the console.
+
+**What a build's name means (2026-10-24):** `<commit>` is a build of
+`main`, the published release. `<commit>@dev` is from dev (the dev
+site's firmware). `<commit>@<branch>` is a branch build, put on a board
+by hand for testing. `+<hash>` after the commit means uncommitted edits
+were in it. Every build also carries the time it was built, which the
+console uses to say "newer than this site's build" for a board on a
+branch build instead of offering the older release; commit names have
+no order of their own. "Up to date" still means exactly the build this
+site serves.
+
+**The docs site, dev build, on the LAN (2026-10-23):**
+**http://ubuntubot.local:5190/propmesh/** — the whole site as the
+publish workflow builds it, from `origin/dev` instead of `main`:
+firmware for every board profile, the console, the installer manifests
+(version stamped `<sha>-dev`) and the pages. For trying a page or a
+build before a dev → main publish.
+- Checkout `~/propmesh-site` (a git worktree pinned to `origin/dev`);
+  served by `~/.config/systemd/user/propmesh-site.service` (`python3 -m
+  http.server` on 0.0.0.0:5190 from `~/propmesh-site-www`, where
+  `propmesh` links to the built `website/dist`, so the site's `/propmesh`
+  base path works unchanged).
+- Rebuild after merging to dev: `~/bin/propmesh-site-update` (about
+  six minutes: four firmware builds, the console, the site).
+- **The install button needs a secure context.** Browsers allow Web
+  Serial only on `https://` or `localhost`, so on a plain LAN address
+  the button is dead. On the laptop, once: `chrome://flags/#unsafely-
+  treat-insecure-origin-as-secure`, add `http://ubuntubot.local:5190`
+  (and the IP form if you use it), relaunch. The published site on
+  GitHub Pages is https and needs none of this.
 
 **Not in git — copy or recreate deliberately**
 - **Claude's memory** — `~/.claude/projects/<path>/memory/` on the Mac

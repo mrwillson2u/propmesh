@@ -53,10 +53,14 @@ static uint32_t s_highest;
 
 static int8_t s_reply_to = PM_TO_ALL;  // who the line being built is for
 
+// The line buffer is borrowed from the heap for the call: static, it was
+// 4.4 KB of a bridge's RAM held for nothing between lines (docs §6j).
 static void emit(JsonDocument &doc) {
-  static char buf[PM_API_MAX_BYTES + 64];
-  size_t n = serializeJson(doc, buf, sizeof(buf));
+  char *buf = (char *)malloc(PM_API_MAX_BYTES + 64);
+  if (!buf) return;  // no memory: the line is lost; the console asks again
+  size_t n = serializeJson(doc, buf, PM_API_MAX_BYTES + 64);
   if (s_out) s_out(buf, n, s_reply_to);
+  free(buf);
 }
 
 static void node_hex(char out[9], uint32_t id) {
@@ -159,24 +163,45 @@ void pm_link_request(const char *json, size_t len, int8_t from) {
   request_inner(json, len, from);
   s_reply_to = PM_TO_ALL;
 }
+// Below this much contiguous free heap the bridge turns an OTA chunk away
+// ("bridge busy") instead of forwarding it: a chunk in flight costs about
+// 25 KB and the router's once-a-minute multicast burst about 40 KB, and
+// when both land at once the WiFi driver's own allocations fail and the
+// radio wedges (docs §6j, 2026-10-23). The sender retries in a moment.
+#define BUSY_BLOCK_BYTES 44000
+
 static void request_inner(const char *json, size_t len, int8_t from) {
+  // Routing needs three fields. Parsing the whole request copies its
+  // payload — an OTA chunk's 3.6 KB of base64 — for nothing when it is
+  // only being forwarded, so the full parse happens only for a request
+  // handled here or one the show mirror reads.
   JsonDocument req;
-  if (deserializeJson(req, json, len)) return reply_error(false, 0, "not JSON");
+  {
+    JsonDocument filter;
+    filter["id"] = true; filter["node"] = true; filter["cmd"] = true;
+    if (deserializeJson(req, json, len, DeserializationOption::Filter(filter))) return reply_error(false, 0, "not JSON");
+  }
   bool has_id = req["id"].is<long long>();
   long long id = req["id"] | 0LL;
+  const char *cmd = req["cmd"] | "";
 
   const char *node = req["node"] | "";
   uint32_t dst = *node ? strtoul(node, nullptr, 16) : pm_node_id();
   if (dst == pm_node_id()) {
+    if (deserializeJson(req, json, len)) return reply_error(has_id, id, "not JSON");
     JsonDocument resp;
     pm_api_handle(req.as<JsonObjectConst>(), resp.to<JsonObject>());
     return emit(resp);
   }
+  if (!strcmp(cmd, "ota_data") && ESP.getMaxAllocHeap() < BUSY_BLOCK_BYTES)
+    return reply_error(has_id, id, "bridge busy — low memory, try again in a moment");
+  bool mirrored = !strncmp(cmd, "set_", 4) || !strcmp(cmd, "delete_sequence");
+  if (mirrored && deserializeJson(req, json, len)) return reply_error(has_id, id, "not JSON");
 
   if (!pm_api_chunk_count(len)) return reply_error(has_id, id, "request too large for the mesh");
   // A bridge keeps a copy of every sequence and trigger the console sends
   // to any board, so a board that was asleep or away can pull it later.
-  if (pm_role() & PM_NODE_ROLE_BRIDGE) pm_show_mirror(dst, req.as<JsonObjectConst>());
+  if (mirrored && (pm_role() & PM_NODE_ROLE_BRIDGE)) pm_show_mirror(dst, req.as<JsonObjectConst>());
   Pending *p = nullptr;
   for (Pending &q : s_pending) if (!q.used) { p = &q; break; }
   if (!p) return reply_error(has_id, id, "bridge busy — too many requests in flight");
@@ -339,9 +364,11 @@ static void on_api(const RxFrame &f) {
   } else {
     pm_api_handle(req.as<JsonObjectConst>(), resp.to<JsonObject>());
   }
-  static char out[PM_API_MAX_BYTES];
-  size_t len = serializeJson(resp, out, sizeof(out));
+  char *out = (char *)malloc(PM_API_MAX_BYTES);  // for the call; send_chunked copies into frames
+  if (!out) return;
+  size_t len = serializeJson(resp, out, PM_API_MAX_BYTES);
   send_chunked(PM_MSG_TYPE_API_RESP, f.hdr.src_id, a.req_id, out, len);
+  free(out);
 }
 
 void pm_link_begin(pm_line_out_t out) {

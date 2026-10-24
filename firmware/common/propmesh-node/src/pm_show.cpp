@@ -214,9 +214,11 @@ void pm_show_begin() {
   if (err) return;
   if (!doc["sequences"].size() && !doc["rules"].size()) return;  // nothing to hold: no engine
   if (!ensure_show()) { Serial.println("show: no memory for the engine — this board's part is off"); return; }
-  static PmSequence s;
+  PmSequence *s = new (std::nothrow) PmSequence;  // 2 KB, for the call (static RAM is heap a bridge needs)
+  if (!s) return;
   for (JsonVariantConst j : doc["sequences"].as<JsonArrayConst>())
-    if (!pm_sequence_from_json(j, s)) show.put(s);
+    if (!pm_sequence_from_json(j, *s)) show.put(*s);
+  delete s;
   if (pm_rules_from_json(doc["rules"].as<JsonArrayConst>(), show.rules, show.rule_count))
     show.rule_count = 0;
   show.rules_at = doc["rules_at"] | 0UL;
@@ -547,18 +549,21 @@ bool pm_show_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
     return true;
   }
   if (!strcmp(cmd, "set_sequence")) {
-    static PmSequence s;
+    PmSequence *sp = new (std::nothrow) PmSequence;  // 2 KB, for the call
+    if (!sp) { fail(resp, "out of memory"); return true; }
+    PmSequence &s = *sp;
     const char *err = pm_sequence_from_json(req["sequence"], s);
     if (!err) err = pm_check_sequence(s, pm_channels_config());
-    if (err) { fail(resp, err); return true; }
+    if (err) { fail(resp, err); delete sp; return true; }
     if (req["at"].is<uint32_t>() || !s.at) s.at = req_at(req);
-    if (!ensure_show()) { fail(resp, "out of memory for the show engine"); return true; }
+    if (!ensure_show()) { fail(resp, "out of memory for the show engine"); delete sp; return true; }
     PmSequence *have = show.find(s.id);
-    if (have && stale(resp, s.at, have->at)) return true;
+    if (have && stale(resp, s.at, have->at)) { delete sp; return true; }
     player.stop_all();  // the store moves under any running pointer
     reset_loops();
-    if (!show.put(s)) { fail(resp, "this node holds 16 sequences already"); return true; }
+    if (!show.put(s)) { fail(resp, "this node holds 16 sequences already"); delete sp; return true; }
     if (!save()) fail(resp, "could not save to flash");
+    delete sp;
     return true;
   }
   if (!strcmp(cmd, "delete_sequence")) {

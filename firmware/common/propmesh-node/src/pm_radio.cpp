@@ -12,9 +12,9 @@ static uint32_t s_rebuilds, s_last_ms;
 bool pm_radio_rebuild(const char *why) {
   const pm_stats_t *st = pm_stats();
   char detail[200];
-  snprintf(detail, sizeof(detail), "%s; send errors %lu (last %s); inflight %lu; alloc fails %lu; heap %lu/%lu",
+  snprintf(detail, sizeof(detail), "%s; send errors %lu (last %s); inflight %lu; lost %lu; alloc fails %lu; heap %lu/%lu",
            why, (unsigned long)st->tx_err, st->last_tx_err ? esp_err_to_name(st->last_tx_err) : "none",
-           (unsigned long)pm_mesh_tx_inflight(), (unsigned long)pm_api_alloc_failures(),
+           (unsigned long)pm_mesh_tx_inflight(), (unsigned long)st->tx_lost, (unsigned long)pm_api_alloc_failures(),
            (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
   pm_lastwords_note("radio rebuilt", detail);
   Serial.printf("radio: rebuilding — %s\n", detail);

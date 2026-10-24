@@ -5,7 +5,7 @@
 // or a local file.
 import type { NodeTarget } from "./transport";
 
-export interface Image { bytes: Uint8Array; sha256: string; build: string; board?: string }
+export interface Image { bytes: Uint8Array; sha256: string; build: string; built?: number; board?: string }
 
 // The URL of a board's own image: the server lays builds out as
 // <root>/<board id>/firmware.bin (tools/ota_serve.py). A URL without a
@@ -18,7 +18,21 @@ export function imageUrlFor(url: string, board: string): string {
 // The latest release, as the docs site publishes it for each board type
 // (website/scripts/stage-firmware.mjs): <site>/firmware/<board>/firmware.bin
 // beside its version.json. GitHub Pages allows cross-origin fetches.
-export const RELEASE_ROOT = "https://mrwillson2u.github.io/propmesh/firmware";
+// A console served from inside a PropMesh site (…/propmesh/console/) takes
+// that site's firmware as "the release": on the published site that is
+// the published release; on the dev site on the server it is the dev
+// build, so a board on the dev build reads as up to date there instead of
+// being offered the older release (2026-10-23). A console served on its
+// own (the server's :5180, a dev server) uses the published release.
+const PUBLISHED_ROOT = "https://mrwillson2u.github.io/propmesh/firmware";
+const siteRoot = (() => {
+  if (typeof location === "undefined") return null;
+  const m = location.pathname.match(/^(.*\/propmesh)\/console(\/|$)/);
+  return m ? `${location.origin}${m[1]}/firmware` : null;
+})();
+export const RELEASE_ROOT = siteRoot ?? PUBLISHED_ROOT;
+// True when "the release" is this site's own build rather than the published one.
+export const RELEASE_IS_THIS_SITE = siteRoot !== null && siteRoot !== PUBLISHED_ROOT;
 export const releaseUrl = (board: string) => `${RELEASE_ROOT}/${board}/firmware.bin`;
 
 export async function fetchImage(url: string): Promise<Image> {
@@ -28,9 +42,9 @@ export async function fetchImage(url: string): Promise<Image> {
   ]);
   if (!bin.ok) throw new Error(`firmware.bin: ${bin.status}`);
   const bytes = new Uint8Array(await bin.arrayBuffer());
-  const info = ver.ok ? await ver.json() as { build?: string; sha256?: string } : {};
+  const info = ver.ok ? await ver.json() as { build?: string; sha256?: string; built?: number } : {};
   const sha256 = info.sha256 && info.sha256.length === 64 ? info.sha256 : await digest(bytes);
-  return { bytes, sha256, build: info.build ?? "?" };
+  return { bytes, sha256, build: info.build ?? "?", built: info.built };
 }
 
 export async function fileImage(file: File): Promise<Image> {

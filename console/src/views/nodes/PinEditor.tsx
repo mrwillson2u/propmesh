@@ -75,20 +75,36 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   // ---- load -----------------------------------------------------------
 
-  const load = async () => {
+  // A board heard seconds ago may still be joining: a fresh one sends
+  // heartbeats while it sweeps channels, so the first request can go out
+  // before it has settled on the bridge's channel and time out. Try a few
+  // times, a few seconds apart, before showing "no reply" (2026-10-21).
+  const [joining, setJoining] = useState(0); // attempts so far while retrying
+  const load = async (tries = 4) => {
     setError(null);
-    try {
-      const cfg = await node.request("get_config");
-      const st = await node.request("state");
-      if (!cfg.ok) throw new Error(cfg.error ?? "get_config failed");
-      const config = { ...EMPTY_CONFIG, ...(cfg.config as NodeConfig) };
-      setApplied(config);
-      setDraft(config);
-      setValues(toValues(st.channels));
-      setNodeIssues(null);
-      setLoaded(true);
-    } catch (e) {
-      setError((e as Error).message);
+    for (let attempt = 1; attempt <= tries; attempt++) {
+      try {
+        const cfg = await node.request("get_config");
+        const st = await node.request("state");
+        if (!cfg.ok) throw new Error(cfg.error ?? "get_config failed");
+        const config = { ...EMPTY_CONFIG, ...(cfg.config as NodeConfig) };
+        setApplied(config);
+        setDraft(config);
+        setValues(toValues(st.channels));
+        setNodeIssues(null);
+        setLoaded(true);
+        setJoining(0);
+        return;
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (attempt < tries && /no reply/i.test(msg)) {
+          setJoining(attempt);
+          await new Promise((r) => setTimeout(r, 4000));
+          continue;
+        }
+        setJoining(0);
+        setError(msg);
+      }
     }
   };
 
@@ -259,8 +275,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           {" "}Keep a mains-powered board ticked in the Floods tab so the lights change on time.
         </Confirm>
       )}
-      {(error || shown.length > 0 || advice.length > 0) && (
+      {(error || joining > 0 || shown.length > 0 || advice.length > 0) && (
         <div style={{ padding: "8px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 4 }}>
+          {joining > 0 && <div style={mono(600, 11.5, C.amber)}>◌ no reply yet — a board that just joined may still be settling on the bridge's channel; trying again (attempt {joining + 1} of 4)</div>}
           {error && <div style={mono(600, 11.5, C.red)}>✕ {error}</div>}
           {shown.map((it, i) => (
             <div key={i} style={mono(500, 11.5, it.error ? C.red : C.amber)}>
@@ -869,7 +886,7 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
           <b> swing</b> — the coil's kick rate; match the flame's own swing with <b>Find the swing…</b> in the TEST column.
           <b> kick</b> — how long each coil pulse lasts: longer is harder and warmer; the finder helps pick the lightest kick that still swings fully.
           <b> swing the flame</b> — off keeps the flame piece still while the LED flickers.
-          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them; each keeps its own shimmer and sway.
+          <b> draft</b> — candles in the same draft (on any board) gust and sputter together, as if one breath of wind crossed them: the same moment and strength, but each flame dips in its own rhythm and keeps its own shimmer and sway.
           {" "}<a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" style={{ color: C.amber }}>Wiring and tuning guide ↗</a>
         </span>
       )}

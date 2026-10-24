@@ -14,6 +14,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_ble_tx.h"
 #include "pm_ws.h"
 #include "pm_radio.h"
+#include <esp_timer.h>
 #include <esp_heap_caps.h>
 #include "pm_lastwords.h"
 #include "pm_sync.h"
@@ -77,6 +78,7 @@ static void cmd_hello(JsonObject resp) {
   resp["node"] = id;
   resp["fw"] = PM_FW_VERSION;
   resp["build"] = PM_BUILD;
+  resp["built"] = (uint32_t)PM_BUILT;  // UTC seconds the image was built: orders builds, which commit names can't
   resp["reset"] = pm_reset_reason();
   resp["up_s"] = millis() / 1000;
   if (pm_lastwords_any()) pm_lastwords_to_json(resp["last"].to<JsonObject>());
@@ -171,6 +173,9 @@ static void cmd_mesh(JsonObject resp) {
   resp["tx_done"] = st->tx_done;          // completions reported back
   resp["tx_failed"] = st->tx_failed;      // completions that got no air time
   resp["tx_inflight"] = pm_mesh_tx_inflight();  // accepted, never completed: the leak (docs §6j)
+  resp["tx_lost"] = st->tx_lost;                // dispatched, no completion within 60 ms
+  resp["tx_queue_full"] = st->tx_queue_full;    // frames refused: the send queue was full
+  resp["tx_queue_max"] = st->tx_queue_max;      // deepest the send queue has been
   resp["radio_rebuilds"] = pm_radio_rebuilds();
   if (pm_radio_last_rebuild_ms()) resp["radio_rebuilt_s_ago"] = (millis() - pm_radio_last_rebuild_ms()) / 1000;
   if (pm_mesh_tx_stuck_ms()) resp["tx_stuck_s"] = pm_mesh_tx_stuck_ms() / 1000;
@@ -421,6 +426,19 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
   if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
     pm_sleep_hold(600000);
   if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
+  // A restart on request: the one cure for a fragmented heap (docs §6j), and
+  // the bridge had none when it needed it (2026-10-23). The reply leaves
+  // first; pm_lastwords says it was asked for.
+  if (!strcmp(cmd, "reboot")) {
+    pm_lastwords_note("reboot", req["why"] | "asked over the API");
+    resp["rebooting"] = true;
+    pm_sleep_hold(0);
+    static esp_timer_handle_t t;
+    const esp_timer_create_args_t a = { .callback = [](void *) { esp_restart(); }, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "pm_reboot", .skip_unhandled_events = false };
+    if (!t) esp_timer_create(&a, &t);
+    esp_timer_start_once(t, 700000);  // 0.7 s: the reply gets out
+    return;
+  }
   if (!strcmp(cmd, "hello")) cmd_hello(resp);
   // The Yard's map (console lib/yardMap.ts): a drawing of the yard and
   // where every board sits, kept on the board the console connects to so
