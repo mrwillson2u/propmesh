@@ -41,7 +41,7 @@
 
 static const pm_board_t &BOARD = PM_BOARD_PROFILE;
 
-static char line[LINE_MAX_LEN];
+static char *line;  // allocated on the first serial byte: a WiFi bridge never needs it (docs §6j)
 static size_t line_len;
 static bool line_overflow;
 static uint32_t last_heartbeat;
@@ -85,6 +85,7 @@ static void send(JsonDocument &doc) {
 
 static void serial_loop() {
   while (Serial.available()) {
+    if (!line && !(line = (char *)malloc(LINE_MAX_LEN))) { Serial.read(); continue; }
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
       if (line_overflow) {

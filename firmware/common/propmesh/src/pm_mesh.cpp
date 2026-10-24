@@ -129,7 +129,7 @@ static struct {
 // the next pass of the main loop (which parses OTA chunks between passes:
 // pumped from the loop, an image took 13.6 min and the queue filled 30
 // times; 2026-10-23).
-#define TX_QUEUE 32
+#define TX_QUEUE 16  // task dispatch never needed more than 6; one OTA chunk is 18 but they arrive over a round trip
 #define TX_TIMEOUT_MS 60
 struct TxFrame { uint8_t len; uint8_t frame[sizeof(pm_frame_header_t) + PM_MAX_PAYLOAD]; };
 static TxFrame *s_txq;
@@ -403,7 +403,7 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   if (!s_txq) s_txq = (TxFrame *)calloc(TX_QUEUE, sizeof(TxFrame));
   if (s_txq && !s_tx_wake) s_tx_wake = xSemaphoreCreateBinary();
   if (s_txq && s_tx_wake && !s_tx_task &&
-      xTaskCreate(tx_task, "pm_tx", 3072, nullptr, 5, &s_tx_task) != pdPASS) {
+      xTaskCreate(tx_task, "pm_tx", 2560, nullptr, 5, &s_tx_task) != pdPASS) {
     free(s_txq); s_txq = nullptr;  // no task: frames go straight to the radio, as before
   }
 

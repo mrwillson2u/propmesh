@@ -1555,6 +1555,19 @@ the instruments to catch it next time, and a self-heal.
   "queued" decides whether one-in-flight limits the hardware queue at
   all — the 22 ms per frame observed says transmitted.
 
+  **Buffers on demand (2026-10-23 evening, PR #54).** After a bridge
+  serving five boards and two consoles crashed outright at 18 KB free
+  with 690 failed allocations, the static buffers went on demand: the
+  three reassembly slots (13 KB) exist only while a message is coming
+  in; the event/reply line buffer and the mesh reply buffer (4.4 + 4.3
+  KB) are borrowed from the heap per call; the serial line buffer (4 KB)
+  is allocated on the first serial byte, which a WiFi bridge never
+  sees; the two `PmSequence` temporaries (2 × 2 KB) are per call; and
+  the send queue is 16 frames with a 2.5 KB task stack. Static RAM on
+  the DevKit: **97.3 → 67.6 KB**, so the heap gains about 30 KB. The
+  CLAUDE.md rule now reads: on the bridge, no static or long-lived
+  buffer that is not in use most of the time.
+
   **Backpressure, and the rebuild trigger narrowed (2026-10-23, late;
   PR #55).** Two more things from the same evening. The bridge turns an
   OTA chunk away with "bridge busy" when its largest free block is under
@@ -2090,7 +2103,14 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   broken: the candle runs the previous build as before. (A further
   brownout reset and readings jumping between 3.1 and 4.2 V later that
   evening were Colin handling the candle and its battery lead — not
-  evidence either way.)
+  evidence either way.) **Fourth rollback, 2026-10-23:** the candle on
+  the server's bus-powered USB hub (shared with a Coral accelerator
+  that alone wants ~900 mA) took a full transfer, resumed twice across
+  bridge rebuilds, and again came back on the old build with a brownout
+  4 s into the new image's first boot. Four for four, every time on a
+  weak supply. Next: the site's USB installer from a laptop port or a
+  wall supply, which is also the test of whether the first boot of a
+  *fresh* image is the only boot that fails.
 - **Running on the cell (2026-10-18 evening).** The candle's board is set
   to *mains* power, so it never sleeps and the radio runs all day: the
   cell read 3.99 V at 02:40 and 3.53 V at 21:00, and at that level the

@@ -4,6 +4,7 @@
 // Header-only, no Arduino/ESP includes: tested host-native.
 #pragma once
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include "proto_gen.h"
 
@@ -18,17 +19,26 @@ inline uint8_t pm_api_chunk_count(size_t len) {
   return n > PM_API_MAX_CHUNKS ? 0 : (uint8_t)n;
 }
 
+// A slot's 4.3 KB buffer exists only while a message is coming in: three
+// static slots were 13 KB of a bridge's RAM held for nothing most of the
+// time, and the WiFi driver's receive buffers come from that same RAM
+// (docs §6j, 2026-10-23). Allocated when a slot is claimed, kept until the
+// next call after the message completes or the slot goes stale.
 class PmReassembly {
  public:
+  ~PmReassembly() { for (Slot &s : m_slots) free(s.buf); }
   // Feed one chunk. Returns the complete message (NUL-terminated, valid
   // until the next call) when this chunk finishes it, else nullptr.
   const char *add(uint32_t src, uint16_t req_id, uint8_t chunk, uint8_t chunks,
                   const uint8_t *data, uint8_t len, uint32_t now_ms,
                   size_t *out_len = nullptr) {
+    release_idle(now_ms);
     if (!chunks || chunks > PM_API_MAX_CHUNKS || chunk >= chunks ||
         len > PM_API_CHUNK || (chunk + 1 < chunks && len != PM_API_CHUNK))
       return nullptr;
     Slot &s = slot(src, req_id, chunks, now_ms);
+    if (!s.buf) s.buf = (uint8_t *)malloc(PM_API_MAX_BYTES + 1);
+    if (!s.buf) { s.used = false; return nullptr; }  // no memory: drop the chunk, a retry comes
     s.last_ms = now_ms;
     uint32_t bit = 1u << chunk;
     if (s.mask & bit) return nullptr;  // duplicate via another relay path
@@ -51,9 +61,18 @@ class PmReassembly {
     uint32_t mask = 0;
     size_t total = 0;
     uint32_t last_ms = 0;
-    uint8_t buf[PM_API_MAX_BYTES + 1];
+    uint8_t *buf = nullptr;  // heap, only while in use (see above)
   };
   Slot m_slots[PM_REASM_SLOTS];
+
+  // Give back the buffers of finished and stale slots. The message returned
+  // by the previous call lived in a finished slot: it was valid until now.
+  void release_idle(uint32_t now_ms) {
+    for (Slot &s : m_slots) {
+      bool live = s.used && (uint32_t)(now_ms - s.last_ms) <= PM_REASM_TIMEOUT_MS;
+      if (!live && s.buf) { free(s.buf); s.buf = nullptr; s.used = false; }
+    }
+  }
 
   static uint32_t full(uint8_t chunks) {
     return chunks >= 32 ? 0xFFFFFFFFu : (1u << chunks) - 1;

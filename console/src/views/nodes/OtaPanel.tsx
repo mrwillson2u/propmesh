@@ -9,7 +9,7 @@ import { C } from "../../lib/tokens";
 import { Spinner, mono, sys } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
-import { fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
+import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -201,6 +201,12 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     : (typeof served === "object" && served ? served.build : null);
   const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
   const busy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
+  // Over the mesh one image streams at a time — the bridge can carry no
+  // more — so while one is sending, every other Update is off (2026-10-23).
+  // Over WiFi the boards fetch their own images, so several at once is fine.
+  const streaming = mode === "mesh" ? Object.keys(jobs).find((n) => jobs[n]?.state === "sending") : undefined;
+  const oneAtATime = (node: string) => !!streaming && streaming !== node;
+  const oneAtATimeNote = streaming ? `one board at a time over the mesh — ${nameOf(streaming)} is being sent now` : undefined;
   const pill = (on: boolean): React.CSSProperties => ({
     ...btn(on), height: 26, padding: "0 10px",
   });
@@ -223,7 +229,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={sys(500, 11.5, C.t4)}>Image:</span>
           <span style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => { if (source !== "release") { setImage(null); setImageErr(null); setSource("release"); } }} style={pill(source === "release")} title="The firmware published on the PropMesh site — the latest release, built for each board type">Latest release</button>
+            <button onClick={() => { if (source !== "release") { setImage(null); setImageErr(null); setSource("release"); } }} style={pill(source === "release")} title={RELEASE_IS_THIS_SITE ? "The firmware this site serves — a dev build, not the published release — built for each board type" : "The firmware published on the PropMesh site — the latest release, built for each board type"}>{RELEASE_IS_THIS_SITE ? "This site's build" : "Latest release"}</button>
             <button onClick={() => { if (source !== "own") { setImage(null); setImageErr(null); setSource("own"); } }} style={pill(source === "own")} title="A build of your own: from tools/ota_serve.py, or a .bin file">My own build</button>
           </span>
           {source === "release" && image === "loading" && <><Spinner /><span style={sys(400, 11.5, C.t4)}>loading from the PropMesh site…</span></>}
@@ -231,7 +237,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
             <span style={mono(600, 11, C.red)}>✕ couldn't load the release ({imageErr}) — is this computer online? <span onClick={() => void loadImage()} style={{ textDecoration: "underline", cursor: "pointer" }}>retry</span></span>
           )}
           {source === "release" && typeof image === "object" && image && (
-            <span style={mono(600, 11, C.green)}>✓ latest release · build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB — each board type gets its own</span>
+            <span style={mono(600, 11, C.green)}>✓ {RELEASE_IS_THIS_SITE ? "this site's build" : "latest release"} · build {image.build} · {(image.bytes.length / 1024).toFixed(0)} kB — each board type gets its own</span>
           )}
         </div>
       )}
@@ -272,7 +278,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button onClick={() => void updateAll()} disabled={!ready} style={btn(true, !ready)}>Update all mesh boards</button>
+        <button onClick={() => void updateAll()} disabled={!ready || !!streaming} title={oneAtATimeNote} style={btn(true, !ready || !!streaming)}>Update all mesh boards</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "180px 130px 1fr 120px", gap: "6px 12px", alignItems: "center" }}>
@@ -317,11 +323,11 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
                   ? `downloading over WiFi… ${onBoard[en.node].progress} %`
                 : !ready ? "load an image above to update" : "")}
             </span>,
-            <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j)}
-              title={en.usb ? (link.via === "wifi"
+            <button key={en.node + "u"} onClick={() => void update(en.node)} disabled={!ready || busy(j) || oneAtATime(en.node)}
+              title={oneAtATime(en.node) ? oneAtATimeNote : en.usb ? (link.via === "wifi"
                 ? "The console's own bridge: it reboots at the end and the console reconnects by itself. Over WiFi is the sturdier way to update this one."
                 : "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)") : undefined}
-              style={btn(false, !ready || busy(j))}>
+              style={btn(false, !ready || busy(j) || oneAtATime(en.node))}>
               {en.usb ? "Update (last)" : "Update"}
             </button>,
           ];
