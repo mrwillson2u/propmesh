@@ -63,12 +63,27 @@ In order of how often, the phone is for:
 
 ## 3. Yard
 
-The map is what a phone opens to (the topology is a tap away). Pinch
-to zoom, one finger to pan, tap a board for its sheet: name, state,
-battery, signal, LAST CHECK-IN, the hears / heard-by lists, and the
-test buttons for its outputs. **Placement mode** comes after the frame:
-tap a board, tap where it stands, done; the map holds its position in
-`propmesh.yard.doc` as it does from a laptop.
+The map is what a phone opens to (the topology is a tap away). One
+finger pans, + / − / fit zoom (pinch is not wired yet), tap a board
+for its sheet: name, state, battery, signal, LAST CHECK-IN, the hears /
+heard-by lists, and the test buttons for its outputs.
+
+**Built 2026-10-24 (Colin: "the map page needs a little love,
+overlapping elements").** Every overlay has a phone place: the header
+is the Topology / Map chips, the health chip and short counts ("3 up ·
+⚠ 1"); under it, left, a Links chip (the mesh-links toggle) and the
+"Not on the map" bar, and at the right the scale ("5 ft/sq") with the
+save-state ⚠ and the fullness %. The drawing tools are a strip along
+the bottom of the map (scrolls sideways; Undo at its end); the zoom
+buttons sit at the right above it; the instruction panel (what to tap
+next, or the selected shape's fields) appears above the strip only
+while something is selected, being drawn or placed — the idle hint and
+the legend text are laptop-only. **Placing a board**: tap its chip in
+the "Not on the map" bar, then tap the map where it stands (HTML drag
+does not exist on touch). A selection is ignored for 600 ms after a
+placement, because the node is drawn under the finger and would take
+the tap's click. The topology view keeps its legend in a wrapping
+strip at the bottom.
 
 ## 4. Show
 

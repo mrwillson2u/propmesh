@@ -15,6 +15,7 @@ import {
   type Shape, type ShapeKind, type YardDoc,
 } from "../../lib/yardMap";
 import { PROP_TYPES, PropArt, PropIcon, type PropType } from "../../lib/propIcons";
+import { useLayout } from "../../lib/layout";
 
 export type Tool = "select" | ShapeKind | "erase";
 type Pt = { x: number; y: number };
@@ -68,6 +69,7 @@ export function toMap(svg: SVGSVGElement | null, cx: number, cy: number): Pt {
 }
 
 export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObject<SVGSVGElement>, view: View) {
+  const { phone } = useLayout();  // tools as a strip along the bottom, the panel only when it has something to say
   const [doc, setDoc] = useState<YardDoc | null>(null);
   const [propIcon, setPropIcon] = useState<PropType>("tombstone");  // what the Prop tool places
   const [onBoard, setOnBoard] = useState(false);
@@ -330,18 +332,22 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
 
   // ---- the tool rail -----------------------------------------------------------
   const rail: ReactNode = !active ? null : (
-    <div style={{ position: "absolute", top: 96, left: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, padding: 6, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 8 }}>
+    <div style={phone
+      ? { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 3, display: "flex", gap: 6, padding: "6px 10px 8px", overflowX: "auto", background: "rgba(16,19,24,.96)", borderTop: `1px solid ${C.b2}`, WebkitOverflowScrolling: "touch" }
+      : { position: "absolute", top: 96, left: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, padding: 6, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 8 }}>
       {TOOLS.map((t) => {
         const on = tool === t.id;
         return (
           <button key={t.id} title={t.title} onClick={() => { setTool(t.id); setDraft([]); if (t.id !== "select") setSel(null); }} style={{
-            width: 58, height: 42, borderRadius: 7, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: 0,
-            background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`, color: on ? C.emberT : C.t3,
-          }}>{ICONS[t.id]}<span style={{ font: "600 9px system-ui", letterSpacing: ".02em" }}>{t.name}</span></button>
+            width: phone ? 60 : 58, height: phone ? 48 : 42, flex: "none", borderRadius: 7, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, padding: 0,
+            background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`, color: on ? C.emberT : C.t3, WebkitTapHighlightColor: "transparent",
+          }}>{ICONS[t.id]}<span style={{ font: `600 ${phone ? 10 : 9}px system-ui`, letterSpacing: ".02em" }}>{t.name}</span></button>
         );
       })}
       {placing && (
-        <div style={{ position: "absolute", left: 66, top: 0, zIndex: 6, width: 232, padding: 8, background: "rgba(16,19,24,.98)", border: `1px solid ${C.b2}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,.5)" }}>
+        <div style={phone
+          ? { position: "absolute", left: 10, right: 10, bottom: 70, zIndex: 6, padding: 8, background: "rgba(16,19,24,.98)", border: `1px solid ${C.b2}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,.5)" }
+          : { position: "absolute", left: 66, top: 0, zIndex: 6, width: 232, padding: 8, background: "rgba(16,19,24,.98)", border: `1px solid ${C.b2}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,.5)" }}>
           <div style={{ font: "600 9.5px system-ui", letterSpacing: ".1em", color: C.t5, marginBottom: 6 }}>PLACE A…</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
             {PROP_TYPES.filter((p) => p.id !== "hub" && p.id !== "generic").map((p) => {
@@ -351,11 +357,11 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
               </div>;
             })}
           </div>
-          <div style={{ ...sys(500, 11, C.t4), marginTop: 6 }}>{PROP_TYPES.find((p) => p.id === propIcon)?.label} — click the map to place it</div>
+          <div style={{ ...sys(500, 11, C.t4), marginTop: 6 }}>{PROP_TYPES.find((p) => p.id === propIcon)?.label} — {phone ? "tap" : "click"} the map to place it</div>
         </div>
       )}
       <button title="Undo (⌘/ctrl-Z)" onClick={undo} disabled={!undoable} style={{
-        width: 58, height: 32, borderRadius: 7, cursor: undoable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: 0,
+        width: phone ? 60 : 58, height: phone ? 48 : 32, flex: "none", borderRadius: 7, cursor: undoable ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: 0,
         background: C.raised, border: `1px solid ${C.b3}`, color: C.t4, opacity: undoable ? 1 : 0.4,
       }}>{ICONS.undo}<span style={{ font: "600 9px system-ui" }}>Undo</span></button>
     </div>
@@ -363,8 +369,10 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
 
   // ---- the selected shape's panel, the hints, the scale ---------------------
   const field: React.CSSProperties = { height: 26, padding: "0 7px", background: C.raised, border: `1px solid ${C.b3}`, borderRadius: 5, outline: "none", ...sys(500, 11.5, C.t1) };
-  const panel: ReactNode = !active || !doc ? null : (
-    <div style={{ position: "absolute", right: 14, bottom: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7, maxWidth: 640 }}>
+  const panel: ReactNode = !active || !doc || (phone && !selected && !placing && !drawing) ? null : (
+    <div style={phone
+      ? { position: "absolute", left: 10, right: 60, bottom: 72, zIndex: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7 }
+      : { position: "absolute", right: 14, bottom: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7, maxWidth: 640 }}>
       {selected ? (
         <>
           <span style={{ ...mono(700, 10, C.t5), letterSpacing: ".08em" }}>{selected.kind === "path" ? "WALKWAY" : selected.kind === "line" ? "BORDER" : selected.kind.toUpperCase()}</span>
@@ -393,29 +401,39 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
             </select>
           )}
           <button onClick={() => { commit({ ...doc, shapes: doc.shapes.filter((s) => s.id !== selected.id) }); setSel(null); }} style={{ ...field, cursor: "pointer", color: C.red }}>Remove</button>
-          {selected.kind !== "prop" && <span style={mono(500, 10.5, C.t5)}>drag an edge to push it · double-click an edge for a new corner · double-click a corner to remove it</span>}
+          {selected.kind !== "prop" && !phone && <span style={mono(500, 10.5, C.t5)}>drag an edge to push it · double-click an edge for a new corner · double-click a corner to remove it</span>}
         </>
       ) : placing ? (
-        <span style={sys(500, 11.5, C.t3)}>Click where the prop stands · pick another picture on the left · Esc or Select when done</span>
+        <span style={sys(500, 11.5, C.t3)}>{phone ? "Tap where the prop stands · Select when done" : "Click where the prop stands · pick another picture on the left · Esc or Select when done"}</span>
       ) : drawing ? (
         <span style={sys(500, 11.5, C.t3)}>
-          {draft.length === 0 ? `Click to start the ${tool === "path" ? "walkway" : tool === "line" ? "border" : tool}.` : tool === "area" ? "Click the next corner · click the first corner or double-click to close · Esc cancels" : "Click the next point · double-click or Enter to finish · Esc cancels"}
+          {draft.length === 0 ? `${phone ? "Tap" : "Click"} to start the ${tool === "path" ? "walkway" : tool === "line" ? "border" : tool}.` : tool === "area" ? `${phone ? "Tap" : "Click"} the next corner · ${phone ? "tap" : "click"} the first corner or double-${phone ? "tap" : "click"} to close${phone ? "" : " · Esc cancels"}` : "Click the next point · double-click or Enter to finish · Esc cancels"}
         </span>
       ) : (
         <span style={mono(500, 10.5, C.t5)}>drag boards to where they sit · draw the yard with the tools on the left · scroll to zoom, drag empty ground to pan</span>
       )}
-      <span style={{ display: "flex", alignItems: "center", gap: 5, ...mono(500, 10.5, C.t5) }}>
+      {!phone && <span style={{ display: "flex", alignItems: "center", gap: 5, ...mono(500, 10.5, C.t5) }}>
         · 1 square =
         <NumberInput value={doc.scale_ft} min={1} max={50} integer onChange={(v) => commit({ ...doc, scale_ft: v })}
           width={46} style={{ ...field, height: 22, ...mono(500, 11, C.t1) }} /> ft
-      </span>
-      {status && <span style={mono(500, 10.5, status.bad ? C.amber : C.t5)} title={status.text}>· {status.bad ? "⚠ " : ""}{status.text.length > 60 && status.bad ? status.text.slice(0, 58) + "…" : status.text}</span>}
+      </span>}
+      {status && (!phone || status.bad) && <span style={mono(500, 10.5, status.bad ? C.amber : C.t5)} title={status.text}>· {status.bad ? "⚠ " : ""}{status.text.length > 60 && status.bad ? status.text.slice(0, 58) + "…" : status.text}</span>}
       {doc && size(doc) > MAX_BYTES * 0.8 && !status?.bad && <span style={mono(500, 10.5, C.amber)}>· map {Math.round((size(doc) / MAX_BYTES) * 100)}% full</span>}
+    </div>
+  );
+  // On a phone the scale, the save state and the fullness live in a small
+  // line at the bottom of the map's header area rather than in the panel.
+  const note: ReactNode = !active || !doc || !phone ? null : (
+    <div style={{ position: "absolute", right: 10, top: 46, zIndex: 3, display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, ...mono(500, 10.5, C.t5), whiteSpace: "nowrap" }}>
+      <NumberInput value={doc.scale_ft} min={1} max={50} integer onChange={(v) => commit({ ...doc, scale_ft: v })}
+        width={40} style={{ ...field, height: 26, ...mono(500, 12, C.t1) }} /> ft/sq
+      {status?.bad ? <span style={{ color: C.amber }} title={status.text}>⚠</span> : null}
+      {doc && size(doc) > MAX_BYTES * 0.8 && <span style={{ color: C.amber }}>{Math.round((size(doc) / MAX_BYTES) * 100)}%</span>}
     </div>
   );
 
   return {
-    doc, layer, rail, panel, setPos, setIcon, bounds,
+    doc, layer, rail, panel, note, setPos, setIcon, bounds,
     icon: (nodeId: string): PropType | undefined => doc?.icons?.[nodeId],
     drawing, placing,
     pos: (id: string): Pt | null => { const p = doc?.pos[id]; return p ? { x: p[0], y: p[1] } : null; },

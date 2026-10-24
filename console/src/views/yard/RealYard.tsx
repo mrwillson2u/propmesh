@@ -195,6 +195,12 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   // Topology always fits.
   const [view, setView] = useState({ x: 0, y: 0, w: W, h: H });
   const [showUnplaced, setShowUnplaced] = useState(() => { try { return localStorage.getItem("propmesh.yard.unplaced") !== "hide"; } catch { return true; } });
+  // On a phone a chip can't be dragged: a tap arms it, the next tap on
+  // the map puts it there (docs/console-phone.md §3).
+  const [arming, setArming] = useState<string | null>(null);
+  // The node is drawn under the finger the moment it is placed, and the
+  // tap's click then lands on it: ignore selection for a beat after.
+  const placedAt = useRef(0);
   useEffect(() => { try { localStorage.setItem("propmesh.yard.unplaced", showUnplaced ? "show" : "hide"); } catch { /* private mode */ } }, [showUnplaced]);
   const bp = useBlueprint(conn, layout === "map", svgRef, view);
   const fitTo = (b: { x: number; y: number; w: number; h: number } | null) => {
@@ -252,48 +258,51 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   return (
     <>
       <div style={{ flex: 1, minWidth: 0, position: "relative", backgroundColor: C.bg, backgroundImage: layout === "map" ? undefined : `radial-gradient(${C.grid} 1px,transparent 1px)`, backgroundSize: "24px 24px" }}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0))", pointerEvents: "none", flexWrap: "wrap" }}>
-          <span style={sys(700, 13, C.t1)}>Yard</span>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4, display: "flex", alignItems: "center", gap: 8, padding: phone ? "8px 12px" : "10px 14px", background: "linear-gradient(rgba(11,13,16,.95),rgba(11,13,16,0))", pointerEvents: "none", flexWrap: "wrap" }}>
+          {!phone && <span style={sys(700, 13, C.t1)}>Yard</span>}
           <div style={{ display: "flex", gap: 2, padding: 2, background: "rgba(20,23,28,.9)", border: `1px solid ${C.b2}`, borderRadius: 7, pointerEvents: "auto" }}>
             {chip("topology", "Topology")}
             {chip("map", "Map")}
           </div>
           <span style={{ padding: "3px 9px", borderRadius: 4, background: health.bg, border: `1px solid ${health.b}`, ...mono(700, 10.5, health.fg) }}>{health.t}</span>
-          <span style={mono(500, 11, C.t5)}>
-            {c.online} online{c.asleep ? ` · ☾ ${c.asleep} asleep` : ""}{c.missing ? ` · ✕ ${c.missing} missing` : ""}{weak ? ` · ⚠ ${weak} weak link${weak > 1 ? "s" : ""}` : ""}
-            {viaBat ? <span style={{ color: C.amber }} title="These boards reach the bridge only through a battery repeater, which sleeps when the show is off"> · ☾ {viaBat} via battery relay</span> : null}
+          <span style={{ ...mono(500, 11, C.t5), whiteSpace: phone ? "nowrap" : undefined }}>
+            {c.online}{phone ? " up" : " online"}{c.asleep ? ` · ☾ ${c.asleep}${phone ? "" : " asleep"}` : ""}{c.missing ? ` · ✕ ${c.missing}${phone ? "" : " missing"}` : ""}{weak ? ` · ⚠ ${weak}${phone ? "" : ` weak link${weak > 1 ? "s" : ""}`}` : ""}
+            {viaBat ? <span style={{ color: C.amber }} title="These boards reach the bridge only through a battery repeater, which sleeps when the show is off"> · ☾ {viaBat}{phone ? "" : " via battery relay"}</span> : null}
           </span>
           <div style={{ flex: 1 }} />
-          <span style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, C.t5) }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: now - conn.lastEvent < 8000 ? C.green : C.amber, animation: "livedot 2s infinite" }} />
-            live · last heartbeat {age(now - conn.lastEvent)} ago
-          </span>
+          {!phone && (
+            <span style={{ display: "flex", alignItems: "center", gap: 6, ...mono(500, 11, C.t5) }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: now - conn.lastEvent < 8000 ? C.green : C.amber, animation: "livedot 2s infinite" }} />
+              live · last heartbeat {age(now - conn.lastEvent)} ago
+            </span>
+          )}
         </div>
 
         {(layout === "map" || unplaced.length > 0 || unplacedFloods.length > 0) && (
-          <div style={{ position: "absolute", top: 50, left: 14, right: 14, zIndex: 3, display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ position: "absolute", top: phone ? 46 : 50, left: phone ? 10 : 14, right: phone ? (layout === "map" ? 118 : 10) : 14, zIndex: 3, display: "flex", alignItems: "flex-start", gap: 8, flexWrap: phone ? "wrap" : undefined }}>
             {layout === "map" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, whiteSpace: "nowrap" }}>
-                <span style={sys(600, 11.5, C.t2)}>Mesh links</span>
+              <div onClick={phone ? () => setShowLinks(!showLinks) : undefined}
+                style={{ display: "flex", alignItems: "center", gap: phone ? 6 : 10, padding: phone ? "6px 10px" : "8px 12px", background: "rgba(16,19,24,.92)", border: `1px solid ${showLinks && phone ? C.emberB : C.b2}`, borderRadius: 7, whiteSpace: "nowrap", cursor: phone ? "pointer" : undefined }}>
+                <span style={sys(600, 11.5, showLinks && phone ? C.emberT : C.t2)}>{phone ? "Links" : "Mesh links"}</span>
                 <Toggle on={showLinks} small onClick={() => setShowLinks(!showLinks)} />
               </div>
             )}
             {(unplaced.length > 0 || unplacedFloods.length > 0) && (showUnplaced ? (
               <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", background: "rgba(16,19,24,.95)", border: `1px dashed ${C.b3}`, borderRadius: 7 }}>
-                <span style={sys(600, 11.5, C.t3)}>Not on the map yet — drag each onto the yard where it sits:</span>
+                <span style={sys(600, 11.5, C.t3)}>{phone ? (arming ? "Now tap the map where it sits" : "Not on the map — tap one, then the map:") : "Not on the map yet — drag each onto the yard where it sits:"}</span>
             {unplaced.map((n) => (
-              <span key={n.id} draggable
+              <span key={n.id} draggable={!phone}
                 onDragStart={(e) => e.dataTransfer.setData("text/propmesh-node", n.id)}
-                onClick={() => setSel(n.id)}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 6, cursor: "grab", background: C.card, border: `1px solid ${sel === n.id ? C.emberB : C.b2}`, ...sys(600, 11.5, n.missing ? C.red : C.t1) }}>
+                onClick={() => { if (phone && layout === "map") setArming(arming === n.id ? null : n.id); else setSel(n.id); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: phone ? "7px 11px" : "3px 9px", borderRadius: 6, cursor: "grab", background: arming === n.id ? C.emberBg : C.card, border: `1px solid ${sel === n.id || arming === n.id ? C.emberB : C.b2}`, ...sys(600, phone ? 13 : 11.5, n.missing ? C.red : C.t1) }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: stroke(n) }} />{n.name}
               </span>
             ))}
             {unplacedFloods.map((f) => (
-              <span key={f.id} draggable
+              <span key={f.id} draggable={!phone}
                 onDragStart={(e) => e.dataTransfer.setData("text/propmesh-node", f.id)}
-                onClick={() => setSel(f.id)}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 6, cursor: "grab", background: C.card, border: `1px solid ${sel === f.id ? C.emberB : C.b2}`, ...sys(600, 11.5, C.t1) }}>
+                onClick={() => { if (phone && layout === "map") setArming(arming === f.id ? null : f.id); else setSel(f.id); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: phone ? "7px 11px" : "3px 9px", borderRadius: 6, cursor: "grab", background: arming === f.id ? C.emberBg : C.card, border: `1px solid ${sel === f.id || arming === f.id ? C.emberB : C.b2}`, ...sys(600, phone ? 13 : 11.5, C.t1) }}>
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: floodPaint(f.value)?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />{f.label}
               </span>
             ))}
@@ -308,19 +317,20 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           </div>
         )}
         {bp.rail}
+        {bp.note}
 
-        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={setSel}
+        <Canvas topo={topo.nodes} links={topo.links} floods={floods} pos={pos} sel={sel} onSelect={(id) => { if (Date.now() - placedAt.current > 600) setSel(id); }}
           box={layout === "topology" ? fitBox(pos) : view}
           onWheel={layout === "map" ? (f, at) => zoomBy(f, at) : undefined}
           onPan={layout === "map" && !bp.drawing && !bp.placing ? (dx, dy) => setView((v) => ({ ...v, x: v.x - dx, y: v.y - dy })) : undefined}
           iconFor={layout === "map" ? bp.icon : undefined} unbounded={layout === "map"}
           draggable={layout === "map" && !bp.drawing && !bp.placing} showLinks={layout === "topology" || showLinks}
           onDrop={(id, p) => { bp.setPos(id, p); bump(); }}
-          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing)}
-          onBgDown={layout === "map" ? bp.onBgDown : undefined} onMove={layout === "map" ? bp.onMove : undefined}
+          svgRef={svgRef} under={layout === "map" ? bp.layer : null} nodesInert={layout === "map" && (bp.drawing || bp.placing || !!arming)}
+          onBgDown={layout === "map" ? (arming ? (p) => { bp.setPos(arming, p); bump(); setArming(null); placedAt.current = Date.now(); } : bp.onBgDown) : undefined} onMove={layout === "map" ? bp.onMove : undefined}
           onUp={layout === "map" ? bp.onUp : undefined} onBgDouble={layout === "map" ? bp.onBgDouble : undefined} onLeave={layout === "map" ? bp.onLeave : undefined} />
 
-        {layout !== "map" && <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 12, padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
+        {layout !== "map" && <div style={{ position: "absolute", left: phone ? 10 : 14, bottom: phone ? 10 : 14, right: phone ? 10 : undefined, display: "flex", gap: phone ? 8 : 12, flexWrap: "wrap", padding: "8px 12px", background: "rgba(11,13,16,.9)", border: `1px solid ${C.b2}`, borderRadius: 6, ...mono(500, 10.5, C.t4) }}>
           <span><span style={{ color: C.green }}>━</span> strong ≥−60</span>
           <span><span style={{ color: C.linkGray }}>━</span> ok</span>
           <span><span style={{ color: C.amber }}>╌</span> weak ≤−75</span>
@@ -330,9 +340,9 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
         </div>}
         {bp.panel}
         {layout === "map" && (
-          <div style={{ position: "absolute", left: 14, bottom: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 4, padding: 4, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
-            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["⛶", () => fitTo(bp.bounds()), "Fit everything on the map"]].map(([t, fn, title]) => (
-              <button key={t as string} title={title as string} onClick={fn as () => void} style={{ width: 28, height: 26, borderRadius: 5, cursor: "pointer", background: C.raised, border: `1px solid ${C.b3}`, color: C.t3, font: "600 13px system-ui" }}>{t as string}</button>
+          <div style={{ position: "absolute", ...(phone ? { right: 10, bottom: 72 } : { left: 14, bottom: 14 }), zIndex: 3, display: "flex", flexDirection: "column", gap: 4, padding: 4, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7 }}>
+            {[["+", () => zoomBy(1.4), "Zoom in (scroll)"], ["−", () => zoomBy(1 / 1.4), "Zoom out (scroll)"], ["fit", () => fitTo(bp.bounds()), "Fit everything on the map"]].map(([t, fn, title]) => (
+              <button key={t as string} title={title as string} onClick={fn as () => void} style={{ width: phone ? 40 : 28, height: phone ? 40 : 26, borderRadius: 5, cursor: "pointer", background: C.raised, border: `1px solid ${C.b3}`, color: C.t3, font: `600 ${(t as string).length > 1 ? (phone ? 12 : 10) : phone ? 17 : 13}px system-ui` }}>{t as string}</button>
             ))}
           </div>
         )}
