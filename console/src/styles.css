@@ -10,7 +10,14 @@ body {
   color: #e6e9ed;
   font-family: system-ui, sans-serif;
 }
-#root { height: 100vh; display: flex; }
+#root { height: 100vh; height: 100dvh; display: flex; }
+
+/* Phones (docs/console-phone.md): inputs at 16 px so iOS Safari does not
+   zoom the page on focus; nothing scrolls sideways. */
+@media (max-width: 699px) {
+  input, select, textarea { font-size: 16px !important; }
+  body { overscroll-behavior: none; }
+}
 button { font-family: inherit; cursor: pointer; }
 a { color: #ff8a4d; }
 a:hover { color: #ffa470; }

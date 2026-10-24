@@ -1,5 +1,5 @@
 // Small shared pieces from the handoff's component sheet.
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, MONO } from "./lib/tokens";
 
 export function Logo({ size = 24 }: { size?: number }) {
@@ -217,5 +217,36 @@ export function NumberInput({ value, onChange, min, max, digits, integer, width 
         ...style,
         ...(bad ? { borderColor: C.red, color: C.red } : {}),
       }} />
+  );
+}
+
+// A bottom sheet (phones): slides up over the view, the handle or the
+// backdrop closes it, and so does the browser's back gesture — a history
+// entry per open sheet, because on a phone back is how people leave
+// things (docs/console-phone.md §2).
+export function Sheet({ open, onClose, title, children, tall }: { open: boolean; onClose: () => void; title?: React.ReactNode; children: React.ReactNode; tall?: boolean }) {
+  const pushed = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    history.pushState({ pmSheet: true }, "");
+    pushed.current = true;
+    const pop = () => { pushed.current = false; onClose(); };
+    addEventListener("popstate", pop);
+    return () => { removeEventListener("popstate", pop); if (pushed.current) { pushed.current = false; history.back(); } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  if (!open) return null;
+  const close = () => onClose();
+  return (
+    <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: tall ? "92vh" : "80vh", background: C.panel, borderTop: `1px solid ${C.b2}`,
+        borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div onClick={close} style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px 8px", cursor: "pointer" }}>
+          <span style={{ width: 36, height: 4, borderRadius: 2, background: C.b3, margin: "0 auto" }} />
+        </div>
+        {title && <div style={{ flex: "none", padding: "0 16px 8px", ...sys(700, 14, C.t1) }}>{title}</div>}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
+      </div>
+    </div>
   );
 }

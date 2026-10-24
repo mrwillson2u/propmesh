@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { battText } from "../../lib/battery";
 import { C, MONO } from "../../lib/tokens";
-import { mono, sys, Toggle } from "../../ui";
+import { mono, sys, Toggle, Sheet } from "../../ui";
+import { useLayout } from "../../lib/layout";
 import { BOARDS } from "../../lib/boards_gen";
 import { counts, getConnection, useConnection, type Connection, checkinText } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
@@ -186,6 +187,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
   showLinks: boolean; setShowLinks: (b: boolean) => void;
   onOpenNode: (id: string) => void; bump: () => void;
 }) {
+  const { phone } = useLayout();
   const now = Date.now();
   const svgRef = useRef<SVGSVGElement>(null);
   // The Map's view: scroll to zoom around the pointer, drag empty ground
@@ -336,11 +338,17 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
         )}
       </div>
 
-      {selNode && <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
-        icon={bp.icon(selNode.id)} onIcon={(t) => bp.setIcon(selNode.id, t)}
-        onClose={() => setSel(null)} onOpen={() => onOpenNode(selNode.id)} />}
-      {selFlood && <FloodDetail f={selFlood} nameOf={(id) => topo.nodes.find((n) => n.id === id)?.name ?? id}
-        onClose={() => setSel(null)} onOpen={() => onOpenNode(FLOODS)} />}
+      {/* A phone shows the detail as a sheet over the map; a laptop as the side column. */}
+      {(() => {
+        const panel = selNode ? <Detail n={selNode} links={topo.links} nodes={topo.nodes} now={now}
+            icon={bp.icon(selNode.id)} onIcon={(t) => bp.setIcon(selNode.id, t)}
+            onClose={() => setSel(null)} onOpen={() => onOpenNode(selNode.id)} />
+          : selFlood ? <FloodDetail f={selFlood} nameOf={(id) => topo.nodes.find((n) => n.id === id)?.name ?? id}
+            onClose={() => setSel(null)} onOpen={() => onOpenNode(FLOODS)} />
+          : null;
+        if (!panel) return null;
+        return phone ? <Sheet open onClose={() => setSel(null)} tall>{panel}</Sheet> : panel;
+      })()}
     </>
   );
 }
@@ -500,9 +508,10 @@ function Detail({ n, links, nodes, now, icon, onIcon, onClose, onOpen }: {
     return { id: other, l, heardBy, heardOther };
   }).sort((x, y) => (y.l.rssi) - (x.l.rssi));
   const pill = n.missing ? [C.redBg, C.redB, C.red, "✕ MISSING"] : [C.greenBg, C.greenB, C.green, "ONLINE"];
+  const { phone } = useLayout();
 
   return (
-    <div style={{ width: 330, flex: "none", borderLeft: `1px solid ${C.b2}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+    <div style={{ width: phone ? "100%" : 330, flex: "none", borderLeft: phone ? undefined : `1px solid ${C.b2}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: phone ? undefined : "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderBottom: `1px solid ${C.b1}` }}>
         <span style={{ ...sys(700, 13, C.t1), flex: 1 }}>{n.name}</span>
         <span style={{ padding: "2px 8px", borderRadius: 99, background: pill[0], border: `1px solid ${pill[1]}`, ...mono(700, 10, pill[2]), letterSpacing: ".06em" }}>{pill[3]}</span>
@@ -576,8 +585,9 @@ function FloodDetail({ f, nameOf, onClose, onOpen }: {
   const paint = floodPaint(f.value);
   const w = (f.value >>> 24) & 0x7f;
   const shown = !paint ? "off" : w ? `warm white ${Math.round(w * 100 / 127)} %` : "#" + (f.value & 0xffffff).toString(16).padStart(6, "0");
+  const { phone } = useLayout();
   return (
-    <div style={{ width: 330, flex: "none", borderLeft: `1px solid ${C.b2}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+    <div style={{ width: phone ? "100%" : 330, flex: "none", borderLeft: phone ? undefined : `1px solid ${C.b2}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: phone ? undefined : "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderBottom: `1px solid ${C.b1}` }}>
         <span style={{ width: 14, height: 14, borderRadius: "50%", background: paint?.fill ?? "transparent", border: `1px solid ${C.b3}` }} />
         <span style={{ ...sys(700, 13, C.t1), flex: 1 }}>{f.label}</span>
