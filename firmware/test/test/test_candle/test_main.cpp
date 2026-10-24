@@ -144,27 +144,38 @@ static void test_coil_follows_the_flicker() {
   TEST_ASSERT_TRUE(gust_hi <= 100);
 }
 
-// Candles in the same draft gust at the same mesh second with the same
-// shape; a different draft (or no draft) is independent of them.
+// Candles in the same draft gust together — every gust of one begins
+// within 400 ms of a gust of the other — but each in its own way: the
+// gusts differ in length, so the two are not identical tick for tick.
+// A different draft (or no draft) is independent of them.
 static void test_draft_syncs_gusts_across_candles() {
   PmCandleCfg a; a.draft = 3;
   PmCandleCfg b; b.draft = 3;
   PmCandleCfg other; other.draft = 4;
   PmCandleCore ca, cb, co;
   ca.begin(a, 0, 1); cb.begin(b, 0, 999); co.begin(other, 0, 5);
-  uint32_t same = 0, starts_a = 0, starts_o = 0, differ = 0;
-  bool wa = false, wo = false;
+  uint32_t same = 0, starts_a = 0, starts_o = 0, differ = 0, unpaired = 0, last_b_start = 0;
+  bool wa = false, wb = false, wo = false;
+  uint32_t pending_a = 0;  // an a start waiting for its b partner
   for (uint32_t t = 0; t < 3600000; t += PM_CANDLE_TICK_MS) {
     int64_t mesh_us = (int64_t)t * 1000 + 777000000LL;  // mesh time: any offset, shared
     ca.draft_tick(t, true, mesh_us); cb.draft_tick(t, true, mesh_us); co.draft_tick(t, true, mesh_us);
     ca.led(t, PM_CANDLE_TICK_MS); cb.led(t, PM_CANDLE_TICK_MS); co.led(t, PM_CANDLE_TICK_MS);
     if (ca.gusting() != cb.gusting()) differ++;
-    if (ca.gusting() && !wa) starts_a++;
+    if (cb.gusting() && !wb) last_b_start = t;
+    if (ca.gusting() && !wa) {
+      starts_a++;
+      // b's partner start is within 400 ms before, or must come within 400 ms after
+      if (t - last_b_start <= 400 && last_b_start) pending_a = 0; else pending_a = t;
+    }
+    if (pending_a && cb.gusting() && !wb) pending_a = 0;
+    if (pending_a && t - pending_a > 400) { unpaired++; pending_a = 0; }
     if (co.gusting() && !wo) starts_o++;
-    wa = ca.gusting(); wo = co.gusting();
+    wa = ca.gusting(); wb = cb.gusting(); wo = co.gusting();
     if (ca.gusting() && co.gusting()) same++;
   }
-  TEST_ASSERT_EQUAL_UINT32(0, differ);          // a and b always agree
+  TEST_ASSERT_TRUE(unpaired <= starts_a / 20);        // nearly every gust of a has b's within 400 ms
+  TEST_ASSERT_TRUE(differ > 0);                        // but not the same gust tick for tick
   TEST_ASSERT_TRUE(starts_a > 100 && starts_a < 400);  // ~1 per 18 s over an hour
   TEST_ASSERT_TRUE(starts_o > 100 && starts_o < 400);
   TEST_ASSERT_TRUE(same < (uint32_t)(starts_a * 100));  // drafts 3 and 4 mostly don't overlap
