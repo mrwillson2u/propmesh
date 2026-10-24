@@ -5,7 +5,7 @@
 // or a local file.
 import type { NodeTarget } from "./transport";
 
-export interface Image { bytes: Uint8Array; sha256: string; build: string; board?: string }
+export interface Image { bytes: Uint8Array; sha256: string; build: string; built?: number; board?: string }
 
 // The URL of a board's own image: the server lays builds out as
 // <root>/<board id>/firmware.bin (tools/ota_serve.py). A URL without a
@@ -42,9 +42,9 @@ export async function fetchImage(url: string): Promise<Image> {
   ]);
   if (!bin.ok) throw new Error(`firmware.bin: ${bin.status}`);
   const bytes = new Uint8Array(await bin.arrayBuffer());
-  const info = ver.ok ? await ver.json() as { build?: string; sha256?: string } : {};
+  const info = ver.ok ? await ver.json() as { build?: string; sha256?: string; built?: number } : {};
   const sha256 = info.sha256 && info.sha256.length === 64 ? info.sha256 : await digest(bytes);
-  return { bytes, sha256, build: info.build ?? "?" };
+  return { bytes, sha256, build: info.build ?? "?", built: info.built };
 }
 
 export async function fileImage(file: File): Promise<Image> {
