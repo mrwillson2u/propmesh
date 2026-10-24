@@ -260,7 +260,7 @@ function Live({ conn, layout, setLayout, sel, setSel, showLinks, setShowLinks, o
           </div>
           <span style={{ padding: "3px 9px", borderRadius: 4, background: health.bg, border: `1px solid ${health.b}`, ...mono(700, 10.5, health.fg) }}>{health.t}</span>
           <span style={mono(500, 11, C.t5)}>
-            {c.online} online{c.missing ? ` · ✕ ${c.missing} missing` : ""}{weak ? ` · ⚠ ${weak} weak link${weak > 1 ? "s" : ""}` : ""}
+            {c.online} online{c.asleep ? ` · ☾ ${c.asleep} asleep` : ""}{c.missing ? ` · ✕ ${c.missing} missing` : ""}{weak ? ` · ⚠ ${weak} weak link${weak > 1 ? "s" : ""}` : ""}
             {viaBat ? <span style={{ color: C.amber }} title="These boards reach the bridge only through a battery repeater, which sleeps when the show is off"> · ☾ {viaBat} via battery relay</span> : null}
           </span>
           <div style={{ flex: 1 }} />

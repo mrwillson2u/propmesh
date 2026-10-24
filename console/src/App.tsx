@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
-import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection } from "./lib/connection";
+import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection, batteryAlarms } from "./lib/connection";
 import { connectSim, reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
 import { useLayout } from "./lib/layout";
@@ -191,7 +191,8 @@ export default function App() {
     const bridgeText = demo ? "● LINKED"
       : conn ? (conn.reconnecting ? "◌ reconnecting…" : `● ${conn.link.via === "usb" ? "USB" : conn.link.via === "sim" ? "SIM" : "WIFI"}`)
       : autoState === "trying" ? "◌ reconnecting…" : "○ not connected";
-    const nodesText = demo ? `${mesh.counts.online} up` : conn ? `${counts(conn).online} up${counts(conn).missing ? ` · ${counts(conn).missing} missing` : ""}` : "";
+    const nodesText = demo ? `${mesh.counts.online} up` : conn ? `${counts(conn).online} up${counts(conn).asleep ? ` · ${counts(conn).asleep} asleep` : ""}${counts(conn).missing ? ` · ${counts(conn).missing} missing` : ""}` : "";
+    const alarms = demo ? [] : batteryAlarms(conn);
     const tabs = [...VIEWS.filter((v) => v.name !== "Settings"), { name: "Settings" as ViewName, icon: "⋯" }];
     const tabLabel = (n: ViewName) => n === "Nodes & Channels" ? "Nodes" : n === "Settings" ? "More" : n;
     return (
@@ -201,8 +202,15 @@ export default function App() {
             <Logo size={22} />
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
               <div style={{ ...mono(700, 11.5, allOff ? C.t4 : C.emberT), letterSpacing: ".08em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{modeText}</div>
-              <div style={{ ...mono(600, 10, C.t4), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                <span style={{ color: conn || demo ? C.green : C.t4 }}>{bridgeText}</span>{nodesText && <span> · {nodesText}</span>}
+              <div style={{ ...mono(600, 10, C.t4), display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 0" }}>
+                <span style={{ whiteSpace: "nowrap" }}><span style={{ color: conn || demo ? C.green : C.t4 }}>{bridgeText}</span>{nodesText && <span> · {nodesText}</span>}</span>
+                {alarms.length > 0 && (
+                  <span onClick={() => setView("Nodes & Channels")} role="button"
+                    title={alarms.map((a) => `${a.entry.hello?.name || a.entry.node}: ${a.state.text}`).join("\n")}
+                    style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 99, background: alarms.some((a) => a.state.level !== "low") ? C.redBg : C.amberBg, color: alarms.some((a) => a.state.level !== "low") ? C.red : C.amber, fontWeight: 700 }}>
+                    ⚠ {alarms.length} battery
+                  </span>
+                )}
               </div>
             </div>
             <button disabled={!canStop} aria-label="Hold to stop every board"
@@ -289,10 +297,24 @@ export default function App() {
               {conn
                 ? <span>
                     <span style={{ color: C.green }}>{counts(conn).online}</span>
-                    {!!counts(conn).missing && <span style={{ color: C.red }}> / {counts(conn).missing} missing</span>}
+                    {!!counts(conn).asleep && <span style={{ color: C.t4 }}> · {counts(conn).asleep} asleep</span>}
+                    {!!counts(conn).missing && <span style={{ color: C.red }}> · {counts(conn).missing} missing</span>}
                   </span>
                 : <span style={{ color: C.t5 }}>—</span>}
             </div>
+            {conn && batteryAlarms(conn).length > 0 && (
+              <div onClick={() => setView("Nodes & Channels")} role="button" title="Boards whose battery needs attention — open Nodes"
+                style={{ display: "flex", flexDirection: "column", gap: 3, padding: "6px 8px", borderRadius: 6, cursor: "pointer",
+                  background: batteryAlarms(conn).some((a) => a.state.level !== "low") ? C.redBg : C.amberBg,
+                  border: `1px solid ${batteryAlarms(conn).some((a) => a.state.level !== "low") ? C.redB : C.amberB}` }}>
+                {batteryAlarms(conn).map((a) => (
+                  <div key={a.entry.node} style={{ display: "flex", justifyContent: "space-between", gap: 8, color: a.state.level === "low" ? C.amber : C.red }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>⚠ {a.entry.hello?.name || a.entry.node}</span>
+                    <span style={{ flex: "none" }}>{a.state.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         {demo && <div style={{ flex: "none", padding: "10px 12px", borderTop: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 7, font: `600 10.5px ${MONO}` }}>
