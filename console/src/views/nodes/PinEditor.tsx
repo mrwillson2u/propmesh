@@ -339,7 +339,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           const kinds = KINDS.filter((k) => canDo(pin, k))
             .sort((a, b) => Number(isBest(pin, b)) - Number(isBest(pin, a)) || Number(isGood(pin, b)) - Number(isGood(pin, a)));
           return (
-            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note}
+            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note} className="pm-pin"
               style={{ ...rowStyle, opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
               <span style={{ display: "flex", flexDirection: "column", flex: phone ? "0 0 64px" : undefined }}>
                 <span style={mono(700, 12, bad ? C.red : warn ? C.amber : c ? C.t1 : C.t3)}>{pin.label}</span>
@@ -366,8 +366,8 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 140px" : undefined, minWidth: 0 }} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
-                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
+                      <span className="pm-opts" style={{ display: "contents" }}><Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} /></span>
+                      <span className="pm-test" style={{ display: "contents" }}><Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
@@ -379,7 +379,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                           pulse: (us) => { setCal({ code: channelCode(c), us }); fire(c, 0, us); },
                           setMin: (us) => patch(ci, { min_us: us }),
                           setMax: (us) => patch(ci, { max_us: us }),
-                        }} />
+                        }} /></span>
                     </>
                   ) : (
                     <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0, flex: phone ? "1 1 100%" : undefined, flexWrap: phone ? "wrap" : undefined }}>
@@ -856,7 +856,7 @@ function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p:
   const div = c.divider ?? 2;
   const suggested = meter && reading ? Math.round(div * (meter * 1000) / reading * 100) / 100 : undefined;
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
       <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
         <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
       </label>
@@ -880,7 +880,7 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
   const small: React.CSSProperties = { ...num, width: 64 };
   const [help, setHelp] = useState(false);
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
       <span onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
       {help && (
@@ -929,7 +929,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
     </label>
   );
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FIRE</span>
       {field("w", "columns", "Columns of pixels, side by side around the prop. columns × height = pixel count.", 60)}
       {field("h", "height", "Pixels per column, bottom to top. The flame is seeded at the bottom.", 255)}
