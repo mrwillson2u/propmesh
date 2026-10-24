@@ -1,5 +1,5 @@
 // Small shared pieces from the handoff's component sheet.
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, MONO } from "./lib/tokens";
 
 export function Logo({ size = 24 }: { size?: number }) {
@@ -66,11 +66,41 @@ export function Confirm({ title, children, okLabel = "OK", onOk, onCancel }: {
   );
 }
 
+// On a phone, type has a floor: the laptop's 9.5–12.5 px labels and
+// notes all land at 12.5–13 px (held at arm's length, 11 px is a squint),
+// and anything 13 px and up keeps its size. The flag follows the same
+// breakpoint as lib/layout; the app re-renders on that change, so the
+// inline fonts recompute. docs/console-phone.md §9.
+let phoneType = typeof matchMedia !== "undefined" && matchMedia("(max-width: 699px)").matches;
+if (typeof matchMedia !== "undefined") matchMedia("(max-width: 699px)").addEventListener("change", (e) => { phoneType = e.matches; });
+const px = (size: number): number => (!phoneType || size >= 13) ? size : Math.min(13, Math.max(12.5, size + 1.5));
+
 export const mono = (weight: number, size: number, color: string) =>
-  ({ font: `${weight} ${size}px ${MONO}`, color }) as const;
+  ({ font: `${weight} ${px(size)}px ${MONO}`, color }) as const;
 
 export const sys = (weight: number, size: number, color: string) =>
-  ({ font: `${weight} ${size}px system-ui`, color }) as const;
+  ({ font: `${weight} ${px(size)}px system-ui`, color }) as const;
+
+// A paragraph that explains something. On a laptop it is the paragraph.
+// On a phone it is one faded line with an ⓘ and a chevron — enough to
+// see there is something to read — and a tap opens the whole text;
+// another tap folds it back. The screen stays for controls, not prose.
+export function Hint({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState(phoneType);
+  useEffect(() => {
+    const m = matchMedia("(max-width: 699px)"); const on = () => setPhone(m.matches);
+    m.addEventListener("change", on); return () => m.removeEventListener("change", on);
+  }, []);
+  if (!phone) return <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5, ...style }}>{children}</div>;
+  return (
+    <div className={`pm-hint${open ? " pm-hint-open" : ""}`} onClick={() => setOpen(!open)} style={style} role="button" aria-expanded={open}>
+      <span className="pm-hint-i">ⓘ</span>
+      <span className="pm-hint-text">{children}</span>
+      <span className="pm-hint-chev">{open ? "▴" : "▾"}</span>
+    </div>
+  );
+}
 
 // "Still waiting on the mesh" — used wherever the console has sent a
 // request and nothing has come back yet, so a slow reply never looks
@@ -217,5 +247,36 @@ export function NumberInput({ value, onChange, min, max, digits, integer, width 
         ...style,
         ...(bad ? { borderColor: C.red, color: C.red } : {}),
       }} />
+  );
+}
+
+// A bottom sheet (phones): slides up over the view, the handle or the
+// backdrop closes it, and so does the browser's back gesture — a history
+// entry per open sheet, because on a phone back is how people leave
+// things (docs/console-phone.md §2).
+export function Sheet({ open, onClose, title, children, tall }: { open: boolean; onClose: () => void; title?: React.ReactNode; children: React.ReactNode; tall?: boolean }) {
+  const pushed = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    history.pushState({ pmSheet: true }, "");
+    pushed.current = true;
+    const pop = () => { pushed.current = false; onClose(); };
+    addEventListener("popstate", pop);
+    return () => { removeEventListener("popstate", pop); if (pushed.current) { pushed.current = false; history.back(); } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  if (!open) return null;
+  const close = () => onClose();
+  return (
+    <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-end" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxHeight: tall ? "92vh" : "80vh", background: C.panel, borderTop: `1px solid ${C.b2}`,
+        borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div onClick={close} style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px 8px", cursor: "pointer" }}>
+          <span style={{ width: 36, height: 4, borderRadius: 2, background: C.b3, margin: "0 auto" }} />
+        </div>
+        {title && <div style={{ flex: "none", padding: "0 16px 8px", ...sys(700, 14, C.t1) }}>{title}</div>}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
+      </div>
+    </div>
   );
 }

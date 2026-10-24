@@ -3,7 +3,7 @@
 // jump to its row. Collapsible; the choice is remembered per browser.
 import { useState } from "react";
 import { C } from "../../lib/tokens";
-import { mono, sys } from "../../ui";
+import { mono, sys, Hint } from "../../ui";
 import { FUNCTIONS, type Board } from "../../lib/boards_gen";
 import { channelCode, type NodeConfig } from "../../lib/nodeConfig";
 import { GUIDE_ORDER, holder, pinsFor } from "../../lib/pinAdvice";
@@ -60,9 +60,9 @@ export default function PinGuide({ board, cfg }: { board: Board; cfg: NodeConfig
               </div>
             );
           })}
-          <div style={{ ...sys(400, 10.5, C.t5), marginTop: 2 }}>
+          <Hint style={{ marginTop: 2 }}>
             ✓ = already used for this · struck = used for something else · ★ in the function lists marks the recommended pins.
-          </div>
+          </Hint>
         </div>
       )}
     </div>

@@ -10,7 +10,14 @@ body {
   color: #e6e9ed;
   font-family: system-ui, sans-serif;
 }
-#root { height: 100vh; display: flex; }
+#root { height: 100vh; height: 100dvh; display: flex; }
+
+/* Phones (docs/console-phone.md): inputs at 16 px so iOS Safari does not
+   zoom the page on focus; nothing scrolls sideways. */
+@media (max-width: 699px) {
+  input, select, textarea { font-size: 16px !important; }
+  body { overscroll-behavior: none; }
+}
 button { font-family: inherit; cursor: pointer; }
 a { color: #ff8a4d; }
 a:hover { color: #ffa470; }
@@ -30,3 +37,50 @@ a:hover { color: #ffa470; }
 .pm-slider { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; margin: 0; outline: none; cursor: pointer; }
 .pm-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid #0b0d10; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
 .pm-slider::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 2px solid #0b0d10; }
+
+/* Pin cards on a phone (docs/console-phone.md §5): a settings list, not a
+   table row. Every option is a row with its label left and its control
+   right; sliders and selects run full width; buttons are thumb-sized.
+   Scoped under .pm-pin, so the laptop layout is untouched. */
+@media (max-width: 699px) {
+  .pm-pin .pm-opts > span, .pm-pin .pm-optbox { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; align-items: center !important; flex: 1 1 100% !important; width: 100%; gap: 0 10px !important; }
+  .pm-pin .pm-optbox { padding: 8px 12px !important; margin-top: 4px; }
+  .pm-pin .pm-opts label { display: flex !important; flex: 1 1 100% !important; align-items: center; justify-content: space-between; gap: 12px !important; width: 100%; min-height: 46px; font-size: 14px !important; color: #c9cfd8 !important; border-bottom: 1px solid #181c22; }
+  /* a checkbox row reads like a switch row: words left, box right */
+  .pm-pin .pm-opts label:has(> input[type=checkbox]) { flex-direction: row-reverse; }
+  .pm-pin .pm-opts label > input[type=checkbox] { width: 22px; height: 22px; margin: 0; accent-color: #ff6b2c; }
+  .pm-pin .pm-opts label:last-child { border-bottom: none; }
+  .pm-pin .pm-opts label > input:not([type=checkbox]), .pm-pin .pm-opts label > select { margin-left: auto; min-height: 40px; }
+  .pm-pin .pm-opts label > input[type=text], .pm-pin .pm-opts label > input:not([type]) { width: 96px !important; text-align: right; }
+  .pm-pin .pm-opts select { min-height: 44px; font-size: 16px !important; }
+  .pm-pin .pm-opts > span > span:not(.pm-optbox) { padding: 6px 0; }
+  .pm-pin .pm-test > span { display: flex !important; flex-wrap: wrap; gap: 8px !important; flex: 1 1 100% !important; width: 100%; padding-top: 6px; }
+  /* A slider's line: the slider, then its value at the end of the same
+     line; buttons come after (order), each a thumb-sized row item. */
+  .pm-pin .pm-test span:has(> input[type=range]) { display: flex !important; flex-wrap: wrap; align-items: center; gap: 8px !important; flex: 1 1 100% !important; width: 100%; }
+  .pm-pin .pm-test input[type=range] { flex: 1 1 60% !important; width: auto !important; min-width: 120px !important; height: 32px; accent-color: #ff6b2c; }
+  .pm-pin .pm-test .pm-readout { order: 0; flex: 1 0 52px; width: auto !important; min-width: 52px; }
+  .pm-pin .pm-test button { order: 1; min-height: 44px !important; flex: 1 1 30% !important; width: auto !important; font-size: 13px !important; padding: 0 12px !important; white-space: nowrap; }
+  .pm-pin .pm-hint { flex: 1 1 100%; min-width: 0; max-width: 100%; margin: 4px 0; }
+  .pm-pin .pm-test > span > span { font-size: 13px; }
+  .pm-pin > select { min-height: 44px; }
+  .pm-pin > input { min-height: 44px; }
+}
+
+/* Hint on a phone: one faded line with an ⓘ, tap to open (ui.tsx Hint). */
+.pm-hint { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #12161c; border: 1px solid #1d222a; color: #8a93a0; font: 400 13px/1.5 system-ui; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
+.pm-hint-i { color: #d9a441; font: 700 14px/1.4 system-ui; flex: none; }
+.pm-hint-chev { color: #4f5763; flex: none; font-size: 12px; line-height: 1.6; }
+.pm-hint-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-hint-open .pm-hint-text { white-space: normal; color: #b4bcc8; }
+
+/* A pin card's drawer on a phone (PinEditor): the chevron sits at the end
+   of the header line; the drawer spans the card under it. */
+.pm-chev { margin-left: auto; width: 40px; height: 40px; flex: none; border: 1px solid #262c36; border-radius: 8px; background: #141920; color: #d9a441; font: 700 18px/1 system-ui; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pm-chev[aria-expanded="true"] { color: #d9a441; border-color: #3a3524; background: #1c1a14; }
+.pm-drawer { flex: 1 1 100%; width: 100%; padding: 10px 12px; border-radius: 8px; background: #12161c; border: 1px solid #1d222a; display: flex; flex-direction: column; gap: 8px; }
+.pm-drawer-head { color: #d9a441; font: 700 12.5px/1.4 system-ui; letter-spacing: .02em; }
+.pm-drawer-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; color: #b4bcc8; font: 400 13px/1.45 system-ui; }
+.pm-drawer-k { color: #e8ecf1; font-weight: 600; word-break: break-word; }
+.pm-drawer-link { color: #d9a441; font: 600 13px/1.4 system-ui; }
+@media (max-width: 699px) { .pm-pin .pm-help { display: none; } }

@@ -16,7 +16,10 @@ const ROW = 18, PAD_W = 46, LABEL_W = 150, BODY_W = 150;
 
 export default function Pinout({ board, cfg }: { board: Board; cfg: NodeConfig }) {
   const [open, setOpenState] = useState(() => {
-    try { return localStorage.getItem(KEY) !== "0"; } catch { return true; }
+    // Open on a laptop until folded; folded on a phone until opened — the
+    // drawing is laptop-sized and takes the whole screen there.
+    const phone = typeof matchMedia !== "undefined" && matchMedia("(max-width: 699px)").matches;
+    try { const v = localStorage.getItem(KEY); return v === null ? !phone : v !== "0"; } catch { return !phone; }
   });
   const setOpen = (o: boolean) => {
     setOpenState(o);

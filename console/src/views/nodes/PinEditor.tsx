@@ -4,9 +4,10 @@
 // docs/generic-boards.md.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys, Hint } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import { battText } from "../../lib/battery";
+import { useLayout } from "../../lib/layout";
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
   type ColorOrder, type FireCfg, type StripEffect,
@@ -60,6 +61,27 @@ export interface EditorProps {
 // assignments, save, test fire.
 export default function PinEditor({ node, hello, board, where, onInput, onSaved }: EditorProps) {
   const conn = useConnection();
+  // On a phone each pin is a card whose parts wrap, not a six-column row
+  // (docs/console-phone.md §5); the column headings go with the columns.
+  const { phone } = useLayout();
+  const rowStyle: React.CSSProperties = phone
+    ? { display: "flex", flexWrap: "wrap", gap: "8px 10px", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #181c22" }
+    : { display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22" };
+  // On a phone, each assigned pin's card has a chevron that opens a drawer
+  // listing every setting with its explanation — the text the laptop
+  // shows as hover tooltips, gathered from the card's own labels on
+  // open (docs/console-phone.md §9).
+  const [drawer, setDrawer] = useState<{ gpio: number; items: [string, string][] } | null>(null);
+  const toggleDrawer = (gpio: number, el: HTMLElement | null) => {
+    if (drawer?.gpio === gpio || !el) { setDrawer(null); return; }
+    const items: [string, string][] = [];
+    el.querySelectorAll<HTMLElement>(".pm-opts label[title], .pm-test [title]").forEach((n) => {
+      const name = (n.tagName === "LABEL" ? n.firstChild?.textContent : n.textContent)?.trim() ?? "";
+      const text = n.getAttribute("title") ?? "";
+      if (name && text && !items.some(([k]) => k === name)) items.push([name, text]);
+    });
+    setDrawer({ gpio, items });
+  };
   const [applied, setApplied] = useState<NodeConfig>(EMPTY_CONFIG); // what the node is running
   const [draft, setDraft] = useState<NodeConfig>(EMPTY_CONFIG);
   const [values, setValues] = useState<Record<string, number>>({});
@@ -318,9 +340,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
         <Pinout board={board} cfg={draft} />
         <PinGuide board={board} cfg={draft} />
-        <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
+        {!phone && <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
           <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>
-        </div>
+        </div>}
         {board.pins.map((pin) => {
           const ci = draft.channels.findIndex((c) => c.pins.includes(pin.gpio));
           const c = ci >= 0 ? draft.channels[ci] : undefined;
@@ -332,35 +354,49 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           const kinds = KINDS.filter((k) => canDo(pin, k))
             .sort((a, b) => Number(isBest(pin, b)) - Number(isBest(pin, a)) || Number(isGood(pin, b)) - Number(isGood(pin, a)));
           return (
-            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note}
-              style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22", opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
-              <span style={{ display: "flex", flexDirection: "column" }}>
+            <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note} className="pm-pin"
+              style={{ ...rowStyle, opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
+              <span style={{ display: "flex", flexDirection: "column", flex: phone ? "0 0 64px" : undefined }}>
                 <span style={mono(700, 12, bad ? C.red : warn ? C.amber : c ? C.t1 : C.t3)}>{pin.label}</span>
                 <span style={mono(500, 10, C.t5)}>GPIO {pin.gpio}{pin.tier === "caution" ? " ⚠" : ""}</span>
               </span>
 
               {pin.tier === "reserved" ? (
-                <span style={{ gridColumn: "2 / -1", ...sys(500, 11.5, C.t5) }}>reserved — {pin.note}</span>
+                <span style={{ gridColumn: "2 / -1", flex: "1 1 200px", minWidth: 0, ...sys(500, 11.5, C.t5) }}>reserved — {pin.note}</span>
               ) : c && !owner ? (
                 <>
                   <span style={sys(500, 12, C.t3)}>{FUNCTIONS[c.kind].label}</span>
                   <span style={mono(600, 11.5, C.t3)}>{channelCode(c)}</span>
-                  <span style={{ gridColumn: "4 / -1", ...mono(500, 11, C.t5) }}>{pinRole(c, pin.gpio)} pin — set on {board.pins.find((p) => p.gpio === c.pins[0])?.label}</span>
+                  <span style={{ gridColumn: "4 / -1", flex: "1 1 160px", minWidth: 0, ...mono(500, 11, C.t5) }}>{pinRole(c, pin.gpio)} pin — set on {board.pins.find((p) => p.gpio === c.pins[0])?.label}</span>
                 </>
               ) : (
                 <>
                   <select value={c?.kind ?? ""} onChange={(e) => assign(pin.gpio, e.target.value as ChannelKindName | "")}
-                    style={{ ...field, color: c ? C.t1 : C.t5 }}>
+                    style={{ ...field, color: c ? C.t1 : C.t5, flex: phone ? "1 1 0" : undefined, minWidth: 0 }}>
                     <option value="">— unused —</option>
                     {kinds.map((k) => <option key={k} value={k}>{isBest(pin, k) ? "★ " : isGood(pin, k) ? "· " : "   "}{FUNCTIONS[k].label}</option>)}
                   </select>
                   {c ? (
                     <>
-                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      <span style={{ ...mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT), flex: "none", whiteSpace: "nowrap" }}>{channelCode(c)}</span>
+                      {phone && (
+                        <button className="pm-chev" aria-expanded={drawer?.gpio === pin.gpio} aria-label="What these settings do"
+                          onClick={(e) => toggleDrawer(pin.gpio, (e.currentTarget as HTMLElement).closest(".pm-pin"))}>
+                          {drawer?.gpio === pin.gpio ? "✕" : "ⓘ"}
+                        </button>
+                      )}
+                      {phone && drawer?.gpio === pin.gpio && (
+                        <div className="pm-drawer">
+                          <div className="pm-drawer-head">{FUNCTIONS[c.kind].label}{pin.note ? ` · ${pin.note}` : ""}</div>
+                          {drawer.items.length === 0 && <div className="pm-drawer-row"><span /><span>No settings to explain on this pin.</span></div>}
+                          {drawer.items.map(([k, v]) => <div key={k} className="pm-drawer-row"><span className="pm-drawer-k">{k}</span><span>{v}</span></div>)}
+                          {c.kind === "CANDLE" && <a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" className="pm-drawer-link">Wiring and tuning guide ↗</a>}
+                        </div>
+                      )}
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
-                        onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
-                      <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
-                      <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
+                        onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 100%" : undefined, minWidth: 0 }} />
+                      <span className="pm-opts" style={{ display: "contents" }}><Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} /></span>
+                      <span className="pm-test" style={{ display: "contents" }}><Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
@@ -372,12 +408,12 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                           pulse: (us) => { setCal({ code: channelCode(c), us }); fire(c, 0, us); },
                           setMin: (us) => patch(ci, { min_us: us }),
                           setMax: (us) => patch(ci, { max_us: us }),
-                        }} />
+                        }} /></span>
                     </>
                   ) : (
-                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0, flex: phone ? "1 1 100%" : undefined, flexWrap: phone ? "wrap" : undefined }}>
                       {pin.best && (
-                        <span style={{ ...sys(500, 11, C.t4), flex: "none" }}>
+                        <span style={{ ...sys(500, 11, C.t4), flex: phone ? "1 1 auto" : "none", minWidth: 0 }}>
                           ★ best for {SHORT[pin.best]}
                           {pin.also?.length ? <span style={{ color: C.t5 }}> · also {pin.also.map((a) => SHORT[a]).join(", ")}</span> : null}
                         </span>
@@ -391,9 +427,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           );
         })}
         {draft.channels.some((c) => c.kind === "BLE_LIGHT") && (
-          <div style={{ ...sys(400, 11.5, C.t4), padding: "10px 0 0" }}>
+          <Hint style={{ marginTop: 10 }}>
             This board also sends to {draft.channels.filter((c) => c.kind === "BLE_LIGHT").length} flood light(s) — managed in the <b>Floods</b> tab, where they belong to the whole mesh.
-          </div>
+          </Hint>
         )}
       </div>}
     </div>
@@ -849,14 +885,14 @@ function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p:
   const div = c.divider ?? 2;
   const suggested = meter && reading ? Math.round(div * (meter * 1000) / reading * 100) / 100 : undefined;
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
       <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
         <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
       </label>
-      <span style={mono(500, 10.5, C.t4)}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</span>
+      <Hint style={{ ...mono(500, 10.5, C.t4), lineHeight: 1.4 }}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</Hint>
       <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} title="Measure the battery with a meter and type it here; the ratio that makes the console agree is worked out from the board's current reading.">
         <span style={sys(500, 11.5, C.t3)}>meter reads</span>
-        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="V" />
+        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="0.00" />
         <span style={sys(500, 11.5, C.t3)}>V</span>
         {suggested && reading ? (
           <>
@@ -873,9 +909,9 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
   const small: React.CSSProperties = { ...num, width: 64 };
   const [help, setHelp] = useState(false);
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
-      <span onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
+      <span className="pm-help" onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
       {help && (
         <span style={{ flexBasis: "100%", ...sys(400, 11.5, C.t3), lineHeight: 1.45, padding: "4px 2px 6px" }}>
           The LED flickers in four layers: a slow <b>wander</b>, a fast <b>shimmer</b>, random <b>gusts</b> (quick dips) and rare <b>sputters</b> (a near-blowout that stutters and flares back).
@@ -922,7 +958,7 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
     </label>
   );
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+    <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FIRE</span>
       {field("w", "columns", "Columns of pixels, side by side around the prop. columns × height = pixel count.", 60)}
       {field("h", "height", "Pixels per column, bottom to top. The flame is seeded at the bottom.", 255)}
@@ -950,7 +986,7 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal, onReread }: 
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
   const dim: React.CSSProperties = disabled ? { opacity: 0.35, pointerEvents: "none" } : {};
-  const readout = (text: string) => <span style={{ ...mono(600, 11, C.t3), width: 52, textAlign: "right" }}>{text}</span>;
+  const readout = (text: string) => <span className="pm-readout" style={{ ...mono(600, 11, C.t3), width: 52, textAlign: "right" }}>{text}</span>;
 
   if (c.kind === "DIGITAL_IN")
     return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;

@@ -9,7 +9,8 @@
 // Save writes each node its own part. docs/generic-boards.md §6b.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput } from "../../ui";
+import { LandscapeHint, useLayout } from "../../lib/layout";
+import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
 import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
@@ -69,6 +70,7 @@ export default function ShowView({ section, onConnect }: { section: Section; onC
 }
 
 function Editor({ conn, section }: { conn: Connection; section: Section }) {
+  const { phone } = useLayout();
   const seqSection = section === "sequences";
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(false);
@@ -405,9 +407,9 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       )}
 
       {show && (
-        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: phone ? "column" : "row" }}>
           {/* sequences */}
-          {seqSection && <div style={{ width: 230, flex: "none", borderRight: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          {seqSection && <div style={{ width: phone ? "100%" : 230, maxHeight: phone ? "32vh" : undefined, flex: "none", borderRight: phone ? undefined : `1px solid ${C.b1}`, borderBottom: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>
             {show.sequences.length === 0 && !draft && <div style={{ padding: "4px 14px", ...sys(400, 11.5, C.t4) }}>None yet.</div>}
             {[...show.sequences, ...(draft && !show.sequences.some((s) => s.id === draft.id) ? [draft] : [])].map((s) => {
@@ -474,6 +476,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
 
                 <div style={{ marginTop: 12 }}>
+                  <LandscapeHint what="timeline">The timeline is easier sideways. Turn the phone for tracks and keyframes; the step table below works either way.</LandscapeHint>
                   <Timeline key={opened} seq={draft} onChange={setSorted} selected={selStep} onSelect={setSelStep}
                     nameOf={nameOf} outputs={allOutputs} live={live} onLive={send} playingFrom={playingFrom} />
                 </div>
@@ -533,11 +536,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   <button onClick={addStep} disabled={!outNodes.length} style={btn(false, !outNodes.length)}>+ Add step</button>
 
                 </div>
-                <div style={{ ...sys(400, 11, C.t5), marginTop: 8, lineHeight: 1.5 }}>
+                <Hint style={{ marginTop: 8 }}>
                   Each step says what an output should be at a time after the sequence starts. With <b>get there over</b> set,
                   a servo, LED or motor ramps to it from wherever it was, ending at that time; at 0 it jumps (servos then glide
                   with their smoothing setting). Two steps at the same time happen together, on every board, on the mesh clock.
-                </div>
+                </Hint>
               </div>
             ) : (
               <div style={sys(400, 12.5, C.t3)}>Pick a sequence, or create one.</div>
@@ -545,9 +548,9 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
 
             {/* triggers */}
             {!seqSection && <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: phone ? "wrap" : undefined }}>
                 <span style={label}>{graphView ? "SHOW GRAPH" : "TRIGGERS"}</span>
-                <span style={sys(400, 11, C.t5)}>{graphView ? "trigger → logic → sequences; each chain is a rule stored on its trigger's board" : "stored on the sensor's board — they work with no laptop attached"}</span>
+                {!phone && <span style={sys(400, 11, C.t5)}>{graphView ? "trigger → logic → sequences; each chain is a rule stored on its trigger's board" : "stored on the sensor's board — they work with no laptop attached"}</span>}
                 <span style={{ display: "flex", marginLeft: 6 }}>
                   {(["graph", "list"] as const).map((v, i) => {
                     const on = graphView === (v === "graph");
@@ -568,7 +571,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 </div>
               )}
               {graphView && (
-                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: "calc(100vh - 230px)", minHeight: 460 }}>
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: phone ? "60vh" : "calc(100vh - 230px)", minHeight: phone ? 320 : 460 }}>
+                  <LandscapeHint what="graph">The show graph is easier sideways. Turn the phone, or use List for the same rules as rows.</LandscapeHint>
                   <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules}
                     onFire={async (seq) => { try { const r = await conn.link.request("cue", { seq }); return r.ok ? null : (r.error ?? "refused"); } catch (e) { return (e as Error).message; } }} />
                 </div>
@@ -587,7 +591,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
           </div>
 
           {/* activity */}
-          {!seqSection && <div style={{ width: 250, flex: "none", borderLeft: `1px solid ${C.b1}`, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {!seqSection && <div style={{ width: phone ? "100%" : 250, maxHeight: phone ? "40vh" : undefined, flex: "none", borderLeft: phone ? undefined : `1px solid ${C.b1}`, borderTop: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>ACTIVITY</div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
               {conn.activity.length === 0 && <div style={sys(400, 11.5, C.t5)}>Sensor changes and cues appear here as they happen.</div>}

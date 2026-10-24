@@ -7,6 +7,7 @@ import { useSettings } from "./lib/settings";
 import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection } from "./lib/connection";
 import { connectSim, reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
+import { useLayout } from "./lib/layout";
 import { MODE_LABEL, hhmm } from "./lib/schedule";
 import Yard, { type YardLayout } from "./views/Yard";
 import Nodes from "./views/Nodes";
@@ -147,6 +148,110 @@ export default function App() {
     );
   };
 
+
+  const { phone } = useLayout();
+  const views = (
+    <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+          {view === "Yard" && (demo
+            ? <Yard mesh={mesh} initialLayout={initialLayout()} />
+            : <RealYard
+                onOpenNode={(id) => { select(id); setView("Nodes & Channels"); }}
+                onConnect={() => setView("Nodes & Channels")} />)}
+          {view === "Nodes & Channels" && <Nodes />}
+          {/* Sequences: orchestrate predefined sequences of outputs. Show: wire
+              triggers and logic into a show, the schedule and the mode
+              (software-plan "Console sections", 2026-10-12). */}
+          {view === "Sequences" && (demo
+            ? <Cues stopped={stopped} />
+            : <ShowView section="sequences" onConnect={() => setView("Nodes & Channels")} />)}
+          {view === "Show" && (demo
+            ? <ShowGraph />
+            : <ShowView section="show" onConnect={() => setView("Nodes & Channels")} />)}
+          {view === "Settings" && (
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+              {phone && (
+                <a href="https://mrwillson2u.github.io/propmesh/" target="_blank" rel="noreferrer"
+                  style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${C.b1}`, color: C.t2, textDecoration: "none", font: "500 15px system-ui", minHeight: 44 }}>
+                  <span style={{ fontSize: 15 }}>?</span>Docs ↗
+                </a>
+              )}
+              <Settings />
+            </div>
+          )}
+        </div>
+  );
+
+  if (phone) {
+    // The phone frame (docs/console-phone.md §2): STOP ALL in a bar across
+    // the top on every tab, the views in between, a bottom tab bar.
+    const modeText = demo ? mesh.sync.toUpperCase()
+      : !conn ? "NOT CONNECTED"
+      : !boards.known ? "WAITING FOR BOARDS"
+      : boards.mode ? MODE_LABEL[boards.mode].toUpperCase() : "MODES DIFFER";
+    const bridgeText = demo ? "● LINKED"
+      : conn ? (conn.reconnecting ? "◌ reconnecting…" : `● ${conn.link.via === "usb" ? "USB" : conn.link.via === "sim" ? "SIM" : "WIFI"}`)
+      : autoState === "trying" ? "◌ reconnecting…" : "○ not connected";
+    const nodesText = demo ? `${mesh.counts.online} up` : conn ? `${counts(conn).online} up${counts(conn).missing ? ` · ${counts(conn).missing} missing` : ""}` : "";
+    const tabs = [...VIEWS.filter((v) => v.name !== "Settings"), { name: "Settings" as ViewName, icon: "⋯" }];
+    const tabLabel = (n: ViewName) => n === "Nodes & Channels" ? "Nodes" : n === "Settings" ? "More" : n;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100dvh", width: "100%", background: C.bg, color: C.t1, overflow: "hidden" }}>
+        <div style={{ flex: "none", paddingTop: "env(safe-area-inset-top)", background: C.panel, borderBottom: `1px solid ${C.b2}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", minHeight: 60 }}>
+            <Logo size={22} />
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ ...mono(700, 11.5, allOff ? C.t4 : C.emberT), letterSpacing: ".08em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{modeText}</div>
+              <div style={{ ...mono(600, 10, C.t4), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ color: conn || demo ? C.green : C.t4 }}>{bridgeText}</span>{nodesText && <span> · {nodesText}</span>}
+              </div>
+            </div>
+            <button disabled={!canStop} aria-label="Hold to stop every board"
+              onMouseDown={stopDown} onMouseUp={stopUp} onMouseLeave={stopUp}
+              onTouchStart={stopDown} onTouchEnd={stopUp} onTouchCancel={stopUp}
+              style={{
+                position: "relative", overflow: "hidden", flex: "none", width: 148, height: 46,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                background: canStop ? C.emberBg : C.raised,
+                border: `1.5px solid ${canStop ? C.ember : C.b3}`, borderRadius: 10,
+                color: canStop ? C.emberT : C.t5, font: `700 13px ${MONO}`, letterSpacing: ".1em",
+                WebkitUserSelect: "none", userSelect: "none", touchAction: "none",
+              }}>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, background: "rgba(255,107,44,.35)", width: `${Math.round(pct * 100)}%` }} />
+              <StopOctagon />
+              <span style={{ position: "relative" }}>{justPressed ? "STOPPING…" : holding ? "HOLD…" : allOff || (demo && demoStopped) ? "ALL OFF" : "STOP ALL"}</span>
+            </button>
+          </div>
+          {stopped && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: C.emberBg, borderTop: `1px solid ${C.ember}` }}>
+              <span style={{ flex: 1, ...mono(700, 11, C.emberT), letterSpacing: ".06em" }}>
+                ⬣ ALL STOPPED{stopFailed.length ? ` · no confirmation from ${stopFailed.join(", ")}` : ""}
+              </span>
+              <button onClick={() => { setStopped(false); void armAll(true); }} style={{ height: 36, padding: "0 14px", background: C.ember, border: "none", borderRadius: 8, color: C.onEmber, font: `800 12px ${MONO}`, letterSpacing: ".06em" }}>
+                RE-ARM
+              </button>
+            </div>
+          )}
+        </div>
+        {views}
+        <nav style={{ flex: "none", display: "grid", gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, background: C.panel, borderTop: `1px solid ${C.b2}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
+          {tabs.map((v) => {
+            const active = v.name === view;
+            return (
+              <button key={v.name} onClick={() => setView(v.name)} style={{
+                height: 56, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                background: "none", border: "none", borderTop: `2px solid ${active ? C.ember : "transparent"}`,
+                color: active ? C.emberT : C.t3, font: `${active ? 600 : 500} 10.5px system-ui`, WebkitTapHighlightColor: "transparent",
+              }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>{v.icon}</span>
+                {tabLabel(v.name)}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", height: "100vh", width: "100%", background: C.bg, color: C.t1, overflow: "hidden" }}>
       <div style={{ width: 176, flex: "none", background: C.panel, borderRight: `1px solid ${C.b2}`, display: "flex", flexDirection: "column" }}>
@@ -250,24 +355,7 @@ export default function App() {
             </button>
           </div>
         )}
-        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-          {view === "Yard" && (demo
-            ? <Yard mesh={mesh} initialLayout={initialLayout()} />
-            : <RealYard
-                onOpenNode={(id) => { select(id); setView("Nodes & Channels"); }}
-                onConnect={() => setView("Nodes & Channels")} />)}
-          {view === "Nodes & Channels" && <Nodes />}
-          {/* Sequences: orchestrate predefined sequences of outputs. Show: wire
-              triggers and logic into a show, the schedule and the mode
-              (software-plan "Console sections", 2026-10-12). */}
-          {view === "Sequences" && (demo
-            ? <Cues stopped={stopped} />
-            : <ShowView section="sequences" onConnect={() => setView("Nodes & Channels")} />)}
-          {view === "Show" && (demo
-            ? <ShowGraph />
-            : <ShowView section="show" onConnect={() => setView("Nodes & Channels")} />)}
-          {view === "Settings" && <Settings />}
-        </div>
+        {views}
       </div>
     </div>
   );

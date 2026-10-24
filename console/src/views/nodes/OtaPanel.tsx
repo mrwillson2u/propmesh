@@ -6,7 +6,7 @@
 // mesh with the new build id. WiFi details stay in this browser.
 import { useEffect, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { Spinner, mono, sys } from "../../ui";
+import { Spinner, mono, sys, Hint } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry } from "../../lib/connection";
 import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
@@ -226,11 +226,11 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           <button onClick={() => setMode("mesh")} style={pill(mode === "mesh")}>Over the mesh</button>
           <button onClick={() => setMode("wifi")} style={pill(mode === "wifi")}>Over WiFi</button>
         </span>
-        <span style={sys(400, 12, C.t3)}>
+        <Hint style={{ flex: "1 1 220px", ...sys(400, 12, C.t3), lineHeight: 1.4 }}>
           {mode === "mesh"
             ? "The image streams through the bridge to each board in turn — nothing to unplug, no WiFi needed. About six minutes a board."
             : "Each board joins your WiFi and fetches the image itself — fast, when your WiFi reaches the board. Details stay in this browser."}
-        </span>
+        </Hint>
       </div>
       {mode === "mesh" && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -344,10 +344,10 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           ];
         })}
       </div>
-      <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5 }}>
+      <Hint>
         A new image that crashes before it has run with the mesh up for 20 s is rolled back automatically. Do the bridge (the board the console is connected to) last: while it
         reboots the others can't be reached.{mode === "wifi" ? " Over WiFi a board leaves the mesh for the download (about a minute)." : ""}
-      </div>
+      </Hint>
     </div>
   );
 }

@@ -169,9 +169,13 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 ## 4. Not built yet (roughly in order)
 
 **Before / around Halloween 2026 (on the yard boards)**
-- Console handoff items: phone layout and a phone "placement mode" for the
-  Yard map, **locate** (blink a board's LED to find it), **last-fired**
-  time on each trigger rule, signal-strength heat on the map.
+- Console on a phone: design in `docs/console-phone.md` (2026-10-24).
+  The frame is built (bottom tabs, STOP ALL bar, sheets, home-screen
+  install, landscape hints; PR #57); next the Yard map, Show, the
+  moments list and scrub ruler for sequences, then perform mode, then
+  placement mode. Also still on the list: **locate** (blink a board's
+  LED to find it), **last-fired** time on each trigger rule,
+  signal-strength heat on the map.
 - ~~Console's OTA panel loading the update image straight from the docs
   site~~ — built 2026-10-13 ("Latest release" in the Firmware panel), but
   it fetched `firmware.bin` + `version.json`, which the site never staged
