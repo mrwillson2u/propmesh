@@ -158,8 +158,17 @@ def cmd_ota(b, a):
             continue
         if r and r.get("ok"):
             off, misses = r["written"], 0
+            busy_since = None
         elif r and "offset" in (r.get("error") or ""):
             off = r["written"]  # the board already has more than we thought: resume there
+        elif r and "busy" in (r.get("error") or ""):
+            # The bridge is protecting its heap (docs §6j): wait, then the
+            # same chunk again. Not a miss — but not forever.
+            busy_since = locals().get("busy_since") or time.time()
+            if time.time() - busy_since > 120:
+                sys.exit(f"gave up at {off}: the bridge has been busy for two minutes ({r.get('error')})")
+            time.sleep(0.4)
+            continue
         else:
             misses += 1
             # Say what went wrong the first time it does, not only on giving
