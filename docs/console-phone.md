@@ -78,10 +78,13 @@ prefers landscape and says so; in portrait it lists the rules as cards.
 
 ## 5. Nodes
 
-The board tabs become a row that scrolls sideways. A board's rows stack
-one setting per line; the TEST column's controls become full-width
-buttons and sliders; the pinout drawing stays behind its toggle, closed
-by default. Pin assignment works here but is not the point of a phone.
+The Nodes tab is a list of boards, one per row with its state and
+facts; a tap opens the board's page full-screen with "‹ Boards" to
+return (built 2026-10-24, `docs/console-nodes-list.md`). A board's
+rows stack one setting per line; the TEST column's controls become
+full-width buttons and sliders; the pinout drawing stays behind its
+toggle, closed by default. Pin assignment works here but is not the
+point of a phone.
 
 ## 6. Sequences — the creative pass
 

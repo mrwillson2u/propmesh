@@ -136,11 +136,11 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 - **Node list overhaul (2026-10-24)** — built: the roster (boards
   remembered per browser, on the list at connect, asleep or not
-  heard), name order, zzz with sleep age, hide / forget for a dead
-  mains board, live `state` on a board's page. Waiting on Colin: the
-  layout (row / list beside the editor / cards) and with it the
-  reorder control; whether an overdue battery board turns red.
-  `docs/console-nodes-list.md`.
+  heard), name order, Arrange mode, zzz with sleep age, hide / forget,
+  live `state` on a board's page, the list-beside-editor layout (phone:
+  list → page → back), battery low / critical / overdue / ran-out
+  marks and the ⚠ alarm. Next: the on-board drain rate and the "will
+  it last tonight" estimate. `docs/console-nodes-list.md`.
 
 - **C6 SuperMini crash-loop on its first real run (2026-10-15) —
   cause found, fix built, not yet on the board.** e076df14 on the release

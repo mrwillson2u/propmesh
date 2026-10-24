@@ -9,8 +9,8 @@ Colin, 2026-10-24: the row of boards across the top of the Nodes view
 | The same order every time, not the order boards were heard | **Built** (§2) |
 | A clear mark for a board asleep a long time (color or zzz) | **Built** (§3) |
 | Hide a board that has stopped answering | **Built** (§4) |
-| Rearrange the order by hand | Data built (§2); the control waits on the layout (§6) |
-| Reconsider the row across the top; how it looks with few and with many | **Options in §6 — Colin to pick** |
+| Rearrange the order by hand | **Built** (§2): Arrange mode, drag or arrows |
+| Reconsider the row across the top; how it looks with few and with many | **Built**: option B (§6), chosen 2026-10-24 |
 | A board's page shows its real state when opened, and follows changes | **Built** (§5); one check still to run on a real candle |
 
 Everything built is in PR #57 (console only; no firmware change).
@@ -54,9 +54,13 @@ from a dozen boards don't rewrite the store continuously.
 
 Before, the row sorted by hop count, then id — so boards swapped
 places as signal changed and came up in a different order each visit.
-The hand order has a data path and a setter (`setOrder`) but **no
-control yet**: a drag handle or an Arrange mode depends on which
-layout wins (§6).
+
+**Arrange** (a button in the list header, shown when there is more
+than one movable board) turns on ▲ ▼ on every row and lets rows be
+dragged onto each other on a laptop; Done ends it. The bridge stays
+first. Moving one board writes the whole order to the roster, so the
+rest keep their places; boards heard later (not in the order) follow
+in name order. Kept in this browser.
 
 ## 3. Asleep
 
@@ -109,7 +113,21 @@ lighting it through a path that bypasses the runtime value, and that
 is a firmware fix; if it is non-zero, the console was showing a stale
 read and the poll is the fix.
 
-## 6. The layout — options for Colin
+## 6. The layout — options; B chosen and built (2026-10-24)
+
+**Built as B.** On a laptop a 256 px column on the left lists the
+boards one per row (state mark, name, BRIDGE / ⏱ tags, a second line
+of facts: signal, sleep age and next check-in, battery), then
+"+N hidden", Floods and Firmware as rows, Disconnect at the bottom;
+the editor sits to the right and never moves. On a phone the Nodes
+tab *is* the list; a tap opens the board's page full-screen with
+"‹ Boards" in a sticky header, and the connect-time default (the
+bridge) does not open a page by itself — the Yard's "open" does.
+The chips' hover facts are now in the row's text. The second line of
+*live output values* (C's best part) waits on the heartbeat summary in
+the firmware.
+
+The options as they were put to Colin:
 
 The row of chips across the top is fine for three boards and poor for
 fifteen: it wraps into a block, the editor below it jumps as the block
@@ -308,6 +326,18 @@ A night's drain is very different from a day's (the candle runs all
 show, then sleeps), so the rate is taken over whole days, and a board
 that just got charged (voltage went up) restarts its history.
 
-**Order of work**: ran out / low / alarm first (console only, one
-evening); the on-board rate next time the node firmware goes out.
+**Built 2026-10-24 (console):** `batteryState()` in `connection.ts`
+— low < 3.55 V, critical < 3.45 V, overdue = quiet for 3 × check-in
+period (+16 s), ran out? = overdue and last heard < 3.40 V, or overdue
+after a brownout restart, or quiet > 36 h. The roster keeps each
+board's last voltage, so a board asleep since last night still shows
+its last reading and can be judged. The row shows the state in amber
+or red before the facts; the dot turns amber / red for low / critical.
+The **alarm** is a "⚠ N battery" badge in the phone's top bar and a
+block in the laptop sidebar listing each board and why; both open the
+Nodes view. Counts everywhere now say "N up · N asleep · N missing"
+(asleep is not missing), and hidden boards are left out of counts and
+off the Yard map.
+
+**Next: the on-board drain rate** (firmware), then the estimate line.
 Colin's call on the thresholds and the wording.

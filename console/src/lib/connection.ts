@@ -35,6 +35,7 @@ export interface Entry {
   // heard) but not polled — a request to a sleeping board only times
   // out on the bridge. Cleared by its first heartbeat.
   remembered?: boolean;
+  lastBatt?: number; // the last cell voltage heard, mV — from the roster when remembered
 }
 
 // ---- the roster ---------------------------------------------------------
@@ -49,6 +50,7 @@ export interface RosterEntry {
   node: string;
   hello: NodeHello;
   lastSeen: number; // ms timestamp of the last heartbeat heard by any session here
+  batt?: number; // last cell voltage heard, mV (battery boards)
 }
 export interface Roster {
   boards: Record<string, RosterEntry>;
@@ -75,11 +77,11 @@ function saveRoster() {
 }
 // Writes are batched: a heartbeat every 5 s from every board would
 // otherwise rewrite the store constantly.
-function remember(node: string, hello: NodeHello | undefined, seen: number) {
+function remember(node: string, hello: NodeHello | undefined, seen: number, batt?: number) {
   if (!rosterKey) return;
   const prev = roster.boards[node];
   if (!hello && !prev) return;
-  roster = { ...roster, boards: { ...roster.boards, [node]: { node, hello: hello ?? prev!.hello, lastSeen: Math.max(seen, prev?.lastSeen ?? 0) } } };
+  roster = { ...roster, boards: { ...roster.boards, [node]: { node, hello: hello ?? prev!.hello, lastSeen: Math.max(seen, prev?.lastSeen ?? 0), batt: batt || prev?.batt } } };
   if (!rosterDirty) rosterDirty = window.setTimeout(() => { rosterDirty = 0; saveRoster(); }, 2000);
 }
 export const getRoster = () => roster;
@@ -156,6 +158,7 @@ export interface Connection {
   hello: NodeHello; // the USB node's, at connect time
   entries: Record<string, Entry>;
   selected: string | null; // the node open in Nodes & Channels
+  selectedAt: number; // when select() last chose it; 0 = the connect-time default (a phone shows the list, not a page)
   local?: LocalMesh;
   lastEvent: number; // ms timestamp of the last heartbeat heard
   activity: Activity[];
@@ -191,10 +194,13 @@ export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.se
 // A battery board that has gone quiet is asleep, not lost (docs §6f).
 export const isAsleep = (en: Entry, now = Date.now()) => en.hello?.power === "battery" && isMissing(en, now);
 
+// Up / asleep / missing, hidden boards left out. A quiet battery board
+// is asleep, not missing (docs/console-nodes-list.md §3).
 export function counts(c: Connection, now = Date.now()) {
-  const all = Object.values(c.entries);
-  const missing = all.filter((e) => isMissing(e, now)).length;
-  return { total: all.length, online: all.length - missing, missing };
+  const all = Object.values(c.entries).filter((e) => !roster.hidden.includes(e.node));
+  const asleep = all.filter((e) => isAsleep(e, now)).length;
+  const missing = all.filter((e) => isMissing(e, now) && !isAsleep(e, now)).length;
+  return { total: all.length, online: all.length - missing - asleep, asleep, missing };
 }
 
 function patch(node: string, p: Partial<Entry>) {
@@ -206,7 +212,7 @@ function patch(node: string, p: Partial<Entry>) {
 
 export function select(node: string | null) {
   if (!current) return;
-  current = { ...current, selected: node };
+  current = { ...current, selected: node, selectedAt: node ? Date.now() : 0 };
   changed();
 }
 
@@ -222,14 +228,14 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
   const t = Date.now();
   lastError = null;
   current = {
-    link, hello, selected: hello.node, lastEvent: t, activity: [],
+    link, hello, selected: hello.node, selectedAt: 0, lastEvent: t, activity: [],
     entries: { [hello.node]: { node: hello.node, usb: true, hello, seen: t, firstSeen: t, helloTries: 0 } },
   };
   // Everyone this browser has met on this mesh, from the roster, before
   // any of them has spoken: asleep (battery) or not heard yet (mains).
   for (const r of Object.values(loadRoster(hello.node).boards)) {
     if (r.node === hello.node) continue;
-    current.entries[r.node] = { node: r.node, usb: false, hello: r.hello, seen: r.lastSeen, firstSeen: t, helloTries: 0, remembered: true };
+    current.entries[r.node] = { node: r.node, usb: false, hello: r.hello, seen: r.lastSeen, firstSeen: t, helloTries: 0, remembered: true, lastBatt: r.batt };
   }
   const helloAt = new Map<string, number>([[hello.node, t]]);
   let meshAt = 0;
@@ -255,8 +261,8 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         // blip) — ask again who it is, since its build or role may differ.
         const prev = current.entries[hb.node]?.hb;
         const was = current.entries[hb.node];
-        patch(hb.node, { hb, seen: Date.now(), remembered: false });
-        remember(hb.node, was?.hello, Date.now());
+        patch(hb.node, { hb, seen: Date.now(), remembered: false, ...(hb.batt ? { lastBatt: hb.batt } : {}) });
+        remember(hb.node, was?.hello, Date.now(), hb.batt);
         // A hidden board that speaks again is back on the list.
         if (roster.hidden.includes(hb.node)) hideNode(hb.node, false);
         if (prev && hb.up < prev.up) refreshHello(hb.node);
@@ -425,3 +431,35 @@ export const checkinText = (checkinMs: number | undefined, now = Date.now()) => 
   const t = nextCheckin(checkinMs, now);
   return t ? `next check-in ${t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "checks in on its own schedule";
 };
+
+// ---- battery ---------------------------------------------------------------
+// What a battery board's cell is doing, from what the console can know
+// (docs/console-nodes-list.md §8): the voltage in its heartbeats, why it
+// last restarted, and whether it has missed its check-ins.
+export const BATT_LOW_MV = 3550;      // ~20 % on the resting curve
+export const BATT_CRITICAL_MV = 3450; // ~10 %
+export const BATT_OUT_MV = 3400;      // below this and quiet: it died
+export type BatteryLevel = "ok" | "low" | "critical" | "overdue" | "out";
+export interface BatteryState { level: BatteryLevel; mv?: number; text: string; alarm: boolean }
+
+export function batteryState(en: Entry, now = Date.now()): BatteryState | null {
+  if (en.hello?.power !== "battery") return null;
+  const mv = en.hb?.batt || en.lastBatt;
+  const period = en.hello.checkin_ms ?? 0;
+  const quiet = now - en.seen;
+  const overdue = period > 0 ? quiet > 3 * period + MISSING_MS : quiet > 6 * 3600000;
+  const brownout = !!en.hello.reset && /brownout/i.test(en.hello.reset);
+  if ((overdue && mv !== undefined && mv < BATT_OUT_MV) || (overdue && brownout) || quiet > 36 * 3600000)
+    return { level: "out", mv, text: "ran out?", alarm: true };
+  if (overdue) return { level: "overdue", mv, text: "overdue", alarm: false };
+  if (mv === undefined) return { level: "ok", text: "", alarm: false };
+  if (mv < BATT_CRITICAL_MV) return { level: "critical", mv, text: "battery critical", alarm: true };
+  if (mv < BATT_LOW_MV) return { level: "low", mv, text: "battery low", alarm: true };
+  return { level: "ok", mv, text: "", alarm: false };
+}
+
+// Every board that needs attention for its battery, for the alarm badge.
+export function batteryAlarms(c: Connection | null, now = Date.now()): { entry: Entry; state: BatteryState }[] {
+  if (!c) return [];
+  return orderedEntries(c).map((entry) => ({ entry, state: batteryState(entry, now)! })).filter((x) => x.state?.alarm);
+}
