@@ -68,3 +68,14 @@ a:hover { color: #ffa470; }
 .pm-hint-chev { color: #4f5763; flex: none; font-size: 12px; line-height: 1.6; }
 .pm-hint-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm-hint-open .pm-hint-text { white-space: normal; color: #b4bcc8; }
+
+/* A pin card's drawer on a phone (PinEditor): the chevron sits at the end
+   of the header line; the drawer spans the card under it. */
+.pm-chev { margin-left: auto; width: 40px; height: 40px; flex: none; border: 1px solid #262c36; border-radius: 8px; background: #141920; color: #8a93a0; font: 700 14px/1 system-ui; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pm-chev[aria-expanded="true"] { color: #d9a441; border-color: #3a3524; background: #1c1a14; }
+.pm-drawer { flex: 1 1 100%; width: 100%; padding: 10px 12px; border-radius: 8px; background: #12161c; border: 1px solid #1d222a; display: flex; flex-direction: column; gap: 8px; }
+.pm-drawer-head { color: #d9a441; font: 700 12.5px/1.4 system-ui; letter-spacing: .02em; }
+.pm-drawer-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; color: #b4bcc8; font: 400 13px/1.45 system-ui; }
+.pm-drawer-k { color: #e8ecf1; font-weight: 600; word-break: break-word; }
+.pm-drawer-link { color: #d9a441; font: 600 13px/1.4 system-ui; }
+@media (max-width: 699px) { .pm-pin .pm-help { display: none; } }

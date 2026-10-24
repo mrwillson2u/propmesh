@@ -67,6 +67,21 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   const rowStyle: React.CSSProperties = phone
     ? { display: "flex", flexWrap: "wrap", gap: "8px 10px", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #181c22" }
     : { display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22" };
+  // On a phone, each assigned pin's card has a chevron that opens a drawer
+  // listing every setting with its explanation — the text the laptop
+  // shows as hover tooltips, gathered from the card's own labels on
+  // open (docs/console-phone.md §9).
+  const [drawer, setDrawer] = useState<{ gpio: number; items: [string, string][] } | null>(null);
+  const toggleDrawer = (gpio: number, el: HTMLElement | null) => {
+    if (drawer?.gpio === gpio || !el) { setDrawer(null); return; }
+    const items: [string, string][] = [];
+    el.querySelectorAll<HTMLElement>(".pm-opts label[title], .pm-test [title]").forEach((n) => {
+      const name = (n.tagName === "LABEL" ? n.firstChild?.textContent : n.textContent)?.trim() ?? "";
+      const text = n.getAttribute("title") ?? "";
+      if (name && text && !items.some(([k]) => k === name)) items.push([name, text]);
+    });
+    setDrawer({ gpio, items });
+  };
   const [applied, setApplied] = useState<NodeConfig>(EMPTY_CONFIG); // what the node is running
   const [draft, setDraft] = useState<NodeConfig>(EMPTY_CONFIG);
   const [values, setValues] = useState<Record<string, number>>({});
@@ -364,6 +379,20 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                   {c ? (
                     <>
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      {phone && (
+                        <button className="pm-chev" aria-expanded={drawer?.gpio === pin.gpio} aria-label="What these settings do"
+                          onClick={(e) => toggleDrawer(pin.gpio, (e.currentTarget as HTMLElement).closest(".pm-pin"))}>
+                          {drawer?.gpio === pin.gpio ? "▴" : "▾"}
+                        </button>
+                      )}
+                      {phone && drawer?.gpio === pin.gpio && (
+                        <div className="pm-drawer">
+                          <div className="pm-drawer-head">{FUNCTIONS[c.kind].label}{pin.note ? ` · ${pin.note}` : ""}</div>
+                          {drawer.items.length === 0 && <div className="pm-drawer-row"><span /><span>No settings to explain on this pin.</span></div>}
+                          {drawer.items.map(([k, v]) => <div key={k} className="pm-drawer-row"><span className="pm-drawer-k">{k}</span><span>{v}</span></div>)}
+                          {c.kind === "CANDLE" && <a href="https://mrwillson2u.github.io/propmesh/props/candles/" target="_blank" rel="noreferrer" className="pm-drawer-link">Wiring and tuning guide ↗</a>}
+                        </div>
+                      )}
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 140px" : undefined, minWidth: 0 }} />
                       <span className="pm-opts" style={{ display: "contents" }}><Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} /></span>
@@ -882,7 +911,7 @@ function CandleOptions({ k, onChange }: { k: CandleCfg; onChange: (p: Partial<Ca
   return (
     <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap", padding: "4px 8px", border: `1px solid ${C.b2}`, borderRadius: 6 }}>
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>CANDLE</span>
-      <span onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
+      <span className="pm-help" onClick={() => setHelp(!help)} title="What these settings do" style={{ ...mono(700, 11, help ? C.amber : C.t4), cursor: "pointer", padding: "0 4px" }}>{help ? "✕" : "?"}</span>
       {help && (
         <span style={{ flexBasis: "100%", ...sys(400, 11.5, C.t3), lineHeight: 1.45, padding: "4px 2px 6px" }}>
           The LED flickers in four layers: a slow <b>wander</b>, a fast <b>shimmer</b>, random <b>gusts</b> (quick dips) and rare <b>sputters</b> (a near-blowout that stutters and flares back).

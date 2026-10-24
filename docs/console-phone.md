@@ -195,9 +195,17 @@ it. Errors never fold: the connect panel shows an error in place of the
 hint, in red. Sites so far: connect panel, firmware panel (two), the
 sequence step note, the pin guide legend, the flood-light notes.
 
-**Not done:** `title=` tooltips never show on a phone (no hover). The
-candle and fire option boxes have their own `?` toggle, which works by
-tap. The rest of the tooltips are laptop-only until a long-press or a
-per-row ⓘ is added. The pinout drawing is laptop-sized; on a phone it
-starts folded (open stays remembered either way).
+**Tooltips become a drawer.** `title=` text never shows on a phone (no
+hover), and Colin ruled out long-press (no affordance) and a mark on
+every row (clutter). So each assigned pin's card has one chevron at the
+end of its header line; a tap opens a drawer under the header that lists
+every setting on that pin with its explanation, gathered from the card's
+own labels at open, with the function's name and the pin's note on top
+and the wiring guide link for a candle. The candle and fire boxes' own
+`?` is hidden on a phone so there is one way in per card. The pinout
+drawing is laptop-sized; on a phone it starts folded (open stays
+remembered either way).
 
+**Still laptop-only:** tooltips outside the pin cards (firmware panel
+buttons, show rules, flood pickers). Same pattern when needed: one
+chevron per group, a drawer, never per row.
