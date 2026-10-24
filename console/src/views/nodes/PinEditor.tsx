@@ -7,6 +7,7 @@ import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, NumberInput, Spinner, Toggle, mono, sys } from "../../ui";
 import { Cap, FUNCTIONS, type Board, type BoardPin, type ChannelKindName } from "../../lib/boards_gen";
 import { battText } from "../../lib/battery";
+import { useLayout } from "../../lib/layout";
 import {
   EMPTY_CONFIG, FIRE_DEFAULTS, LABEL_MAX, NAME_MAX, SERVO_MAX_US, SERVO_MIN_US, SMOOTHING, channelCode, isColor, isStrip, newChannel, pinRole,
   type ColorOrder, type FireCfg, type StripEffect,
@@ -60,6 +61,12 @@ export interface EditorProps {
 // assignments, save, test fire.
 export default function PinEditor({ node, hello, board, where, onInput, onSaved }: EditorProps) {
   const conn = useConnection();
+  // On a phone each pin is a card whose parts wrap, not a six-column row
+  // (docs/console-phone.md §5); the column headings go with the columns.
+  const { phone } = useLayout();
+  const rowStyle: React.CSSProperties = phone
+    ? { display: "flex", flexWrap: "wrap", gap: "8px 10px", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #181c22" }
+    : { display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22" };
   const [applied, setApplied] = useState<NodeConfig>(EMPTY_CONFIG); // what the node is running
   const [draft, setDraft] = useState<NodeConfig>(EMPTY_CONFIG);
   const [values, setValues] = useState<Record<string, number>>({});
@@ -318,9 +325,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
       {loaded && !draft.bridge && <div style={{ padding: "0 16px 12px" }}>
         <Pinout board={board} cfg={draft} />
         <PinGuide board={board} cfg={draft} />
-        <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
+        {!phone && <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
           <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>
-        </div>
+        </div>}
         {board.pins.map((pin) => {
           const ci = draft.channels.findIndex((c) => c.pins.includes(pin.gpio));
           const c = ci >= 0 ? draft.channels[ci] : undefined;
@@ -333,24 +340,24 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
             .sort((a, b) => Number(isBest(pin, b)) - Number(isBest(pin, a)) || Number(isGood(pin, b)) - Number(isGood(pin, a)));
           return (
             <div key={pin.gpio} id={`pin-row-${pin.gpio}`} title={pin.note}
-              style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, alignItems: "center", minHeight: 40, borderBottom: "1px solid #181c22", opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
-              <span style={{ display: "flex", flexDirection: "column" }}>
+              style={{ ...rowStyle, opacity: pin.tier === "reserved" ? 0.5 : 1 }}>
+              <span style={{ display: "flex", flexDirection: "column", flex: phone ? "0 0 64px" : undefined }}>
                 <span style={mono(700, 12, bad ? C.red : warn ? C.amber : c ? C.t1 : C.t3)}>{pin.label}</span>
                 <span style={mono(500, 10, C.t5)}>GPIO {pin.gpio}{pin.tier === "caution" ? " ⚠" : ""}</span>
               </span>
 
               {pin.tier === "reserved" ? (
-                <span style={{ gridColumn: "2 / -1", ...sys(500, 11.5, C.t5) }}>reserved — {pin.note}</span>
+                <span style={{ gridColumn: "2 / -1", flex: "1 1 200px", minWidth: 0, ...sys(500, 11.5, C.t5) }}>reserved — {pin.note}</span>
               ) : c && !owner ? (
                 <>
                   <span style={sys(500, 12, C.t3)}>{FUNCTIONS[c.kind].label}</span>
                   <span style={mono(600, 11.5, C.t3)}>{channelCode(c)}</span>
-                  <span style={{ gridColumn: "4 / -1", ...mono(500, 11, C.t5) }}>{pinRole(c, pin.gpio)} pin — set on {board.pins.find((p) => p.gpio === c.pins[0])?.label}</span>
+                  <span style={{ gridColumn: "4 / -1", flex: "1 1 160px", minWidth: 0, ...mono(500, 11, C.t5) }}>{pinRole(c, pin.gpio)} pin — set on {board.pins.find((p) => p.gpio === c.pins[0])?.label}</span>
                 </>
               ) : (
                 <>
                   <select value={c?.kind ?? ""} onChange={(e) => assign(pin.gpio, e.target.value as ChannelKindName | "")}
-                    style={{ ...field, color: c ? C.t1 : C.t5 }}>
+                    style={{ ...field, color: c ? C.t1 : C.t5, flex: phone ? "1 1 160px" : undefined, minWidth: 0 }}>
                     <option value="">— unused —</option>
                     {kinds.map((k) => <option key={k} value={k}>{isBest(pin, k) ? "★ " : isGood(pin, k) ? "· " : "   "}{FUNCTIONS[k].label}</option>)}
                   </select>
@@ -358,7 +365,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                     <>
                       <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
-                        onChange={(e) => patch(ci, { label: e.target.value })} style={field} />
+                        onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 140px" : undefined, minWidth: 0 }} />
                       <Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} />
                       <Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
@@ -375,9 +382,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                         }} />
                     </>
                   ) : (
-                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                    <span style={{ gridColumn: "3 / -1", display: "flex", gap: 10, alignItems: "baseline", minWidth: 0, flex: phone ? "1 1 100%" : undefined, flexWrap: phone ? "wrap" : undefined }}>
                       {pin.best && (
-                        <span style={{ ...sys(500, 11, C.t4), flex: "none" }}>
+                        <span style={{ ...sys(500, 11, C.t4), flex: phone ? "1 1 auto" : "none", minWidth: 0 }}>
                           ★ best for {SHORT[pin.best]}
                           {pin.also?.length ? <span style={{ color: C.t5 }}> · also {pin.also.map((a) => SHORT[a]).join(", ")}</span> : null}
                         </span>
