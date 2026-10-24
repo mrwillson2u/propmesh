@@ -6,7 +6,7 @@ import { useCallback, useState } from "react";
 import { battText } from "../../lib/battery";
 import { C } from "../../lib/tokens";
 import { useLayout } from "../../lib/layout";
-import { Spinner, mono, sys, Hint } from "../../ui";
+import { Spinner, mono, sys, Hint, Confirm } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
 import type { NodeConfig } from "../../lib/nodeConfig";
@@ -54,6 +54,7 @@ export default function MeshPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false); // hidden boards shown for a look
+  const [askHide, setAskHide] = useState<Entry | null>(null); // a sleeping board about to be hidden
   const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
   const link = conn?.link ?? null;
   const entries = conn?.entries ?? {};
@@ -166,8 +167,9 @@ export default function MeshPanel() {
               {bridge && tag("BRIDGE", C.emberT, C.emberBg)}
               {clock && <span title="Keeps the mesh clock (conductor)" style={mono(600, 11, C.t4)}>⏱</span>}
               {!en.usb && en.hb && !missing && <span style={mono(500, 10.5, C.t4)}>{en.hb.rssi}</span>}
-              {missing && !asleep && !hidden && (
-                <span role="button" title="Hide this board until it speaks again" onClick={(e) => { e.stopPropagation(); hideNode(en.node, true); if (on) setSelected(null); }}
+              {missing && !hidden && (
+                <span role="button" title={asleep ? "Hide this board (it may only be asleep — it comes back when heard)" : "Hide this board until it speaks again"}
+                  onClick={(e) => { e.stopPropagation(); if (asleep) setAskHide(en); else { hideNode(en.node, true); if (on) setSelected(null); } }}
                   style={{ ...mono(700, 12, C.t4), padding: "0 2px", marginLeft: 2 }}>✕</span>
               )}
               {hidden && (
@@ -206,6 +208,15 @@ export default function MeshPanel() {
         <button onClick={disconnect} style={btn()}>Disconnect</button>
       </div>
 
+      {askHide && (
+        <Confirm title={`Hide ${askHide.hello?.name || askHide.node}?`} okLabel="Hide it" onCancel={() => setAskHide(null)}
+          onOk={() => { hideNode(askHide.node, true); if (selected === askHide.node) setSelected(null); setAskHide(null); }}>
+          This is a battery board, and a quiet battery board is usually asleep, not gone: it was last heard {ago(now - askHide.seen)} ago
+          and {askHide.hello?.checkin_ms ? `checks in every ${Math.round(askHide.hello.checkin_ms / 60000)} min (${checkinText(askHide.hello.checkin_ms)})` : "checks in on its own schedule"}.
+          Hiding only takes it off this list; the moment it is heard again it comes back by itself. Hide it if it is really gone — dead
+          battery, taken inside — or just for a tidier list.
+        </Confirm>
+      )}
       {selected === FLOODS && <FloodsPanel link={link} entries={entries} />}
       {selected === OTA && <OtaPanel link={link} entries={entries} />}
       {sel && !sel.hello && (

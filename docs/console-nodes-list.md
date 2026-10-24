@@ -76,7 +76,11 @@ back only if it is ever heard again, as a new board would). A hidden
 board that sends a heartbeat is **unhidden by itself**: a hide is for a
 board that died, and a board that speaks has not.
 
-A sleeping battery board gets no ✕: asleep is a state, not a fault.
+A sleeping battery board has a ✕ too (Colin, 2026-10-24), behind a
+confirm that says when it was last heard, when it next checks in, and
+that hiding only takes it off the list — it comes back by itself the
+moment it is heard. For a board that is really gone (dead battery,
+taken inside) or just a tidier list.
 
 ## 5. A board's page shows its real state
 
@@ -188,10 +192,32 @@ the most work: live values for every board mean polling `state` from
 all of them, which is mesh traffic the row and the list don't need.
 Good for a wall display; heavy for the yard.
 
-**Recommendation: B.** It scales from one board to thirty, gives
-reorder and hide an obvious home, matches the phone frame already
-built (list → page → back), and keeps the editor still. C could come
-later as a "board" view on the Yard tab, where live values belong.
+**Recommendation: B, with C's best part folded in.** Colin was torn
+between B and C (2026-10-24). They answer different questions: B is
+*which board do I want to work on*, C is *what is every board doing*.
+B is the structure the Nodes view needs — it scales from one board to
+thirty, gives reorder and hide an obvious home, matches the phone frame
+(list → page → back), and keeps the editor still. What makes C
+attractive is the live line under each name, and that fits on a B row
+as a second line, dimmed:
+
+```
+│ ● Porch candle          -54 │
+│   candle 80 % · relay off   │
+```
+
+The cost of C is where it bites: live values for every board means
+asking every board for `state` on a timer, and every request is a
+flood through the bridge. The cheap way is for the **heartbeat** to
+carry an output summary — it is broadcast every 5 s already, costs the
+bridge nothing extra, and works over the mesh alone. A heartbeat is a
+250-byte ESP-NOW frame with room to spare; one byte per output
+(0–100 % or a color's brightness) for up to 8 outputs adds 9 bytes.
+That is a small firmware change and a second-line in the row, and
+then B shows everything C would, with C's grid available later as a
+view on the Yard tab (a wall display) if it is ever wanted. So: build
+B now with one line per board; add the heartbeat summary and the
+second line when the firmware next goes out.
 
 Whichever wins, the chips' hover facts (hops, dBm, check-in time) move
 into the line's own text and its ⓘ drawer, since a phone has no hover.
@@ -202,10 +228,86 @@ into the line's own text and its ⓘ drawer, since a phone has no hover.
 - **A roster on the bridge** — costs heap on the bridge path; the
   browser roster covers the morning case. Revisit if the phone and the
   laptop disagreeing about who exists turns out to matter.
-- **Hide for a sleeping board** — deliberately none; a board that
-  sleeps is working. If a battery board is really gone (dead cell,
-  taken inside), **forget** it from the "+N hidden" view after hiding
-  … which it cannot be, since it has no ✕. Open question: should a
-  battery board not heard for, say, three check-in periods turn red
-  with a ✕ as well? (Proposed: yes — after 3 × `checkin_ms`, "overdue"
-  in amber, then the ✕.)
+- **Overdue battery boards** — open question: should a battery board
+  not heard for three check-in periods turn amber ("overdue") and then
+  red? See §8, where it becomes the "ran out" indicator.
+
+## 8. Battery: ran out, running low, and an estimate (design, 2026-10-24)
+
+Colin asked for three things: an indicator that a board **ran out** of
+battery, a **central alarm** when one is about to or has, and, if
+possible, an **estimate** ("not likely to last the next show").
+
+### What the console can know
+
+- Every heartbeat carries the cell voltage (`batt` mV) while the board
+  is awake; the console maps it to a percent on a resting 1S curve
+  (`lib/battery.ts`). Under load it reads low (a coil pulse sags it).
+- A board's hello says why it last restarted; **brownout** on a
+  battery board is the cell giving out (the candle rollbacks, §6n).
+- The check-in period is known, so "overdue" is computable: not heard
+  for 3 × `checkin_ms` when it should have been awake.
+- The schedule (show windows, sunset) is known to the console and to
+  the boards, so "tonight's show" has a start and an end.
+- The roster (§1) is where readings can accumulate per board across
+  sessions, in this browser.
+
+### Ran out
+
+A battery board is **out** when any of: its last heard voltage was
+under 3.4 V and it is now overdue; its hello reported a brownout
+restart; or it is overdue by more than a day. The row shows a red
+battery glyph and "ran out?" — with the question mark, because the
+console only infers it. Overdue-but-not-low shows amber "overdue"
+(a board can also be out of range or switched off).
+
+### Low
+
+Under 3.55 V (~20 %) a board's row shows the voltage in amber; under
+3.45 V (~10 %) in red. These come straight from heartbeats, no history
+needed.
+
+### The alarm
+
+One place, always visible: the top bar (phone) / sidebar header
+(laptop) gets a **⚠ N** badge next to the board counts when any board
+is low, out, or (with the estimate) not expected to last the next
+show. Tapping it lists them with the reason and a Go-to-board link.
+The Yard's board detail says the same. Nothing modal, nothing that
+needs dismissing: the badge stays until the cause goes.
+
+A board can't ring its own bell — it is asleep — but the mesh-first
+version exists: a mains board could show the alarm on its status pixel.
+Not planned; the console is where someone looks.
+
+### The estimate — mesh-first, on the board
+
+The honest answer: an estimate from voltage alone is rough, but a
+**drain rate** is not. Voltage vs. charge on lithium is a flat curve
+in the middle, so percent-per-hour from the console's few readings is
+noisy. The board, though, samples its cell every 2 s all the time it
+is awake and keeps data across sleep in RTC memory (`pm_sleep.cpp`
+already does for the clock). It can keep a short history of
+(wake time, resting voltage at wake) pairs — resting, because at wake
+nothing has fired yet — and compute mV per hour over the last two or
+three days. That survives the console being closed, works over the
+mesh alone (CLAUDE.md: mesh-first), and is the same number from the
+phone and the laptop. It goes out in the hello (`batt_mv_per_h`,
+`batt_hours`), and the console does the arithmetic against tonight's
+window:
+
+- hours left = (mV now − 3400) / rate;
+- "**should last tonight**" if hours left > hours to the end of the
+  next show window + 2 h margin;
+- "**not likely to last the next show**" otherwise;
+- "**about N nights**" when there is more than one night's margin.
+
+Shown with its basis so nobody trusts it blindly: "estimate from 3
+days of wake readings". Below a day of readings: "no estimate yet".
+A night's drain is very different from a day's (the candle runs all
+show, then sleeps), so the rate is taken over whole days, and a board
+that just got charged (voltage went up) restarts its history.
+
+**Order of work**: ran out / low / alarm first (console only, one
+evening); the on-board rate next time the node firmware goes out.
+Colin's call on the thresholds and the wording.
