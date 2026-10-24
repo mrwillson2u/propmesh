@@ -2070,7 +2070,14 @@ into PropMesh so it turns on and off, and is tuned, from the console.
   broken: the candle runs the previous build as before. (A further
   brownout reset and readings jumping between 3.1 and 4.2 V later that
   evening were Colin handling the candle and its battery lead — not
-  evidence either way.)
+  evidence either way.) **Fourth rollback, 2026-10-23:** the candle on
+  the server's bus-powered USB hub (shared with a Coral accelerator
+  that alone wants ~900 mA) took a full transfer, resumed twice across
+  bridge rebuilds, and again came back on the old build with a brownout
+  4 s into the new image's first boot. Four for four, every time on a
+  weak supply. Next: the site's USB installer from a laptop port or a
+  wall supply, which is also the test of whether the first boot of a
+  *fresh* image is the only boot that fails.
 - **Running on the cell (2026-10-18 evening).** The candle's board is set
   to *mains* power, so it never sleeps and the radio runs all day: the
   cell read 3.99 V at 02:40 and 3.53 V at 21:00, and at that level the
