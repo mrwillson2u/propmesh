@@ -458,8 +458,56 @@ export function batteryState(en: Entry, now = Date.now()): BatteryState | null {
   return { level: "ok", mv, text: "", alarm: false };
 }
 
+// "Will it last tonight?" — from the board's own drain rate (hello
+// batt_mv_per_h, measured over days in its RTC log) and the voltage it
+// has left above the cutoff, against the end of the next show window.
+// Null until the board has a rate. docs/console-nodes-list.md §8.
+export interface BatteryForecast { hoursLeft: number; spanH: number; text: string; lastsTonight: boolean | null }
+export function batteryForecast(en: Entry, nextShowEndMs: number | null, now = Date.now()): BatteryForecast | null {
+  const rate = en.hello?.batt_mv_per_h, span = en.hello?.batt_span_h;
+  const mv = en.hb?.batt || en.lastBatt;
+  if (rate === undefined || span === undefined || !mv) return null;
+  const basis = `from ${span >= 48 ? `${Math.round(span / 24)} days` : `${Math.round(span)} h`} of readings`;
+  if (rate <= 0.5) return { hoursLeft: Infinity, spanH: span, lastsTonight: true, text: `barely draining (${basis})` };
+  const hoursLeft = Math.max(0, (mv - BATT_OUT_MV) / rate) - (now - en.seen) / 3600000; // less the time since that reading
+  const nights = Math.floor(hoursLeft / 24);
+  let lastsTonight: boolean | null = null, text: string;
+  if (nextShowEndMs) {
+    const toEnd = (nextShowEndMs - now) / 3600000;
+    lastsTonight = hoursLeft > toEnd + 2;
+    text = lastsTonight ? (nights >= 2 ? `about ${nights} nights left` : "should last tonight") : "not likely to last the next show";
+  } else text = nights >= 1 ? `about ${nights} day${nights > 1 ? "s" : ""} left` : `about ${Math.max(1, Math.round(hoursLeft))} h left`;
+  return { hoursLeft, spanH: span, lastsTonight, text: `${text} (${basis})` };
+}
+
 // Every board that needs attention for its battery, for the alarm badge.
 export function batteryAlarms(c: Connection | null, now = Date.now()): { entry: Entry; state: BatteryState }[] {
   if (!c) return [];
-  return orderedEntries(c).map((entry) => ({ entry, state: batteryState(entry, now)! })).filter((x) => x.state?.alarm);
+  const showEnd = nextShowEnd(c, now);
+  return orderedEntries(c).map((entry) => {
+    const state = batteryState(entry, now);
+    if (!state) return null;
+    if (!state.alarm) {
+      const f = batteryForecast(entry, showEnd, now);
+      if (f && f.lastsTonight === false) return { entry, state: { ...state, alarm: true, text: "may not last the show" } };
+    }
+    return state.alarm ? { entry, state } : null;
+  }).filter((x): x is { entry: Entry; state: BatteryState } => !!x);
+}
+
+// When tonight's (or the next) show window ends, on this device's clock,
+// from the boards' own mode block: a board that is in a window says
+// when it changes next; one that is off says when the next window starts
+// but not its end, so the end is taken as start + 4 h. Null if no board
+// has a schedule.
+export function nextShowEnd(c: Connection, now = Date.now()): number | null {
+  let best: number | null = null;
+  for (const e of Object.values(c.entries)) {
+    const h = e.hello;
+    if (!h?.scheduled || !h.next_s) continue;
+    const t = h.next_s * 1000;
+    const end = h.mode && h.mode !== "off" ? t : t + 4 * 3600000;
+    if (end > now && (best === null || end < best)) best = end;
+  }
+  return best;
 }

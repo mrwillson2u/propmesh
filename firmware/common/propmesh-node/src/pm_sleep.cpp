@@ -20,6 +20,8 @@ int pm_sleep_wake_gpio() { return -1; }
 bool pm_sleep_drift_ppm(int32_t *) { return false; }
 uint32_t pm_sleep_last_awake_ms() { return 0; }
 bool pm_sleep_rtc_pin(uint8_t g) { const pm_board_pin_t *p = pm_board_pin(PM_BOARD_PROFILE, g); return p && (p->caps & PM_CAP_WAKE); }
+void pm_sleep_note_battery(uint16_t) {}
+bool pm_sleep_battery_rate(float *, float *) { return false; }
 #else
 #include <Arduino.h>
 #include <sys/time.h>
@@ -62,6 +64,48 @@ RTC_DATA_ATTR static int64_t rtc_sleep_utc_ms;   // 0 = no clock at sleep
 RTC_DATA_ATTR static int32_t rtc_drift_ppm;
 RTC_DATA_ATTR static bool rtc_drift_ok;
 RTC_DATA_ATTR static uint32_t rtc_awake_ms;
+
+// ---- battery drain log (docs/console-nodes-list.md §8) -------------------
+// One (UTC hour, mV) pair an hour, a ring of 72 = three days. Logged at
+// sleep entry (the board has been resting: mode off, outputs parked) and,
+// for a battery board that stays awake, every hour of the loop. The
+// voltage is the heartbeat's reading, passed in by main.
+#define BATT_LOG_N 72
+#define BATT_LOG_STEP_S 3600UL
+#define BATT_CHARGED_MV 50   // a rise this big means it was charged: start over
+RTC_DATA_ATTR static uint32_t rtc_batt_t[BATT_LOG_N];   // UTC seconds
+RTC_DATA_ATTR static uint16_t rtc_batt_mv[BATT_LOG_N];
+RTC_DATA_ATTR static uint8_t rtc_batt_n;                  // entries used
+RTC_DATA_ATTR static uint8_t rtc_batt_head;               // next slot
+static uint16_t batt_last_mv;
+static uint32_t batt_logged_ms;  // millis() of the last log this wake
+
+void pm_sleep_note_battery(uint16_t mv) { batt_last_mv = mv; }
+
+static void batt_log(uint32_t utc_s) {
+  if (!batt_last_mv || !utc_s) return;
+  if (rtc_batt_n > BATT_LOG_N) { rtc_batt_n = 0; rtc_batt_head = 0; }  // RTC memory was garbage (first power-up)
+  if (rtc_batt_n) {
+    uint8_t last = (rtc_batt_head + BATT_LOG_N - 1) % BATT_LOG_N;
+    if (utc_s < rtc_batt_t[last] + BATT_LOG_STEP_S) return;             // not an hour yet
+    if (batt_last_mv >= rtc_batt_mv[last] + BATT_CHARGED_MV) { rtc_batt_n = 0; rtc_batt_head = 0; }  // charged
+  }
+  rtc_batt_t[rtc_batt_head] = utc_s;
+  rtc_batt_mv[rtc_batt_head] = batt_last_mv;
+  rtc_batt_head = (rtc_batt_head + 1) % BATT_LOG_N;
+  if (rtc_batt_n < BATT_LOG_N) rtc_batt_n++;
+}
+
+bool pm_sleep_battery_rate(float *mv_per_h, float *span_h) {
+  if (rtc_batt_n < 2 || rtc_batt_n > BATT_LOG_N) return false;
+  uint8_t newest = (rtc_batt_head + BATT_LOG_N - 1) % BATT_LOG_N;
+  uint8_t oldest = (rtc_batt_head + BATT_LOG_N - rtc_batt_n) % BATT_LOG_N;
+  float hours = (float)(rtc_batt_t[newest] - rtc_batt_t[oldest]) / 3600.0f;
+  if (hours < PM_BATT_MIN_SPAN_H) return false;
+  *span_h = hours;
+  *mv_per_h = ((float)rtc_batt_mv[oldest] - (float)rtc_batt_mv[newest]) / hours;
+  return true;
+}
 
 static bool battery;
 static uint32_t checkin_ms = 300000;
@@ -283,6 +327,7 @@ static void deep_sleep(uint64_t ms, const char *why) {
     rtc_clock_ok = w.tz_ok;
     rtc_sleep_utc_ms = utc_ms;
   } else { rtc_clock_ok = false; rtc_sleep_utc_ms = 0; }
+  if (w.utc_ok) batt_log((uint32_t)(pm_wall_utc_ms() / 1000));  // the resting voltage, once an hour
   rtc_awake_ms = millis();  // how long this wake lasted, for hello next time
   Serial.printf("sleep: awake %lu ms; deep sleep %.1f s (%s)%s\n", (unsigned long)rtc_awake_ms, ms / 1000.0, why, hi || lo ? ", sensor pins wake" : "");
   Serial.flush();
@@ -292,6 +337,8 @@ static void deep_sleep(uint64_t ms, const char *why) {
 
 void pm_sleep_loop() {
   if (!battery) return;
+  // A battery board that stays awake (held, or never off) logs hourly too.
+  if (pm_wall().utc_ok && millis() - batt_logged_ms > BATT_LOG_STEP_S * 1000UL) { batt_logged_ms = millis(); batt_log((uint32_t)(pm_wall_utc_ms() / 1000)); }
   measure_drift();
   release_check_in();
   bool off = pm_show_mode() == PM_MODE_OFF;

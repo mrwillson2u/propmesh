@@ -22,6 +22,8 @@ export interface NodeHello {
   relay?: boolean; // a battery repeater: relays while the show runs (docs §6m)
   drift_ppm?: number; // its sleep clock's measured error, corrected for (§6m)
   awake_ms?: number; // how long its last wake lasted
+  batt_mv_per_h?: number; // the board's own drain measurement, mV per hour, positive = draining (firmware 2026-10-24+)
+  batt_span_h?: number; // hours of readings behind it
   pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;
@@ -513,7 +515,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };

@@ -146,6 +146,7 @@ static void heartbeat() {
   hb.fw_version = PM_FW_VERSION;
   hb.free_heap_kb = ESP.getFreeHeap() / 1024;
   hb.battery_mv = battery_mv();  // 0 on a board with no battery sense
+  pm_sleep_note_battery(hb.battery_mv);  // for the drain log (pm_sleep)
   hb.neighbor_count = pm_neighbor_snapshot(hb.neighbors, PM_MAX_NEIGHBORS);
   // Nodes move to the bridge's channel (docs §6d). While the bridge is
   // between WiFi attempts its radio may be mid-scan: say "unknown" then,

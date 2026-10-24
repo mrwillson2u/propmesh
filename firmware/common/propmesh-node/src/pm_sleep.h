@@ -33,3 +33,15 @@ bool pm_sleep_drift_ppm(int32_t *ppm);
 // How long the board was awake on its previous wake, ms (0 = unknown).
 uint32_t pm_sleep_last_awake_ms();
 bool pm_sleep_rtc_pin(uint8_t gpio);  // can this GPIO wake the chip from deep sleep? (profile `wake` cap)
+
+// The cell's drain rate, measured by the board itself (docs/console-nodes-list.md §8):
+// the resting voltage is logged once an hour (at sleep entry, or hourly
+// while awake) in RTC memory, which survives deep sleep; the rate is
+// the fall from the oldest log to the newest over the hours between. A
+// rise of 50 mV or more (it was charged) restarts the log. The console
+// turns the rate into "will it last tonight".
+void pm_sleep_note_battery(uint16_t mv);  // main's heartbeat passes the latest reading
+// False until the log spans PM_BATT_MIN_SPAN_H hours. rate: mV per hour,
+// positive = draining (can be ~0 or slightly negative on a flat stretch).
+bool pm_sleep_battery_rate(float *mv_per_h, float *span_h);
+#define PM_BATT_MIN_SPAN_H 20.0f

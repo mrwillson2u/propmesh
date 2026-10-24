@@ -12,6 +12,7 @@ Colin, 2026-10-24: the row of boards across the top of the Nodes view
 | Rearrange the order by hand | **Built** (§2): Arrange mode, drag or arrows |
 | Reconsider the row across the top; how it looks with few and with many | **Built**: option B (§6), chosen 2026-10-24 |
 | A board's page shows its real state when opened, and follows changes | **Built** (§5); one check still to run on a real candle |
+| Battery: ran out, low, a central alarm, an estimate | **Built** (§8); the on-board rate needs two nights on a board to show |
 
 Everything built is in PR #57 (console only; no firmware change).
 
@@ -339,5 +340,32 @@ Nodes view. Counts everywhere now say "N up · N asleep · N missing"
 (asleep is not missing), and hidden boards are left out of counts and
 off the Yard map.
 
-**Next: the on-board drain rate** (firmware), then the estimate line.
-Colin's call on the thresholds and the wording.
+**Built 2026-10-24 (firmware + console), untested on a board:** the
+drain log in `pm_sleep.cpp`. Once an hour the board writes (UTC
+seconds, mV) to a 72-entry ring in RTC memory — at sleep entry, when
+it has been resting with the show off, and hourly while awake for a
+battery board that stays up. The voltage is the heartbeat's reading,
+handed over by `main.cpp`. A rise of 50 mV or more (it was charged)
+restarts the log. Once the log spans 20 h, hello carries
+`batt_mv_per_h` (fall from oldest to newest over the hours between)
+and `batt_span_h`. The DevKit's no-sleep build has stubs and reports
+nothing. RTC memory does not survive a power cycle, so a board that is
+switched off starts over; that is also right, since it was probably
+charged.
+
+In the console, `batteryForecast()` (`connection.ts`): hours left =
+(mV now − 3400) / rate, less the time since that reading; the end of
+the next show window comes from the boards' own mode block (`next_s`:
+a board in a window says when it changes next; one that is off says
+when the next window starts, taken as a 4 h show). "Should last
+tonight" when hours left clear that end by 2 h; "about N nights left"
+with two or more nights of margin; "not likely to last the next show"
+otherwise, which also raises the alarm as "may not last the show".
+With no schedule: "about N days / N h left". Always with its basis,
+"(from 2 days of readings)". A rate of 0.5 mV/h or less reads "barely
+draining". Below 20 h of log: nothing.
+
+**Bench check (status.md §2):** after a C6 candle has run two nights
+on the new build, its hello should carry `batt_mv_per_h`, and the
+Nodes row an estimate; compare the rate with the candle's measured
+drain (§6n). Colin's call on the thresholds and the wording.

@@ -17,7 +17,7 @@ import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
-  useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin } from "../../lib/connection";
+  useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd } from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -174,6 +174,8 @@ export default function MeshPanel() {
     if (listening) facts.push(<span key="l" title="listening in windows between cues">☾ {en.hb!.listen} ms</span>);
     const mv = en.hb?.batt || en.lastBatt;
     if (battery && mv) facts.push(<span key="v" style={{ color: battColor }}>{battText(mv)}</span>);
+    const fc = battery && conn ? batteryForecast(en, nextShowEnd(conn, now), now) : null;
+    if (fc) facts.push(<span key="f" style={{ color: fc.lastsTonight === false ? C.red : C.t4 }}>{fc.text}</span>);
     const idx = movable.findIndex((e) => e.node === en.node);
     return (
       <div key={en.node} onClick={() => { if (!arrange) select(en.node); }}

@@ -52,6 +52,15 @@ on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
+- **Battery drain rate on a C6 candle (2026-10-24).** Flash a candle
+  with a build from `console/node-list` (or the next dev build), run
+  it on its cell for two nights, then `python3 tools/bridge.py ask
+  <id> hello` while it is awake: expect `batt_mv_per_h` and
+  `batt_span_h`, and the Nodes row to read "about N nights left (from
+  2 days of readings)". Compare the rate with the candle's measured
+  drain in generic-boards §6n. Both firmware builds pass; nothing has
+  run on a board. `docs/console-nodes-list.md` §8.
+
 - **A lit candle's `state` value (2026-10-24).** Colin saw a lit candle
   read as "out" when its pins page opened. With a candle visibly lit,
   `python3 tools/bridge.py ask <candle id> state` — CANDLE_1 non-zero
@@ -139,8 +148,10 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
   heard), name order, Arrange mode, zzz with sleep age, hide / forget,
   live `state` on a board's page, the list-beside-editor layout (phone:
   list → page → back), battery low / critical / overdue / ran-out
-  marks and the ⚠ alarm. Next: the on-board drain rate and the "will
-  it last tonight" estimate. `docs/console-nodes-list.md`.
+  marks, the ⚠ alarm, and the drain-rate estimate (firmware log in RTC
+  memory + console forecast; bench test above). Next: the heartbeat
+  output summary for a live second line per board.
+  `docs/console-nodes-list.md`.
 
 - **C6 SuperMini crash-loop on its first real run (2026-10-15) —
   cause found, fix built, not yet on the board.** e076df14 on the release
