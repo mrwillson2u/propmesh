@@ -5,6 +5,7 @@
 import { useCallback, useState } from "react";
 import { battText } from "../../lib/battery";
 import { C } from "../../lib/tokens";
+import { useLayout } from "../../lib/layout";
 import { Spinner, mono, sys } from "../../ui";
 import { BOARDS } from "../../lib/boards_gen";
 import { NodeRole } from "../../lib/proto_gen";
@@ -37,6 +38,7 @@ const tag = (text: string, color: string, bg: string): JSX.Element => (
 // keep running while another view is open; this panel only shows them.
 export default function MeshPanel() {
   const conn = useConnection();
+  const { phone } = useLayout();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
@@ -71,26 +73,31 @@ export default function MeshPanel() {
   // ---- render -------------------------------------------------------------
 
   if (!link) {
+    // On a phone the panel is a column: words, then the address with its
+    // button, then the other two ways, each a full-width thumb-sized row.
+    const big: React.CSSProperties = phone ? { height: 44, flex: "1 1 auto", fontSize: 13 } : {};
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
+      <div style={{ display: "flex", flexDirection: phone ? "column" : "row", alignItems: phone ? "stretch" : "center", gap: 12, padding: "12px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flex: "none" }}>
         <div style={{ flex: 1 }}>
           <div style={sys(700, 12.5, C.t1)}>Connect to your bridge</div>
           <div style={{ ...mono(500, 11, error || connectionError() ? C.red : C.t4), marginTop: 3 }}>
             {error ?? connectionError() ?? (webSerialSupported()
               ? "Over WiFi (the bridge's address), or plug the bridge in and connect over USB. Every node it hears on the mesh shows up here."
+              : phone ? "Type the bridge's address on your WiFi. Every node it hears on the mesh shows up here."
               : "USB needs Web Serial — open the console in Chrome or Edge. The simulated mesh works anywhere.")}
           </div>
         </div>
-        <button disabled={busy} onClick={() => connect("sim")} style={btn(false, busy)}>Simulated mesh</button>
-        <span style={{ display: "flex", alignItems: "center", gap: 6 }} title="A bridge on your WiFi (set it up on its board page over USB first)">
+        <span style={{ display: "flex", alignItems: "center", gap: 6, order: phone ? 1 : 0 }} title="A bridge on your WiFi (set it up on its board page over USB first)">
           <input value={wifiAddr} onChange={(e) => setWifiAddr(e.target.value)} placeholder={DEFAULT_WIFI_URL}
             onKeyDown={(e) => { if (e.key === "Enter") void connect("wifi"); }}
-            style={{ height: 30, width: 190, padding: "0 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(500, 12, C.t1) }} />
-          <button disabled={busy} onClick={() => connect("wifi")} style={btn(true, busy)}>{busy ? "Connecting…" : "⌔ Connect over WiFi"}</button>
+            style={{ height: phone ? 44 : 30, width: phone ? undefined : 190, flex: phone ? "1 1 0" : undefined, minWidth: 0, padding: "0 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(500, phone ? 16 : 12, C.t1) }} />
+          <button disabled={busy} onClick={() => connect("wifi")} style={{ ...btn(true, busy), ...(phone ? { height: 44, flex: "none", fontSize: 13 } : {}) }}>{busy ? "Connecting…" : phone ? "⌔ Connect" : "⌔ Connect over WiFi"}</button>
         </span>
-        <button disabled={busy || !webSerialSupported()} onClick={() => connect("usb")} style={btn(true, busy || !webSerialSupported())}>
-          {busy ? "Connecting…" : "⌁ Connect USB node"}
-        </button>
+        {(!phone || webSerialSupported()) && (
+          <button disabled={busy || !webSerialSupported()} onClick={() => connect("usb")} style={{ ...btn(true, busy || !webSerialSupported()), ...big, order: phone ? 2 : 0 }}>
+            {busy ? "Connecting…" : "⌁ Connect USB node"}
+          </button>)}
+        <button disabled={busy} onClick={() => connect("sim")} style={{ ...btn(false, busy), ...big, order: phone ? 3 : 0 }}>Simulated mesh</button>
       </div>
     );
   }
