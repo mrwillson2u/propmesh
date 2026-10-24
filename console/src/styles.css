@@ -55,8 +55,13 @@ a:hover { color: #ffa470; }
   .pm-pin .pm-opts select { min-height: 44px; font-size: 16px !important; }
   .pm-pin .pm-opts > span > span:not(.pm-optbox) { padding: 6px 0; }
   .pm-pin .pm-test > span { display: flex !important; flex-wrap: wrap; gap: 8px !important; flex: 1 1 100% !important; width: 100%; padding-top: 6px; }
-  .pm-pin .pm-test input[type=range] { flex: 1 1 100% !important; width: 100% !important; min-width: 0 !important; height: 32px; accent-color: #ff6b2c; }
-  .pm-pin .pm-test button { min-height: 44px !important; flex: 1 1 auto; font-size: 13px !important; padding: 0 12px !important; }
+  /* A slider's line: the slider, then its value at the end of the same
+     line; buttons come after (order), each a thumb-sized row item. */
+  .pm-pin .pm-test span:has(> input[type=range]) { display: flex !important; flex-wrap: wrap; align-items: center; gap: 8px !important; flex: 1 1 100% !important; width: 100%; }
+  .pm-pin .pm-test input[type=range] { flex: 1 1 60% !important; width: auto !important; min-width: 120px !important; height: 32px; accent-color: #ff6b2c; }
+  .pm-pin .pm-test .pm-readout { order: 0; flex: 1 0 52px; width: auto !important; min-width: 52px; }
+  .pm-pin .pm-test button { order: 1; min-height: 44px !important; flex: 1 1 30% !important; width: auto !important; font-size: 13px !important; padding: 0 12px !important; white-space: nowrap; }
+  .pm-pin .pm-hint { flex: 1 1 100%; min-width: 0; max-width: 100%; margin: 4px 0; }
   .pm-pin .pm-test > span > span { font-size: 13px; }
   .pm-pin > select { min-height: 44px; }
   .pm-pin > input { min-height: 44px; }

@@ -372,13 +372,13 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
               ) : (
                 <>
                   <select value={c?.kind ?? ""} onChange={(e) => assign(pin.gpio, e.target.value as ChannelKindName | "")}
-                    style={{ ...field, color: c ? C.t1 : C.t5, flex: phone ? "1 1 160px" : undefined, minWidth: 0 }}>
+                    style={{ ...field, color: c ? C.t1 : C.t5, flex: phone ? "1 1 0" : undefined, minWidth: 0 }}>
                     <option value="">— unused —</option>
                     {kinds.map((k) => <option key={k} value={k}>{isBest(pin, k) ? "★ " : isGood(pin, k) ? "· " : "   "}{FUNCTIONS[k].label}</option>)}
                   </select>
                   {c ? (
                     <>
-                      <span style={mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT)}>{channelCode(c)}</span>
+                      <span style={{ ...mono(600, 11.5, c.kind === "DIGITAL_IN" || c.kind === "BATTERY" ? "#7d87b8" : C.emberT), flex: "none", whiteSpace: "nowrap" }}>{channelCode(c)}</span>
                       {phone && (
                         <button className="pm-chev" aria-expanded={drawer?.gpio === pin.gpio} aria-label="What these settings do"
                           onClick={(e) => toggleDrawer(pin.gpio, (e.currentTarget as HTMLElement).closest(".pm-pin"))}>
@@ -394,7 +394,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                         </div>
                       )}
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
-                        onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 140px" : undefined, minWidth: 0 }} />
+                        onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 100%" : undefined, minWidth: 0 }} />
                       <span className="pm-opts" style={{ display: "contents" }}><Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} /></span>
                       <span className="pm-test" style={{ display: "contents" }}><Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
@@ -889,10 +889,10 @@ function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p:
       <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
         <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
       </label>
-      <span style={mono(500, 10.5, C.t4)}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</span>
+      <Hint style={{ ...mono(500, 10.5, C.t4), lineHeight: 1.4 }}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</Hint>
       <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} title="Measure the battery with a meter and type it here; the ratio that makes the console agree is worked out from the board's current reading.">
         <span style={sys(500, 11.5, C.t3)}>meter reads</span>
-        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="V" />
+        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="0.00" />
         <span style={sys(500, 11.5, C.t3)}>V</span>
         {suggested && reading ? (
           <>
@@ -986,7 +986,7 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal, onReread }: 
   const f = FUNCTIONS[c.kind];
   const v = value ?? 0;
   const dim: React.CSSProperties = disabled ? { opacity: 0.35, pointerEvents: "none" } : {};
-  const readout = (text: string) => <span style={{ ...mono(600, 11, C.t3), width: 52, textAlign: "right" }}>{text}</span>;
+  const readout = (text: string) => <span className="pm-readout" style={{ ...mono(600, 11, C.t3), width: 52, textAlign: "right" }}>{text}</span>;
 
   if (c.kind === "DIGITAL_IN")
     return <span style={mono(700, 11, v ? C.ember : C.green)}>{v ? "● ACTIVE" : "○ clear"}</span>;

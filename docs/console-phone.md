@@ -210,3 +210,21 @@ remembered either way).
 **Still laptop-only:** tooltips outside the pin cards (firmware panel
 buttons, show rules, flood pickers). Same pattern when needed: one
 ⓘ per group, a drawer, never per row.
+
+**Card audit (2026-10-24).** Colin caught the ⓘ wrapping onto the
+"what is it?" line on a battery pin (a long function name pushed it
+down, so it read as the name box's help). Fixed and audited across
+every pin kind in the simulator at 390 px:
+
+- The header line is one line on every card: pin label, the function
+  select (shrinks, basis 0), the channel tag (never wraps), then ⓘ.
+  The name box always takes its own line.
+- A slider's line is the slider and its value; buttons come after it
+  (CSS `order`), each at least a third of the width and thumb-high, so
+  the words never wrap inside a button.
+- The readout (state or value) comes before any button, so a relay
+  reads "○ OFF [TURN ON]" and a battery "5.50 V · 100 % [READ NOW]".
+- The battery formula is a `Hint`; the meter box's placeholder is
+  "0.00", not "V" beside the unit "V".
+- Nothing overflows the card width on any kind.
+
