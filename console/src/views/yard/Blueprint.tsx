@@ -68,7 +68,10 @@ export function toMap(svg: SVGSVGElement | null, cx: number, cy: number): Pt {
   return { x: p.x, y: p.y };
 }
 
-export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObject<SVGSVGElement>, view: View) {
+// `editing`: the map is unlocked. Locked (the default whenever the view
+// opens), shapes draw but cannot be grabbed, and the tools, the panel and
+// the keys are off — a stray touch moves nothing (Colin, 2026-10-24).
+export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObject<SVGSVGElement>, view: View, editing = true) {
   const { phone } = useLayout();  // tools as a strip along the bottom, the panel only when it has something to say
   const [doc, setDoc] = useState<YardDoc | null>(null);
   const [propIcon, setPropIcon] = useState<PropType>("tombstone");  // what the Prop tool places
@@ -136,7 +139,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
 
   // Keys: Enter finishes, Escape cancels, ⌘/ctrl-Z undoes, Delete removes the selected shape.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !editing) return;
     const onKey = (e: KeyboardEvent) => {
       const typing = (e.target as HTMLElement)?.tagName === "INPUT";
       if (e.key === "Escape") { setDraft([]); setSel(null); if (placing) setTool("select"); }
@@ -149,7 +152,9 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, draft, finish, undo, sel, doc, commit, placing]);
+  }, [active, editing, draft, finish, undo, sel, doc, commit, placing]);
+  // Leaving edit mode drops the tool and the selection.
+  useEffect(() => { if (!editing) { setTool("select"); setDraft([]); setSel(null); } }, [editing]);
 
   // Background pointer events, from the map's <svg>.
   const onBgDown = (p: Pt) => {
@@ -193,6 +198,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   // Start moving a whole shape (verts null), one corner ([i]) or one edge
   // ([i, j] — both ends together, so the edge stays straight: push a wall out).
   const startDrag = (e: React.PointerEvent, s: Shape, verts: number[] | null) => {
+    if (!editing) return;  // locked: the touch falls through to the ground (pan)
     e.stopPropagation();
     // Placing a prop or drawing: a click on a shape is a click on the ground
     // under it (a prop inside the graveyard, a walkway that starts on the lawn).
@@ -331,7 +337,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   );
 
   // ---- the tool rail -----------------------------------------------------------
-  const rail: ReactNode = !active ? null : (
+  const rail: ReactNode = !active || !editing ? null : (
     <div style={phone
       ? { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 3, display: "flex", gap: 6, padding: "6px 10px 8px", overflowX: "auto", background: "rgba(16,19,24,.96)", borderTop: `1px solid ${C.b2}`, WebkitOverflowScrolling: "touch" }
       : { position: "absolute", top: 96, left: 14, zIndex: 3, display: "flex", flexDirection: "column", gap: 6, padding: 6, background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 8 }}>
@@ -369,7 +375,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
 
   // ---- the selected shape's panel, the hints, the scale ---------------------
   const field: React.CSSProperties = { height: 26, padding: "0 7px", background: C.raised, border: `1px solid ${C.b3}`, borderRadius: 5, outline: "none", ...sys(500, 11.5, C.t1) };
-  const panel: ReactNode = !active || !doc || (phone && !selected && !placing && !drawing) ? null : (
+  const panel: ReactNode = !active || !editing || !doc || (phone && !selected && !placing && !drawing) ? null : (
     <div style={phone
       ? { position: "absolute", left: 10, right: 60, bottom: 72, zIndex: 3, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7 }
       : { position: "absolute", right: 14, bottom: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "rgba(16,19,24,.95)", border: `1px solid ${C.b2}`, borderRadius: 7, maxWidth: 640 }}>
@@ -423,7 +429,7 @@ export function useBlueprint(conn: Connection, active: boolean, svgRef: RefObjec
   );
   // On a phone the scale, the save state and the fullness live in a small
   // line at the bottom of the map's header area rather than in the panel.
-  const note: ReactNode = !active || !doc || !phone ? null : (
+  const note: ReactNode = !active || !editing || !doc || !phone ? null : (
     <div style={{ position: "absolute", right: 10, top: 46, zIndex: 3, display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", background: "rgba(16,19,24,.92)", border: `1px solid ${C.b2}`, borderRadius: 7, ...mono(500, 10.5, C.t5), whiteSpace: "nowrap" }}>
       <NumberInput value={doc.scale_ft} min={1} max={50} integer onChange={(v) => commit({ ...doc, scale_ft: v })}
         width={40} style={{ ...field, height: 26, ...mono(500, 12, C.t1) }} /> ft/sq

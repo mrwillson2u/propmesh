@@ -64,9 +64,23 @@ In order of how often, the phone is for:
 ## 3. Yard
 
 The map is what a phone opens to (the topology is a tap away). One
-finger pans, + / − / fit zoom (pinch is not wired yet), tap a board
-for its sheet: name, state, battery, signal, LAST CHECK-IN, the hears /
-heard-by lists, and the test buttons for its outputs.
+finger pans, two fingers pinch to zoom about the midpoint and pan with
+it (the canvas tracks touch pointers; a second finger ends any
+one-finger drag so a board is never thrown while zooming), + / − /
+fit buttons too; tap a board for its sheet: name, state, battery,
+signal, LAST CHECK-IN, the hears / heard-by lists, and the test
+buttons for its outputs.
+
+**Locked unless editing (2026-10-24).** Colin: "it's really easy to
+pick up the elements and accidentally move them — both interfaces."
+The map opens locked every time: boards and shapes draw and can be
+tapped for their sheet, but nothing can be grabbed, and the tool
+strip, the shape panel, the scale note and the keyboard shortcuts are
+off. **✎ Edit** in the header (laptop and phone) unlocks all of it;
+**✓ Done** locks again and drops the tool and the selection. Placing a
+board from the "Not on the map" bar is an edit too, so the bar says
+"Edit to place" while locked. Nothing is remembered across visits:
+locked is the safe default.
 
 **Built 2026-10-24 (Colin: "the map page needs a little love,
 overlapping elements").** Every overlay has a phone place: the header
