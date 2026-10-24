@@ -117,6 +117,22 @@ static struct {
   uint8_t frame[sizeof(pm_frame_header_t) + PM_MAX_PAYLOAD];
 } s_relay[RELAY_QUEUE];
 
+// Send queue: one frame in flight at a time (docs §6j). esp_now_send
+// refused frames with NO_MEM, and some it accepted never completed, when
+// a 2.7 KB OTA chunk went out as eighteen frames back to back — with the
+// heap fine (2026-10-23). Every send and relay goes through here; the
+// next frame leaves when the last one's completion callback arrives, or
+// after TX_TIMEOUT_MS if it never does. Time beacons are stamped at the
+// moment they actually leave. Heap-allocated in init: static RAM is full.
+#define TX_QUEUE 32
+#define TX_TIMEOUT_MS 60
+struct TxFrame { uint8_t len; uint8_t frame[sizeof(pm_frame_header_t) + PM_MAX_PAYLOAD]; };
+static TxFrame *s_txq;
+static uint8_t s_txq_head, s_txq_count;
+static volatile bool s_tx_busy;
+static uint32_t s_tx_started_ms;
+static uint8_t s_tx_lost_streak;
+
 // Election priority this node would beacon with: bridges outrank all.
 static uint8_t priority() { return (s_role & PM_NODE_ROLE_BRIDGE) ? 1 : 0; }
 
@@ -277,12 +293,63 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   }
 }
 
-// The radio finished with a frame (WiFi task context): count it. A frame
-// that never gets here keeps its driver buffer for good — see pm_stats_t.
+// The radio finished with a frame (WiFi task context): count it, and the
+// next one may go. A frame that never gets here is counted lost after
+// TX_TIMEOUT_MS — see pm_stats_t.
 static void on_sent(const esp_now_send_info_t *, esp_now_send_status_t status) {
   s_stats.tx_done++;
   if (status != ESP_NOW_SEND_SUCCESS) s_stats.tx_failed++;
   s_stats.tx_done_ms = millis();
+  s_tx_lost_streak = 0;
+  s_tx_busy = false;
+}
+
+// A time beacon is stamped as it leaves, so the time it sat in a queue
+// (relay jitter, the send queue) does not become downstream clock error.
+static void restamp_time(uint8_t *frame, uint8_t len, uint32_t now) {
+  pm_frame_header_t *h = (pm_frame_header_t *)frame;
+  if (h->msg_type != PM_MSG_TYPE_TIME || !s_clock.synced(now) ||
+      len < sizeof(pm_frame_header_t) + TIME_V1_LEN) return;
+  pm_time_t *t = (pm_time_t *)(frame + sizeof(pm_frame_header_t));
+  t->mesh_time_us = (uint64_t)s_clock.mesh_us(esp_timer_get_time());
+  if (len >= sizeof(pm_frame_header_t) + sizeof(pm_time_t) && (t->wall_flags & 1) && s_wall.utc_ok)
+    t->wall_ms = (uint64_t)s_wall.utc_ms(local_ms());
+}
+
+static void tx_pump(uint32_t now) {
+  if (s_tx_busy) {
+    if ((uint32_t)(now - s_tx_started_ms) < TX_TIMEOUT_MS) return;
+    s_stats.tx_lost++;  // no completion: the driver dropped it (or wedged — pm_mesh_tx_stuck_ms)
+    s_tx_lost_streak++;
+    s_tx_busy = false;
+  }
+  if (!s_txq_count) return;
+  TxFrame &f = s_txq[s_txq_head];
+  s_txq_head = (s_txq_head + 1) % TX_QUEUE;
+  s_txq_count--;
+  restamp_time(f.frame, f.len, now);
+  esp_err_t err = esp_now_send(BCAST, f.frame, f.len);
+  if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; return; }
+  s_stats.tx_sent++;
+  s_tx_busy = true;
+  s_tx_started_ms = now;
+}
+
+// Queue a frame for sending; false if the queue is full (counted).
+static bool txq_push(const uint8_t *frame, uint8_t len) {
+  if (!s_txq) {  // no queue (allocation failed at init): send directly, as before
+    esp_err_t err = esp_now_send(BCAST, frame, len);
+    if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; return false; }
+    s_stats.tx_sent++;
+    return true;
+  }
+  if (s_txq_count >= TX_QUEUE) { s_stats.tx_queue_full++; return false; }
+  TxFrame &f = s_txq[(s_txq_head + s_txq_count) % TX_QUEUE];
+  f.len = len;
+  memcpy(f.frame, frame, len);
+  s_txq_count++;
+  if (s_txq_count > s_stats.tx_queue_max) s_stats.tx_queue_max = s_txq_count;
+  return true;
 }
 
 uint32_t pm_mesh_tx_inflight() {
@@ -291,9 +358,8 @@ uint32_t pm_mesh_tx_inflight() {
 }
 
 uint32_t pm_mesh_tx_stuck_ms() {
-  if (pm_mesh_tx_inflight() < 8) return 0;
-  uint32_t since = millis() - s_stats.tx_done_ms;
-  return since > 5000 ? since : 0;
+  if (s_tx_lost_streak < 8) return 0;
+  return millis() - s_stats.tx_done_ms;
 }
 
 bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
@@ -308,6 +374,7 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
 
   if (role & PM_NODE_ROLE_CONDUCTOR)
     s_clock.become_conductor(s_node_id, priority(), millis());
+  if (!s_txq) s_txq = (TxFrame *)calloc(TX_QUEUE, sizeof(TxFrame));
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();  // no AP association yet (a bridge joins WiFi later — pm_wifi)
@@ -363,6 +430,8 @@ bool pm_mesh_recover(uint8_t ch) {
   esp_now_register_send_cb(on_sent);
   s_stats.tx_done_ms = millis();  // a fresh radio starts a fresh clock on "stuck"
   s_stats.tx_sent = s_stats.tx_done;  // frames in flight when the driver went down never complete: not a leak
+  s_tx_busy = false;
+  s_tx_lost_streak = 0;
   pm_mesh_set_channel(ch);
   return true;
 }
@@ -436,10 +505,7 @@ bool pm_send(pm_msg_type_t type, const void *payload, uint8_t len,
   memcpy(buf, &hdr, sizeof(hdr));
   if (len) memcpy(buf + sizeof(hdr), payload, len);
   s_stats.tx++;
-  esp_err_t err = esp_now_send(BCAST, buf, sizeof(hdr) + len);
-  if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
-  else s_stats.tx_sent++;
-  return err == ESP_OK;
+  return txq_push(buf, sizeof(hdr) + len);
 }
 
 uint32_t pm_mesh_unheard_ms() {
@@ -454,24 +520,11 @@ void pm_on_receive(pm_rx_handler_t handler) { s_handler = handler; }
 
 void pm_mesh_loop() {
   uint32_t now = millis();
+  tx_pump(now);
 
   for (int i = 0; i < RELAY_QUEUE; i++) {
     if (!s_relay[i].used || (int32_t)(now - s_relay[i].due_ms) < 0) continue;
-    // Re-stamp a time beacon at the moment it actually goes out, so the
-    // jitter it just sat through does not become downstream clock error.
-    pm_frame_header_t *h = (pm_frame_header_t *)s_relay[i].frame;
-    if (h->msg_type == PM_MSG_TYPE_TIME && s_clock.synced(now) &&
-        s_relay[i].len >= sizeof(pm_frame_header_t) + TIME_V1_LEN) {
-      pm_time_t *t =
-          (pm_time_t *)(s_relay[i].frame + sizeof(pm_frame_header_t));
-      t->mesh_time_us = (uint64_t)s_clock.mesh_us(esp_timer_get_time());
-      if (s_relay[i].len >= sizeof(pm_frame_header_t) + sizeof(pm_time_t) &&
-          (t->wall_flags & 1) && s_wall.utc_ok)
-        t->wall_ms = (uint64_t)s_wall.utc_ms(local_ms());
-    }
-    esp_err_t err = esp_now_send(BCAST, s_relay[i].frame, s_relay[i].len);
-    if (err != ESP_OK) { s_stats.tx_err++; s_stats.last_tx_err = err; }
-    else s_stats.tx_sent++;
+    txq_push(s_relay[i].frame, s_relay[i].len);  // a time beacon is re-stamped as it leaves (tx_pump)
     s_relay[i].used = false;
     s_stats.relayed++;
   }
@@ -509,6 +562,7 @@ void pm_mesh_loop() {
     t.floods_at = s_stamps.floods_at;
     pm_send(PM_MSG_TYPE_TIME, &t, sizeof(t));
   }
+  tx_pump(millis());
 }
 
 int64_t pm_mesh_time_us() { return s_clock.mesh_us(esp_timer_get_time()); }

@@ -171,6 +171,9 @@ static void cmd_mesh(JsonObject resp) {
   resp["tx_done"] = st->tx_done;          // completions reported back
   resp["tx_failed"] = st->tx_failed;      // completions that got no air time
   resp["tx_inflight"] = pm_mesh_tx_inflight();  // accepted, never completed: the leak (docs §6j)
+  resp["tx_lost"] = st->tx_lost;                // dispatched, no completion within 60 ms
+  resp["tx_queue_full"] = st->tx_queue_full;    // frames refused: the send queue was full
+  resp["tx_queue_max"] = st->tx_queue_max;      // deepest the send queue has been
   resp["radio_rebuilds"] = pm_radio_rebuilds();
   if (pm_radio_last_rebuild_ms()) resp["radio_rebuilt_s_ago"] = (millis() - pm_radio_last_rebuild_ms()) / 1000;
   if (pm_mesh_tx_stuck_ms()) resp["tx_stuck_s"] = pm_mesh_tx_stuck_ms() / 1000;

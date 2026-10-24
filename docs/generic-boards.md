@@ -1521,6 +1521,19 @@ the instruments to catch it next time, and a self-heal.
   bridge serving a full yard, since 49 KB leaves one router burst of
   room and an OTA eats the rest.
 
+  **The send queue (2026-10-23, PR #47).** Built after the OTA findings
+  above: every send and relay goes through a 32-frame queue
+  (heap-allocated in init, 7.4 KB) and one frame is in flight at a time
+  — the next leaves when the last one's completion callback arrives, or
+  after 60 ms if it never does (counted as `tx_lost`). Time beacons,
+  ours and relayed, are stamped as they leave, so queueing never becomes
+  clock error. `mesh` reports `tx_lost`, `tx_queue_full` and
+  `tx_queue_max`; eight dispatches in a row without a completion is the
+  new `tx_stuck_s`, and a growing `tx_lost` counts as evidence for the
+  15 s rebuild. Expected: `tx_err` stays 0 through an OTA, `tx_queue_max`
+  reaches about 18 (one chunk) and `tx_lost` stays near 0. To be
+  measured on the bridge with an OTA to a candle.
+
   **Earlier proposal (superseded by the above):**
   0. **Heap headroom on the bridge first**, because it is the one cause
      we have evidence for and it is ours to fix: allocate `PmShow` only
