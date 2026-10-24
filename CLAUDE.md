@@ -150,8 +150,11 @@ Any time a schematic or layout is up for review, check — in this order:
   allocations fail too (ESP_ERR_ESPNOW_NO_MEM, the bridge goes mute —
   docs §6j, 2026-10-19). That is why the show engine (32 KB) is created
   only when a board holds a part and WebSocket buffers only while a
-  message arrives. No new static or long-lived allocation on the bridge
-  path without checking `heap` and `heap_win_min` afterwards.
+  message arrives, reassembly slots and reply buffers are borrowed from
+  the heap per message (static RAM on the DevKit went 97.3 → 67.6 KB
+  for it, 2026-10-23). No new static or long-lived buffer that is idle
+  most of the time; check `heap` and `heap_win_min` on the bridge after
+  any change on its path.
 
 ## Firmware priorities
 
