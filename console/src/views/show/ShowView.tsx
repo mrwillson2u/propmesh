@@ -175,10 +175,15 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   showRef.current = show;
   msgRef.current = msg;
   rulesRef.current = rules;
+  // A message a load itself wrote (boards away, unreachable) is replaced
+  // by the next load; one a save or play wrote stays — the reload that
+  // follows every save used to wipe "Saved …" the moment it appeared.
+  const msgFromLoad = useRef(false);
+  const loadMsg = (m: typeof msg) => { msgFromLoad.current = true; setMsg(m); };
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
-    setMsg(null);
+    if (msgFromLoad.current) { msgFromLoad.current = false; setMsg(null); }
     try {
       const sh = await loadShow(conn.link, known, showRef.current, viaBridge);
       if (gen !== loadGen.current) return;
@@ -199,10 +204,11 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
         setSel(keep?.id ?? null);
         setDraft(keep ? sortSteps(structuredClone(keep)) : null);
       }
-      if (sh.unreachable.length) setMsg({ text: `${names(sh.unreachable)} didn't answer (asleep, or out of range) — ${sh.unreachable.length === 1 ? "its" : "their"} part of the show isn't shown; it reloads when ${sh.unreachable.length === 1 ? "it's" : "they're"} heard again.`, bad: true });
+      if (sh.unreachable.length) loadMsg({ text: `${names(sh.unreachable)} didn't answer (asleep, or out of range) — ${sh.unreachable.length === 1 ? "its" : "their"} part of the show isn't shown; it reloads when ${sh.unreachable.length === 1 ? "it's" : "they're"} heard again.`, bad: true });
       // A board away but covered by the bridge: say so only when nothing
       // more specific (a save's own message) is already showing.
-      else if (sh.fromBridge.length && !msgRef.current) setMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} asleep or out of range — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part; it reloads when ${sh.fromBridge.length === 1 ? "it's" : "they're"} heard again.` });
+      else if (sh.fromBridge.length && !msgRef.current) loadMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} asleep or out of range — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part; it reloads when ${sh.fromBridge.length === 1 ? "it's" : "they're"} heard again.` });
+      else if (sh.fromLast.length && !msgRef.current) loadMsg({ text: `${names(sh.fromLast)} ${sh.fromLast.length === 1 ? "is" : "are"} asleep or out of range — showing ${sh.fromLast.length === 1 ? "its" : "their"} part as last read; it reloads when ${sh.fromLast.length === 1 ? "it's" : "they're"} heard again.` });
     } finally {
       if (gen === loadGen.current) setLoading(false);
     }

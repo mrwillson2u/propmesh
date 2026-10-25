@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { ColorPicker, Confirm, Spinner, mono, sys } from "../../ui";
 import { isAway } from "../../lib/show";
-import { deriveFloods, mismatched, syncFloods, type FloodsState } from "../../lib/floods";
+import { deriveFloods, mismatched, syncFloods, readFloodsCopy, type FloodsState, type FloodsCopy } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry, isReachable } from "../../lib/connection";
@@ -24,6 +24,7 @@ const field: React.CSSProperties = {
 
 export default function FloodsPanel({ link, entries }: { link: NodeLink; entries: Record<string, Entry> }) {
   const [configs, setConfigs] = useState<Record<string, NodeConfig> | null>(null);
+  const [copy, setCopy] = useState<FloodsCopy | null>(null); // the bridge's copy, when no board holds the key
   const [loading, setLoading] = useState(false);
   const [labels, setLabels] = useState<Record<number, string>>({});
   const [removed, setRemoved] = useState<number[]>([]);
@@ -75,18 +76,21 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
     return sent;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link, knownKey]);
+  const viaBridge = !!Object.values(entries).find((e) => e.usb)?.hello?.bridge;
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const cfgs = await readConfigs();
       setConfigs(cfgs);
+      setCopy(viaBridge ? await readFloodsCopy(link) : null);
       const sent = await readLastSent(cfgs);
       setValues((v) => ({ ...sent, ...Object.fromEntries(Object.entries(v).filter(([k]) => sent[+k] === undefined)) }));
     } finally { setLoading(false); }
-  }, [readConfigs, readLastSent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readConfigs, readLastSent, viaBridge]);
   useEffect(() => { void load(); }, [load]);
 
-  const st: FloodsState = useMemo(() => deriveFloods(configs ?? {}), [configs]);
+  const st: FloodsState = useMemo(() => deriveFloods(configs ?? {}, copy), [configs, copy]);
   const curSenders = senders ?? st.senders;
   const lights = st.lights.filter((l) => !removed.includes(l.number)).map((l) => ({ ...l, label: labels[l.number] ?? l.label }));
   const dirty = senders !== null || Object.keys(labels).length > 0 || removed.length > 0;
@@ -195,8 +199,10 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
           </label>
         ))}
         <div style={{ flex: 1 }} />
-        <span style={mono(500, 11, C.t4)}>
-          {st.key ? `key set on ${st.senders.length} board${st.senders.length === 1 ? "" : "s"}` : "no key yet — pairing the first light makes one"}
+        <span style={mono(500, 11, st.held === "bridge" ? C.amber : C.t4)}>
+          {st.held === "bridge"
+            ? `no board is sending — the bridge holds the key and ${st.lights.length} light${st.lights.length === 1 ? "" : "s"}${copy?.at ? ` (saved ${new Date(copy.at * 1000).toLocaleDateString([], { month: "short", day: "numeric" })})` : ""}; tick a board, then Save to boards`
+            : st.key ? `key set on ${st.senders.length} board${st.senders.length === 1 ? "" : "s"}` : "no key yet — pairing the first light makes one"}
         </span>
       </div>
       {(() => {

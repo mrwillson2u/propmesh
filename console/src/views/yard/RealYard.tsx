@@ -13,7 +13,7 @@ import { counts, getConnection, useConnection, type Connection, checkinText, isR
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
-import { FLOODS, deriveFloods } from "../../lib/floods";
+import { FLOODS, deriveFloods, readFloodsCopy, type FloodsCopy } from "../../lib/floods";
 import { directLabel, target } from "../../lib/transport";
 import type { NodeConfig } from "../../lib/nodeConfig";
 import { useBlueprint, toMap } from "./Blueprint";
@@ -95,6 +95,7 @@ function floodPaint(v: number): { fill: string; glow: string } | null {
 // go) and what was last sent to them (one sender's `state`, every 3 s).
 function useFloods(conn: Connection): YardFlood[] {
   const [cfgs, setCfgs] = useState<Record<string, NodeConfig>>({});
+  const [copy, setCopy] = useState<FloodsCopy | null>(null);
   const [values, setValues] = useState<Record<number, number>>({});
   const known = Object.values(conn.entries).filter(isReachable);
   const knownKey = known.map((e) => e.node).sort().join(",");
@@ -110,11 +111,12 @@ function useFloods(conn: Connection): YardFlood[] {
         } catch { /* not answering: its lights still show through another sender */ }
       }
       if (live) setCfgs(out);
+      if (conn.hello.bridge) { const c = await readFloodsCopy(conn.link); if (live) setCopy(c); }
     })();
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn.link, knownKey]);
-  const st = useMemo(() => deriveFloods(cfgs), [cfgs]);
+  const st = useMemo(() => deriveFloods(cfgs, copy), [cfgs, copy]);
   const sendersKey = st.senders.join(",");
   useEffect(() => {
     if (!st.senders.length) return;

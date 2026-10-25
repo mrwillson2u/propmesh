@@ -143,6 +143,14 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 ## 3. Open bugs and loose ends
 
+- **Sequences save / play audit (2026-10-24 evening):** every
+  board-away scenario is listed with before/after in
+  `docs/console-show-sync.md` §2; fixes built and run in the simulator,
+  not yet on the yard (§3 says what to try). Also there: §3b the floods
+  "forgotten" (no sender on the mesh; the bridge's copy now stands in)
+  and §4 **loops as Show rules** (Colin's ask; proposal, waiting on him
+  before the rule format changes).
+
 - **"Nothing turned on at the scheduled time" (2026-10-24):** the
   schedule worked — every board armed at sunset−60 — but no board holds
   a sequence or rule, so there was nothing to play. Needs an ambient

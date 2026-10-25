@@ -4,7 +4,7 @@
 // sensors (firmware pm_show.*) — so loading reads every node and merges,
 // and saving splits a sequence back into per-node parts. A dead bridge
 // costs the console, never the show. docs/generic-boards.md.
-import { FLOODS, deriveFloods, floodsConfig, type FloodsState } from "./floods";
+import { FLOODS, deriveFloods, floodsConfig, readFloodsCopy, type FloodsState } from "./floods";
 import { editStamp, target, type NodeLink, type Reply } from "./transport";
 import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
@@ -152,8 +152,9 @@ export interface Show {
   floods: FloodsState; // the mesh-wide flood lights and which boards send to them
   armed: Record<string, boolean>;
   modes: Record<string, ModeStatus>; // per board: mode, why, what the schedule does next
-  unreachable: string[]; // nodes that didn't answer during load, and nobody holds a copy for
+  unreachable: string[]; // nodes that didn't answer during load, and nothing is known for
   fromBridge: string[]; // nodes that didn't answer; their part shown from the bridge's copy (docs §6k)
+  fromLast: string[]; // nodes that didn't answer; their pins and part shown as last read from them
 }
 
 const ask = (link: NodeLink, en: Entry, cmd: string, body: Record<string, unknown> = {}): Promise<Reply> =>
@@ -169,7 +170,7 @@ type Wire =
 // bridge, which holds a copy of every board's part; a board that doesn't
 // answer is shown from that copy instead of vanishing from the show.
 export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | null = null, viaBridge = false): Promise<Show> {
-  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [], fromBridge: [] };
+  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [], fromBridge: [], fromLast: [] };
   const byId = new Map<number, Sequence>();
   const addPart = (node: string, p: { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] }, problem?: string, fromCopy = false) => {
     const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], unconfirmed: [], problems: [] };
@@ -221,7 +222,11 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
       }
     } catch {
       // Off the mesh. Its channels from last time (its pins don't change
-      // because it is asleep), its part from the bridge's copy.
+      // because it is asleep), its part from the bridge's copy, or failing
+      // that from the last read — a board going to sleep must not make its
+      // steps vanish from a saved sequence (seen in the simulator,
+      // 2026-10-24: a reload at the sleep transition showed one step where
+      // two were saved, and a save then would have dropped its part).
       const kept = prev?.configs[en.node];
       if (kept) show.configs[en.node] = kept;
       let shown = false;
@@ -231,12 +236,23 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
       if (shown) {
         show.fromBridge.push(en.node);
         if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node];
-      } else show.unreachable.push(en.node);
+      } else {
+        let fromLast = false;
+        for (const q of prev?.sequences ?? []) {
+          const mine = q.steps.filter((st) => st.node === en.node);
+          if (!mine.length && !q.loadedOn.includes(en.node)) continue;
+          addPart(en.node, { id: q.id, name: q.name, ambient: q.ambient, loop_ms: q.loop_ms, steps: mine.map(toWire) });
+          fromLast = true;
+        }
+        for (const r of prev?.rules ?? []) if (r.node === en.node) { show.rules.push(r); fromLast = true; }
+        if (fromLast || kept) { show.fromLast.push(en.node); if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node]; }
+        else show.unreachable.push(en.node);
+      }
     }
   }));
   // The floods: one pseudo-node in the pickers, and each sender's copy of a
   // flood step collapses to one.
-  show.floods = deriveFloods(show.configs);
+  show.floods = deriveFloods(show.configs, viaBridge ? await readFloodsCopy(link) : null);
   for (const [node, cfg] of Object.entries(show.configs))
     show.configs[node] = { ...cfg, channels: (cfg.channels ?? []).filter((c) => c.kind !== "BLE_LIGHT") };
   if (show.floods.lights.length || show.floods.senders.length) show.configs[FLOODS] = floodsConfig(show.floods);
@@ -268,15 +284,20 @@ export const isAway = (error: string) => /no reply|not on the mesh|timed out|tim
 // missing board costs nothing.
 // `only`: resend to these boards alone (a board that was away for the
 // save and is back), leaving the rest untouched.
+// A step as it goes to a board.
+function toWire(st: Step): Wire {
+  const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
+  return dur > 0
+    ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
+    : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)];
+}
+
 export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = [], viaBridge = false, only?: string[]): Promise<SaveResult> {
   const parts = new Map<string, Wire[]>();
   const failed: SaveResult["failed"] = [];
   const queued: string[] = [];
   for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
-    const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
-    const w: Wire = dur > 0
-      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
-      : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)];
+    const w = toWire(st);
     const to = st.node === FLOODS ? senders : [st.node];
     if (st.node === FLOODS && !senders.length && !failed.some((f) => f.node === FLOODS))
       failed.push({ node: FLOODS, error: "no board holds the floods key — tick a sending board in the Floods tab" });
