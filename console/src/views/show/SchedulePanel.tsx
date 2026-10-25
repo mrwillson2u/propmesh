@@ -6,7 +6,7 @@ import { isAway } from "../../lib/show";
 import { useEffect, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, Toggle, mono, sys, NumberInput } from "../../ui";
-import type { Connection } from "../../lib/connection";
+import { isReachable, type Connection } from "../../lib/connection";
 import {
   DAYS, DEFAULT_WINDOWS, MODES, MODE_LABEL, TIME_RE, emptySchedule, hhmm, loadSchedule, resolve, saveSchedule, validTime,
   type Day, type Schedule, type Window,
@@ -72,11 +72,11 @@ export default function SchedulePanel({ conn, onSaved }: { conn: Connection; onS
   const [saved, setSaved] = useState<string>("");
   const [busy, setBusy] = useState<string | null>("load");
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
-  const boards = Object.values(conn.entries).filter((e) => e.hello); // the bridge too: it may be the conductor
+  const boards = Object.values(conn.entries).filter(isReachable); // the bridge too: it may be the conductor
 
   useEffect(() => {
     let live = true;
-    void loadSchedule(conn.link, Object.values(conn.entries).filter((e) => e.hello)).then((s) => {
+    void loadSchedule(conn.link, Object.values(conn.entries).filter(isReachable)).then((s) => {
       if (!live) return;
       const v = s ?? emptySchedule();
       setSched(v);

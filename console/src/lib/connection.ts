@@ -191,6 +191,14 @@ export const getConnection = () => current;
 export const connectionError = () => lastError;
 
 export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.seen > MISSING_MS;
+// A board that has introduced itself this session and can be asked. A
+// remembered board (from the roster, not heard yet) is on the list but
+// not reachable: a request to it only times out on the bridge, and it
+// must re-trigger loads when it first speaks — views key their loads on
+// the reachable set, which changes then (2026-10-25: Candles 3 and 4
+// never reached the sequence picker because they were "known" from
+// connect and their waking changed nothing).
+export const isReachable = (en: Entry) => !!en.hello && !en.remembered;
 // A battery board that has gone quiet is asleep, not lost (docs §6f).
 export const isAsleep = (en: Entry, now = Date.now()) => en.hello?.power === "battery" && isMissing(en, now);
 

@@ -9,7 +9,7 @@ import { C, MONO } from "../../lib/tokens";
 import { mono, sys, Toggle, Sheet, Hint } from "../../ui";
 import { useLayout } from "../../lib/layout";
 import { BOARDS } from "../../lib/boards_gen";
-import { counts, getConnection, useConnection, type Connection, checkinText } from "../../lib/connection";
+import { counts, getConnection, useConnection, type Connection, checkinText, isReachable } from "../../lib/connection";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
@@ -96,7 +96,7 @@ function floodPaint(v: number): { fill: string; glow: string } | null {
 function useFloods(conn: Connection): YardFlood[] {
   const [cfgs, setCfgs] = useState<Record<string, NodeConfig>>({});
   const [values, setValues] = useState<Record<number, number>>({});
-  const known = Object.values(conn.entries).filter((e) => e.hello);
+  const known = Object.values(conn.entries).filter(isReachable);
   const knownKey = known.map((e) => e.node).sort().join(",");
   useEffect(() => {
     let live = true;

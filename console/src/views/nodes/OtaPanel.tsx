@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
 import { Spinner, mono, sys, Hint } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
-import { isMissing, type Entry } from "../../lib/connection";
+import { isMissing, type Entry, isReachable } from "../../lib/connection";
 import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
 
 const KEY = "propmesh.ota";
@@ -53,7 +53,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   entriesRef.current = entries;
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass, mode, source })); } catch { /* private mode */ } }, [url, ssid, pass, mode, source]);
 
-  const known = Object.values(entries).filter((e) => e.hello)
+  const known = Object.values(entries).filter(isReachable)
     .sort((a, b) => Number(a.usb) - Number(b.usb) || (a.hello!.name || a.node).localeCompare(b.hello!.name || b.node));
   const nameOf = (n: string) => entries[n]?.hello?.name || n;
   // The release image for the board the console is connected to; other
@@ -71,7 +71,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   useEffect(() => {
     let live = true;
     const ask = () => {
-      for (const en of Object.values(entriesRef.current).filter((e) => e.hello)) {
+      for (const en of Object.values(entriesRef.current).filter(isReachable)) {
         if (jobsRef.current[en.node]?.state === "sending") continue;  // our own transfer: don't add traffic
         target(link, en.usb ? null : en.node).request("ota_status").then((r) => {
           if (!live || !r.ok) return;

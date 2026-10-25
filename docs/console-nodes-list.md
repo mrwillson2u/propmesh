@@ -44,6 +44,16 @@ costs bridge heap per board (CLAUDE.md memory rules); not done.
 Writes are batched (one save per 2 s at most) so heartbeats every 5 s
 from a dozen boards don't rewrite the store continuously.
 
+**A remembered board is not "known" to the views (fixed 2026-10-24,
+evening).** The Show, Schedule, Floods, Firmware and Yard views load
+from the set of boards with a hello, and reload when that set changes.
+With the roster, a sleeping candle had a hello from connect, so it was
+asked (and timed out) at the first load, and when it woke the set did
+not change — no reload, and its candle never reached the sequence
+picker (Colin saw only Candle 6's tracks). Views now key on
+`isReachable()` — a hello *and* heard this session — which flips when
+a remembered board first speaks, and that re-runs the loads.
+
 ## 2. Order
 
 `orderedEntries()` in `connection.ts` is the one order every view uses:

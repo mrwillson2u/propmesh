@@ -8,7 +8,7 @@ import { isAway } from "../../lib/show";
 import { deriveFloods, mismatched, syncFloods, type FloodsState } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
-import { isMissing, type Entry } from "../../lib/connection";
+import { isMissing, type Entry, isReachable } from "../../lib/connection";
 import { BleFinder } from "./PinEditor";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -35,7 +35,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const [values, setValues] = useState<Record<number, number>>({});
   const [askTick, setAskTick] = useState<string | null>(null); // ticking a battery board: say what it costs first
 
-  const known = Object.values(entries).filter((e) => e.hello);
+  const known = Object.values(entries).filter(isReachable);
   const nameOf = (node: string) => entries[node]?.hello?.name || node;
   // Any board but the bridge can send (its radio already shares USB and the mesh).
   const candidates = known.filter((e) => !e.hello!.bridge).map((e) => e.node).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));

@@ -12,7 +12,7 @@ import { C } from "../../lib/tokens";
 import { LandscapeHint, useLayout } from "../../lib/layout";
 import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
-import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
+import { setModeAll, useConnection, type Activity, type Connection, isReachable } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
 import SchedulePanel, { MODE_COLOR } from "./SchedulePanel";
 import { target } from "../../lib/transport";
@@ -122,7 +122,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   };
 
   const entries = conn.entries;
-  const known = Object.values(entries).filter((e) => e.hello);
+  const known = Object.values(entries).filter(isReachable);
   const nameOf = (node: string) => node === FLOODS ? FLOODS_NAME : entries[node]?.hello?.name || node;
   // Through a bridge, a board that's away still gets every edit: the bridge
   // keeps a copy and the board pulls it when it's back (docs §6k).
