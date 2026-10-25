@@ -143,6 +143,14 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 ## 3. Open bugs and loose ends
 
+- **"Nothing turned on at the scheduled time" (2026-10-24):** the
+  schedule worked — every board armed at sunset−60 — but no board holds
+  a sequence or rule, so there was nothing to play. Needs an ambient
+  loop for the candles (generic-boards §6e note, candle page). Also
+  seen: Candle 1 and Candle 2 not heard by the bridge at all tonight;
+  Candle 3 (mains) rebuilt its radio at 14:44 after 121 s unheard; the
+  bridge rebuilt its own at 21:02 the night before with 15.8 KB free.
+
 - **Node list overhaul (2026-10-24)** — built: the roster (boards
   remembered per browser, on the list at connect, asleep or not
   heard), name order, Arrange mode, zzz with sleep age, hide / forget,

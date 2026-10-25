@@ -768,7 +768,20 @@ Firmware updates over WiFi-to-bridge-to-mesh work unchanged, and faster
 than over the cable. Serving the console *from* the bridge comes later
 (software-plan §5): the 192 kB LittleFS is tight for the SPA.
 
-## 6e. Show schedule (built 2026-10-09, Stage 3b — host-tested, not yet on hardware)
+## 6e. Show schedule (built 2026-10-09, Stage 3b — seen on hardware 2026-10-24)
+
+**Seen on the yard, 2026-10-24.** Sunset 18:19; the window `sunset-60`
+put every board (bridge, two mains C6s, two battery candles) into
+`armed · schedule` at 17:19, the battery candles having woken from deep
+sleep for it (reset "deep sleep", up since 17:18). Nothing lit, and
+that was correct: no board held a sequence or a rule (`get_show` on
+each: `sequences: []`, `rules_at: 0`), so armed had nothing to play. A
+candle lights only from a sequence or by hand; the parked-outputs path
+restores only what was on by hand when the show went off, and nothing
+was. The fix is the ambient loop the candle page describes (one step,
+candle at full, Ambient loop on, every 600 s), saved to the candle
+boards. Open question: whether sequences existed earlier and were lost
+with a USB reflash (sequences live in each board's flash).
 
 Design: software-plan §4.1. **Status:** firmware builds; 14 host tests
 (`test_schedule`) pass, sunrise/sunset/dawn/dusk within 2 min of the
