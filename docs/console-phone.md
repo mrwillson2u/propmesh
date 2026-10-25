@@ -180,6 +180,56 @@ to move it, long-press to add one, pinch to zoom, two-finger drag to
 pan, the ruler to scrub. In portrait the hint says it is there. Nobody
 has to use it; the moments list and perform mode cover the yard case.
 
+### 6.5 Sharpened after a real phone (2026-10-25)
+
+Colin: "the Show page isn't formatted for mobile; landscape looked like
+it reverted to desktop; let's think about how to get the sequence
+editor to work well on the small touchscreen." The first two were
+bugs, fixed the same day: the breakpoint was width-only (a phone
+sideways is 844 px wide), and the Show header wrapped every control
+onto its own line. What a phone showed of the editor itself, with a
+real sequence (three tracks, seven steps):
+
+- **Portrait** holds the timeline, but it is a laptop drawing shrunk:
+  the track labels take half the width, the plot gets 1.6 s of a 3.5 s
+  sequence, keyframes are 14 px circles under a finger, and the step
+  table below needs sideways scrolling. Usable for *looking*, poor for
+  *editing*.
+- **Landscape** holds a real timeline — 3.5 s across, three tracks —
+  but the top bar, the page header, the editor header and the tab bar
+  leave it 200 px of height.
+
+So the plan from 6.1–6.4 stands, with these specifics:
+
+**Portrait = the moments list (6.1), not the timeline.** The timeline
+is hidden in portrait; in its place the sequence is a list of moments
+("at 0.0 s · jaw 0 %", "at 0.2 s · eyes 100 %", "at 0.6 s · jaw 90 %
+over 0.4 s"), each a 56 px row, tap for a sheet with a full-width
+slider / color / toggle, the "get there over" slider, and nudge
+buttons (±50 ms, ±5 %). "+ Add moment" adds one a beat after the last;
+long rows show the board name only when there is more than one board.
+The step table is retired on the phone (it is the same data). The
+scrub ruler (6.2) sits along the bottom of the list, above the tab
+bar, with the moments as ticks: drag it and the prop follows, ▶ plays
+from the thumb.
+
+**Landscape = the timeline, full screen.** Turning the phone hides the
+page header, the sequence list and the editor header's toggles; what
+stays is one 40 px bar (name · Save · Play · ‹ list) over the timeline,
+and the tab bar shrinks to 40 px as it now does. Touch sizes: a
+keyframe's hit target 36 px, a long-press on empty track adds a
+keyframe (the one long-press in the console — it is the convention
+every timeline app uses, and the ⓘ drawer says so), drag moves it,
+pinch zooms time. The "turn the phone" hint stays in portrait.
+
+**Perform mode (6.3) comes after both**, as its own full-screen page
+from a REC button in the editor header; it needs the moments list to
+tidy what it records.
+
+**Order:** moments list + scrub ruler (one PR, portrait only, the
+laptop untouched), then the landscape timeline's touch work, then
+perform mode. Each tried in the yard before the next.
+
 ## 7. Order of work
 
 1. **Frame**: the hook, the tab bar, the STOP bar, sheets, touch
