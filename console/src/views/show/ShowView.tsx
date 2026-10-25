@@ -12,7 +12,7 @@ import { C } from "../../lib/tokens";
 import { LandscapeHint, useLayout } from "../../lib/layout";
 import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
-import { setModeAll, useConnection, type Activity, type Connection, isReachable, isMissing } from "../../lib/connection";
+import { setModeAll, useConnection, type Activity, type Connection, type Entry, isReachable, isMissing } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
 import SchedulePanel, { MODE_COLOR } from "./SchedulePanel";
 import { target } from "../../lib/transport";
@@ -127,38 +127,19 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   // Through a bridge, a board that's away still gets every edit: the bridge
   // keeps a copy and the board pulls it when it's back (docs §6k).
   const viaBridge = !!conn.hello.bridge;
-  // Boards that were away for a save, and the edit they still have to pull.
-  const [pending, setPending] = useState<{ nodes: string[]; at: number; what: string } | null>(null);
   const names = (ns: string[]) => ns.map(nameOf).join(", ");
   const awayText = (ns: string[]) =>
-    `${names(ns)} didn't answer (asleep, or out of range) — the bridge holds the edit, and ${ns.length === 1 ? "it picks" : "they pick"} it up when next awake. Or press Send again once ${ns.length === 1 ? "it's" : "they're"} back.`;
-  // Watch the boards that were away: when one has caught up (its show_synced
-  // has reached the save's stamp), say so and re-read the show.
-  useEffect(() => {
-    if (!pending) return;
-    const started = Date.now();
-    const id = setInterval(async () => {
-      if (Date.now() - started > 30 * 60_000) { setPending(null); return; }  // stop watching after 30 min
-      const caught: string[] = [];
-      // Only boards heard in the last few seconds are asked: a hello to
-      // a sleeping board just sits on the bridge until it times out.
-      const heard = pending.nodes.filter((n) => { const en = conn.entries[n]; return en && !isMissing(en); });
-      await Promise.all(heard.map(async (n) => {
-        try {
-          const h = await target(conn.link, n).request("hello");
-          const synced = (h.sync as { show_synced?: number } | undefined)?.show_synced ?? 0;
-          if (h.ok && synced >= pending.at) caught.push(n);
-        } catch { /* still away */ }
-      }));
-      if (!caught.length) return;
-      const left = pending.nodes.filter((n) => !caught.includes(n));
-      setMsg({ text: `${names(caught)} ${caught.length === 1 ? "is" : "are"} back and picked up ${pending.what}.${left.length ? " " + awayText(left) : ""}` });
-      setPending(left.length ? { ...pending, nodes: left } : null);
-      void load();
-    }, 5000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending]);
+    `${names(ns)} didn't answer (asleep, or out of range) — the bridge holds the edit and ${ns.length === 1 ? "it picks" : "they pick"} it up by ${ns.length === 1 ? "itself" : "themselves"} when next awake; this page updates when ${ns.length === 1 ? "it has" : "they have"}.`;
+  // Every board's hello (re-asked every 15 s by lib/connection) carries
+  // show_synced: the newest edit it holds. When any board's stamp moves —
+  // it pulled a part from the bridge after being away — the show is read
+  // again, so a board catching up shows up here with nobody pressing
+  // anything (Colin, 2026-10-24). The bridge's own stamp is the newest edit
+  // it holds for anyone, so a heard board below it is still catching up.
+  const stampOf = (e: Entry) => e.hello?.sync?.show_synced ?? 0;
+  const syncKey = known.map((e) => `${e.node}:${stampOf(e)}`).sort().join(",");
+  const bridgeStamp = Math.max(0, ...Object.values(entries).filter((e) => e.usb).map(stampOf));
+  const catchingUp = (n: string) => { const e = entries[n]; return !!e && !isMissing(e) && !e.remembered && stampOf(e) < bridgeStamp; };
 
   // Loads overlap (one starts each time a board introduces itself);
   // only the newest may land, or an early load that saw fewer boards
@@ -193,6 +174,14 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       // load already holds it, so that counts as saved too.
       const onBoards = d && sh.sequences.find((x) => x.id === d.id);
       const unsaved = !!d && !sameSequence(d, before) && !sameSequence(d, onBoards);
+      // Boards that held a sequence only as the bridge's copy last time and
+      // hold it themselves now: they picked it up.
+      const caught = new Set<string>();
+      for (const was of showRef.current?.sequences ?? []) {
+        const now = sh.sequences.find((x) => x.id === was.id);
+        for (const n of was.unconfirmed) if (now && now.loadedOn.includes(n) && !now.unconfirmed.includes(n)) caught.add(n);
+      }
+      if (caught.size) setMsg({ text: `${names([...caught])} picked up the saved show.` });
       setShow(sh);
       // Unsaved trigger edits (rows or graph) survive a reload, like an
       // unsaved sequence does — a mode change or a board catching up used
@@ -221,7 +210,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   // for good — Colin, 2026-10-24).
   const knownKey = known.map((e) => e.node).sort().join(",");
   const heardKey = known.filter((e) => !isMissing(e)).map((e) => e.node).sort().join(",");
-  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey, heardKey]);
+  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey, heardKey, syncKey]);
 
   const saved = show?.sequences.find((s) => s.id === sel) ?? null;
   const dirty = !!draft && !sameSequence(draft, saved);
@@ -325,7 +314,6 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     if (r.queued.length) {
       const got = [...new Set(steps.map((s) => s.node))].filter((n) => !r.queued.includes(n) && n !== FLOODS);
       setMsg({ text: `Saved “${draft.name}”${got.length ? ` on ${names(got)}` : ""}. ${awayText(r.queued)}` });
-      setPending({ nodes: r.queued, at: r.at, what: `“${draft.name}”` });
     } else setMsg({ text: `Saved “${draft.name}” to ${new Set(steps.map((s) => s.node)).size} board(s).` });
     await load();
   };
@@ -356,7 +344,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     const r = await saveSequence(conn.link, entries, saved, show?.floods.senders ?? [], viaBridge, nodes);
     setBusy(null);
     if (r.failed.length) setMsg({ text: `Not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
-    else if (r.queued.length) { setMsg({ text: awayText(r.queued) }); setPending({ nodes: r.queued, at: r.at, what: `“${saved.name}”` }); }
+    else if (r.queued.length) setMsg({ text: awayText(r.queued) });
     else setMsg({ text: `${names(nodes)} ${nodes.length === 1 ? "has" : "have"} “${saved.name}” now.` });
     await load();
   };
@@ -369,7 +357,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     setBusy(null);
     setConfirmDelete(false);
     if (r.failed.length) setMsg({ text: `Still on ${r.failed.map((f) => nameOf(f.node)).join(", ")} — try again`, bad: true });
-    else if (r.queued.length) { setMsg({ text: `Deleted “${draft.name}”. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the deletion" }); }
+    else if (r.queued.length) setMsg({ text: `Deleted “${draft.name}”. ${awayText(r.queued)}` });
     setSel(null);
     await load();
   };
@@ -380,7 +368,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     const r = await saveRules(conn.link, entries, rules, show?.rules ?? [], viaBridge);
     setBusy(null);
     if (r.failed.length) setMsg({ text: `Triggers not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
-    else if (r.queued.length) { setMsg({ text: `Triggers saved. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the triggers" }); }
+    else if (r.queued.length) setMsg({ text: `Triggers saved. ${awayText(r.queued)}` });
     else setMsg({ text: "Triggers saved." });
     await load();
   };
@@ -516,13 +504,17 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 </div>
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
                 {saved && saved.unconfirmed.length > 0 && (() => {
-                  const back = saved.unconfirmed.filter((n) => entries[n] && !isMissing(entries[n]));
-                  const away = saved.unconfirmed.filter((n) => !back.includes(n));
+                  const pulling = saved.unconfirmed.filter(catchingUp);
+                  const back = saved.unconfirmed.filter((n) => entries[n] && !isMissing(entries[n]) && !pulling.includes(n));
+                  const away = saved.unconfirmed.filter((n) => !entries[n] || isMissing(entries[n]));
                   return (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, ...mono(500, 11, C.amber) }}>
-                      <span>⚠ {names(saved.unconfirmed)} {saved.unconfirmed.length === 1 ? "hasn't" : "haven't"} confirmed this version yet
-                        {away.length ? ` (${names(away)} not heard right now)` : ""}. The bridge holds it for them.</span>
-                      {back.length > 0 && <button onClick={() => void resend(back)} disabled={!!busy} style={btn(true, !!busy)}>Send to {names(back)} again</button>}
+                      {pulling.length > 0 && <span><Spinner size={10} /> {names(pulling)} {pulling.length === 1 ? "is" : "are"} picking this up from the bridge…</span>}
+                      {away.length > 0 && <span>☾ {names(away)} {away.length === 1 ? "is" : "are"} asleep or out of range — the bridge holds it; {away.length === 1 ? "it picks" : "they pick"} it up when next awake.</span>}
+                      {back.length > 0 && <>
+                        <span>⚠ {names(back)} {back.length === 1 ? "is" : "are"} awake but {back.length === 1 ? "hasn't" : "haven't"} picked this up.</span>
+                        <button onClick={() => void resend(back)} disabled={!!busy} style={btn(true, !!busy)}>Send to {names(back)} now</button>
+                      </>}
                     </div>
                   );
                 })()}

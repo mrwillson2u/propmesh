@@ -9,7 +9,8 @@ import { C } from "../../lib/tokens";
 import { Spinner, mono, sys, Hint } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry, isReachable } from "../../lib/connection";
-import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, streamImage, type Image } from "../../lib/ota";
+import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, type Image } from "../../lib/ota";
+import { useOtaJobs, otaJobs, startMeshUpdate, startWifiUpdate, stopOta, otaBusy, otaStreaming, type Job } from "../../lib/otaJobs";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -24,8 +25,6 @@ const field: React.CSSProperties = {
 };
 
 interface Served { build: string; built?: number; size: number; sha256: string }
-type Job = { state: "sent" | "sending" | "waiting" | "done" | "failed"; since: number; was?: string; upWas?: number; note?: string; progress?: number };
-const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
 export default function OtaPanel({ link, entries }: { link: NodeLink; entries: Record<string, Entry> }) {
   const stored = (() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } })() as Partial<{ url: string; ssid: string; pass: string; mode: string; source: string }>;
@@ -39,18 +38,11 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   // Other boards' images (a HUZZAH32 needs its own build), fetched on demand.
   const images = useRef(new Map<string, Image>());
   const [imageErr, setImageErr] = useState<string | null>(null);
-  const stops = useRef(new Map<string, { stop: boolean }>());
   const [url, setUrl] = useState(stored.url ?? "");
   const [ssid, setSsid] = useState(stored.ssid ?? "");
   const [pass, setPass] = useState(stored.pass ?? "");
   const [served, setServed] = useState<Served | null | "checking" | "error">(null);
-  const [jobs, setJobs] = useState<Record<string, Job>>({});
-  const jobsRef = useRef(jobs);
-  jobsRef.current = jobs;
-  // The connection store re-renders every second; the checker below must
-  // outlive renders, so it reads the latest entries through a ref.
-  const entriesRef = useRef(entries);
-  entriesRef.current = entries;
+  const jobs = useOtaJobs();  // transfers live in lib/otaJobs, so leaving this panel doesn't stop one
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ url, ssid, pass, mode, source })); } catch { /* private mode */ } }, [url, ssid, pass, mode, source]);
 
   const known = Object.values(entries).filter(isReachable)
@@ -66,13 +58,18 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   // mesh image (resumable), or a WiFi download under way.
   const [onBoard, setOnBoard] = useState<Record<string, { state: string; progress: number; written: number }>>({});
   const knownKey = known.map((e) => e.node).join(",");
+  // The connection store re-renders every second; the poll below must
+  // outlive renders, so it reads the latest entries through a ref.
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
   // Asked again every 5 s — a once-only read went stale and showed a
   // finished/dropped transfer as still running (2026-10-10).
   useEffect(() => {
     let live = true;
     const ask = () => {
       for (const en of Object.values(entriesRef.current).filter(isReachable)) {
-        if (jobsRef.current[en.node]?.state === "sending") continue;  // our own transfer: don't add traffic
+        if (otaJobs()[en.node]?.state === "sending") continue;  // our own transfer: don't add traffic
+        if (isMissing(en)) continue;  // asleep or away: the request would only sit on the bridge
         target(link, en.usb ? null : en.node).request("ota_status").then((r) => {
           if (!live || !r.ok) return;
           setOnBoard((m) => ({ ...m, [en.node]: { state: r.state as string, progress: (r.progress as number) ?? 0, written: (r.written as number) ?? -1 } }));
@@ -126,42 +123,9 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, source, homeBoard, known.length > 0]);
 
-  // A board that was sent an update is done when its hello shows a
-  // different build; it goes quiet (missing) while it downloads and reboots.
-  useEffect(() => {
-    const t = setInterval(() => {
-      const now = Date.now();
-      let changed = false;
-      const next = { ...jobsRef.current };
-      for (const [node, j] of Object.entries(next)) {
-        if (j.state === "done" || j.state === "failed") continue;
-        const en = entriesRef.current[node];
-        const build = en?.hello?.build;
-        // Done when the board is back with a different build, or back on
-        // probation, or its uptime restarted — the same build sent again
-        // (2026-10-11: a real, confirmed update read "didn't come back"
-        // because the build id hadn't changed and the 10 s download never
-        // made the board look missing).
-        const rebooted = en?.hello?.pending || (j.upWas !== undefined && en?.hb !== undefined && en.hb.up < j.upWas);
-        if (en && build && (build !== j.was || rebooted)) { next[node] = { ...j, state: "done", note: build !== j.was ? `now ${build}` : `restarted on ${build}` }; changed = true; }
-        else if (j.state === "sent" && en && isMissing(en, now)) { next[node] = { ...j, state: "waiting" }; changed = true; }
-        else if (j.state !== "sending" && now - j.since > CAME_BACK_MS) { next[node] = { ...j, state: "failed", note: "didn't come back with a new build — check its serial log" }; changed = true; }
-      }
-      if (changed) setJobs(next);
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
   const update = async (node: string) => {
     const en = entries[node];
     if (!en) return;
-    const t = target(link, en.usb ? null : node);
-    const failed = (note: string) => setJobs((j) => ({ ...j, [node]: { state: "failed", since: Date.now(), note: explain(note) } }));
-    // A board running firmware from before mesh updates existed doesn't
-    // know ota_begin; it needs one update by USB (or over WiFi) first.
-    const explain = (note: string) => /unknown command|unknown cmd/i.test(note)
-      ? "this board's firmware predates mesh updates — update it once over USB or WiFi, then the mesh works"
-      : note;
     if (mode === "mesh") {
       if (typeof image !== "object" || !image) return;
       // A board of another profile than the loaded image: fetch its own.
@@ -173,28 +137,24 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           try {
             img = images.current.get(board) ?? await fetchImage(own);
             images.current.set(board, img);
-          } catch (e) { failed(`no image for ${board}: ${(e as Error).message}`); return; }
+          } catch (e) { setImageErr(`no image for ${board}: ${(e as Error).message}`); return; }
         }
       }
-      const sig = { stop: false };
-      stops.current.set(node, sig);
-      setJobs((j) => ({ ...j, [node]: { state: "sending", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up, progress: 0 } }));
-      try {
-        await streamImage(t, img, (w, total) => setJobs((j) => ({ ...j, [node]: { ...j[node], progress: w / total, since: Date.now() } })), sig);
-        // Accepted and verified: it reboots now; the checker waits for it to come back.
-        setJobs((j) => ({ ...j, [node]: { ...j[node], state: "waiting", since: Date.now(), progress: 1 } }));
-      } catch (e) { failed((e as Error).message); }
+      void startMeshUpdate(link, node, en.usb, img, en.hello?.build, en.hb?.up);
       return;
     }
-    setJobs((j) => ({ ...j, [node]: { state: "sent", since: Date.now(), was: en.hello?.build, upWas: en.hb?.up } }));
-    try {
-      const r = await t.request("ota", { url: en.hello?.board ? imageUrlFor(url, en.hello.board) : url, ssid, pass });
-      if (!r.ok) failed(r.error ?? "refused");
-    } catch (e) { failed((e as Error).message); }
+    void startWifiUpdate(link, node, en.usb, en.hello?.board, url, ssid, pass, en.hello?.build, en.hb?.up, typeof served === "object" && served ? served.build : undefined);
   };
   // Everyone but the USB board: that one takes the console down with it,
   // so it gets its own click, last.
-  const updateAll = async () => { for (const en of known) if (!en.usb) await update(en.node); };
+  const updateAll = async () => {
+    for (const en of known) {
+      if (en.usb) continue;
+      await update(en.node);
+      // Over the mesh, one at a time: wait for this one's transfer to end.
+      if (mode === "mesh") while (otaStreaming() === en.node) await new Promise((r) => setTimeout(r, 500));
+    }
+  };
 
   const servedBuild = mode === "mesh"
     ? (typeof image === "object" && image ? image.build : null)
@@ -207,11 +167,11 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const newerThanServed = (en: Entry) => !!en.hello?.built && !!servedBuilt && en.hello.built > servedBuilt;
   const branchOf = (build: string) => { const m = build.match(/@(.+)$/); return m ? m[1] : null; };
   const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
-  const busy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
+  const busy = (j?: Job) => otaBusy(j);
   // Over the mesh one image streams at a time — the bridge can carry no
   // more — so while one is sending, every other Update is off (2026-10-23).
   // Over WiFi the boards fetch their own images, so several at once is fine.
-  const streaming = mode === "mesh" ? Object.keys(jobs).find((n) => jobs[n]?.state === "sending") : undefined;
+  const streaming = mode === "mesh" ? otaStreaming() : undefined;
   const oneAtATime = (node: string) => !!streaming && streaming !== node;
   const oneAtATimeNote = streaming ? `one board at a time over the mesh — ${nameOf(streaming)} is being sent now` : undefined;
   const pill = (on: boolean): React.CSSProperties => ({
@@ -316,7 +276,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
                     <span style={{ display: "block", width: `${Math.round((j.progress ?? 0) * 100)}%`, height: "100%", background: C.ember }} />
                   </span>
                   {Math.round((j.progress ?? 0) * 100)} % sent
-                  <button onClick={() => { const s = stops.current.get(en.node); if (s) s.stop = true; }} style={{ ...btn(), height: 22, padding: "0 7px" }}>stop</button>
+                  <button onClick={() => stopOta(en.node)} style={{ ...btn(), height: 22, padding: "0 7px" }}>stop</button>
                 </>
               )}
               {j?.state === "sent" && <><Spinner size={10} /> sent — joining WiFi and downloading…</>}

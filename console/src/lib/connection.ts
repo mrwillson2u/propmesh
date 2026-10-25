@@ -445,9 +445,13 @@ export const checkinText = (checkinMs: number | undefined, now = Date.now()) => 
 // What a battery board's cell is doing, from what the console can know
 // (docs/console-nodes-list.md §8): the voltage in its heartbeats, why it
 // last restarted, and whether it has missed its check-ins.
-export const BATT_LOW_MV = 3550;      // ~20 % on the resting curve
-export const BATT_CRITICAL_MV = 3450; // ~10 %
-export const BATT_OUT_MV = 3400;      // below this and quiet: it died
+// On the resting 1S curve the console shows (lib/battery.ts): 20 % is
+// 3.73 V, 10 % is 3.69 V, 5 % is 3.61 V — the first thresholds (3.55 /
+// 3.45 V) sat below 2 % and Candle 2 read "4 %" with no warning at all
+// (2026-10-24). Under load a cell sags, so these err on the early side.
+export const BATT_LOW_MV = 3730;      // 20 %
+export const BATT_CRITICAL_MV = 3690; // 10 %
+export const BATT_OUT_MV = 3550;      // ~2 %: below this and quiet, it died
 export type BatteryLevel = "ok" | "low" | "critical" | "overdue" | "out";
 export interface BatteryState { level: BatteryLevel; mv?: number; text: string; alarm: boolean }
 

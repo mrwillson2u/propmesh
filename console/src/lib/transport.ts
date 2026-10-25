@@ -476,6 +476,7 @@ class SimLink implements NodeLink {
   // the node reports the build the URL named (its last path segment).
   private builds = new Map<string, string>();
   private ota = new Map<string, { until: number; build: string }>();
+  private resets = new Map<string, string>(); // why a node last restarted, for its hello
   private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
   private rx = new Map<string, { size: number; written: number }>(); // an image arriving over the mesh
 
@@ -542,7 +543,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, reset: this.resets.get(node) ?? "power on", bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };
@@ -569,7 +570,12 @@ class SimLink implements NodeLink {
         this.rx.delete(node);
         if (!r) return { ok: false, error: "no update in progress" };
         if (r.written !== r.size) return { ok: false, error: "image incomplete" };
-        this.ota.set(node, { until: Date.now() + 2500, build: String(body.build ?? "meshnew").slice(0, 12) });
+        const sent = String(body.build ?? "meshnew").slice(0, 12);
+        // A test hook: an image named "rollback…" runs, browns out and the
+        // board comes back on the build it had — what a weak supply does.
+        const back = /^rollback/.test(sent) ? this.builds.get(node) ?? "sim0001" : sent;
+        if (back !== sent) this.resets.set(node, "brownout (supply sagged)");
+        this.ota.set(node, { until: Date.now() + 2500, build: back });
         return { ok: true };
       }
       case "ota_abort":

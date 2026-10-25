@@ -15,6 +15,7 @@ import PinEditor from "./PinEditor";
 import FloodsPanel from "./FloodsPanel";
 import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
+import { useOtaJobs } from "../../lib/otaJobs";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
   useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd } from "../../lib/connection";
@@ -56,6 +57,7 @@ export default function MeshPanel() {
   const [showHidden, setShowHidden] = useState(false); // hidden boards shown for a look
   const [askHide, setAskHide] = useState<Entry | null>(null); // a sleeping board about to be hidden
   const [arrange, setArrange] = useState(false); // the order is being changed
+  const otaJobs = useOtaJobs(); // an update in progress shows on the board's row
   const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
   const link = conn?.link ?? null;
   const entries = conn?.entries ?? {};
@@ -172,6 +174,9 @@ export default function MeshPanel() {
     else if (missing) facts.push(<span key="m" style={{ color: C.red }}>not heard for {ago(now - en.seen)}</span>);
     else if (en.hb && !en.usb) facts.push(<span key="r">{en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · {en.hb.rssi} dBm</span>);
     if (listening) facts.push(<span key="l" title="listening in windows between cues">☾ {en.hb!.listen} ms</span>);
+    const job = otaJobs[en.node];
+    if (job && job.state !== "done") facts.push(<span key="o" style={{ color: job.state === "failed" ? C.red : C.emberT, fontWeight: 700 }}>
+      {job.state === "sending" ? `↑ updating ${Math.round((job.progress ?? 0) * 100)} %` : job.state === "failed" ? "✕ update failed" : "↑ update sent — rebooting…"}</span>);
     const mv = en.hb?.batt || en.lastBatt;
     if (battery && mv) facts.push(<span key="v" style={{ color: battColor }}>{battText(mv)}</span>);
     const fc = battery && conn ? batteryForecast(en, nextShowEnd(conn, now), now) : null;

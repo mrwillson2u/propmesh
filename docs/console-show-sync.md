@@ -110,6 +110,90 @@ one. The sequence pickers and the Yard take the copy the same way, so
 flood steps in a saved sequence keep their track while no sender is up
 (saving such a sequence still refuses, correctly, until a board sends).
 
+## 3c. Catching up is automatic; the console follows (2026-10-24, late)
+
+Colin: "Can the bridge automatically send a node the saved sequence
+when it connects rather than me having to press send?" It already does
+(§1, generic-boards §6k) — and the yard proved it tonight: the bridge
+held Sequence 1 (`pull_index` for each candle: `at 1792895666`), and
+Candle 4 and Candle 6 both pulled it by themselves, Candle 6 after a
+reboot; their `show_synced` equals the bridge's. "Send again" was only
+ever the backstop. What was missing was the console noticing.
+
+**Now:** every board's hello carries `show_synced`, and lib/connection
+re-asks hellos every 15 s. The Sequences view keys its reload on the
+set of boards' stamps (`syncKey`): when any stamp moves — a board
+pulled its part — the show is read again, and the message says "X
+picked up the saved show." The bridge's own stamp is the newest edit it
+holds, so a heard board below it is *catching up*; the ⚠ line shows a
+spinner for those, "asleep — picks it up when next awake" for the ones
+not heard, and the "Send now" button only for a board awake and still
+behind. The save-scoped watcher (which polled hellos itself and was
+lost on a tab change) is gone.
+
+## 3d. Firmware updates run in the background (2026-10-24, late)
+
+Colin: "Is there a reason I have to stay on the firmware page for the
+firmware to upload? Is the bridge not able to do other things?" The
+bridge was never the limit. A mesh update is the **console** streaming
+the image through the bridge in 2.7 KB chunks, and that loop lived in
+the Firmware panel's component: leaving the panel unmounted it and the
+transfer stopped (the board kept the part it had; Update resumed it).
+
+**Now:** transfers and the "did it come back" check live in
+`lib/otaJobs.ts`, a store outside any view. The panel reads it; so does
+the node list, whose row shows "↑ updating 42 %" / "↑ update sent —
+rebooting…" / "✕ update failed" while one is on. Leaving the panel,
+opening a board's page, the Yard — the transfer goes on. Only a page
+reload stops it (and then Update resumes from the board's `written`).
+Simulator: start → leave the panel → list shows progress → come back
+to "✓ updated — now meshnew01" (2026-10-24 pass 5).
+
+**Rollback read as success (Colin, Candle 1).** Candle 1 took the new
+image, rebooted, browned out (`hello.reset` "brownout (supply
+sagged)") and rolled back to `da2db50`; the checker saw a restart on a
+build it knew and said "✓ updated — restarted on da2db50". That branch
+was for *re-sending the same build*. Now the job remembers the build
+it sent: back on the old build after a different one was sent is
+"✕ rolled back to da2db50 — the new image didn't run 20 s (restart:
+brownout (supply sagged)); a weak supply usually, check its power".
+Simulated with an image named `rollback…` (the sim's test hook).
+
+**"Boards are sleeping while I send the update."** The firmware holds a
+board awake 10 min on every non-background request, `ota_begin` and
+each `ota_data` included, and `pm_sleep_loop` never sleeps while an OTA
+is downloading (`pm_api.cpp`, `pm_sleep.cpp`). A board does not go to
+sleep mid-transfer. What it can do is **brown out**: Candle 1 did (its
+rollback above), and Candle 2 was at 3.58 V (4 %) while its update ran
+— a cell that low sags under the flash writes. That is the "connection
+dropped", and it is also why the battery thresholds were wrong: 3.55 /
+3.45 V sit below 2 % on the curve; they are now 3.73 / 3.69 V (20 % /
+10 %), so Candle 2 reads "battery critical" (console-nodes-list §8).
+
+**Bridge heap during the updates:** the watch log's heap minimum fell
+to **17.3 KB** at 20:06 (from 28 KB) while the candles updated, with no
+alloc failures and no radio rebuild. That is the OTA load §6j
+describes; it held, barely. Worth the `heap_win_min` check after any
+change on the bridge path (CLAUDE.md), and an argument for the C6/S3
+bridge.
+
+## 3e. Test passes (2026-10-24, simulator)
+
+Run against the deployed console with Playwright, a planted roster and
+the sim's sleeping board. Pass 1: battery low / critical / ran out? /
+overdue / ok rows, sidebar alarm (3 boards), not-heard mains board,
+hide → "+1 hidden" → forget, name order. Pass 3: Arrange survives a
+reload, sleeping-board hide confirm, save confirmation survives the
+reload, Play after save. Pass 5: an update finishes while the panel is
+closed, the list shows its progress, a rollback reads as failed with
+the brownout; phone: no overflow, list → page → back, the candle card's
+ⓘ drawer, cards fit, the map opens locked, the connect panel's address
+field. Three earlier FAILs were test selectors (a name in a nested span,
+"Hide it" matching the dialog text and its button, "✕" matching the
+list's hide mark), not the console. Not covered by the sim: the
+bridge-copy pull (no `pull_index` in the sim; proved on the yard, §3c)
+and catching-up spinners (the sim's hello has no `sync`).
+
 ## 4. Loops belong to the Show (Colin, 2026-10-24) — proposal, not built
 
 "The ambient loop should be set by the show page because I need to set

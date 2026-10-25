@@ -145,11 +145,13 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 
 - **Sequences save / play audit (2026-10-24 evening):** every
   board-away scenario is listed with before/after in
-  `docs/console-show-sync.md` §2; fixes built and run in the simulator,
-  not yet on the yard (§3 says what to try). Also there: §3b the floods
-  "forgotten" (no sender on the mesh; the bridge's copy now stands in)
-  and §4 **loops as Show rules** (Colin's ask; proposal, waiting on him
-  before the rule format changes).
+  `docs/console-show-sync.md` §2; fixes built and run in the simulator
+  (§3e), the bridge-copy pull proved on the yard (§3c). Also there:
+  §3b the floods "forgotten" (no sender on the mesh; the bridge's copy
+  now stands in), §3d firmware updates running outside the panel and a
+  rollback read as success (Candle 1), and §4 **loops as Show rules**
+  (Colin's ask; proposal, waiting on him before the rule format
+  changes). Bridge heap min hit 17.3 KB during tonight's updates (§3d).
 
 - **"Nothing turned on at the scheduled time" (2026-10-24):** the
   schedule worked — every board armed at sunset−60 — but no board holds

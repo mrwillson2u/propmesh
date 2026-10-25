@@ -338,8 +338,10 @@ show, then sleeps), so the rate is taken over whole days, and a board
 that just got charged (voltage went up) restarts its history.
 
 **Built 2026-10-24 (console):** `batteryState()` in `connection.ts`
-— low < 3.55 V, critical < 3.45 V, overdue = quiet for 3 × check-in
-period (+16 s), ran out? = overdue and last heard < 3.40 V, or overdue
+— low ≤ 3.73 V (20 % on the resting curve), critical ≤ 3.69 V (10 %;
+the first thresholds, 3.55 / 3.45 V, were below 2 % — Candle 2 read
+"4 %" with no warning, 2026-10-24), overdue = quiet for 3 × check-in
+period (+16 s), ran out? = overdue and last heard < 3.55 V, or overdue
 after a brownout restart, or quiet > 36 h. The roster keeps each
 board's last voltage, so a board asleep since last night still shows
 its last reading and can be judged. The row shows the state in amber
