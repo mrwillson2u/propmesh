@@ -70,7 +70,7 @@ export default function ShowView({ section, onConnect }: { section: Section; onC
 }
 
 function Editor({ conn, section }: { conn: Connection; section: Section }) {
-  const { phone } = useLayout();
+  const { phone, landscape } = useLayout();
   const seqSection = section === "sequences";
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(false);
@@ -393,7 +393,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
         <span style={sys(700, 13, C.t1)}>{seqSection ? "Sequences" : "Show"}</span>
-        {seqSection && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
+        {seqSection && !phone && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
         {!seqSection && <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
           ...(!modeKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
@@ -402,30 +402,32 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
             : oneMode === "off" ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t3) }
             : { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }),
         }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>}
-        {!seqSection && <span style={sys(400, 11.5, C.t4)}>
+        {!seqSection && !(phone && landscape) && <span style={{ ...sys(400, 11.5, C.t4), flex: phone ? "1 1 100%" : undefined }}>
           {!modeKnown ? "" : !oneMode ? `Boards disagree: ${modeVals.map((m) => m.mode).join(" / ")} — check their clocks.`
             : statusLine(oneMode, lead)}
           {noClock > 0 && <span style={{ color: C.amber }}> · {noClock} board(s) have no clock</span>}
         </span>}
-        <div style={{ flex: 1 }} />
-        {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
+        {!phone && <div style={{ flex: 1 }} />}
+        {msg && <span style={{ ...mono(500, 11, msg.bad ? C.red : C.green), flex: phone ? "1 1 100%" : undefined }}>{msg.text}</span>}
         {(loading || busy) && <Spinner />}
-        <button onClick={() => void load()} disabled={loading} style={btn(false, loading)}>Reload from boards</button>
-        {!seqSection && <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
+        {/* On a phone the mode buttons are the control: three equal thumb-sized
+            buttons across, then Schedule and Reload as a second row. */}
+        {!seqSection && <span style={{ display: "flex", flex: phone ? (landscape ? "1 1 40%" : "1 1 100%") : undefined }} title="Sets every board now; holds until the schedule's next change">
           {MODES.map((m, i) => {
             const on = oneMode === m;
             return (
               <button key={m} onClick={() => void setMode(m)} disabled={!!busy} title={MODE_HELP[m]} style={{
-                height: 30, padding: "0 12px", cursor: busy ? "default" : "pointer",
+                height: phone ? (landscape ? 36 : 44) : 30, padding: "0 12px", cursor: busy ? "default" : "pointer", flex: phone ? 1 : undefined,
                 borderRadius: i === 0 ? "6px 0 0 6px" : i === MODES.length - 1 ? "0 6px 6px 0" : 0,
                 marginLeft: i ? -1 : 0,
                 background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`,
-                ...sys(600, 11.5, on ? MODE_COLOR[m] : C.t3),
+                ...sys(600, phone ? 14 : 11.5, on ? MODE_COLOR[m] : C.t3),
               }}>{MODE_LABEL[m]}</button>
             );
           })}
         </span>}
-        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
+        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={{ ...btn(schedOpen), ...(phone ? { flex: landscape ? "0 0 auto" : 1, height: 36 } : {}) }}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
+        <button onClick={() => void load()} disabled={loading} style={{ ...btn(false, loading), ...(phone ? { flex: seqSection || landscape ? "0 0 auto" : 1, height: 36, marginLeft: seqSection ? "auto" : undefined } : {}) }} title="Read sequences and triggers from every board again">{phone ? "↻ Reload" : "Reload from boards"}</button>
       </div>
       {!seqSection && schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
 
@@ -436,14 +438,22 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       )}
 
       {show && (
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: phone ? "column" : "row" }}>
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: phone && !landscape ? "column" : "row" }}>
           {/* sequences */}
-          {seqSection && <div style={{ width: phone ? "100%" : 230, maxHeight: phone ? "32vh" : undefined, flex: "none", borderRight: phone ? undefined : `1px solid ${C.b1}`, borderBottom: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
-            <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>
+          {seqSection && <div style={{ width: phone && !landscape ? "100%" : phone ? 180 : 230, flex: "none", borderRight: phone && !landscape ? undefined : `1px solid ${C.b1}`, borderBottom: phone && !landscape ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            {!(phone && !landscape) && <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>}
             {show.sequences.length === 0 && !draft && <div style={{ padding: "4px 14px", ...sys(400, 11.5, C.t4) }}>None yet.</div>}
+            {/* Portrait phone: the sequences as a strip of chips that scrolls sideways, so the editor keeps the height. */}
+            <div style={phone && !landscape ? { display: "flex", gap: 8, padding: "10px 12px", overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "center" } : undefined}>
             {[...show.sequences, ...(draft && !show.sequences.some((s) => s.id === draft.id) ? [draft] : [])].map((s) => {
               const on = s.id === sel;
               const nodes = new Set(s.steps.map((x) => x.node)).size;
+              if (phone && !landscape) return (
+                <div key={s.id} onClick={() => select(s.id)} style={{ flex: "none", padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
+                  <div style={{ ...sys(600, 13, on ? C.emberT : C.t1), whiteSpace: "nowrap" }}>{on && draft ? draft.name || "(unnamed)" : s.name || "(unnamed)"}</div>
+                  <div style={{ ...mono(500, 10.5, s.problems.length ? C.amber : C.t5), whiteSpace: "nowrap" }}>{secs(lengthMs(s))} s{s.problems.length ? " · ⚠" : ""}{!show.sequences.some((x) => x.id === s.id) ? " · not saved" : ""}</div>
+                </div>
+              );
               return (
                 <div key={s.id} onClick={() => select(s.id)} style={{
                   padding: "8px 14px", cursor: "pointer", borderLeft: `3px solid ${on ? C.ember : "transparent"}`,
@@ -457,10 +467,15 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 </div>
               );
             })}
-            <div style={{ padding: "10px 14px" }}>
+            {phone && !landscape && (
+              <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), flex: "none", height: 40 }}
+                title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New</button>
+            )}
+            </div>
+            {!(phone && !landscape) && <div style={{ padding: "10px 14px" }}>
               <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), width: "100%" }}
                 title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New sequence</button>
-            </div>
+            </div>}
           </div>}
 
           {/* Sequences: the editor. Show: the triggers (the graph's row view). */}
@@ -469,8 +484,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: 230, ...sys(700, 13, C.t1) }} />
-                  <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: phone ? undefined : 230, flex: phone ? "1 1 160px" : undefined, minWidth: 0, ...sys(700, phone ? 16 : 13, C.t1) }} />
+                  {!phone && <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>}
                   <label title="Ambient: loops by itself while the show is Ambient or Armed — porch lights, a fog burst every few minutes. Every board repeats its part on the same beat."
                     style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.ambient ? C.amber : C.t4) }}>
                     <Toggle small on={!!draft.ambient} onClick={() => setDraft({ ...draft, ambient: !draft.ambient })} /> Ambient loop
@@ -490,15 +505,17 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                     style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, live ? C.emberT : C.t4) }}>
                     <Toggle small on={live} onClick={() => setLive(!live)} /> Live preview
                   </label>
-                  <div style={{ flex: 1 }} />
+                  {!phone && <div style={{ flex: 1 }} />}
                   {dirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
-                  <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={btn(false, !dirty || !!busy)}>Revert</button>
-                  <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={btn(true, !dirty || !!busy)}>Save to boards</button>
+                  {/* On a phone the actions are their own row: Save and Play wide, the rest small. */}
+                  {phone && <span style={{ flex: "1 1 100%", height: 0 }} />}
+                  <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={{ ...btn(false, !dirty || !!busy), ...(phone ? { height: 40 } : {}) }}>Revert</button>
+                  <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={{ ...btn(true, !dirty || !!busy), ...(phone ? { height: 40, flex: "1 1 auto" } : {}) }}>Save to boards</button>
                   <button onClick={() => void play()} disabled={dirty || !saved || !!busy || bridgeOff}
                     title={dirty ? "Save first" : !saved ? "Not on any board yet — save first" : bridgeOff ? `The show is off on ${nameOf(usbNode ?? "")} (the board the console is on) — switch to Ambient or Armed` : offBoards.length ? `Play now — ${names(offBoards)} ${offBoards.length === 1 ? "is" : "are"} off and won't join in` : "Play on every board now"}
-                    style={btn(false, dirty || !saved || !!busy || bridgeOff)}>▶ Play</button>
+                    style={{ ...btn(false, dirty || !saved || !!busy || bridgeOff), ...(phone ? { height: 40, flex: "1 1 auto" } : {}) }}>▶ Play</button>
                   <button onClick={() => void del()} disabled={!!busy}
-                    style={{ ...btn(false, !!busy), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
+                    style={{ ...btn(false, !!busy), ...(phone ? { height: 40 } : {}), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
                     {confirmDelete ? "Really delete?" : "Delete"}
                   </button>
                 </div>
@@ -610,12 +627,12 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 <button onClick={() => void saveTriggers()} disabled={!rulesDirty || !!busy} style={btn(true, !rulesDirty || !!busy)}>Save triggers</button>
               </div>
               {sensors.length === 0 && (
-                <div style={{ ...sys(400, 12, C.t4), marginTop: 8 }}>
+                <Hint style={{ marginTop: 8 }}>
                   No sensor inputs yet. Assign a pin to <b>Sensor / button input</b> in Nodes &amp; Channels — a PIR on VP/VN/D34/D35 is a good start.
-                </div>
+                </Hint>
               )}
               {graphView && (
-                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: phone ? "60vh" : "calc(100vh - 230px)", minHeight: phone ? 320 : 460 }}>
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: phone ? (landscape ? "calc(100dvh - 215px)" : "60vh") : "calc(100vh - 230px)", minHeight: phone ? (landscape ? 160 : 300) : 460 }}>
                   <LandscapeHint what="graph">The show graph is easier sideways. Turn the phone, or use List for the same rules as rows.</LandscapeHint>
                   <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules}
                     onFire={async (seq) => { try { const r = await conn.link.request("cue", { seq }); return r.ok ? null : (r.error ?? "refused"); } catch (e) { return (e as Error).message; } }} />
@@ -635,7 +652,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
           </div>
 
           {/* activity */}
-          {!seqSection && <div style={{ width: phone ? "100%" : 250, maxHeight: phone ? "40vh" : undefined, flex: "none", borderLeft: phone ? undefined : `1px solid ${C.b1}`, borderTop: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {!seqSection && <div style={{ width: phone && !landscape ? "100%" : phone ? 200 : 250, maxHeight: phone && !landscape ? "40vh" : undefined, flex: "none", borderLeft: phone && !landscape ? undefined : `1px solid ${C.b1}`, borderTop: phone && !landscape ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>ACTIVITY</div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
               {conn.activity.length === 0 && <div style={sys(400, 11.5, C.t5)}>Sensor changes and cues appear here as they happen.</div>}

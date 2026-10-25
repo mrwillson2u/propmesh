@@ -1,6 +1,7 @@
 // Small shared pieces from the handoff's component sheet.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { C, MONO } from "./lib/tokens";
+import { PHONE } from "./lib/layout";
 
 export function Logo({ size = 24 }: { size?: number }) {
   return (
@@ -71,8 +72,8 @@ export function Confirm({ title, children, okLabel = "OK", onOk, onCancel }: {
 // and anything 13 px and up keeps its size. The flag follows the same
 // breakpoint as lib/layout; the app re-renders on that change, so the
 // inline fonts recompute. docs/console-phone.md §9.
-let phoneType = typeof matchMedia !== "undefined" && matchMedia("(max-width: 699px)").matches;
-if (typeof matchMedia !== "undefined") matchMedia("(max-width: 699px)").addEventListener("change", (e) => { phoneType = e.matches; });
+let phoneType = typeof matchMedia !== "undefined" && matchMedia(PHONE).matches;
+if (typeof matchMedia !== "undefined") matchMedia(PHONE).addEventListener("change", (e) => { phoneType = e.matches; });
 const px = (size: number): number => (!phoneType || size >= 13) ? size : Math.min(13, Math.max(12.5, size + 1.5));
 
 export const mono = (weight: number, size: number, color: string) =>
@@ -89,7 +90,7 @@ export function Hint({ children, style }: { children: ReactNode; style?: CSSProp
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState(phoneType);
   useEffect(() => {
-    const m = matchMedia("(max-width: 699px)"); const on = () => setPhone(m.matches);
+    const m = matchMedia(PHONE); const on = () => setPhone(m.matches);
     m.addEventListener("change", on); return () => m.removeEventListener("change", on);
   }, []);
   if (!phone) return <div style={{ ...sys(400, 11.5, C.t5), lineHeight: 1.5, ...style }}>{children}</div>;

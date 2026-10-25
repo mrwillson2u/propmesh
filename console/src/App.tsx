@@ -149,7 +149,7 @@ export default function App() {
   };
 
 
-  const { phone } = useLayout();
+  const { phone, landscape } = useLayout();
   const views = (
     <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
           {view === "Yard" && (demo
@@ -198,7 +198,7 @@ export default function App() {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100dvh", width: "100%", background: C.bg, color: C.t1, overflow: "hidden" }}>
         <div style={{ flex: "none", paddingTop: "env(safe-area-inset-top)", background: C.panel, borderBottom: `1px solid ${C.b2}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", minHeight: 60 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: landscape ? "4px 12px" : "8px 12px", minHeight: landscape ? 44 : 60 }}>
             <Logo size={22} />
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
               <div style={{ ...mono(700, 11.5, allOff ? C.t4 : C.emberT), letterSpacing: ".08em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{modeText}</div>
@@ -246,7 +246,7 @@ export default function App() {
             const active = v.name === view;
             return (
               <button key={v.name} onClick={() => setView(v.name)} style={{
-                height: 56, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                height: landscape ? 40 : 56, display: "flex", flexDirection: landscape ? "row" : "column", alignItems: "center", justifyContent: "center", gap: landscape ? 6 : 3,
                 background: "none", border: "none", borderTop: `2px solid ${active ? C.ember : "transparent"}`,
                 color: active ? C.emberT : C.t3, font: `${active ? 600 : 500} 10.5px system-ui`, WebkitTapHighlightColor: "transparent",
               }}>

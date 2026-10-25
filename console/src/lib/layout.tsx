@@ -1,12 +1,14 @@
 // Which layout a screen gets, and which way it is held (docs/console-phone.md).
-// One breakpoint: under 700 px wide is the phone layout — a bottom tab bar,
-// a STOP ALL bar across the top, panels as sheets. At and above it the
-// laptop layout stands, tablets included. Everything reads this hook; the
+// One breakpoint: under 700 px wide, OR a touch screen under 520 px tall
+// (a phone held sideways is 844 px wide and was getting the laptop
+// layout, 2026-10-25), is the phone layout — a bottom tab bar, a STOP
+// ALL bar across the top, panels as sheets. Otherwise the laptop layout
+// stands, tablets included. Everything reads this hook; the
 // app styles inline, so there is no stylesheet to fork.
 import { useEffect, useState, type ReactNode } from "react";
 import { C, MONO } from "./tokens";
 
-const PHONE = "(max-width: 699px)";
+export const PHONE = "(max-width: 699px), ((pointer: coarse) and (max-height: 520px))";
 const LANDSCAPE = "(orientation: landscape)";
 
 export interface Layout { phone: boolean; landscape: boolean }

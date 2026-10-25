@@ -11,6 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { C, MONO } from "../../lib/tokens";
 import { mono, sys, NumberInput } from "../../ui";
+import { useLayout } from "../../lib/layout";
 import type { Activity } from "../../lib/connection";
 import { lengthMs, type Rule, type Show } from "../../lib/show";
 import { FLOODS } from "../../lib/floods";
@@ -307,25 +308,30 @@ function Canvas({ rules, show, sensors, nameOf, activity, onChange, onFire }: Pr
   };
 
   const palette: [string, BlockKind[]][] = [["TRIGGERS", ["sensor", "after"]], ["LOGIC", ["delay", "cooldown", "lockout", "pick"]], ["ACTIONS", ["action"]]];
+  // On a phone the palette is one strip of chips above the canvas (tap
+  // adds a block; there is no drag on touch) and the canvas gets the rest.
+  const { phone } = useLayout();
   return (
-    <div style={{ display: "flex", flex: 1, minHeight: 460, border: `1px solid ${C.b2}`, borderRadius: 8, overflow: "hidden" }}>
-      <div style={{ width: 176, flex: "none", background: C.panel, borderRight: `1px solid ${C.b2}`, padding: 10, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: phone ? "column" : "row", flex: 1, minHeight: phone ? 300 : 460, border: `1px solid ${C.b2}`, borderRadius: 8, overflow: "hidden" }}>
+      <div style={phone
+        ? { flex: "none", background: C.panel, borderBottom: `1px solid ${C.b2}`, padding: "8px 10px", display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch" }
+        : { width: 176, flex: "none", background: C.panel, borderRight: `1px solid ${C.b2}`, padding: 10, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         {palette.map(([cat, kinds]) => (
-          <div key={cat}>
-            <div style={{ font: "700 9.5px system-ui", letterSpacing: ".1em", color: C.t5, marginBottom: 6 }}>{cat}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div key={cat} style={phone ? { display: "flex", gap: 6, flex: "none" } : undefined}>
+            {!phone && <div style={{ font: "700 9.5px system-ui", letterSpacing: ".1em", color: C.t5, marginBottom: 6 }}>{cat}</div>}
+            <div style={{ display: "flex", flexDirection: phone ? "row" : "column", gap: phone ? 6 : 4 }}>
               {kinds.map((k) => (
-                <div key={k} onClick={() => add(k)} title={BLOCK_HELP[k]} draggable
+                <div key={k} onClick={() => add(k)} title={BLOCK_HELP[k]} draggable={!phone}
                   onDragStart={(e) => { e.dataTransfer.setData("application/propmesh-block", k); e.dataTransfer.effectAllowed = "move"; }}
-                  style={{ padding: "7px 9px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(600, 11.5, C.t2), cursor: "grab" }}>{BLOCK_LABEL[k]}</div>
+                  style={{ padding: phone ? "9px 12px" : "7px 9px", whiteSpace: "nowrap", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6, ...sys(600, phone ? 13 : 11.5, C.t2), cursor: phone ? "pointer" : "grab" }}>+ {BLOCK_LABEL[k]}</div>
               ))}
             </div>
           </div>
         ))}
-        <div style={{ flex: 1 }} />
-        <div style={{ font: "400 10.5px/1.5 system-ui", color: C.t6 }}>
+        {!phone && <div style={{ flex: 1 }} />}
+        {!phone && <div style={{ font: "400 10.5px/1.5 system-ui", color: C.t6 }}>
           Drag a block onto the canvas (or click it), then drag the dots to wire them left → right. A chain is one trigger rule, stored on the trigger's board. <b>▶ sim</b> on a trigger runs its chain now. Save with <b>Save triggers</b>.
-        </div>
+        </div>}
       </div>
       <div style={{ flex: 1, minWidth: 0, position: "relative", background: C.bg }} onDrop={onDrop} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}>
         {simMsg && (
