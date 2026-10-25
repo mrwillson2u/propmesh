@@ -5,7 +5,7 @@
 // same list), and so a view switch or a dev hot reload can't close the
 // port. Only Disconnect, an unplug, or leaving the page ends it.
 import { useSyncExternalStore } from "react";
-import { target, type Heartbeat, type NodeHello, type NodeLink, editStamp } from "./transport";
+import { target, type Heartbeat, type NodeHello, type NodeLink, editStamp, rememberBridgeIp } from "./transport";
 import { clockBody, type Mode } from "./schedule";
 
 // A node not heard for three heartbeats is shown as missing.
@@ -320,6 +320,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       link.request("mesh").then((r) => {
         if (!r.ok || !current) return;
         current = { ...current, local: r as unknown as LocalMesh };
+        rememberBridgeIp((r as unknown as LocalMesh).ip);
         changed();
       }).catch(() => {
         // Didn't answer: don't keep showing the last good state as if current.

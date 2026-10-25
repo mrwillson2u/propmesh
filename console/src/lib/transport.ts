@@ -328,8 +328,35 @@ class WsLink extends LineLink {
 
 export const DEFAULT_WIFI_URL = "ws://propmesh.local:81";
 
+// The bridge's LAN address, as its `mesh` status last reported it. An
+// mDNS name (propmesh.local) resolves only on the home network; from a
+// phone on Tailscale (the server routes the LAN) the name fails and the
+// IP works — so a .local address that fails is retried at the last IP.
+const IP_KEY = "propmesh.bridge.ip";
+export function rememberBridgeIp(ip: string | undefined) {
+  if (!ip) return;
+  try { localStorage.setItem(IP_KEY, ip); } catch { /* private mode */ }
+}
+export function bridgeIp(): string | null {
+  try { return localStorage.getItem(IP_KEY); } catch { return null; }
+}
+
 // Connect to a bridge on WiFi. `address` may be a host, host:port, or a ws:// URL.
 export async function connectWifi(address: string): Promise<{ link: NodeLink; hello: NodeHello }> {
+  try {
+    return await connectWifiOnce(address);
+  } catch (e) {
+    // A name that didn't resolve or answer: the bridge's last known IP,
+    // if there is one and the address wasn't already an IP.
+    const ip = bridgeIp();
+    if (!ip || /^\d+\.\d+\.\d+\.\d+/.test(address.replace(/^wss?:\/\//, "")) || address.includes(ip)) throw e;
+    try {
+      const r = await connectWifiOnce(`ws://${ip}:81`);
+      return r;
+    } catch { throw e; }  // the original error names the address the user typed
+  }
+}
+async function connectWifiOnce(address: string): Promise<{ link: NodeLink; hello: NodeHello }> {
   let url = address.trim() || DEFAULT_WIFI_URL;
   if (!/^wss?:\/\//.test(url)) url = "ws://" + url;
   if (!/:\d+$/.test(url.replace(/\/$/, ""))) url = url.replace(/\/$/, "") + ":81";

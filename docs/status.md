@@ -284,6 +284,18 @@ tunnel for that). No login: anyone on the home network can open it.
 - Service: `~/.config/systemd/user/propmesh-console.service`
   (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
   at boot). `systemctl --user status propmesh-console`.
+- **From anywhere, over Tailscale (checked 2026-10-24):** the server
+  (`ubuntubot`, 100.115.150.41, `ubuntubot.llama-arctic.ts.net`) is a
+  subnet router for 192.168.175.0/24 and the route is approved, so a
+  phone on the tailnet reaches both the console and the bridge. Open
+  **http://100.115.150.41:5180** (or `http://ubuntubot:5180` with
+  MagicDNS). The bridge's mDNS name `propmesh.local` does not resolve
+  off the home network: the console remembers the bridge's LAN IP from
+  its `mesh` status (`propmesh.bridge.ip`) and retries a failed `.local`
+  address there by itself; or type `ws://192.168.175.209:81`. The
+  phone's Tailscale app must have "use subnet routes" on (default on
+  iOS). Web Serial still needs https or localhost, so USB flashing is
+  not possible this way.
 - Update after merging to dev: `~/bin/propmesh-console-update`.
   If Chrome says "address unreachable" for that page while Safari or
   `curl` loads it, quit Chrome fully (Cmd-Q) and reopen: its network

@@ -12,7 +12,7 @@ import { C } from "../../lib/tokens";
 import { LandscapeHint, useLayout } from "../../lib/layout";
 import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
-import { setModeAll, useConnection, type Activity, type Connection, isReachable } from "../../lib/connection";
+import { setModeAll, useConnection, type Activity, type Connection, isReachable, isMissing } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
 import SchedulePanel, { MODE_COLOR } from "./SchedulePanel";
 import { target } from "../../lib/transport";
@@ -131,7 +131,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   const [pending, setPending] = useState<{ nodes: string[]; at: number; what: string } | null>(null);
   const names = (ns: string[]) => ns.map(nameOf).join(", ");
   const awayText = (ns: string[]) =>
-    `${names(ns)} ${ns.length === 1 ? "is" : "are"} off the mesh — the bridge kept a copy and ${ns.length === 1 ? "it picks" : "they pick"} it up when back.`;
+    `${names(ns)} didn't answer (asleep, or out of range) — the bridge holds the edit, and ${ns.length === 1 ? "it picks" : "they pick"} it up when next awake. Or press Send again once ${ns.length === 1 ? "it's" : "they're"} back.`;
   // Watch the boards that were away: when one has caught up (its show_synced
   // has reached the save's stamp), say so and re-read the show.
   useEffect(() => {
@@ -140,7 +140,10 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     const id = setInterval(async () => {
       if (Date.now() - started > 30 * 60_000) { setPending(null); return; }  // stop watching after 30 min
       const caught: string[] = [];
-      await Promise.all(pending.nodes.map(async (n) => {
+      // Only boards heard in the last few seconds are asked: a hello to
+      // a sleeping board just sits on the bridge until it times out.
+      const heard = pending.nodes.filter((n) => { const en = conn.entries[n]; return en && !isMissing(en); });
+      await Promise.all(heard.map(async (n) => {
         try {
           const h = await target(conn.link, n).request("hello");
           const synced = (h.sync as { show_synced?: number } | undefined)?.show_synced ?? 0;
@@ -196,17 +199,23 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
         setSel(keep?.id ?? null);
         setDraft(keep ? sortSteps(structuredClone(keep)) : null);
       }
-      if (sh.unreachable.length) setMsg({ text: `No answer from ${sh.unreachable.map(nameOf).join(", ")} — its part of the show isn't shown.`, bad: true });
+      if (sh.unreachable.length) setMsg({ text: `${names(sh.unreachable)} didn't answer (asleep, or out of range) — ${sh.unreachable.length === 1 ? "its" : "their"} part of the show isn't shown; it reloads when ${sh.unreachable.length === 1 ? "it's" : "they're"} heard again.`, bad: true });
       // A board away but covered by the bridge: say so only when nothing
       // more specific (a save's own message) is already showing.
-      else if (sh.fromBridge.length && !msgRef.current) setMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} off the mesh — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part.` });
+      else if (sh.fromBridge.length && !msgRef.current) setMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} asleep or out of range — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part; it reloads when ${sh.fromBridge.length === 1 ? "it's" : "they're"} heard again.` });
     } finally {
       if (gen === loadGen.current) setLoading(false);
     }
   };
-  // Load once the boards have introduced themselves.
+  // Load once the boards have introduced themselves, and again whenever
+  // the set of boards actually heard changes — a board that was asleep
+  // or out of range for the last load is asked when it is back, so its
+  // pins come into the pickers and its part of a sequence is confirmed
+  // (before, nothing reloaded and a board stayed "not on this board"
+  // for good — Colin, 2026-10-24).
   const knownKey = known.map((e) => e.node).sort().join(",");
-  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey]);
+  const heardKey = known.filter((e) => !isMissing(e)).map((e) => e.node).sort().join(",");
+  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey, heardKey]);
 
   const saved = show?.sequences.find((s) => s.id === sel) ?? null;
   const dirty = !!draft && !sameSequence(draft, saved);
@@ -240,12 +249,18 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     else if (typeof h?.armed === "boolean")  // firmware before 2026-10-09: armed / disarmed by hand
       liveModes[en.node] = { mode: h.armed ? "armed" : "off", reason: h.armed ? "old firmware" : "manual", clock: false, scheduled: false };
   }
+  // A board not heard now (asleep, away) keeps a stale mode in its last
+  // hello: it must not make the show look mixed, nor block Play.
+  for (const en of Object.values(entries)) if (isMissing(en) || en.remembered) delete liveModes[en.node];
   const modeVals = Object.values(liveModes);
   const modeKnown = modeVals.length > 0; // nothing reported yet: don't claim either way
   const oneMode: Mode | null = modeKnown && modeVals.every((m) => m.mode === modeVals[0].mode) ? modeVals[0].mode : null;
-  const anyOff = modeVals.some((m) => m.mode === "off");
+  const offBoards = Object.entries(liveModes).filter(([, m]) => m.mode === "off").map(([n]) => n);
   const usbNode = Object.values(entries).find((e) => e.usb)?.node;
   const lead: ModeStatus | undefined = (usbNode && liveModes[usbNode]) || modeVals[0];
+  // Play sends one cue through the connected board; it refuses only when
+  // that board is off. Other boards that are off just don't play.
+  const bridgeOff = !!lead && lead.mode === "off";
   const noClock = modeVals.filter((m) => m.scheduled && !m.clock).length;
 
   // ---- actions --------------------------------------------------------------
@@ -265,7 +280,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     // Blank: the Timeline offers "Add first track…" (a guessed first
     // output — whatever happened to be first on the first board — was
     // always the wrong one, 2026-10-12).
-    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], problems: [], steps: [] };
+    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], unconfirmed: [], problems: [], steps: [] };
     setSel(id);
     setDraft(seq);
     setOpened((n) => n + 1);
@@ -302,7 +317,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       return;
     }
     if (r.queued.length) {
-      setMsg({ text: `Saved “${draft.name}”. ${awayText(r.queued)}` });
+      const got = [...new Set(steps.map((s) => s.node))].filter((n) => !r.queued.includes(n) && n !== FLOODS);
+      setMsg({ text: `Saved “${draft.name}”${got.length ? ` on ${names(got)}` : ""}. ${awayText(r.queued)}` });
       setPending({ nodes: r.queued, at: r.at, what: `“${draft.name}”` });
     } else setMsg({ text: `Saved “${draft.name}” to ${new Set(steps.map((s) => s.node)).size} board(s).` });
     await load();
@@ -314,10 +330,29 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     try {
       const r = await conn.link.request("cue", { seq: sel });
       if (!r.ok) setMsg({ text: `Couldn't play: ${r.error}`, bad: true });
-      else setPlayingFrom(Date.now() + 200); // the cue's lead time — the playhead then tracks the boards
+      else {
+        setPlayingFrom(Date.now() + 200); // the cue's lead time — the playhead then tracks the boards
+        const mine = new Set(saved?.steps.map((st) => st.node) ?? []);
+        const skipped = [...mine].filter((n) => offBoards.includes(n) || (saved?.unconfirmed ?? []).includes(n) || (entries[n] && isMissing(entries[n])));
+        if (skipped.length) setMsg({ text: `Playing — except on ${names(skipped)}: ${skipped.map((n) => offBoards.includes(n) ? "off" : saved?.unconfirmed.includes(n) ? "hasn't picked up the edit yet" : "not heard").filter((v, i, a) => a.indexOf(v) === i).join(" / ")}.` });
+      }
     } finally {
       setBusy(null);
     }
+  };
+
+  // Resend the saved sequence to the boards that haven't confirmed it
+  // (they were away for the save and are back now).
+  const resend = async (nodes: string[]) => {
+    if (!saved) return;
+    setBusy("save");
+    setMsg(null);
+    const r = await saveSequence(conn.link, entries, saved, show?.floods.senders ?? [], viaBridge, nodes);
+    setBusy(null);
+    if (r.failed.length) setMsg({ text: `Not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
+    else if (r.queued.length) { setMsg({ text: awayText(r.queued) }); setPending({ nodes: r.queued, at: r.at, what: `“${saved.name}”` }); }
+    else setMsg({ text: `${names(nodes)} ${nodes.length === 1 ? "has" : "have"} “${saved.name}” now.` });
+    await load();
   };
 
   const del = async () => {
@@ -465,15 +500,26 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                   {dirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
                   <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={btn(false, !dirty || !!busy)}>Revert</button>
                   <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={btn(true, !dirty || !!busy)}>Save to boards</button>
-                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || anyOff}
-                    title={dirty ? "Save first" : anyOff ? "The show is off on some boards — switch to Ambient or Armed" : "Play on every board now"}
-                    style={btn(false, dirty || !saved || !!busy || anyOff)}>▶ Play</button>
+                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || bridgeOff}
+                    title={dirty ? "Save first" : !saved ? "Not on any board yet — save first" : bridgeOff ? `The show is off on ${nameOf(usbNode ?? "")} (the board the console is on) — switch to Ambient or Armed` : offBoards.length ? `Play now — ${names(offBoards)} ${offBoards.length === 1 ? "is" : "are"} off and won't join in` : "Play on every board now"}
+                    style={btn(false, dirty || !saved || !!busy || bridgeOff)}>▶ Play</button>
                   <button onClick={() => void del()} disabled={!!busy}
                     style={{ ...btn(false, !!busy), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
                     {confirmDelete ? "Really delete?" : "Delete"}
                   </button>
                 </div>
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
+                {saved && saved.unconfirmed.length > 0 && (() => {
+                  const back = saved.unconfirmed.filter((n) => entries[n] && !isMissing(entries[n]));
+                  const away = saved.unconfirmed.filter((n) => !back.includes(n));
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, ...mono(500, 11, C.amber) }}>
+                      <span>⚠ {names(saved.unconfirmed)} {saved.unconfirmed.length === 1 ? "hasn't" : "haven't"} confirmed this version yet
+                        {away.length ? ` (${names(away)} not heard right now)` : ""}. The bridge holds it for them.</span>
+                      {back.length > 0 && <button onClick={() => void resend(back)} disabled={!!busy} style={btn(true, !!busy)}>Send to {names(back)} again</button>}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ marginTop: 12 }}>
                   <LandscapeHint what="timeline">The timeline is easier sideways. Turn the phone for tracks and keyframes; the step table below works either way.</LandscapeHint>
@@ -502,14 +548,14 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                         if (o) patchStep(i, { node: e.target.value, kind: o.kind, index: o.index });
                       }}>
                         {outNodes.map((n) => <option key={n} value={n}>{nameOf(n)}</option>)}
-                        {!outNodes.includes(st.node) && <option value={st.node}>{nameOf(st.node)} (gone)</option>}
+                        {!outNodes.includes(st.node) && <option value={st.node}>{nameOf(st.node)} ({entries[st.node] ? "pins not read yet" : "not on the mesh"})</option>}
                       </select>
                       <select value={`${st.kind}_${st.index}`} style={{ ...field, color: exists ? C.t1 : C.amber }} onChange={(e) => {
                         const o = outs.find((x) => `${x.kind}_${x.index}` === e.target.value);
                         if (o) patchStep(i, { kind: o.kind, index: o.index, value: o.kind === st.kind ? st.value : o.kind === "RELAY" ? 1 : 500 });
                       }}>
                         {outs.map((o) => <option key={`${o.kind}_${o.index}`} value={`${o.kind}_${o.index}`}>{o.kind}_{o.index}{o.label ? ` · ${o.label}` : ""}</option>)}
-                        {!exists && <option value={`${st.kind}_${st.index}`}>{st.kind}_{st.index} (not on this board)</option>}
+                        {!exists && <option value={`${st.kind}_${st.index}`}>{st.kind}_{st.index} ({outputs[st.node] ? "not on this board" : "board not read yet"})</option>}
                       </select>
                       <ValueInput kind={st.kind} value={st.value} onChange={(v) => {
                         patchStep(i, { value: v });
