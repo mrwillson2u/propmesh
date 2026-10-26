@@ -521,3 +521,20 @@ Scripted checks against `presence()` (announced sleep, woke 4 s early,
 real skip after each, a held board): all six as expected. The bench
 check still to do: watch the list across a few slots with the candles
 running and confirm no false "missed".
+
+**Evening: the lantern and Candle 1 "rolled back" (2026-10-26).** Both
+were updated from the console's release, 848c2d7 (published from
+`main`, 2026-10-23). That build has the bug fixed in d9ed9ab: a
+battery board restarts into the new image and sleeps 6 s later, before
+the image confirms at 20 s, so the bootloader puts the old one back at
+the next wake (the lantern in the heartbeat log: restarted 16:32:12,
+one heartbeat at 5 s up, then nothing). Not the battery: both read
+about 4.0–4.1 V. The fix is hosting the newer build, not working
+around the old one in the console. Until the sleep work reaches `main`,
+the branch build is on the server for **My own build**:
+`http://<server>:5180/firmware-test/esp32-c6-supermini/firmware.bin`
+(one URL serves every board type; b171708@check-ins). The rollback
+message no longer says "a weak supply usually": it names the confirm
+and the last restart reason. Candle 1 reports "brownout" as its last
+restart at an ordinary 16:29:52 check-in wake, so that field isn't
+evidence about the update; worth a look on the bench separately.
