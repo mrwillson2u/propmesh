@@ -89,10 +89,16 @@ function startChecker() {
       // board rolled back (Candle 1, 2026-10-24 — read as "✓ updated").
       // Its hello says why it last restarted; a brownout is the usual one.
       const sameAsBefore = !!build && build === j.was && !!j.sent && j.sent !== j.was;
-      if (en && build && sameAsBefore && (rebooted || en.hello?.pending === false)) {
+      // Judge only on a hello from this boot: the restart's first heartbeat
+      // arrives before its fresh hello, and the old one still names the old build.
+      const stale = !!rebooted && !!en?.hb && en.hello?.up_s !== undefined && en.hello.up_s > en.hb.up + 5;
+      if (en && build && !stale && sameAsBefore && (rebooted || en.hello?.pending === false)) {
         const why = en.hello?.reset;
-        set(node, { ...j, state: "failed", note: `rolled back to ${build} — the new image didn't run 20 s${why ? ` (restart: ${why})` : ""}; a weak supply usually, check its power` });
-      } else if (en && build && (build !== j.was || rebooted)) set(node, { ...j, state: "done", note: build !== j.was ? `now ${build}` : `restarted on ${build}` });
+        // A battery board on a build before d9ed9ab sleeps before it
+        // confirms (the lantern and Candle 1 on release 848c2d7, 2026-10-26);
+        // a crash or a sagging supply are the other reasons.
+        set(node, { ...j, state: "failed", note: `rolled back to ${build} — the new image restarted before it was confirmed (20 s up)${why ? `; last restart: ${why}` : ""}` });
+      } else if (en && build && !stale && (build !== j.was || rebooted)) set(node, { ...j, state: "done", note: build !== j.was ? `now ${build}` : `restarted on ${build}` });
       else if (j.state === "sent" && en && isMissing(en, now)) set(node, { ...j, state: "waiting" });
       else if (j.state !== "sending" && now - j.since > CAME_BACK_MS) set(node, { ...j, state: "failed", note: "didn't come back with a new build — check its serial log" });
     }
