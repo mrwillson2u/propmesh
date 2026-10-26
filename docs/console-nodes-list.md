@@ -499,3 +499,25 @@ worked. Three follow-ups, built the same day:
 Simulator: all pass (asleep within one heartbeat of going to sleep;
 3 quiet boards marked off in one press; the sleeper left alone; survives
 a reload).
+
+**Afternoon: "missed check-in" on boards that hadn't missed one
+(2026-10-26).** Colin saw battery boards flagged as missing check-ins
+again and again. Two causes, both in the console's `presence()`:
+
+- **The SLEEPING announcement made every check-in look missed.** To show
+  a board asleep at once, the console back-dated its last-heard time by
+  17 s. A board goes to sleep ~8 s after its slot, so that put it
+  *before* the slot it had just checked in for, and 20 s later the slot
+  counted as missed. Now `seen` keeps the real time and a separate
+  `sleptAt` makes the board quiet (`isMissing`). This only affects
+  boards running the SLEEPING firmware (5fc6548).
+- **Waking early counted as a miss.** A board wakes up to its guard
+  early (`pm_checkin.h`: 1 + 1 % of the period on an uncorrected clock,
+  4 s for 5 min) and may send its only heartbeat before the slot. Now a
+  board heard up to 20 s (`SLOT_MARGIN_MS`) before a slot counts for
+  that slot, and the same applies to the peers that did check in.
+
+Scripted checks against `presence()` (announced sleep, woke 4 s early,
+real skip after each, a held board): all six as expected. The bench
+check still to do: watch the list across a few slots with the candles
+running and confirm no false "missed".
