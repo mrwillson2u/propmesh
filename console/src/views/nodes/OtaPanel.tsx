@@ -10,7 +10,7 @@ import { Spinner, mono, sys, Hint } from "../../ui";
 import { directLabel, target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry, isReachable } from "../../lib/connection";
 import { RELEASE_IS_THIS_SITE, fetchImage, fileImage, imageUrlFor, releaseUrl, type Image } from "../../lib/ota";
-import { useOtaJobs, otaJobs, startMeshUpdate, startWifiUpdate, stopOta, otaBusy, otaStreaming, type Job } from "../../lib/otaJobs";
+import { useOtaJobs, otaJobs, startMeshUpdate, startWifiUpdate, stopOta, otaBusy, otaStreaming, queueMeshUpdate, type Job } from "../../lib/otaJobs";
 
 const KEY = "propmesh.ota";
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -140,6 +140,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           } catch (e) { setImageErr(`no image for ${board}: ${(e as Error).message}`); return; }
         }
       }
+      // Asleep: it updates at its next check-in instead of timing out now.
+      if (sleeping(en)) { queueMeshUpdate(link, node, img, en.hello?.build, en.hb?.up); return; }
       void startMeshUpdate(link, node, en.usb, img, en.hello?.build, en.hb?.up);
       return;
     }
@@ -168,6 +170,8 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
   const branchOf = (build: string) => { const m = build.match(/@(.+)$/); return m ? m[1] : null; };
   const ready = mode === "mesh" ? servedBuild !== null : !!url && !!ssid && servedBuild !== null;
   const busy = (j?: Job) => otaBusy(j);
+  const sleeping = (en: Entry) => !en.usb && en.hello?.power === "battery" && isMissing(en, Date.now());
+  const sleepers = mode === "mesh" ? known.filter((en) => sleeping(en) && !busy(jobs[en.node]) && en.hello?.build !== servedBuild) : [];
   // Over the mesh one image streams at a time — the bridge can carry no
   // more — so while one is sending, every other Update is off (2026-10-23).
   // Over WiFi the boards fetch their own images, so several at once is fine.
@@ -245,6 +249,12 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
           </>
         )}
         <div style={{ flex: 1 }} />
+        {sleepers.length > 0 && (
+          <button onClick={() => { for (const en of sleepers) void update(en.node); }} disabled={!ready} style={btn(false, !ready)}
+            title="Each sleeping board updates at its next check-in, one at a time; keep this console tab open">
+            ⏰ Update {sleepers.length} sleeping board{sleepers.length === 1 ? "" : "s"} when awake
+          </button>
+        )}
         <button onClick={() => void updateAll()} disabled={!ready || !!streaming} title={oneAtATimeNote} style={btn(true, !ready || !!streaming)}>Update all mesh boards</button>
       </div>
 
@@ -279,6 +289,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
                   <button onClick={() => stopOta(en.node)} style={{ ...btn(), height: 22, padding: "0 7px" }}>stop</button>
                 </>
               )}
+              {j?.state === "queued" && <>⏰ update at next check-in{j.note && j.note !== "at its next check-in" ? ` — ${j.note}` : ""} <button onClick={() => stopOta(en.node)} style={{ ...btn(), height: 22, padding: "0 7px" }}>cancel</button></>}
               {j?.state === "sent" && <><Spinner size={10} /> sent — joining WiFi and downloading…</>}
               {j?.state === "waiting" && <><Spinner size={10} /> {mode === "mesh" ? "image accepted — rebooting into it…" : "gone quiet — downloading, then rebooting…"}</>}
               {j?.state === "done" && `✓ updated — ${j.note}`}
@@ -299,7 +310,7 @@ export default function OtaPanel({ link, entries }: { link: NodeLink; entries: R
                 ? "The console's own bridge: it reboots at the end and the console reconnects by itself. Over WiFi is the sturdier way to update this one."
                 : "The USB board reboots at the end; the console usually rides it out (the USB-serial chip stays connected)") : undefined}
               style={btn(false, !ready || busy(j) || oneAtATime(en.node))}>
-              {en.usb ? "Update (last)" : "Update"}
+              {en.usb ? "Update (last)" : mode === "mesh" && sleeping(en) ? "Update when awake" : "Update"}
             </button>,
           ];
         })}

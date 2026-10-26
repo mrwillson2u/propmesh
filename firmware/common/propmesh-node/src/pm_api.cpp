@@ -94,6 +94,7 @@ static void cmd_hello(JsonObject resp) {
     float rate, span;
     if (pm_sleep_battery_rate(&rate, &span)) { resp["batt_mv_per_h"] = rate; resp["batt_span_h"] = span; }  // its own drain measurement (§8)
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
+    if (pm_sleep_hold_left_ms()) resp["hold_s"] = pm_sleep_hold_left_ms() / 1000;  // the setup window or a console hold, seconds left
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }
   resp["ble"] = pm_ble_available();  // false: built without Bluetooth — can't drive floods
@@ -427,7 +428,15 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
   // console is open (2026-10-11).
   if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
     pm_sleep_hold(600000);
-  if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); return; }  // min 0 = release
+  if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); resp["hold_s"] = pm_sleep_hold_left_ms() / 1000; return; }  // min 0 = release
+  // The console's Power off: outputs off, then off until reset or a power
+  // cycle (pm_sleep.h). The console then shows the board as off, not asleep.
+  if (!strcmp(cmd, "power_off")) {
+    if (!pm_sleep_power_off()) { fail(resp, "this board's build can't switch itself off — unplug it"); return; }
+    pm_lastwords_note("power off", req["why"] | "asked over the API");
+    resp["off"] = true;
+    return;
+  }
   // A restart on request: the one cure for a fragmented heap (docs §6j), and
   // the bridge had none when it needed it (2026-10-23). The reply leaves
   // first; pm_lastwords says it was asked for.

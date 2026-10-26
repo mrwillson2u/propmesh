@@ -18,7 +18,8 @@ import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import { useOtaJobs } from "../../lib/otaJobs";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
-  useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd } from "../../lib/connection";
+  useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd,
+  presence, wantsAwake, stayAwakeNext, letSleep, powerOff, STAY_AWAKE_MIN } from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -27,6 +28,56 @@ const btn = (primary = false, disabled = false): React.CSSProperties => ({
   border: `1px solid ${primary ? C.ember : C.b3}`,
   ...sys(600, 11.5, primary ? C.emberT : C.t2),
 });
+
+// "9:40" — minutes and seconds left.
+const mmss = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+// A board's state and what can be done about it, above its page: asleep
+// (stay awake next time), held awake (let it sleep), switched off, or up
+// (power off). docs/console-nodes-list.md §9.
+function BoardBar({ en, conn, now, phone }: { en: Entry; conn: NonNullable<ReturnType<typeof useConnection>>; now: number; phone: boolean }) {
+  const [ask, setAsk] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const missing = isMissing(en, now);
+  const battery = en.hello?.power === "battery";
+  const pres = presence(en, conn, now);
+  const held = !missing && (en.holdUntil ?? 0) > now;
+  const name = en.hello?.name || en.node;
+  const next = nextCheckin(en.hello?.checkin_ms, now);
+  const b = (primary = false): React.CSSProperties => ({ ...btn(primary), ...(phone ? { height: 40 } : {}) });
+  let line: JSX.Element | null = null;
+  if (en.usb) return null;
+  if (pres.kind === "off") line = <span>⏻ Switched off from the console{en.offAt ? ` at ${new Date(en.offAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. It shows up again by itself when it is turned back on.</span>;
+  else if (missing && battery && pres.kind === "asleep") line = (
+    <>
+      <span style={{ flex: "1 1 220px" }}>☾ Asleep{next ? ` — next check-in ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. {wantsAwake(en.node) ? `It will stay awake ${STAY_AWAKE_MIN} min when it checks in, and this page then works.` : "Changes made now wait for it to be awake."}</span>
+      {wantsAwake(en.node)
+        ? <button onClick={() => stayAwakeNext(en.node, false)} style={b()}>Cancel</button>
+        : <button onClick={() => stayAwakeNext(en.node, true)} style={b(true)}>⏰ Stay awake next time</button>}
+    </>
+  );
+  else if (missing) line = <span style={{ color: pres.kind === "missed" ? C.amber : C.red }}>{pres.text || `Not heard for ${ago(now - en.seen)}`}.</span>;
+  else line = (
+    <>
+      <span style={{ flex: "1 1 220px" }}>{held ? `Awake for you — ${mmss((en.holdUntil ?? 0) - now)} left before it goes back to its sleep pattern.` : battery ? "Awake." : "Up."}</span>
+      {held && battery && <button onClick={() => letSleep(en.node)} style={b()}>Let it sleep</button>}
+      <button onClick={() => setAsk(true)} style={b()} title="Switch the board off from here; the list then says off, not asleep">⏻ Power off</button>
+    </>
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 16px", borderBottom: `1px solid ${C.b1}`, background: C.panel, ...sys(400, 12, C.t3) }}>
+      {line}
+      {note && <span style={mono(500, 11, C.amber)}>{note}</span>}
+      {ask && (
+        <Confirm title={`Power off ${name}?`} okLabel="Power off" onCancel={() => setAsk(false)}
+          onOk={async () => { setAsk(false); const r = await powerOff(en.node); setNote(!r.ok ? `couldn't: ${r.error}` : r.unplug ? "This board's build can't switch itself off — unplug it now. It's marked off." : null); }}>
+          Its outputs go off and it stops; it stays off until it is reset or its power is cycled. The list shows it as off rather than asleep, so unplugging it afterwards reads correctly.
+          {battery ? "" : " A board without deep sleep in its build can't switch itself off: it is just marked off, and you unplug it."}
+        </Confirm>
+      )}
+    </div>
+  );
+}
 
 // "3 h", "12 min", "40 s" — how long since a board was heard.
 export function ago(ms: number, short = false): string {
@@ -157,7 +208,13 @@ export default function MeshPanel() {
     const missing = isMissing(en, now);
     const hidden = getRoster().hidden.includes(en.node);
     const battery = en.hello?.power === "battery";
-    const asleep = battery && missing;
+    const pres = conn ? presence(en, conn, now) : { kind: "up" as const, text: "" };
+    // Asleep only while its silence fits its check-in grid; a missed slot
+    // or a switched-off board reads as what it most likely is.
+    const asleep = battery && missing && pres.kind === "asleep";
+    const off = pres.kind === "off";
+    const presColor = pres.kind === "missed" ? C.amber : pres.kind === "off" ? C.t4 : C.red;
+    const held = !missing && (en.holdUntil ?? 0) > now;
     const listening = battery && !missing && !!en.hb?.listen;
     const role = en.usb ? en.hello?.role ?? 0 : en.hb?.role ?? 0;
     const bridge = !!(role & NodeRole.BRIDGE);
@@ -168,15 +225,18 @@ export default function MeshPanel() {
     const facts: JSX.Element[] = [];
     if (!en.hello) facts.push(<span key="c">connecting…</span>);
     if (en.usb) facts.push(<span key="u">{directLabel(link)}</span>);
-    if (batt && batt.level !== "ok") facts.push(<span key="b" style={{ color: battColor, fontWeight: 700 }}>{batt.text}</span>);
+    if (batt && batt.level !== "ok" && !(batt.level === "overdue" && pres.text)) facts.push(<span key="b" style={{ color: battColor, fontWeight: 700 }}>{batt.text}</span>);
     const next = nextCheckin(en.hello?.checkin_ms, now);
     if (asleep) facts.push(<span key="z" style={{ color: C.t4 }}>asleep {ago(now - en.seen, true)}{next ? ` · next ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>);
+    else if (missing && pres.text) facts.push(<span key="m" style={{ color: presColor }}>{pres.text}</span>);
     else if (missing) facts.push(<span key="m" style={{ color: C.red }}>not heard for {ago(now - en.seen)}</span>);
     else if (en.hb && !en.usb) facts.push(<span key="r">{en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · {en.hb.rssi} dBm</span>);
+    if (missing && wantsAwake(en.node)) facts.push(<span key="w" style={{ color: C.emberT }}>⏰ stays awake at next check-in</span>);
+    if (held) facts.push(<span key="h" style={{ color: C.emberT }}>awake for you · {mmss((en.holdUntil ?? 0) - now)} left</span>);
     if (listening) facts.push(<span key="l" title="listening in windows between cues">☾ {en.hb!.listen} ms</span>);
     const job = otaJobs[en.node];
     if (job && job.state !== "done") facts.push(<span key="o" style={{ color: job.state === "failed" ? C.red : C.emberT, fontWeight: 700 }}>
-      {job.state === "sending" ? `↑ updating ${Math.round((job.progress ?? 0) * 100)} %` : job.state === "failed" ? "✕ update failed" : "↑ update sent — rebooting…"}</span>);
+      {job.state === "sending" ? `↑ updating ${Math.round((job.progress ?? 0) * 100)} %` : job.state === "failed" ? "✕ update failed" : job.state === "queued" ? "⏰ update at next check-in" : "↑ update sent — rebooting…"}</span>);
     const mv = en.hb?.batt || en.lastBatt;
     if (battery && mv) facts.push(<span key="v" style={{ color: battColor }}>{battText(mv)}</span>);
     const fc = battery && conn ? batteryForecast(en, nextShowEnd(conn, now), now) : null;
@@ -191,16 +251,17 @@ export default function MeshPanel() {
         style={{
           display: "flex", alignItems: "center", gap: 9, minHeight: phone ? 56 : 44, padding: phone ? "6px 12px" : "5px 10px", cursor: arrange ? "grab" : "pointer",
           background: on ? C.emberBg2 : "transparent", borderLeft: `3px solid ${on ? C.ember : "transparent"}`,
-          borderBottom: `1px solid ${C.b1}`, opacity: hidden ? 0.45 : asleep ? 0.7 : 1, WebkitTapHighlightColor: "transparent",
+          borderBottom: `1px solid ${C.b1}`, opacity: hidden ? 0.45 : asleep || off ? 0.7 : 1, WebkitTapHighlightColor: "transparent",
         }}>
         {en.hello
           ? asleep
             ? <span style={{ ...mono(700, 11, C.t4), width: 14, textAlign: "center", letterSpacing: "-.02em" }}>z<span style={{ fontSize: 8 }}>z</span></span>
-            : <span style={{ width: 8, height: 8, borderRadius: "50%", margin: "0 3px", background: missing ? C.red : batt?.level === "critical" ? C.red : batt?.level === "low" ? C.amber : C.green, flex: "none" }} />
+            : off ? <span style={{ ...mono(700, 12, C.t4), width: 14, textAlign: "center" }}>⏻</span>
+            : <span style={{ width: 8, height: 8, borderRadius: "50%", margin: "0 3px", background: missing ? presColor : batt?.level === "critical" ? C.red : batt?.level === "low" ? C.amber : C.green, flex: "none" }} />
           : <Spinner size={10} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-            <span style={{ ...sys(600, phone ? 14 : 12.5, asleep ? C.t3 : missing ? C.red : en.hello ? C.t1 : C.t3), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{en.hello?.name || en.node}</span>
+            <span style={{ ...sys(600, phone ? 14 : 12.5, asleep || off ? C.t3 : missing ? presColor : en.hello ? C.t1 : C.t3), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{en.hello?.name || en.node}</span>
             {bridge && tag("BRIDGE", C.emberT, C.emberBg)}
             {clock && <span title="Keeps the mesh clock (conductor)" style={mono(600, 11, C.t4)}>⏱</span>}
           </div>
@@ -293,12 +354,7 @@ export default function MeshPanel() {
           </span>
         </div>
       )}
-      {sel?.remembered && sel.hello && (
-        <div style={{ padding: "12px 16px", ...mono(500, 11.5, C.t4), borderBottom: `1px solid ${C.b1}` }}>
-          {sel.hello.power === "battery" ? "Asleep: " : "Not heard this session: "}last heard {ago(now - sel.seen)} ago. What follows is read from the board when it next answers
-          {sel.hello.power === "battery" && sel.hello.checkin_ms ? ` (${checkinText(sel.hello.checkin_ms)})` : ""}.
-        </div>
-      )}
+      {sel && sel.hello && conn && <BoardBar en={sel} conn={conn} now={now} phone={phone} />}
       {sel?.hello && !selBoard && (
         <div style={{ padding: "14px 16px", ...mono(500, 11.5, C.amber) }}>
           {sel.node} runs board profile “{sel.hello.board}”, which this console doesn't know — rebuild it after running tools/genboards.py.

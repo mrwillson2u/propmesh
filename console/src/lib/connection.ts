@@ -36,6 +36,9 @@ export interface Entry {
   // out on the bridge. Cleared by its first heartbeat.
   remembered?: boolean;
   lastBatt?: number; // the last cell voltage heard, mV — from the roster when remembered
+  lastRssi?: number; // the last signal heard, dBm
+  holdUntil?: number; // held awake until (setup window or a console hold), ms; 0 = free to sleep
+  offAt?: number; // switched off from the console, ms
 }
 
 // ---- the roster ---------------------------------------------------------
@@ -51,14 +54,17 @@ export interface RosterEntry {
   hello: NodeHello;
   lastSeen: number; // ms timestamp of the last heartbeat heard by any session here
   batt?: number; // last cell voltage heard, mV (battery boards)
+  rssi?: number; // last signal heard, dBm — a strong signal that stops points at power, a weak one at range
+  offAt?: number; // switched off from the console (Power off), ms; cleared when it is heard again
 }
 export interface Roster {
   boards: Record<string, RosterEntry>;
   hidden: string[];
   order: string[]; // node ids, first to last; ids not listed follow in name order
+  wake: string[]; // "stay awake next time": held the moment they are next heard
 }
 const ROSTER_KEY = "propmesh.roster.";
-const EMPTY_ROSTER: Roster = { boards: {}, hidden: [], order: [] };
+const EMPTY_ROSTER: Roster = { boards: {}, hidden: [], order: [], wake: [] };
 let roster: Roster = EMPTY_ROSTER;
 let rosterKey: string | null = null;
 let rosterDirty = 0;
@@ -67,7 +73,7 @@ function loadRoster(bridgeId: string): Roster {
   rosterKey = ROSTER_KEY + bridgeId;
   try {
     const r = JSON.parse(localStorage.getItem(rosterKey) ?? "null") as Partial<Roster> | null;
-    roster = { boards: r?.boards ?? {}, hidden: r?.hidden ?? [], order: r?.order ?? [] };
+    roster = { boards: r?.boards ?? {}, hidden: r?.hidden ?? [], order: r?.order ?? [], wake: r?.wake ?? [] };
   } catch { roster = { ...EMPTY_ROSTER }; }
   return roster;
 }
@@ -77,11 +83,12 @@ function saveRoster() {
 }
 // Writes are batched: a heartbeat every 5 s from every board would
 // otherwise rewrite the store constantly.
-function remember(node: string, hello: NodeHello | undefined, seen: number, batt?: number) {
+function remember(node: string, hello: NodeHello | undefined, seen: number, batt?: number, rssi?: number) {
   if (!rosterKey) return;
   const prev = roster.boards[node];
   if (!hello && !prev) return;
-  roster = { ...roster, boards: { ...roster.boards, [node]: { node, hello: hello ?? prev!.hello, lastSeen: Math.max(seen, prev?.lastSeen ?? 0), batt: batt || prev?.batt } } };
+  // Heard again: whatever switched it off is over.
+  roster = { ...roster, boards: { ...roster.boards, [node]: { node, hello: hello ?? prev!.hello, lastSeen: Math.max(seen, prev?.lastSeen ?? 0), batt: batt || prev?.batt, rssi: rssi ?? prev?.rssi, offAt: undefined } } };
   if (!rosterDirty) rosterDirty = window.setTimeout(() => { rosterDirty = 0; saveRoster(); }, 2000);
 }
 export const getRoster = () => roster;
@@ -94,7 +101,7 @@ export function hideNode(node: string, hide: boolean) {
 // on its next heartbeat, as any new board would.
 export function forgetNode(node: string) {
   const boards = { ...roster.boards }; delete boards[node];
-  roster = { boards, hidden: roster.hidden.filter((n) => n !== node), order: roster.order.filter((n) => n !== node) };
+  roster = { boards, hidden: roster.hidden.filter((n) => n !== node), order: roster.order.filter((n) => n !== node), wake: roster.wake.filter((n) => n !== node) };
   saveRoster();
   if (current && current.entries[node]?.remembered) {
     const entries = { ...current.entries }; delete entries[node];
@@ -165,6 +172,11 @@ export interface Connection {
 }
 
 type InputCb = (kind: string, index: number, value: number) => void;
+// Every heartbeat from another board, as it arrives: a sleeping board is
+// awake for a few seconds after it, and that is when to ask it things.
+type HeartbeatCb = (node: string, before: Entry | undefined) => void;
+const heartbeatSubs = new Set<HeartbeatCb>();
+export function onHeartbeat(cb: HeartbeatCb) { heartbeatSubs.add(cb); return () => { heartbeatSubs.delete(cb); }; }
 
 let current: Connection | null = null;
 let lastError: string | null = null;
@@ -200,7 +212,7 @@ export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.se
 // connect and their waking changed nothing).
 export const isReachable = (en: Entry) => !!en.hello && !en.remembered;
 // A battery board that has gone quiet is asleep, not lost (docs §6f).
-export const isAsleep = (en: Entry, now = Date.now()) => en.hello?.power === "battery" && isMissing(en, now);
+export const isAsleep = (en: Entry, now = Date.now()) => en.hello?.power === "battery" && isMissing(en, now) && !en.offAt;
 
 // Up / asleep / missing, hidden boards left out. A quiet battery board
 // is asleep, not missing (docs/console-nodes-list.md §3).
@@ -213,6 +225,8 @@ export function counts(c: Connection, now = Date.now()) {
 
 function patch(node: string, p: Partial<Entry>) {
   if (!current) return;
+  // A hello saying the board is held awake: when that hold ends, on this clock.
+  if (p.hello) p = { ...p, holdUntil: p.hello.hold_s ? Date.now() + p.hello.hold_s * 1000 : 0 };
   const prev = current.entries[node] ?? { node, usb: false, seen: 0, firstSeen: Date.now(), helloTries: 0 };
   current = { ...current, entries: { ...current.entries, [node]: { ...prev, ...p } } };
   changed();
@@ -243,7 +257,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
   // any of them has spoken: asleep (battery) or not heard yet (mains).
   for (const r of Object.values(loadRoster(hello.node).boards)) {
     if (r.node === hello.node) continue;
-    current.entries[r.node] = { node: r.node, usb: false, hello: r.hello, seen: r.lastSeen, firstSeen: t, helloTries: 0, remembered: true, lastBatt: r.batt };
+    current.entries[r.node] = { node: r.node, usb: false, hello: r.hello, seen: r.lastSeen, firstSeen: t, helloTries: 0, remembered: true, lastBatt: r.batt, lastRssi: r.rssi, offAt: r.offAt };
   }
   const helloAt = new Map<string, number>([[hello.node, t]]);
   let meshAt = 0;
@@ -269,8 +283,10 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         // blip) — ask again who it is, since its build or role may differ.
         const prev = current.entries[hb.node]?.hb;
         const was = current.entries[hb.node];
-        patch(hb.node, { hb, seen: Date.now(), remembered: false, ...(hb.batt ? { lastBatt: hb.batt } : {}) });
-        remember(hb.node, was?.hello, Date.now(), hb.batt);
+        patch(hb.node, { hb, seen: Date.now(), remembered: false, offAt: undefined, lastRssi: hb.rssi, ...(hb.batt ? { lastBatt: hb.batt } : {}) });
+        remember(hb.node, was?.hello, Date.now(), hb.batt, hb.rssi);
+        heartbeatSubs.forEach((cb) => { try { cb(hb.node, was); } catch { /* a listener's problem */ } });
+        if (roster.wake.includes(hb.node)) holdNow(hb.node);
         // A hidden board that speaks again is back on the list.
         if (roster.hidden.includes(hb.node)) hideNode(hb.node, false);
         if (prev && hb.up < prev.up) refreshHello(hb.node);
@@ -460,6 +476,7 @@ export function batteryState(en: Entry, now = Date.now()): BatteryState | null {
   const mv = en.hb?.batt || en.lastBatt;
   const period = en.hello.checkin_ms ?? 0;
   const quiet = now - en.seen;
+  if (en.offAt) return { level: "ok", mv, text: "", alarm: false };  // switched off on purpose: not a battery problem
   const overdue = period > 0 ? quiet > 3 * period + MISSING_MS : quiet > 6 * 3600000;
   const brownout = !!en.hello.reset && /brownout/i.test(en.hello.reset);
   if ((overdue && mv !== undefined && mv < BATT_OUT_MV) || (overdue && brownout) || quiet > 36 * 3600000)
@@ -524,3 +541,95 @@ export function nextShowEnd(c: Connection, now = Date.now()): number | null {
   }
   return best;
 }
+
+// ---- stay awake next time ---------------------------------------------------
+// A sleeping board is awake for a few seconds at each check-in, too short
+// to catch by hand (Colin, 2026-10-25). "Stay awake next time" puts it on a
+// list; the moment its next heartbeat arrives, the console asks it to hold
+// itself awake for ten minutes, and the normal pin page and Update work.
+// Only while a console is open — which is the only time it is needed.
+export const STAY_AWAKE_MIN = 10;
+export const wantsAwake = (node: string) => roster.wake.includes(node);
+export function stayAwakeNext(node: string, on = true) {
+  roster = { ...roster, wake: on ? [...new Set([...roster.wake, node])] : roster.wake.filter((n) => n !== node) };
+  saveRoster(); changed();
+}
+function holdNow(node: string) {
+  const c = current;
+  if (!c) return;
+  target(c.link, node).request("hold_awake", { min: STAY_AWAKE_MIN }).then((r) => {
+    if (!r.ok) return;
+    stayAwakeNext(node, false);
+    refreshHello(node);  // its hello then carries hold_s, and the row says so
+  }).catch(() => { /* missed this wake; still on the list for the next */ });
+}
+// Let a held board sleep now (the setup window or a console hold).
+export function letSleep(node: string) {
+  const c = current;
+  if (!c) return;
+  stayAwakeNext(node, false);
+  void target(c.link, node).request("hold_awake", { min: 0 }).then(() => refreshHello(node)).catch(() => undefined);
+}
+
+// ---- Power off ----------------------------------------------------------------
+// The board switches itself off (firmware power_off) or, on a build that
+// can't, is just marked; either way the list then says "off", not "asleep",
+// until it is heard again.
+export async function powerOff(node: string): Promise<{ ok: boolean; unplug?: boolean; error?: string }> {
+  const c = current;
+  if (!c) return { ok: false, error: "not connected" };
+  const en = c.entries[node];
+  let unplug = false;
+  try {
+    const r = await target(c.link, en?.usb ? null : node).request("power_off", { why: "Power off in the console" });
+    if (!r.ok) { if (/can't switch itself off/.test(r.error ?? "")) unplug = true; else return { ok: false, error: r.error }; }
+  } catch (e) { return { ok: false, error: (e as Error).message }; }
+  markOff(node);
+  return { ok: true, unplug };
+}
+function markOff(node: string) {
+  const at = Date.now();
+  const prev = roster.boards[node];
+  if (prev) { roster = { ...roster, boards: { ...roster.boards, [node]: { ...prev, offAt: at } } }; saveRoster(); }
+  if (current?.entries[node]) patch(node, { offAt: at, seen: Math.min(current.entries[node].seen, at - MISSING_MS - 1) });
+}
+
+// ---- presence: asleep, off, or out of range ------------------------------------
+// What a quiet board most likely is, from what the console can know
+// (docs/console-nodes-list.md §9). A battery board checks in on a UTC grid
+// (every checkin_ms), so a missed slot is noticed within one period; other
+// boards on the same period wake in the same slot, so if they checked in
+// and this one didn't, it is very unlikely to have overslept. The last
+// signal says which: strong and then nothing points at power (switched
+// off, unplugged, dead), weak points at range.
+export type PresenceKind = "up" | "asleep" | "missed" | "off" | "off?" | "range?" | "out?";
+export interface Presence { kind: PresenceKind; text: string; slot?: number }
+const WEAK_DBM = -82;
+const SLOT_MARGIN_MS = 20000; // a check-in lands within the guard window of its slot
+export function presence(en: Entry, c: Connection, now = Date.now()): Presence {
+  if (en.usb || !isMissing(en, now)) return { kind: "up", text: "" };
+  if (en.offAt) return { kind: "off", text: `switched off ${clock(en.offAt)}` };
+  const rssi = en.hb?.rssi ?? en.lastRssi;
+  const weak = rssi !== undefined && rssi <= WEAK_DBM;
+  const sig = rssi !== undefined ? ` (signal was ${rssi} dBm)` : "";
+  const battery = en.hello?.power === "battery";
+  const period = battery ? en.hello?.checkin_ms ?? 0 : 0;
+  if (!battery || !period) {
+    // A mains board has no reason to be quiet at all.
+    return weak ? { kind: "range?", text: `out of range?${sig}` } : { kind: "off?", text: `off or unplugged?${sig}` };
+  }
+  // The last slot that has passed (plus the margin) since it was heard.
+  const lastSlot = Math.floor((now - SLOT_MARGIN_MS) / period) * period;
+  if (lastSlot <= en.seen) return { kind: "asleep", text: "" };
+  // Every slot boundary after it was last heard, up to and including lastSlot.
+  const missedSlots = Math.floor((lastSlot - en.seen - 1) / period) + 1;
+  const mv = en.hb?.batt || en.lastBatt;
+  if (mv !== undefined && mv < BATT_OUT_MV) return { kind: "out?", text: "ran out?", slot: lastSlot };
+  // Peers on the same period that were heard at or after that slot.
+  const peers = Object.values(c.entries).filter((p) => p.node !== en.node && p.hello?.power === "battery" && p.hello.checkin_ms === period && p.seen >= lastSlot);
+  if (!peers.length && missedSlots < 3) return { kind: "missed", text: `missed check-in at ${clock(lastSlot)}`, slot: lastSlot };
+  return weak
+    ? { kind: "range?", text: `out of range?${sig}`, slot: lastSlot }
+    : { kind: "off?", text: `off or unplugged?${sig}${peers.length ? ` — ${peers.length === 1 ? "another board" : "others"} checked in at ${clock(lastSlot)}` : ""}`, slot: lastSlot };
+}
+const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });

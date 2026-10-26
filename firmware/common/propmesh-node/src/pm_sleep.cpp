@@ -12,6 +12,8 @@ void pm_sleep_apply(const PmNodeConfig &) {}
 void pm_sleep_loop() {}
 void pm_sleep_radio_reapply() { esp_wifi_set_ps(WIFI_PS_NONE); }
 void pm_sleep_hold(uint32_t) {}
+uint32_t pm_sleep_hold_left_ms() { return 0; }
+bool pm_sleep_power_off() { return false; }
 bool pm_sleep_holding() { return true; }
 bool pm_sleep_supported() { return false; }
 uint16_t pm_sleep_listen_ms() { return 0; }
@@ -173,7 +175,9 @@ void pm_sleep_begin() {
       wake_until_ms = millis() + BOOT_DWELL_MS + 2000UL * rtc_guard_s;
     }
   } else {
-    hold_until_ms = millis() + BOOT_DWELL_MS;
+    // Turned on by hand (power or the reset button): a setup window.
+    esp_reset_reason_t why = esp_reset_reason();
+    hold_until_ms = millis() + ((why == ESP_RST_POWERON || why == ESP_RST_EXT) ? PM_SETUP_HOLD_MS : BOOT_DWELL_MS);
   }
 }
 
@@ -213,6 +217,20 @@ void pm_sleep_hold(uint32_t ms) {
   if ((int32_t)(until - hold_until_ms) > 0) hold_until_ms = until;
 }
 bool pm_sleep_supported() { return true; }
+uint32_t pm_sleep_hold_left_ms() {
+  int32_t left = (int32_t)(hold_until_ms - millis());
+  return left > 0 ? (uint32_t)left : 0;
+}
+static uint32_t power_off_at;  // millis() to switch off at; 0 = not asked
+bool pm_sleep_power_off() { power_off_at = millis() + 400; if (!power_off_at) power_off_at = 1; return true; }  // the reply leaves first
+static void power_off_now() {
+  pm_channels_all_off();
+  Serial.println("sleep: switched off by request — reset or power-cycle to start");
+  Serial.flush();
+  delay(50);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+  esp_deep_sleep_start();
+}
 // 0 on a repeater: it is awake through the show, so others needn't send
 // cues early or repeat them into a window.
 uint16_t pm_sleep_listen_ms() { return show_tier && !relay ? interval_ms : 0; }
@@ -336,6 +354,7 @@ static void deep_sleep(uint64_t ms, const char *why) {
 }
 
 void pm_sleep_loop() {
+  if (power_off_at && (int32_t)(millis() - power_off_at) >= 0) power_off_now();
   if (!battery) return;
   // A battery board that stays awake (held, or never off) logs hourly too.
   if (pm_wall().utc_ok && millis() - batt_logged_ms > BATT_LOG_STEP_S * 1000UL) { batt_logged_ms = millis(); batt_log((uint32_t)(pm_wall_utc_ms() / 1000)); }

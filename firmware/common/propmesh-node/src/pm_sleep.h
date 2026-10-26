@@ -21,6 +21,11 @@ void pm_sleep_apply(const PmNodeConfig &cfg);
 void pm_sleep_loop();
 void pm_sleep_radio_reapply();  // after pm_mesh_recover: the driver forgot its power mode and wake window
 void pm_sleep_hold(uint32_t ms);    // keep awake at least this long
+uint32_t pm_sleep_hold_left_ms();   // how much longer a hold keeps it awake (0 = free to sleep)
+// Switch off on request (the console's Power off): outputs off, then deep
+// sleep with no wake source, so only a reset or a power cycle starts it
+// again. False on a build without deep sleep (the DevKit): unplug it.
+bool pm_sleep_power_off();
 bool pm_sleep_holding();
 bool pm_sleep_supported();  // false on a mains-board build (PM_NO_SLEEP)
 uint16_t pm_sleep_listen_ms();  // listen interval while in the show tier, else 0 (heartbeat listen_ms)
@@ -45,3 +50,8 @@ void pm_sleep_note_battery(uint16_t mv);  // main's heartbeat passes the latest 
 // positive = draining (can be ~0 or slightly negative on a flat stretch).
 bool pm_sleep_battery_rate(float *mv_per_h, float *span_h);
 #define PM_BATT_MIN_SPAN_H 20.0f
+// After a power-on (or the reset button) a battery board stays awake this
+// long before its sleep pattern starts, so it can be set up straight away
+// (Colin, 2026-10-26: "it goes to sleep as soon as I turn it on"). A
+// software restart (an update) or a sleep wake gets no grace.
+#define PM_SETUP_HOLD_MS 180000UL

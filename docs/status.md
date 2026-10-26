@@ -52,6 +52,17 @@ on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
+- **Sleep management on a candle (2026-10-26, branch `sleep/check-ins`).**
+  Flash one C6 candle with the branch build. Watch for: (1) after
+  switching it on, its row reads "awake for you · 2:59 left" and it
+  stays reachable 3 min before sleeping; (2) once asleep, **⏰ Stay awake
+  next time** on its page → at its next check-in (≤ 5 min) it reads
+  "awake for you · 10:00 left"; (3) **⏻ Power off** → its LED goes out,
+  the row reads "switched off", and it only comes back with reset or a
+  power cycle; (4) unplug another candle while asleep → within one
+  check-in its row reads "off or unplugged? (signal was …)".
+  `docs/console-nodes-list.md` §9.
+
 - **Battery drain rate on a C6 candle (2026-10-24).** Flash a candle
   with a build from `console/node-list` (or the next dev build), run
   it on its cell for two nights, then `python3 tools/bridge.py ask

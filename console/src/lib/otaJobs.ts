@@ -5,11 +5,11 @@
 // The panel and the node list read this store; the transfer and the
 // "did it come back with the new build" check run here until done.
 import { useSyncExternalStore } from "react";
-import { getConnection, isMissing } from "./connection";
+import { getConnection, isMissing, onHeartbeat, batteryState } from "./connection";
 import { target, type NodeLink } from "./transport";
 import { imageUrlFor, streamImage, type Image } from "./ota";
 
-export type JobState = "sent" | "sending" | "waiting" | "done" | "failed";
+export type JobState = "queued" | "sent" | "sending" | "waiting" | "done" | "failed";
 export interface Job { state: JobState; since: number; was?: string; sent?: string; upWas?: number; note?: string; progress?: number }
 const CAME_BACK_MS = 240000; // a download plus the reboot, generously
 
@@ -34,7 +34,39 @@ export const otaJobs = () => jobs;
 export const otaBusy = (j?: Job) => !!j && j.state !== "failed" && j.state !== "done";
 // Over the mesh one image streams at a time — the bridge can carry no more.
 export const otaStreaming = () => Object.keys(jobs).find((n) => jobs[n]?.state === "sending");
-export function stopOta(node: string) { const s = stops.get(node); if (s) s.stop = true; }
+export function stopOta(node: string) {
+  const s = stops.get(node); if (s) s.stop = true;
+  if (queue.has(node)) { queue.delete(node); const { [node]: _, ...rest } = jobs; jobs = rest; version++; listeners.forEach((l) => l()); }
+}
+
+// ---- update when awake (Colin, 2026-10-26) ----------------------------------
+// A sleeping board is queued; its next heartbeat (it is awake a few
+// seconds) is the moment: if no other transfer is running, it is asked to
+// hold itself awake and the image streams. If one is running, it is left to
+// sleep and tried at its next check-in — the bridge carries one transfer at
+// a time. A board whose battery is critical waits for a charge rather than
+// risk a brownout mid-update (Candles 1 and 2, 2026-10-24). The image stays
+// in this browser: nothing is cached on the bridge, so this works while a
+// console tab is open.
+const queue = new Map<string, { link: NodeLink; img: Image; was?: string; upWas?: number }>();
+let unsub: (() => void) | null = null;
+export function queueMeshUpdate(link: NodeLink, node: string, img: Image, was: string | undefined, upWas: number | undefined) {
+  queue.set(node, { link, img, was, upWas });
+  set(node, { state: "queued", since: Date.now(), was, sent: img.build, upWas, note: "at its next check-in" });
+  if (!unsub) unsub = onHeartbeat((n) => void woke(n));
+}
+async function woke(node: string) {
+  const q = queue.get(node);
+  if (!q) return;
+  if (otaStreaming()) { set(node, (j) => ({ ...(j ?? { state: "queued", since: Date.now() }), note: "another board was updating — next check-in" })); return; }
+  const en = getConnection()?.entries[node];
+  const b = en ? batteryState(en) : null;
+  if (b && (b.level === "critical" || b.level === "out")) { set(node, (j) => ({ ...(j ?? { state: "queued", since: Date.now() }), note: `waiting for a charge (${b.mv ? (b.mv / 1000).toFixed(2) + " V" : "low"})` })); return; }
+  queue.delete(node);
+  if (!queue.size && unsub) { unsub(); unsub = null; }
+  try { await target(q.link, node).request("hold_awake", { min: 15 }); } catch { /* the transfer's own requests hold it too */ }
+  await startMeshUpdate(q.link, node, false, q.img, q.was, q.upWas);
+}
 
 // A board that was sent an update is done when its hello shows a different
 // build; it goes quiet (missing) while it downloads and reboots.
@@ -45,7 +77,7 @@ function startChecker() {
     const now = Date.now();
     let any = false;
     for (const [node, j] of Object.entries(jobs)) {
-      if (j.state === "done" || j.state === "failed") continue;
+      if (j.state === "done" || j.state === "failed" || j.state === "queued") continue;
       any = true;
       const en = c?.entries[node];
       const build = en?.hello?.build;

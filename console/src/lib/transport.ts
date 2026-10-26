@@ -18,6 +18,7 @@ export interface NodeHello {
   sleeps?: boolean; // false: a mains-board build — "On battery" only stops it relaying
   ble?: boolean; // false: built without Bluetooth (the HUZZAH32) — can't drive floods. Absent on firmware before 2026-10-11
   awake?: boolean; // held awake (console or sensor) rather than free to sleep
+  hold_s?: number; // seconds that hold has left (firmware 2026-10-26+): the setup window after power-on, or a console hold
   checkin_ms?: number;
   relay?: boolean; // a battery repeater: relays while the show runs (docs §6m)
   drift_ppm?: number; // its sleep clock's measured error, corrected for (§6m)
@@ -477,6 +478,14 @@ class SimLink implements NodeLink {
   private builds = new Map<string, string>();
   private ota = new Map<string, { until: number; build: string }>();
   private resets = new Map<string, string>(); // why a node last restarted, for its hello
+  private holds = new Map<string, number>();  // a sleeper held awake until (ms), like pm_sleep_hold
+  private offed = new Set<string>();          // switched off by power_off: silent until the page reloads
+  private asleep(node: string): boolean {
+    if (this.offed.has(node)) return true;
+    if (!SIM_REMOTES.find((r) => r.node === node)?.sleeps) return false;
+    if ((this.holds.get(node) ?? 0) > Date.now()) return false;
+    return Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS;
+  }
   private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
   private rx = new Map<string, { size: number; written: number }>(); // an image arriving over the mesh
 
@@ -511,11 +520,12 @@ class SimLink implements NodeLink {
       const o = this.ota.get(r.node);
       if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
       if (o) return; // off the mesh while it downloads and reboots
+      if (this.offed.has(r.node)) return;
       if (r.sleeps) {
         // On the wall clock, like a real board's check-in grid: awake for
         // the first 20 s of every 2 min, so a page opened mid-cycle meets
         // it asleep (and, once remembered, on the list anyway).
-        if (Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) return; // asleep
+        if (this.asleep(r.node)) return; // asleep
       }
       const hb: Heartbeat = {
         node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
@@ -533,7 +543,7 @@ class SimLink implements NodeLink {
     const node = (body.node as string | undefined) ?? SIM_LOCAL;
     const n = this.nodes.get(node);
     // A sleeping board hears nothing: the request times out, as on the mesh.
-    if (SIM_REMOTES.find((r) => r.node === node)?.sleeps && Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) {
+    if (this.asleep(node)) {
       await new Promise((r) => setTimeout(r, 1500));
       return { ok: false, error: `no reply from node ${node}` };
     }
@@ -543,7 +553,7 @@ class SimLink implements NodeLink {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, reset: this.resets.get(node) ?? "power on", bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, reset: this.resets.get(node) ?? "power on", ...((this.holds.get(node) ?? 0) > Date.now() ? { hold_s: Math.round(((this.holds.get(node) ?? 0) - Date.now()) / 1000) } : {}), bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };
@@ -578,6 +588,15 @@ class SimLink implements NodeLink {
         this.ota.set(node, { until: Date.now() + 2500, build: back });
         return { ok: true };
       }
+      case "hold_awake": {
+        const min = (body.min as number | undefined) ?? 10;
+        this.holds.set(node, min ? Date.now() + min * 60000 : 0);
+        return { ok: true, hold_s: min * 60 };
+      }
+      case "power_off":
+        if (node === SIM_LOCAL) return { ok: false, error: "this board's build can't switch itself off — unplug it" };
+        setTimeout(() => this.offed.add(node), 300);
+        return { ok: true, off: true };
       case "ota_abort":
         this.rx.delete(node);
         return { ok: true };

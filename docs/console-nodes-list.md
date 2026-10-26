@@ -381,3 +381,86 @@ draining". Below 20 h of log: nothing.
 on the new build, its hello should carry `batt_mv_per_h`, and the
 Nodes row an estimate; compare the rate with the candle's measured
 drain (§6n). Colin's call on the thresholds and the wording.
+
+## 9. Sleep management (2026-10-26)
+
+Colin: catching a sleeping board in its wake window to change settings
+or update firmware is "really hard"; a board just switched on goes to
+sleep at once; an unplugged board looks asleep for ever. Built on branch
+`sleep/check-ins` (firmware + console), simulator-tested, **not yet on a
+board**.
+
+**Setup window after power-on (firmware).** A battery board turned on by
+hand — power-on or the reset button (`ESP_RST_POWERON` / `ESP_RST_EXT`)
+— holds itself awake 3 min (`PM_SETUP_HOLD_MS`) before its sleep
+pattern starts. A software restart (an update) or a sleep wake gets the
+old 6 s. Hello carries `hold_s`, the seconds any hold has left; the
+board's row reads "awake for you · 2:40 left", and its page has **Let it
+sleep** (`hold_awake {min: 0}`).
+
+**Stay awake next time (console).** On an asleep board's page, **⏰ Stay
+awake next time** puts it on a list (kept in the roster, so it survives
+a reload). The moment its next heartbeat arrives — it is awake a few
+seconds at each check-in — the console sends `hold_awake {min: 10}`,
+and the normal pin page and Update work. No firmware or protocol change:
+the heartbeat is the signal, and the console is the only one that needs
+the board awake, so the hold is asked for only while a console is open
+(nothing wakes a board for nobody).
+
+**Update when awake (console, Colin's idea).** On the Firmware panel a
+sleeping battery board's button reads **Update when awake**, and **⏰
+Update N sleeping boards when awake** queues them all. A queued board's
+next heartbeat starts its update: hold it awake 15 min, stream the image
+(lib/otaJobs `queueMeshUpdate`). Rules: one transfer at a time — if one
+is running, the waking board is left to sleep and tried next check-in;
+a board at **battery critical** or **ran out?** waits "for a charge"
+(Candles 1 and 2 browned out mid-update, 2026-10-24); a transfer cut
+short resumes from the board's `written`. Nothing is cached on the
+bridge (the image is 1.4 MB); the queue lives in the browser, so the
+console tab stays open. Boards on the same period wake in the same
+slot, so with a 5 min check-in and a ~3.5 min transfer the queue moves
+one board per check-in.
+
+**Asleep, off, or out of range (console).** `presence()` in
+`connection.ts`. A battery board checks in on a UTC grid, so its silence
+is predictable:
+- still inside its grid → **asleep** (zzz);
+- its last slot (+20 s) passed with no word and nobody else on its
+  period checked in → **missed check-in at 8:25** (amber);
+- others on its period checked in at that slot, or 3 slots missed →
+  likely gone; the last signal decides the hint: weaker than −82 dBm →
+  **out of range? (signal was −88 dBm)**, stronger → **off or
+  unplugged? (signal was −55 dBm) — others checked in at 8:25** (red);
+- last voltage below 3.55 V → **ran out?**;
+- a mains board that goes quiet gets the same signal hint at once.
+Within one check-in (5–6 min for the candles) an unplugged board stops
+reading as asleep. The roster keeps the last signal for remembered
+boards.
+
+**Power off (firmware + console).** **⏻ Power off** on an awake board's
+page: the board turns its outputs off and enters deep sleep with no wake
+source (`power_off`; only reset or a power cycle starts it again). The
+list then says **⏻ switched off 8:12**, not asleep, until it is heard
+again. A build without deep sleep (the DevKit) answers that it can't,
+and is just marked off, to be unplugged.
+
+**Simulator.** The sim's sleeping board honors `hold_awake` (stays
+awake past its 20 s window) and `power_off` (silent until reload), and
+reports `hold_s`. Test results below.
+
+**Simulator results (2026-10-26, 09:06–09:09).** All pass: a board 3
+slots late with a −90 dBm last signal reads "out of range? (signal was
+−90 dBm)"; with −55 dBm and a peer that checked in, "off or unplugged?
+(signal was −55 dBm) — another board checked in at 9:08"; one missed
+hourly slot, no peers, "missed check-in at 9:00"; a quiet mains board
+"off or unplugged?"; the sleeper reads asleep inside its grid; **Stay
+awake next time** held it awake past its 20 s window ("9:29 left");
+**Let it sleep** returned it to sleep; **Power off** reads "⏻ switched
+off 9:09" and stays so once quiet; **Update when awake** queued the
+sleeper, started at its next check-in and finished ("✓ updated — now
+wakeup01"). Found on the way: the missed-slot count was one short (a
+board 3 slots late read as 1–2), fixed. Three earlier FAILs were the
+test script (seeding the roster under a connected page, which saved over
+it; loading the page while the sleeper slept). **Not yet on hardware**:
+the 3 min setup window and `power_off` are firmware; the four builds
+pass. Bench test in status.md §2.
