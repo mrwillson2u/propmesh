@@ -40,6 +40,7 @@ export interface Entry {
   lastRssi?: number; // the last signal heard, dBm
   holdUntil?: number; // held awake until (setup window or a console hold), ms; 0 = free to sleep
   offAt?: number; // switched off from the console, ms
+  sleptAt?: number; // said it was going to sleep (its last heartbeat), ms; it counts as quiet from then
 }
 
 // ---- the roster ---------------------------------------------------------
@@ -203,7 +204,10 @@ export function useConnection(): Connection | null {
 export const getConnection = () => current;
 export const connectionError = () => lastError;
 
-export const isMissing = (en: Entry, now = Date.now()) => !en.usb && now - en.seen > MISSING_MS;
+// A board that announced it was going to sleep is quiet at once; `seen`
+// stays the real time it was heard, so its check-in still counts for its
+// slot (back-dating `seen` made every check-in read as missed, 2026-10-26).
+export const isMissing = (en: Entry, now = Date.now()) => !en.usb && (now - en.seen > MISSING_MS || (!!en.sleptAt && en.sleptAt >= en.seen));
 // A board that has introduced itself this session and can be asked. A
 // remembered board (from the roster, not heard yet) is on the list but
 // not reachable: a request to it only times out on the bridge, and it
@@ -287,7 +291,8 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         // The last heartbeat before deep sleep says so (NodeRole SLEEPING,
         // firmware 2026-10-26): the board is asleep now, not in 16 s.
         const sleeping = !!(hb.role & NodeRole.SLEEPING);
-        patch(hb.node, { hb, seen: sleeping ? Date.now() - MISSING_MS - 1 : Date.now(), remembered: false, offAt: undefined, lastRssi: hb.rssi, ...(sleeping ? { holdUntil: 0 } : {}), ...(hb.batt ? { lastBatt: hb.batt } : {}) });
+        const at = Date.now();
+        patch(hb.node, { hb, seen: at, sleptAt: sleeping ? at : undefined, remembered: false, offAt: undefined, lastRssi: hb.rssi, ...(sleeping ? { holdUntil: 0 } : {}), ...(hb.batt ? { lastBatt: hb.batt } : {}) });
         remember(hb.node, was?.hello, Date.now(), hb.batt, hb.rssi);
         if (sleeping) return;
         heartbeatSubs.forEach((cb) => { try { cb(hb.node, was); } catch { /* a listener's problem */ } });
@@ -641,13 +646,17 @@ export function presence(en: Entry, c: Connection, now = Date.now()): Presence {
   }
   // The last slot that has passed (plus the margin) since it was heard.
   const lastSlot = Math.floor((now - SLOT_MARGIN_MS) / period) * period;
-  if (lastSlot <= en.seen) return { kind: "asleep", text: "" };
-  // Every slot boundary after it was last heard, up to and including lastSlot.
-  const missedSlots = Math.floor((lastSlot - en.seen - 1) / period) + 1;
+  // A board wakes up to its guard early (pm_checkin.h, ~1 % of the period
+  // on an uncorrected clock) and may be back asleep before the slot itself:
+  // heard within the margin before a slot counts for that slot.
+  const made = en.seen + SLOT_MARGIN_MS;
+  if (lastSlot <= made) return { kind: "asleep", text: "" };
+  // Every slot boundary after it last checked in, up to and including lastSlot.
+  const missedSlots = Math.floor((lastSlot - made - 1) / period) + 1;
   const mv = en.hb?.batt || en.lastBatt;
   if (mv !== undefined && mv < BATT_OUT_MV) return { kind: "out?", text: "ran out?", slot: lastSlot };
   // Peers on the same period that were heard at or after that slot.
-  const peers = Object.values(c.entries).filter((p) => p.node !== en.node && p.hello?.power === "battery" && p.hello.checkin_ms === period && p.seen >= lastSlot);
+  const peers = Object.values(c.entries).filter((p) => p.node !== en.node && p.hello?.power === "battery" && p.hello.checkin_ms === period && p.seen + SLOT_MARGIN_MS >= lastSlot);
   if (!peers.length && missedSlots < 3) return { kind: "missed", text: `missed check-in at ${clock(lastSlot)}`, slot: lastSlot };
   return weak
     ? { kind: "range?", text: `out of range?${sig}`, slot: lastSlot }
