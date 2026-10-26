@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from "react";
 import { target, type Heartbeat, type NodeHello, type NodeLink, editStamp, rememberBridgeIp } from "./transport";
 import { clockBody, type Mode } from "./schedule";
+import { NodeRole } from "./proto_gen";
 
 // A node not heard for three heartbeats is shown as missing.
 export const MISSING_MS = 16000;
@@ -283,8 +284,12 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         // blip) — ask again who it is, since its build or role may differ.
         const prev = current.entries[hb.node]?.hb;
         const was = current.entries[hb.node];
-        patch(hb.node, { hb, seen: Date.now(), remembered: false, offAt: undefined, lastRssi: hb.rssi, ...(hb.batt ? { lastBatt: hb.batt } : {}) });
+        // The last heartbeat before deep sleep says so (NodeRole SLEEPING,
+        // firmware 2026-10-26): the board is asleep now, not in 16 s.
+        const sleeping = !!(hb.role & NodeRole.SLEEPING);
+        patch(hb.node, { hb, seen: sleeping ? Date.now() - MISSING_MS - 1 : Date.now(), remembered: false, offAt: undefined, lastRssi: hb.rssi, ...(sleeping ? { holdUntil: 0 } : {}), ...(hb.batt ? { lastBatt: hb.batt } : {}) });
         remember(hb.node, was?.hello, Date.now(), hb.batt, hb.rssi);
+        if (sleeping) return;
         heartbeatSubs.forEach((cb) => { try { cb(hb.node, was); } catch { /* a listener's problem */ } });
         if (roster.wake.includes(hb.node)) holdNow(hb.node);
         // A hidden board that speaks again is back on the list.
@@ -557,6 +562,20 @@ export function stayAwakeNext(node: string, on = true) {
 function holdNow(node: string) {
   const c = current;
   if (!c) return;
+  // Asked first (hello doesn't hold a board): one that is already in its
+  // setup window was just switched on by hand — the person is there, and
+  // the request is spent rather than stretching 3 min to 10 (Colin,
+  // 2026-10-26: "it jumped from 3 minutes to close to 10").
+  void target(c.link, node).request("hello").then((h) => {
+    if (!h.ok) return;
+    patch(node, { hello: h as unknown as NodeHello, seen: Date.now() });
+    if ((h.hold_s as number | undefined) && (h.hold_s as number) > 0) { stayAwakeNext(node, false); return; }
+    sendHold(node);
+  }).catch(() => sendHold(node));
+}
+function sendHold(node: string) {
+  const c = current;
+  if (!c) return;
   target(c.link, node).request("hold_awake", { min: STAY_AWAKE_MIN }).then((r) => {
     if (!r.ok) return;
     stayAwakeNext(node, false);
@@ -587,7 +606,9 @@ export async function powerOff(node: string): Promise<{ ok: boolean; unplug?: bo
   markOff(node);
   return { ok: true, unplug };
 }
-function markOff(node: string) {
+// Mark a board off without asking it — it is already quiet (unplugged,
+// out for the season). Shown as off, not missing, until it is heard again.
+export function markOff(node: string) {
   const at = Date.now();
   const prev = roster.boards[node];
   if (prev) { roster = { ...roster, boards: { ...roster.boards, [node]: { ...prev, offAt: at } } }; saveRoster(); }

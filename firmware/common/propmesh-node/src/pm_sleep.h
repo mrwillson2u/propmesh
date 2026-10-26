@@ -26,6 +26,10 @@ uint32_t pm_sleep_hold_left_ms();   // how much longer a hold keeps it awake (0 
 // sleep with no wake source, so only a reset or a power cycle starts it
 // again. False on a build without deep sleep (the DevKit): unplug it.
 bool pm_sleep_power_off();
+// Called just before deep sleep (and before switching off), so the board
+// can tell the mesh — main sends one last heartbeat with NodeRole SLEEPING,
+// and the console shows it asleep at once instead of after 16 s of silence.
+void pm_sleep_on_going(void (*cb)());
 bool pm_sleep_holding();
 bool pm_sleep_supported();  // false on a mains-board build (PM_NO_SLEEP)
 uint16_t pm_sleep_listen_ms();  // listen interval while in the show tier, else 0 (heartbeat listen_ms)

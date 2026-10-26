@@ -134,15 +134,12 @@ static uint16_t battery_mv() {
   return (uint16_t)(sum / 8 * BOARD.battery_divider);
 }
 
-static void heartbeat() {
+static void send_heartbeat(uint8_t extra_role) {
   uint32_t now = millis();
-  if (now - last_heartbeat < next_period) return;
-  last_heartbeat = now;
-  next_period = PM_HEARTBEAT_PERIOD_MS * 9 / 10 + esp_random() % (PM_HEARTBEAT_PERIOD_MS / 5);
   pm_heartbeat_t hb = {};
   hb.uptime_s = now / 1000;
   hb.board = BOARD.board_type;
-  hb.role = pm_role();
+  hb.role = pm_role() | extra_role;
   hb.fw_version = PM_FW_VERSION;
   hb.free_heap_kb = ESP.getFreeHeap() / 1024;
   hb.battery_mv = battery_mv();  // 0 on a board with no battery sense
@@ -155,6 +152,18 @@ static void heartbeat() {
   hb.listen_ms = pm_sleep_listen_ms();  // a sleepy leaf: senders repeat into its window (docs §6f)
   pm_send(PM_MSG_TYPE_HEARTBEAT, &hb, sizeof(hb));
 }
+
+static void heartbeat() {
+  uint32_t now = millis();
+  if (now - last_heartbeat < next_period) return;
+  last_heartbeat = now;
+  next_period = PM_HEARTBEAT_PERIOD_MS * 9 / 10 + esp_random() % (PM_HEARTBEAT_PERIOD_MS / 5);
+  send_heartbeat(0);
+}
+
+// The last word before deep sleep: a heartbeat flagged SLEEPING, twice
+// (a heartbeat is one unacknowledged frame).
+static void going_to_sleep() { send_heartbeat(PM_NODE_ROLE_SLEEPING); delay(15); send_heartbeat(PM_NODE_ROLE_SLEEPING); }
 
 // Why the board last reset, for the boot event and the console: a
 // watchdog or a panic says "the firmware hung/crashed", a brownout says
@@ -199,6 +208,7 @@ void setup() {
 
   pm_api_begin(BOARD);
   pm_sleep_begin();  // wake cause; the wall clock after a deep sleep
+  pm_sleep_on_going(going_to_sleep);
   // Back from deep sleep: say so at once instead of 5 s in. A check-in
   // ends as soon as its heartbeat is out and the bridge is heard (§6m).
   if (strcmp(pm_sleep_wake_cause(), "timer") == 0 || strcmp(pm_sleep_wake_cause(), "sensor") == 0) next_period = 500;

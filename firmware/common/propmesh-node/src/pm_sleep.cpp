@@ -14,6 +14,7 @@ void pm_sleep_radio_reapply() { esp_wifi_set_ps(WIFI_PS_NONE); }
 void pm_sleep_hold(uint32_t) {}
 uint32_t pm_sleep_hold_left_ms() { return 0; }
 bool pm_sleep_power_off() { return false; }
+void pm_sleep_on_going(void (*)()) {}
 bool pm_sleep_holding() { return true; }
 bool pm_sleep_supported() { return false; }
 uint16_t pm_sleep_listen_ms() { return 0; }
@@ -222,9 +223,13 @@ uint32_t pm_sleep_hold_left_ms() {
   return left > 0 ? (uint32_t)left : 0;
 }
 static uint32_t power_off_at;  // millis() to switch off at; 0 = not asked
+static void (*going_cb)();
+void pm_sleep_on_going(void (*cb)()) { going_cb = cb; }
+static void announce_going() { if (going_cb) { going_cb(); delay(60); } }
 bool pm_sleep_power_off() { power_off_at = millis() + 400; if (!power_off_at) power_off_at = 1; return true; }  // the reply leaves first
 static void power_off_now() {
   pm_channels_all_off();
+  announce_going();
   Serial.println("sleep: switched off by request — reset or power-cycle to start");
   Serial.flush();
   delay(50);
@@ -347,6 +352,7 @@ static void deep_sleep(uint64_t ms, const char *why) {
   } else { rtc_clock_ok = false; rtc_sleep_utc_ms = 0; }
   if (w.utc_ok) batt_log((uint32_t)(pm_wall_utc_ms() / 1000));  // the resting voltage, once an hour
   rtc_awake_ms = millis();  // how long this wake lasted, for hello next time
+  announce_going();
   Serial.printf("sleep: awake %lu ms; deep sleep %.1f s (%s)%s\n", (unsigned long)rtc_awake_ms, ms / 1000.0, why, hi || lo ? ", sensor pins wake" : "");
   Serial.flush();
   delay(50);

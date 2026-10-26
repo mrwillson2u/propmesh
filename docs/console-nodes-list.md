@@ -476,3 +476,26 @@ it may also be part of the earlier "rolled back" candles. Fixed in
 `d9ed9ab`: `pm_sleep_loop` never sleeps while `pm_ota_pending()`.
 Candle 3 took `d9ed9ab@check-ins` at 10:04 and reported `pending: false`
 at 10:05. Bench tests 1–4 (status.md §2) to run again on it.
+
+**After Colin's bench run on Candle 3 (2026-10-26, midday).** Tests 1–4
+worked. Three follow-ups, built the same day:
+- **3 min became 10.** He had pressed Stay awake next time, then
+  power-cycled the board; on its first heartbeat the console sent the
+  waiting 10 min hold over the 3 min setup window. Now the console asks
+  the board's hello first: if it is already in a setup window (`hold_s`
+  > 0), the request is spent and no hold is sent.
+- **Asleep late.** A board going to deep sleep sent nothing, so the
+  console waited 16 s of silence. Now its last heartbeat carries
+  NodeRole **SLEEPING** (8, `schema/messages.yaml`), sent twice just
+  before deep sleep and before Power off; the console marks it asleep on
+  receipt. Firmware only ever tests other boards' BRIDGE bit, so older
+  boards ignore the flag.
+- **Mark as off.** A quiet board's page has **⏻ Mark as off**, and the
+  list header **⏻ N off** marks every board that isn't heard and isn't
+  just asleep, at once. They read "switched off" (gray) until heard
+  again; it survives a reload (roster `offAt`).
+- Also: a flat board read "ran out? ran out?"; the battery text is
+  dropped when the presence line says the same.
+Simulator: all pass (asleep within one heartbeat of going to sleep;
+3 quiet boards marked off in one press; the sleeper left alone; survives
+a reload).

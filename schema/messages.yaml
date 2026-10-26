@@ -50,6 +50,7 @@ enums:
     RELAY: 1                  # powered node, rebroadcasts floods
     CONDUCTOR: 2              # mesh time authority
     BRIDGE: 4                 # WiFi + console + sACN ingress
+    SLEEPING: 8               # set only on the last heartbeat before deep sleep: "going to sleep now" (2026-10-26)
 
   StateKind:
     SENSOR_TRIGGER: 1

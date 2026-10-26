@@ -480,6 +480,7 @@ class SimLink implements NodeLink {
   private resets = new Map<string, string>(); // why a node last restarted, for its hello
   private holds = new Map<string, number>();  // a sleeper held awake until (ms), like pm_sleep_hold
   private offed = new Set<string>();          // switched off by power_off: silent until the page reloads
+  private wasAwake = new Map<string, boolean>(); // for the last "going to sleep" heartbeat
   private asleep(node: string): boolean {
     if (this.offed.has(node)) return true;
     if (!SIM_REMOTES.find((r) => r.node === node)?.sleeps) return false;
@@ -521,14 +522,16 @@ class SimLink implements NodeLink {
       if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
       if (o) return; // off the mesh while it downloads and reboots
       if (this.offed.has(r.node)) return;
-      if (r.sleeps) {
+      const goingNow = this.asleep(r.node) && this.wasAwake.get(r.node);
+      this.wasAwake.set(r.node, !this.asleep(r.node));
+      if (r.sleeps && !goingNow) {
         // On the wall clock, like a real board's check-in grid: awake for
         // the first 20 s of every 2 min, so a page opened mid-cycle meets
         // it asleep (and, once remembered, on the list anyway).
         if (this.asleep(r.node)) return; // asleep
       }
       const hb: Heartbeat = {
-        node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
+        node: r.node, board: 0, role: simRole(n.cfg) | (goingNow ? 8 : 0), fw: 3,
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
         batt: r.sleeps || n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),

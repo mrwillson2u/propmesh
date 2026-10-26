@@ -19,7 +19,7 @@ import { useOtaJobs } from "../../lib/otaJobs";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
   useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd,
-  presence, wantsAwake, stayAwakeNext, letSleep, powerOff, STAY_AWAKE_MIN } from "../../lib/connection";
+  presence, wantsAwake, stayAwakeNext, letSleep, powerOff, markOff, STAY_AWAKE_MIN } from "../../lib/connection";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
   height: 30, padding: "0 12px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
@@ -56,7 +56,12 @@ function BoardBar({ en, conn, now, phone }: { en: Entry; conn: NonNullable<Retur
         : <button onClick={() => stayAwakeNext(en.node, true)} style={b(true)}>⏰ Stay awake next time</button>}
     </>
   );
-  else if (missing) line = <span style={{ color: pres.kind === "missed" ? C.amber : C.red }}>{pres.text || `Not heard for ${ago(now - en.seen)}`}.</span>;
+  else if (missing) line = (
+    <>
+      <span style={{ flex: "1 1 220px", color: pres.kind === "missed" ? C.amber : C.red }}>{pres.text || `Not heard for ${ago(now - en.seen)}`}.</span>
+      <button onClick={() => markOff(en.node)} style={b()} title="It's unplugged on purpose: show it as off until it is heard again">⏻ Mark as off</button>
+    </>
+  );
   else line = (
     <>
       <span style={{ flex: "1 1 220px" }}>{held ? `Awake for you — ${mmss((en.holdUntil ?? 0) - now)} left before it goes back to its sleep pattern.` : battery ? "Awake." : "Up."}</span>
@@ -191,6 +196,8 @@ export default function MeshPanel() {
     setOrder(ids);
   };
   const movable = list.filter((e) => !e.usb);
+  // Boards not heard and not simply asleep: candidates for "mark off".
+  const quietOnes = conn ? list.filter((e) => !e.usb && !e.offAt && isMissing(e, now) && !["asleep", "off", "up"].includes(presence(e, conn, now).kind)) : [];
   const meshLine = (
     <span style={{ ...sys(700, 10, C.t5), letterSpacing: ".08em" }}
       title={conn?.local ? `mesh channel ${conn.local.channel ?? "?"}${conn.local.ip ? ` · bridge at ${conn.local.ip} (WiFi ${conn.local.wifi_rssi} dBm)` : conn.local.wifi === "joining" ? ` · joining WiFi ${conn.local.wifi_ssid}…` : ""}` : undefined}>
@@ -225,7 +232,7 @@ export default function MeshPanel() {
     const facts: JSX.Element[] = [];
     if (!en.hello) facts.push(<span key="c">connecting…</span>);
     if (en.usb) facts.push(<span key="u">{directLabel(link)}</span>);
-    if (batt && batt.level !== "ok" && !(batt.level === "overdue" && pres.text)) facts.push(<span key="b" style={{ color: battColor, fontWeight: 700 }}>{batt.text}</span>);
+    if (batt && batt.level !== "ok" && !((batt.level === "overdue" || batt.level === "out") && pres.text)) facts.push(<span key="b" style={{ color: battColor, fontWeight: 700 }}>{batt.text}</span>);
     const next = nextCheckin(en.hello?.checkin_ms, now);
     if (asleep) facts.push(<span key="z" style={{ color: C.t4 }}>asleep {ago(now - en.seen, true)}{next ? ` · next ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>);
     else if (missing && pres.text) facts.push(<span key="m" style={{ color: presColor }}>{pres.text}</span>);
@@ -298,6 +305,10 @@ export default function MeshPanel() {
     <div style={{ width: phone ? "100%" : 256, flex: phone ? 1 : "none", minHeight: 0, display: "flex", flexDirection: "column", background: C.panel, borderRight: phone ? undefined : `1px solid ${C.b1}` }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8, padding: phone ? "10px 12px" : "10px 10px", borderBottom: `1px solid ${C.b1}`, minHeight: 40 }}>
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meshLine}</span>
+        {quietOnes.length > 1 && !arrange && (
+          <button onClick={() => quietOnes.forEach((e) => markOff(e.node))} title={`Mark ${quietOnes.length} boards that aren't heard (and aren't just asleep) as switched off, until each is heard again`}
+            style={{ ...btn(), height: 28, padding: "0 9px" }}>⏻ {quietOnes.length} off</button>
+        )}
         {movable.length > 1 && (
           <button onClick={() => setArrange(!arrange)} title={arrange ? "Done arranging" : "Change the order of the boards"} style={{ ...btn(arrange), height: 28, padding: "0 9px" }}>
             {arrange ? "Done" : "Arrange"}

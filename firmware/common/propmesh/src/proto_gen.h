@@ -41,6 +41,7 @@ typedef enum {
     PM_NODE_ROLE_RELAY = 1,
     PM_NODE_ROLE_CONDUCTOR = 2,
     PM_NODE_ROLE_BRIDGE = 4,
+    PM_NODE_ROLE_SLEEPING = 8,
 } pm_node_role_t;
 
 typedef enum {

@@ -41,6 +41,7 @@ export const NodeRole = {
   RELAY: 1,
   CONDUCTOR: 2,
   BRIDGE: 4,
+  SLEEPING: 8,
 } as const;
 export type NodeRole = (typeof NodeRole)[keyof typeof NodeRole];
 
