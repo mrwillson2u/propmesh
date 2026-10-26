@@ -364,6 +364,11 @@ void pm_sleep_loop() {
   set_show_tier(!off && !pm_sleep_holding());
   if (!off || pm_sleep_holding()) return;
   if (pm_ota_state() == PM_OTA_DOWNLOADING || pm_ota_state() == PM_OTA_CONNECTING || pm_ota_state() == PM_OTA_REBOOTING) return;
+  // A new image is confirmed only after 20 s up (main confirm_image). A
+  // board that slept sooner — 6 s after the update's restart — booted the
+  // unconfirmed image on its next restart and the bootloader rolled it
+  // back (Candle 3, 2026-10-26). Stay awake until it is confirmed.
+  if (pm_ota_pending()) return;
   // A flood color just sent (e.g. "dark" at the end of the show) goes out
   // before the radio does.
   if (pm_ble_busy()) return;
