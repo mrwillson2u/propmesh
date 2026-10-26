@@ -464,3 +464,15 @@ test script (seeding the roster under a connected page, which saved over
 it; loading the page while the sleeper slept). **Not yet on hardware**:
 the 3 min setup window and `power_off` are firmware; the four builds
 pass. Bench test in status.md §2.
+
+**On Candle 3 (2026-10-26, morning).** The branch build went to Candle 3
+over the mesh at 09:28 and came back as `7a540a7@check-ins`; the first
+power cycle then booted the *old* build (`e0fcc2a@dev`). Cause: an image
+is confirmed only after 20 s up (`confirm_image`), and a battery board
+restarted by an update slept after its 6 s dwell, so the image stayed
+unconfirmed and the bootloader rolled it back at the next restart. Any
+battery board updated while the show was off would have done the same;
+it may also be part of the earlier "rolled back" candles. Fixed in
+`d9ed9ab`: `pm_sleep_loop` never sleeps while `pm_ota_pending()`.
+Candle 3 took `d9ed9ab@check-ins` at 10:04 and reported `pending: false`
+at 10:05. Bench tests 1–4 (status.md §2) to run again on it.
