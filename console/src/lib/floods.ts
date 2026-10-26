@@ -18,10 +18,29 @@ export interface FloodsState {
   keys: Record<string, string>; // each sender's key — a difference is a mismatch to resolve
   lights: Flood[];
   senders: string[];            // boards holding a key (never the bridge)
+  // Where the key and lights came from: the sending boards, or the
+  // bridge's copy because no board on the mesh holds them right now.
+  held: "boards" | "bridge" | "none";
 }
 
-// What the boards hold now, read off their configs.
-export function deriveFloods(configs: Record<string, NodeConfig>): FloodsState {
+// The bridge's copy of the floods (pm_sync `/m/floods.json`): the key and
+// light list from the last sender that saved them, kept so a mesh whose
+// senders are all off still knows its lights (2026-10-24: the DevKit
+// senders were unplugged and the Floods tab read as if nothing had ever
+// been paired). Null when the connected board isn't a bridge or has none.
+export interface FloodsCopy { key: string; lights: Flood[]; at: number }
+export async function readFloodsCopy(link: NodeLink): Promise<FloodsCopy | null> {
+  try {
+    const r = await link.request("pull_floods");
+    if (!r.ok || !r.key) return null;
+    const lights = ((r.lights as { light: number; label?: string }[]) ?? []).map((l) => ({ number: l.light, label: l.label ?? "" }));
+    return { key: String(r.key).toLowerCase(), lights: lights.sort((a, b) => a.number - b.number), at: (r.at as number) ?? 0 };
+  } catch { return null; }
+}
+
+// What the boards hold now, read off their configs; the bridge's copy
+// stands in when no board holds a key.
+export function deriveFloods(configs: Record<string, NodeConfig>, copy: FloodsCopy | null = null): FloodsState {
   const keys: Record<string, string> = {};
   const lights = new Map<number, Flood>();
   for (const [node, cfg] of Object.entries(configs)) {
@@ -37,7 +56,8 @@ export function deriveFloods(configs: Record<string, NodeConfig>): FloodsState {
   const tally = new Map<string, number>();
   for (const k of Object.values(keys)) tally.set(k, (tally.get(k) ?? 0) + 1);
   const key = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-  return { key, keys, lights: [...lights.values()].sort((a, b) => a.number - b.number), senders: Object.keys(keys).sort() };
+  if (!key && copy) return { key: copy.key, keys, lights: copy.lights.map((l) => ({ ...l })), senders: [], held: "bridge" };
+  return { key, keys, lights: [...lights.values()].sort((a, b) => a.number - b.number), senders: Object.keys(keys).sort(), held: key ? "boards" : "none" };
 }
 
 export const mismatched = (st: FloodsState) => st.senders.filter((n) => st.keys[n] !== st.key);

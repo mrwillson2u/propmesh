@@ -14,7 +14,7 @@ body {
 
 /* Phones (docs/console-phone.md): inputs at 16 px so iOS Safari does not
    zoom the page on focus; nothing scrolls sideways. */
-@media (max-width: 699px) {
+@media (max-width: 699px), ((pointer: coarse) and (max-height: 520px)) {
   input, select, textarea { font-size: 16px !important; }
   body { overscroll-behavior: none; }
 }
@@ -42,7 +42,7 @@ a:hover { color: #ffa470; }
    table row. Every option is a row with its label left and its control
    right; sliders and selects run full width; buttons are thumb-sized.
    Scoped under .pm-pin, so the laptop layout is untouched. */
-@media (max-width: 699px) {
+@media (max-width: 699px), ((pointer: coarse) and (max-height: 520px)) {
   .pm-pin .pm-opts > span, .pm-pin .pm-optbox { display: flex !important; flex-direction: row !important; flex-wrap: wrap !important; align-items: center !important; flex: 1 1 100% !important; width: 100%; gap: 0 10px !important; }
   .pm-pin .pm-optbox { padding: 8px 12px !important; margin-top: 4px; }
   .pm-pin .pm-opts label { display: flex !important; flex: 1 1 100% !important; align-items: center; justify-content: space-between; gap: 12px !important; width: 100%; min-height: 46px; font-size: 14px !important; color: #c9cfd8 !important; border-bottom: 1px solid #181c22; }
@@ -83,4 +83,4 @@ a:hover { color: #ffa470; }
 .pm-drawer-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; color: #b4bcc8; font: 400 13px/1.45 system-ui; }
 .pm-drawer-k { color: #e8ecf1; font-weight: 600; word-break: break-word; }
 .pm-drawer-link { color: #d9a441; font: 600 13px/1.4 system-ui; }
-@media (max-width: 699px) { .pm-pin .pm-help { display: none; } }
+@media (max-width: 699px), ((pointer: coarse) and (max-height: 520px)) { .pm-pin .pm-help { display: none; } }

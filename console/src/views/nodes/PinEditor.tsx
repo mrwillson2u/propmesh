@@ -135,22 +135,27 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
-  // A battery input's reading changes slowly: re-read it every 5 s while
-  // the page is open (inputs otherwise only push changes as events). The
-  // node target is a fresh object on every parent render, and heartbeats
-  // re-render the parent every second or two — so the timer lives on a
-  // ref and restarts only when the board or its channels change; keyed on
-  // `node` it was cleared before it ever fired (2026-10-18).
+  // Outputs change without the console — a sequence lights the candle,
+  // a schedule turns things on — so the board's state is re-read every
+  // 5 s while its page is open, and again when the tab comes back into
+  // view (a candle lit by the show read as "out" here, 2026-10-24). The
+  // firmware counts `state` as background polling: it does not hold a
+  // battery board awake. The node target is a fresh object on every
+  // parent render, and heartbeats re-render the parent every second or
+  // two — so the timer lives on a ref and restarts only when the board
+  // changes; keyed on `node` it was cleared before it ever fired
+  // (2026-10-18).
   const nodeRef = useRef(node);
   nodeRef.current = node;
-  const hasBattery = applied.channels.some((c) => c.kind === "BATTERY");
   const reread = () => nodeRef.current.request("state").then((st) => { if (st.ok) setValues(toValues(st.channels)); }).catch(() => undefined);
   useEffect(() => {
-    if (!hasBattery) return;
-    const t = setInterval(reread, 5000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasBattery, hello.node]);
+    if (!loaded) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") void reread(); }, 5000);
+    const onShow = () => { if (document.visibilityState === "visible") void reread(); };
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, hello.node]);
 
   // ---- save -----------------------------------------------------------
 
@@ -881,26 +886,41 @@ function SwingFinder({ lit, light, current, currentKick, onCandle, onSwing }: {
 // console agree (resistor tolerance and the chip's ADC both shift it;
 // 1 % low on the first real one, 2026-10-17).
 function BatteryOptions({ c, onChange, reading }: { c: ChannelCfg; onChange: (p: Partial<ChannelCfg>) => void; reading?: number }) {
+  // The calculator: the meter's reading against the board's reading at
+  // the same moment gives the ratio that makes them agree. Opened by a
+  // button so it is found (Colin asked for "a calculator button",
+  // 2026-10-25 — it was a bare box after the divider).
+  const [calc, setCalc] = useState(false);
   const [meter, setMeter] = useState<number | undefined>(undefined);
   const div = c.divider ?? 2;
   const suggested = meter && reading ? Math.round(div * (meter * 1000) / reading * 100) / 100 : undefined;
   return (
     <span className="pm-optbox" style={{ display: "flex", alignItems: "center", gap: "4px 10px", flexWrap: "wrap" }}>
-      <label style={optLabel} title="The reading is the pin's voltage times this ratio.">divider
+      <label style={optLabel} title="The reading is the pin's voltage times this ratio: (top resistor + bottom resistor) ÷ bottom resistor. Two equal resistors = 2.00.">divider
         <NumberInput value={div} onChange={(v) => onChange({ divider: v })} min={1} max={20} digits={2} style={num} />
       </label>
-      <Hint style={{ ...mono(500, 10.5, C.t4), lineHeight: 1.4 }}>= (top resistor + bottom resistor) ÷ bottom resistor · two equal resistors = 2.00</Hint>
-      <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }} title="Measure the battery with a meter and type it here; the ratio that makes the console agree is worked out from the board's current reading.">
-        <span style={sys(500, 11.5, C.t3)}>meter reads</span>
-        <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={60} style={num} placeholder="0.00" />
-        <span style={sys(500, 11.5, C.t3)}>V</span>
-        {suggested && reading ? (
-          <>
-            <span style={mono(500, 10.5, C.t4)}>console {(reading / 1000).toFixed(2)} V → divider {suggested.toFixed(2)}</span>
-            <button onClick={() => { onChange({ divider: suggested }); setMeter(undefined); }} style={btn(true)} disabled={suggested === div}>Use {suggested.toFixed(2)}</button>
-          </>
-        ) : meter && !reading ? <span style={mono(500, 10.5, C.t5)}>save first, so the board has a reading to compare</span> : null}
-      </span>
+      <button onClick={() => { setCalc(!calc); setMeter(undefined); }} style={btn(calc)} title="Work the divider out from a meter reading">{calc ? "✕ Close" : "🧮 Calculate from a meter…"}</button>
+      {calc && (
+        <span style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 8, padding: "8px 10px", background: C.card, border: `1px solid ${C.b2}`, borderRadius: 6 }}>
+          <span style={{ ...sys(400, 12, C.t3), lineHeight: 1.45 }}>
+            With the battery <b>connected to the board</b> and the outputs quiet (candle out, nothing moving), measure the battery with a meter and type what it reads.
+            The board reads its pin at the same moment, and the divider that makes the two agree is worked out below. A disconnected battery reads a little higher than one under the board's load, so measure it connected.
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={sys(500, 12, C.t2)}>meter reads</span>
+            <NumberInput value={meter} onChange={setMeter} onEmpty={() => setMeter(undefined)} min={2} max={30} digits={2} width={72} style={{ ...num, width: 72 }} placeholder="3.87" />
+            <span style={sys(500, 12, C.t2)}>V</span>
+            <span style={mono(500, 11, C.t4)}>board reads {reading ? `${(reading / 1000).toFixed(2)} V` : "— (save this pin first)"}</span>
+          </span>
+          {suggested && reading ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={mono(600, 12, C.t1)}>divider {div.toFixed(2)} → <span style={{ color: C.emberT }}>{suggested.toFixed(2)}</span></span>
+              <button onClick={() => { onChange({ divider: suggested }); setMeter(undefined); setCalc(false); }} style={btn(true)} disabled={suggested === div}>Use {suggested.toFixed(2)}</button>
+              <span style={mono(500, 10.5, C.t5)}>then Save to node</span>
+            </span>
+          ) : meter && !reading ? <span style={mono(500, 11, C.amber)}>Save this pin to the node first, so the board has a reading to compare.</span> : null}
+        </span>
+      )}
     </span>
   );
 }

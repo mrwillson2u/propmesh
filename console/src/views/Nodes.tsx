@@ -130,7 +130,7 @@ export default function Nodes() {
   // Real boards only, unless demo data is on in Settings.
   if (!demo) {
     return (
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto", background: C.bg }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", background: C.bg }}>
         <MeshPanel />
       </div>
     );

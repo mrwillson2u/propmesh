@@ -91,6 +91,8 @@ static void cmd_hello(JsonObject resp) {
     int32_t ppm;
     if (pm_sleep_drift_ppm(&ppm)) resp["drift_ppm"] = ppm;  // its sleep clock's error, corrected for
     if (pm_sleep_last_awake_ms()) resp["awake_ms"] = pm_sleep_last_awake_ms();  // how long its last wake lasted
+    float rate, span;
+    if (pm_sleep_battery_rate(&rate, &span)) { resp["batt_mv_per_h"] = rate; resp["batt_span_h"] = span; }  // its own drain measurement (§8)
     resp["awake"] = pm_sleep_holding();  // held awake (console / sensor); else it sleeps when the show is off
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }

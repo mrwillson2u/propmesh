@@ -63,12 +63,41 @@ In order of how often, the phone is for:
 
 ## 3. Yard
 
-The map is what a phone opens to (the topology is a tap away). Pinch
-to zoom, one finger to pan, tap a board for its sheet: name, state,
-battery, signal, LAST CHECK-IN, the hears / heard-by lists, and the
-test buttons for its outputs. **Placement mode** comes after the frame:
-tap a board, tap where it stands, done; the map holds its position in
-`propmesh.yard.doc` as it does from a laptop.
+The map is what a phone opens to (the topology is a tap away). One
+finger pans, two fingers pinch to zoom about the midpoint and pan with
+it (the canvas tracks touch pointers; a second finger ends any
+one-finger drag so a board is never thrown while zooming), + / − /
+fit buttons too; tap a board for its sheet: name, state, battery,
+signal, LAST CHECK-IN, the hears / heard-by lists, and the test
+buttons for its outputs.
+
+**Locked unless editing (2026-10-24).** Colin: "it's really easy to
+pick up the elements and accidentally move them — both interfaces."
+The map opens locked every time: boards and shapes draw and can be
+tapped for their sheet, but nothing can be grabbed, and the tool
+strip, the shape panel, the scale note and the keyboard shortcuts are
+off. **✎ Edit** in the header (laptop and phone) unlocks all of it;
+**✓ Done** locks again and drops the tool and the selection. Placing a
+board from the "Not on the map" bar is an edit too, so the bar says
+"Edit to place" while locked. Nothing is remembered across visits:
+locked is the safe default.
+
+**Built 2026-10-24 (Colin: "the map page needs a little love,
+overlapping elements").** Every overlay has a phone place: the header
+is the Topology / Map chips, the health chip and short counts ("3 up ·
+⚠ 1"); under it, left, a Links chip (the mesh-links toggle) and the
+"Not on the map" bar, and at the right the scale ("5 ft/sq") with the
+save-state ⚠ and the fullness %. The drawing tools are a strip along
+the bottom of the map (scrolls sideways; Undo at its end); the zoom
+buttons sit at the right above it; the instruction panel (what to tap
+next, or the selected shape's fields) appears above the strip only
+while something is selected, being drawn or placed — the idle hint and
+the legend text are laptop-only. **Placing a board**: tap its chip in
+the "Not on the map" bar, then tap the map where it stands (HTML drag
+does not exist on touch). A selection is ignored for 600 ms after a
+placement, because the node is drawn under the finger and would take
+the tap's click. The topology view keeps its legend in a wrapping
+strip at the bottom.
 
 ## 4. Show
 
@@ -78,10 +107,13 @@ prefers landscape and says so; in portrait it lists the rules as cards.
 
 ## 5. Nodes
 
-The board tabs become a row that scrolls sideways. A board's rows stack
-one setting per line; the TEST column's controls become full-width
-buttons and sliders; the pinout drawing stays behind its toggle, closed
-by default. Pin assignment works here but is not the point of a phone.
+The Nodes tab is a list of boards, one per row with its state and
+facts; a tap opens the board's page full-screen with "‹ Boards" to
+return (built 2026-10-24, `docs/console-nodes-list.md`). A board's
+rows stack one setting per line; the TEST column's controls become
+full-width buttons and sliders; the pinout drawing stays behind its
+toggle, closed by default. Pin assignment works here but is not the
+point of a phone.
 
 ## 6. Sequences — the creative pass
 
@@ -147,6 +179,56 @@ Turned sideways, the full timeline appears, with touch: drag a keyframe
 to move it, long-press to add one, pinch to zoom, two-finger drag to
 pan, the ruler to scrub. In portrait the hint says it is there. Nobody
 has to use it; the moments list and perform mode cover the yard case.
+
+### 6.5 Sharpened after a real phone (2026-10-25)
+
+Colin: "the Show page isn't formatted for mobile; landscape looked like
+it reverted to desktop; let's think about how to get the sequence
+editor to work well on the small touchscreen." The first two were
+bugs, fixed the same day: the breakpoint was width-only (a phone
+sideways is 844 px wide), and the Show header wrapped every control
+onto its own line. What a phone showed of the editor itself, with a
+real sequence (three tracks, seven steps):
+
+- **Portrait** holds the timeline, but it is a laptop drawing shrunk:
+  the track labels take half the width, the plot gets 1.6 s of a 3.5 s
+  sequence, keyframes are 14 px circles under a finger, and the step
+  table below needs sideways scrolling. Usable for *looking*, poor for
+  *editing*.
+- **Landscape** holds a real timeline — 3.5 s across, three tracks —
+  but the top bar, the page header, the editor header and the tab bar
+  leave it 200 px of height.
+
+So the plan from 6.1–6.4 stands, with these specifics:
+
+**Portrait = the moments list (6.1), not the timeline.** The timeline
+is hidden in portrait; in its place the sequence is a list of moments
+("at 0.0 s · jaw 0 %", "at 0.2 s · eyes 100 %", "at 0.6 s · jaw 90 %
+over 0.4 s"), each a 56 px row, tap for a sheet with a full-width
+slider / color / toggle, the "get there over" slider, and nudge
+buttons (±50 ms, ±5 %). "+ Add moment" adds one a beat after the last;
+long rows show the board name only when there is more than one board.
+The step table is retired on the phone (it is the same data). The
+scrub ruler (6.2) sits along the bottom of the list, above the tab
+bar, with the moments as ticks: drag it and the prop follows, ▶ plays
+from the thumb.
+
+**Landscape = the timeline, full screen.** Turning the phone hides the
+page header, the sequence list and the editor header's toggles; what
+stays is one 40 px bar (name · Save · Play · ‹ list) over the timeline,
+and the tab bar shrinks to 40 px as it now does. Touch sizes: a
+keyframe's hit target 36 px, a long-press on empty track adds a
+keyframe (the one long-press in the console — it is the convention
+every timeline app uses, and the ⓘ drawer says so), drag moves it,
+pinch zooms time. The "turn the phone" hint stays in portrait.
+
+**Perform mode (6.3) comes after both**, as its own full-screen page
+from a REC button in the editor header; it needs the moments list to
+tidy what it records.
+
+**Order:** moments list + scrub ruler (one PR, portrait only, the
+laptop untouched), then the landscape timeline's touch work, then
+perform mode. Each tried in the yard before the next.
 
 ## 7. Order of work
 

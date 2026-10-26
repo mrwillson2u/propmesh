@@ -5,6 +5,7 @@
 // to the vendor's own pinout page for the photo-style version.
 // Collapsible; the choice is remembered per browser.
 import { useState } from "react";
+import { PHONE } from "../../lib/layout";
 import { C } from "../../lib/tokens";
 import { mono, sys } from "../../ui";
 import type { Board, BoardPin } from "../../lib/boards_gen";
@@ -18,7 +19,7 @@ export default function Pinout({ board, cfg }: { board: Board; cfg: NodeConfig }
   const [open, setOpenState] = useState(() => {
     // Open on a laptop until folded; folded on a phone until opened — the
     // drawing is laptop-sized and takes the whole screen there.
-    const phone = typeof matchMedia !== "undefined" && matchMedia("(max-width: 699px)").matches;
+    const phone = typeof matchMedia !== "undefined" && matchMedia(PHONE).matches;
     try { const v = localStorage.getItem(KEY); return v === null ? !phone : v !== "0"; } catch { return !phone; }
   });
   const setOpen = (o: boolean) => {

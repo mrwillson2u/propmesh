@@ -4,7 +4,7 @@
 // sensors (firmware pm_show.*) — so loading reads every node and merges,
 // and saving splits a sequence back into per-node parts. A dead bridge
 // costs the console, never the show. docs/generic-boards.md.
-import { FLOODS, deriveFloods, floodsConfig, type FloodsState } from "./floods";
+import { FLOODS, deriveFloods, floodsConfig, readFloodsCopy, type FloodsState } from "./floods";
 import { editStamp, target, type NodeLink, type Reply } from "./transport";
 import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
@@ -91,6 +91,9 @@ export interface Sequence {
   ambient?: boolean;
   loop_ms?: number; // 0/absent = the sequence's own length
   steps: Step[];
+  // Boards whose part came from the bridge's copy, not the board itself:
+  // the board was away and has not confirmed it holds this edit yet.
+  unconfirmed: string[];
   // Nodes that held a part when loaded — a save must delete the part
   // from any that no longer have steps.
   loadedOn: string[];
@@ -149,8 +152,9 @@ export interface Show {
   floods: FloodsState; // the mesh-wide flood lights and which boards send to them
   armed: Record<string, boolean>;
   modes: Record<string, ModeStatus>; // per board: mode, why, what the schedule does next
-  unreachable: string[]; // nodes that didn't answer during load, and nobody holds a copy for
+  unreachable: string[]; // nodes that didn't answer during load, and nothing is known for
   fromBridge: string[]; // nodes that didn't answer; their part shown from the bridge's copy (docs §6k)
+  fromLast: string[]; // nodes that didn't answer; their pins and part shown as last read from them
 }
 
 const ask = (link: NodeLink, en: Entry, cmd: string, body: Record<string, unknown> = {}): Promise<Reply> =>
@@ -166,13 +170,14 @@ type Wire =
 // bridge, which holds a copy of every board's part; a board that doesn't
 // answer is shown from that copy instead of vanishing from the show.
 export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | null = null, viaBridge = false): Promise<Show> {
-  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [], fromBridge: [] };
+  const show: Show = { sequences: [], rules: [], configs: {}, floods: deriveFloods({}), armed: {}, modes: {}, unreachable: [], fromBridge: [], fromLast: [] };
   const byId = new Map<number, Sequence>();
-  const addPart = (node: string, p: { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] }, problem?: string) => {
-    const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], problems: [] };
+  const addPart = (node: string, p: { id: number; name: string; ambient?: boolean; loop_ms?: number; steps: Wire[] }, problem?: string, fromCopy = false) => {
+    const seq = byId.get(p.id) ?? { id: p.id, name: p.name, steps: [], loadedOn: [], unconfirmed: [], problems: [] };
     if (!seq.name && p.name) seq.name = p.name;
     if (p.ambient) { seq.ambient = true; seq.loop_ms = Math.max(seq.loop_ms ?? 0, p.loop_ms ?? 0) || undefined; }
     seq.loadedOn.push(node);
+    if (fromCopy) seq.unconfirmed.push(node);
     if (problem) seq.problems.push(problem);
     for (const w of p.steps) {
       const [t_ms, kind, index, value] = w;
@@ -192,7 +197,7 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
     for (const [id, e] of Object.entries(seqs)) {
       if (e.del) continue;
       const r = await link.request("pull_seq", { for: node, seq: Number(id) });
-      if (r.ok && r.sequence) addPart(node, r.sequence as Parameters<typeof addPart>[1]);
+      if (r.ok && r.sequence) addPart(node, r.sequence as Parameters<typeof addPart>[1], undefined, true);
     }
     const rules = await link.request("pull_rules", { for: node });
     if (rules.ok) for (const r of (rules.rules as Record<string, unknown>[]) ?? []) show.rules.push(normalizeRule(node, r));
@@ -216,22 +221,38 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
         addPart(en.node, part.sequence as Parameters<typeof addPart>[1], sum.problem ? `${en.hello?.name || en.node}: ${sum.problem}` : undefined);
       }
     } catch {
-      // Off the mesh. Its channels from last time, its part from the bridge.
+      // Off the mesh. Its channels from last time (its pins don't change
+      // because it is asleep), its part from the bridge's copy, or failing
+      // that from the last read — a board going to sleep must not make its
+      // steps vanish from a saved sequence (seen in the simulator,
+      // 2026-10-24: a reload at the sleep transition showed one step where
+      // two were saved, and a save then would have dropped its part).
       const kept = prev?.configs[en.node];
+      if (kept) show.configs[en.node] = kept;
       let shown = false;
       if (viaBridge) {
-        if (kept) show.configs[en.node] = kept;
         try { shown = await fromBridge(en.node); } catch { /* the bridge itself didn't answer */ }
       }
       if (shown) {
         show.fromBridge.push(en.node);
         if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node];
-      } else show.unreachable.push(en.node);
+      } else {
+        let fromLast = false;
+        for (const q of prev?.sequences ?? []) {
+          const mine = q.steps.filter((st) => st.node === en.node);
+          if (!mine.length && !q.loadedOn.includes(en.node)) continue;
+          addPart(en.node, { id: q.id, name: q.name, ambient: q.ambient, loop_ms: q.loop_ms, steps: mine.map(toWire) });
+          fromLast = true;
+        }
+        for (const r of prev?.rules ?? []) if (r.node === en.node) { show.rules.push(r); fromLast = true; }
+        if (fromLast || kept) { show.fromLast.push(en.node); if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node]; }
+        else show.unreachable.push(en.node);
+      }
     }
   }));
   // The floods: one pseudo-node in the pickers, and each sender's copy of a
   // flood step collapses to one.
-  show.floods = deriveFloods(show.configs);
+  show.floods = deriveFloods(show.configs, viaBridge ? await readFloodsCopy(link) : null);
   for (const [node, cfg] of Object.entries(show.configs))
     show.configs[node] = { ...cfg, channels: (cfg.channels ?? []).filter((c) => c.kind !== "BLE_LIGHT") };
   if (show.floods.lights.length || show.floods.senders.length) show.configs[FLOODS] = floodsConfig(show.floods);
@@ -261,15 +282,22 @@ export const isAway = (error: string) => /no reply|not on the mesh|timed out|tim
 // nodes that had a part and now have none get it deleted. Flood steps
 // (node FLOODS) go into every sender's part — each transmits them, so a
 // missing board costs nothing.
-export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = [], viaBridge = false): Promise<SaveResult> {
+// `only`: resend to these boards alone (a board that was away for the
+// save and is back), leaving the rest untouched.
+// A step as it goes to a board.
+function toWire(st: Step): Wire {
+  const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
+  return dur > 0
+    ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
+    : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)];
+}
+
+export async function saveSequence(link: NodeLink, entries: Record<string, Entry>, seq: Sequence, senders: string[] = [], viaBridge = false, only?: string[]): Promise<SaveResult> {
   const parts = new Map<string, Wire[]>();
   const failed: SaveResult["failed"] = [];
   const queued: string[] = [];
   for (const st of [...seq.steps].sort((a, b) => a.t_ms - b.t_ms)) {
-    const dur = canRamp(st.kind) ? Math.round(st.dur_ms ?? 0) : 0;
-    const w: Wire = dur > 0
-      ? [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value), Math.min(dur, Math.round(st.t_ms)), st.ease_in ?? 50, st.ease_out ?? 50]
-      : [Math.round(st.t_ms), st.kind, st.index, Math.round(st.value)];
+    const w = toWire(st);
     const to = st.node === FLOODS ? senders : [st.node];
     if (st.node === FLOODS && !senders.length && !failed.some((f) => f.node === FLOODS))
       failed.push({ node: FLOODS, error: "no board holds the floods key — tick a sending board in the Floods tab" });
@@ -278,7 +306,7 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
       parts.get(node)!.push(w);
     }
   }
-  const nodes = new Set([...parts.keys(), ...seq.loadedOn]);
+  const nodes = new Set([...parts.keys(), ...seq.loadedOn].filter((n) => !only || only.includes(n)));
   const at = editStamp();  // one edit, one stamp on every part
   await Promise.all([...nodes].map(async (node) => {
     const en = entries[node];
@@ -297,6 +325,10 @@ export async function saveSequence(link: NodeLink, entries: Record<string, Entry
           } })
         : await ask(link, to, "delete_sequence", { seq: seq.id, at });
       if (!r.ok) away(r.error ?? "refused");
+      // Stamped older than what the board holds: it kept its own copy. A
+      // console whose clock is behind the board's, or an edit from another
+      // console in between. Not saved, and the reload shows what won.
+      else if (r.stale) failed.push({ node, error: `it holds a newer edit (${new Date(((r.have_at as number) || 0) * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}) — reload and try again` });
     } catch (e) {
       away((e as Error).message);
     }

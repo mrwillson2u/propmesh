@@ -12,7 +12,7 @@ import { C } from "../../lib/tokens";
 import { LandscapeHint, useLayout } from "../../lib/layout";
 import { ColorPicker, Spinner, Toggle, mono, sys, NumberInput, Hint } from "../../ui";
 import { FUNCTIONS, type ChannelKindName } from "../../lib/boards_gen";
-import { setModeAll, useConnection, type Activity, type Connection } from "../../lib/connection";
+import { setModeAll, useConnection, type Activity, type Connection, type Entry, isReachable, isMissing } from "../../lib/connection";
 import { MODES, MODE_HELP, MODE_LABEL, hhmm, type Mode, type ModeStatus } from "../../lib/schedule";
 import SchedulePanel, { MODE_COLOR } from "./SchedulePanel";
 import { target } from "../../lib/transport";
@@ -70,7 +70,7 @@ export default function ShowView({ section, onConnect }: { section: Section; onC
 }
 
 function Editor({ conn, section }: { conn: Connection; section: Section }) {
-  const { phone } = useLayout();
+  const { phone, landscape } = useLayout();
   const seqSection = section === "sequences";
   const [show, setShow] = useState<Show | null>(null);
   const [loading, setLoading] = useState(false);
@@ -122,40 +122,24 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   };
 
   const entries = conn.entries;
-  const known = Object.values(entries).filter((e) => e.hello);
+  const known = Object.values(entries).filter(isReachable);
   const nameOf = (node: string) => node === FLOODS ? FLOODS_NAME : entries[node]?.hello?.name || node;
   // Through a bridge, a board that's away still gets every edit: the bridge
   // keeps a copy and the board pulls it when it's back (docs §6k).
   const viaBridge = !!conn.hello.bridge;
-  // Boards that were away for a save, and the edit they still have to pull.
-  const [pending, setPending] = useState<{ nodes: string[]; at: number; what: string } | null>(null);
   const names = (ns: string[]) => ns.map(nameOf).join(", ");
   const awayText = (ns: string[]) =>
-    `${names(ns)} ${ns.length === 1 ? "is" : "are"} off the mesh — the bridge kept a copy and ${ns.length === 1 ? "it picks" : "they pick"} it up when back.`;
-  // Watch the boards that were away: when one has caught up (its show_synced
-  // has reached the save's stamp), say so and re-read the show.
-  useEffect(() => {
-    if (!pending) return;
-    const started = Date.now();
-    const id = setInterval(async () => {
-      if (Date.now() - started > 30 * 60_000) { setPending(null); return; }  // stop watching after 30 min
-      const caught: string[] = [];
-      await Promise.all(pending.nodes.map(async (n) => {
-        try {
-          const h = await target(conn.link, n).request("hello");
-          const synced = (h.sync as { show_synced?: number } | undefined)?.show_synced ?? 0;
-          if (h.ok && synced >= pending.at) caught.push(n);
-        } catch { /* still away */ }
-      }));
-      if (!caught.length) return;
-      const left = pending.nodes.filter((n) => !caught.includes(n));
-      setMsg({ text: `${names(caught)} ${caught.length === 1 ? "is" : "are"} back and picked up ${pending.what}.${left.length ? " " + awayText(left) : ""}` });
-      setPending(left.length ? { ...pending, nodes: left } : null);
-      void load();
-    }, 5000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending]);
+    `${names(ns)} didn't answer (asleep, or out of range) — the bridge holds the edit and ${ns.length === 1 ? "it picks" : "they pick"} it up by ${ns.length === 1 ? "itself" : "themselves"} when next awake; this page updates when ${ns.length === 1 ? "it has" : "they have"}.`;
+  // Every board's hello (re-asked every 15 s by lib/connection) carries
+  // show_synced: the newest edit it holds. When any board's stamp moves —
+  // it pulled a part from the bridge after being away — the show is read
+  // again, so a board catching up shows up here with nobody pressing
+  // anything (Colin, 2026-10-24). The bridge's own stamp is the newest edit
+  // it holds for anyone, so a heard board below it is still catching up.
+  const stampOf = (e: Entry) => e.hello?.sync?.show_synced ?? 0;
+  const syncKey = known.map((e) => `${e.node}:${stampOf(e)}`).sort().join(",");
+  const bridgeStamp = Math.max(0, ...Object.values(entries).filter((e) => e.usb).map(stampOf));
+  const catchingUp = (n: string) => { const e = entries[n]; return !!e && !isMissing(e) && !e.remembered && stampOf(e) < bridgeStamp; };
 
   // Loads overlap (one starts each time a board introduces itself);
   // only the newest may land, or an early load that saw fewer boards
@@ -172,10 +156,15 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   showRef.current = show;
   msgRef.current = msg;
   rulesRef.current = rules;
+  // A message a load itself wrote (boards away, unreachable) is replaced
+  // by the next load; one a save or play wrote stays — the reload that
+  // follows every save used to wipe "Saved …" the moment it appeared.
+  const msgFromLoad = useRef(false);
+  const loadMsg = (m: typeof msg) => { msgFromLoad.current = true; setMsg(m); };
   const load = async () => {
     const gen = ++loadGen.current;
     setLoading(true);
-    setMsg(null);
+    if (msgFromLoad.current) { msgFromLoad.current = false; setMsg(null); }
     try {
       const sh = await loadShow(conn.link, known, showRef.current, viaBridge);
       if (gen !== loadGen.current) return;
@@ -185,6 +174,14 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       // load already holds it, so that counts as saved too.
       const onBoards = d && sh.sequences.find((x) => x.id === d.id);
       const unsaved = !!d && !sameSequence(d, before) && !sameSequence(d, onBoards);
+      // Boards that held a sequence only as the bridge's copy last time and
+      // hold it themselves now: they picked it up.
+      const caught = new Set<string>();
+      for (const was of showRef.current?.sequences ?? []) {
+        const now = sh.sequences.find((x) => x.id === was.id);
+        for (const n of was.unconfirmed) if (now && now.loadedOn.includes(n) && !now.unconfirmed.includes(n)) caught.add(n);
+      }
+      if (caught.size) setMsg({ text: `${names([...caught])} picked up the saved show.` });
       setShow(sh);
       // Unsaved trigger edits (rows or graph) survive a reload, like an
       // unsaved sequence does — a mode change or a board catching up used
@@ -196,17 +193,24 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
         setSel(keep?.id ?? null);
         setDraft(keep ? sortSteps(structuredClone(keep)) : null);
       }
-      if (sh.unreachable.length) setMsg({ text: `No answer from ${sh.unreachable.map(nameOf).join(", ")} — its part of the show isn't shown.`, bad: true });
+      if (sh.unreachable.length) loadMsg({ text: `${names(sh.unreachable)} didn't answer (asleep, or out of range) — ${sh.unreachable.length === 1 ? "its" : "their"} part of the show isn't shown; it reloads when ${sh.unreachable.length === 1 ? "it's" : "they're"} heard again.`, bad: true });
       // A board away but covered by the bridge: say so only when nothing
       // more specific (a save's own message) is already showing.
-      else if (sh.fromBridge.length && !msgRef.current) setMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} off the mesh — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part.` });
+      else if (sh.fromBridge.length && !msgRef.current) loadMsg({ text: `${names(sh.fromBridge)} ${sh.fromBridge.length === 1 ? "is" : "are"} asleep or out of range — showing the bridge's copy of ${sh.fromBridge.length === 1 ? "its" : "their"} part; it reloads when ${sh.fromBridge.length === 1 ? "it's" : "they're"} heard again.` });
+      else if (sh.fromLast.length && !msgRef.current) loadMsg({ text: `${names(sh.fromLast)} ${sh.fromLast.length === 1 ? "is" : "are"} asleep or out of range — showing ${sh.fromLast.length === 1 ? "its" : "their"} part as last read; it reloads when ${sh.fromLast.length === 1 ? "it's" : "they're"} heard again.` });
     } finally {
       if (gen === loadGen.current) setLoading(false);
     }
   };
-  // Load once the boards have introduced themselves.
+  // Load once the boards have introduced themselves, and again whenever
+  // the set of boards actually heard changes — a board that was asleep
+  // or out of range for the last load is asked when it is back, so its
+  // pins come into the pickers and its part of a sequence is confirmed
+  // (before, nothing reloaded and a board stayed "not on this board"
+  // for good — Colin, 2026-10-24).
   const knownKey = known.map((e) => e.node).sort().join(",");
-  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey]);
+  const heardKey = known.filter((e) => !isMissing(e)).map((e) => e.node).sort().join(",");
+  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey, heardKey, syncKey]);
 
   const saved = show?.sequences.find((s) => s.id === sel) ?? null;
   const dirty = !!draft && !sameSequence(draft, saved);
@@ -240,12 +244,18 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     else if (typeof h?.armed === "boolean")  // firmware before 2026-10-09: armed / disarmed by hand
       liveModes[en.node] = { mode: h.armed ? "armed" : "off", reason: h.armed ? "old firmware" : "manual", clock: false, scheduled: false };
   }
+  // A board not heard now (asleep, away) keeps a stale mode in its last
+  // hello: it must not make the show look mixed, nor block Play.
+  for (const en of Object.values(entries)) if (isMissing(en) || en.remembered) delete liveModes[en.node];
   const modeVals = Object.values(liveModes);
   const modeKnown = modeVals.length > 0; // nothing reported yet: don't claim either way
   const oneMode: Mode | null = modeKnown && modeVals.every((m) => m.mode === modeVals[0].mode) ? modeVals[0].mode : null;
-  const anyOff = modeVals.some((m) => m.mode === "off");
+  const offBoards = Object.entries(liveModes).filter(([, m]) => m.mode === "off").map(([n]) => n);
   const usbNode = Object.values(entries).find((e) => e.usb)?.node;
   const lead: ModeStatus | undefined = (usbNode && liveModes[usbNode]) || modeVals[0];
+  // Play sends one cue through the connected board; it refuses only when
+  // that board is off. Other boards that are off just don't play.
+  const bridgeOff = !!lead && lead.mode === "off";
   const noClock = modeVals.filter((m) => m.scheduled && !m.clock).length;
 
   // ---- actions --------------------------------------------------------------
@@ -265,7 +275,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     // Blank: the Timeline offers "Add first track…" (a guessed first
     // output — whatever happened to be first on the first board — was
     // always the wrong one, 2026-10-12).
-    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], problems: [], steps: [] };
+    const seq: Sequence = { id, name: `Sequence ${id}`, loadedOn: [], unconfirmed: [], problems: [], steps: [] };
     setSel(id);
     setDraft(seq);
     setOpened((n) => n + 1);
@@ -302,8 +312,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       return;
     }
     if (r.queued.length) {
-      setMsg({ text: `Saved “${draft.name}”. ${awayText(r.queued)}` });
-      setPending({ nodes: r.queued, at: r.at, what: `“${draft.name}”` });
+      const got = [...new Set(steps.map((s) => s.node))].filter((n) => !r.queued.includes(n) && n !== FLOODS);
+      setMsg({ text: `Saved “${draft.name}”${got.length ? ` on ${names(got)}` : ""}. ${awayText(r.queued)}` });
     } else setMsg({ text: `Saved “${draft.name}” to ${new Set(steps.map((s) => s.node)).size} board(s).` });
     await load();
   };
@@ -314,10 +324,29 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     try {
       const r = await conn.link.request("cue", { seq: sel });
       if (!r.ok) setMsg({ text: `Couldn't play: ${r.error}`, bad: true });
-      else setPlayingFrom(Date.now() + 200); // the cue's lead time — the playhead then tracks the boards
+      else {
+        setPlayingFrom(Date.now() + 200); // the cue's lead time — the playhead then tracks the boards
+        const mine = new Set(saved?.steps.map((st) => st.node) ?? []);
+        const skipped = [...mine].filter((n) => offBoards.includes(n) || (saved?.unconfirmed ?? []).includes(n) || (entries[n] && isMissing(entries[n])));
+        if (skipped.length) setMsg({ text: `Playing — except on ${names(skipped)}: ${skipped.map((n) => offBoards.includes(n) ? "off" : saved?.unconfirmed.includes(n) ? "hasn't picked up the edit yet" : "not heard").filter((v, i, a) => a.indexOf(v) === i).join(" / ")}.` });
+      }
     } finally {
       setBusy(null);
     }
+  };
+
+  // Resend the saved sequence to the boards that haven't confirmed it
+  // (they were away for the save and are back now).
+  const resend = async (nodes: string[]) => {
+    if (!saved) return;
+    setBusy("save");
+    setMsg(null);
+    const r = await saveSequence(conn.link, entries, saved, show?.floods.senders ?? [], viaBridge, nodes);
+    setBusy(null);
+    if (r.failed.length) setMsg({ text: `Not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
+    else if (r.queued.length) setMsg({ text: awayText(r.queued) });
+    else setMsg({ text: `${names(nodes)} ${nodes.length === 1 ? "has" : "have"} “${saved.name}” now.` });
+    await load();
   };
 
   const del = async () => {
@@ -328,7 +357,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     setBusy(null);
     setConfirmDelete(false);
     if (r.failed.length) setMsg({ text: `Still on ${r.failed.map((f) => nameOf(f.node)).join(", ")} — try again`, bad: true });
-    else if (r.queued.length) { setMsg({ text: `Deleted “${draft.name}”. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the deletion" }); }
+    else if (r.queued.length) setMsg({ text: `Deleted “${draft.name}”. ${awayText(r.queued)}` });
     setSel(null);
     await load();
   };
@@ -339,7 +368,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     const r = await saveRules(conn.link, entries, rules, show?.rules ?? [], viaBridge);
     setBusy(null);
     if (r.failed.length) setMsg({ text: `Triggers not saved on ${r.failed.map((f) => `${nameOf(f.node)} (${f.error})`).join("; ")}`, bad: true });
-    else if (r.queued.length) { setMsg({ text: `Triggers saved. ${awayText(r.queued)}` }); setPending({ nodes: r.queued, at: r.at, what: "the triggers" }); }
+    else if (r.queued.length) setMsg({ text: `Triggers saved. ${awayText(r.queued)}` });
     else setMsg({ text: "Triggers saved." });
     await load();
   };
@@ -364,7 +393,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: C.bg }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: C.panel, borderBottom: `1px solid ${C.b1}`, flexWrap: "wrap" }}>
         <span style={sys(700, 13, C.t1)}>{seqSection ? "Sequences" : "Show"}</span>
-        {seqSection && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
+        {seqSection && !phone && <span style={sys(400, 11.5, C.t4)}>timed steps on any board's outputs — the Show wires sensors and logic to them</span>}
         {!seqSection && <span style={{
           padding: "3px 9px", borderRadius: 4, letterSpacing: ".06em",
           ...(!modeKnown ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t4) }
@@ -373,30 +402,32 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
             : oneMode === "off" ? { background: C.raised, border: `1px solid ${C.b3}`, ...mono(700, 10.5, C.t3) }
             : { background: C.redBg, border: `1px solid ${C.redB}`, ...mono(700, 10.5, C.red) }),
         }}>{!modeKnown ? "…" : oneMode ? oneMode.toUpperCase() : "MIXED"}</span>}
-        {!seqSection && <span style={sys(400, 11.5, C.t4)}>
+        {!seqSection && !(phone && landscape) && <span style={{ ...sys(400, 11.5, C.t4), flex: phone ? "1 1 100%" : undefined }}>
           {!modeKnown ? "" : !oneMode ? `Boards disagree: ${modeVals.map((m) => m.mode).join(" / ")} — check their clocks.`
             : statusLine(oneMode, lead)}
           {noClock > 0 && <span style={{ color: C.amber }}> · {noClock} board(s) have no clock</span>}
         </span>}
-        <div style={{ flex: 1 }} />
-        {msg && <span style={mono(500, 11, msg.bad ? C.red : C.green)}>{msg.text}</span>}
+        {!phone && <div style={{ flex: 1 }} />}
+        {msg && <span style={{ ...mono(500, 11, msg.bad ? C.red : C.green), flex: phone ? "1 1 100%" : undefined }}>{msg.text}</span>}
         {(loading || busy) && <Spinner />}
-        <button onClick={() => void load()} disabled={loading} style={btn(false, loading)}>Reload from boards</button>
-        {!seqSection && <span style={{ display: "flex" }} title="Sets every board now; holds until the schedule's next change">
+        {/* On a phone the mode buttons are the control: three equal thumb-sized
+            buttons across, then Schedule and Reload as a second row. */}
+        {!seqSection && <span style={{ display: "flex", flex: phone ? (landscape ? "1 1 40%" : "1 1 100%") : undefined }} title="Sets every board now; holds until the schedule's next change">
           {MODES.map((m, i) => {
             const on = oneMode === m;
             return (
               <button key={m} onClick={() => void setMode(m)} disabled={!!busy} title={MODE_HELP[m]} style={{
-                height: 30, padding: "0 12px", cursor: busy ? "default" : "pointer",
+                height: phone ? (landscape ? 36 : 44) : 30, padding: "0 12px", cursor: busy ? "default" : "pointer", flex: phone ? 1 : undefined,
                 borderRadius: i === 0 ? "6px 0 0 6px" : i === MODES.length - 1 ? "0 6px 6px 0" : 0,
                 marginLeft: i ? -1 : 0,
                 background: on ? C.emberBg : C.raised, border: `1px solid ${on ? C.ember : C.b3}`,
-                ...sys(600, 11.5, on ? MODE_COLOR[m] : C.t3),
+                ...sys(600, phone ? 14 : 11.5, on ? MODE_COLOR[m] : C.t3),
               }}>{MODE_LABEL[m]}</button>
             );
           })}
         </span>}
-        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={btn(schedOpen)}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
+        {!seqSection && <button onClick={() => setSchedOpen(!schedOpen)} style={{ ...btn(schedOpen), ...(phone ? { flex: landscape ? "0 0 auto" : 1, height: 36 } : {}) }}>{schedOpen ? "Hide schedule" : "Schedule…"}</button>}
+        <button onClick={() => void load()} disabled={loading} style={{ ...btn(false, loading), ...(phone ? { flex: seqSection || landscape ? "0 0 auto" : 1, height: 36, marginLeft: seqSection ? "auto" : undefined } : {}) }} title="Read sequences and triggers from every board again">{phone ? "↻ Reload" : "Reload from boards"}</button>
       </div>
       {!seqSection && schedOpen && <SchedulePanel conn={conn} onSaved={() => void load()} />}
 
@@ -407,14 +438,22 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
       )}
 
       {show && (
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: phone ? "column" : "row" }}>
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: phone && !landscape ? "column" : "row" }}>
           {/* sequences */}
-          {seqSection && <div style={{ width: phone ? "100%" : 230, maxHeight: phone ? "32vh" : undefined, flex: "none", borderRight: phone ? undefined : `1px solid ${C.b1}`, borderBottom: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
-            <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>
+          {seqSection && <div style={{ width: phone && !landscape ? "100%" : phone ? 180 : 230, flex: "none", borderRight: phone && !landscape ? undefined : `1px solid ${C.b1}`, borderBottom: phone && !landscape ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            {!(phone && !landscape) && <div style={{ ...label, padding: "12px 14px 6px" }}>SEQUENCES</div>}
             {show.sequences.length === 0 && !draft && <div style={{ padding: "4px 14px", ...sys(400, 11.5, C.t4) }}>None yet.</div>}
+            {/* Portrait phone: the sequences as a strip of chips that scrolls sideways, so the editor keeps the height. */}
+            <div style={phone && !landscape ? { display: "flex", gap: 8, padding: "10px 12px", overflowX: "auto", WebkitOverflowScrolling: "touch", alignItems: "center" } : undefined}>
             {[...show.sequences, ...(draft && !show.sequences.some((s) => s.id === draft.id) ? [draft] : [])].map((s) => {
               const on = s.id === sel;
               const nodes = new Set(s.steps.map((x) => x.node)).size;
+              if (phone && !landscape) return (
+                <div key={s.id} onClick={() => select(s.id)} style={{ flex: "none", padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: on ? C.emberBg2 : C.card, border: `1px solid ${on ? C.emberB : C.b2}` }}>
+                  <div style={{ ...sys(600, 13, on ? C.emberT : C.t1), whiteSpace: "nowrap" }}>{on && draft ? draft.name || "(unnamed)" : s.name || "(unnamed)"}</div>
+                  <div style={{ ...mono(500, 10.5, s.problems.length ? C.amber : C.t5), whiteSpace: "nowrap" }}>{secs(lengthMs(s))} s{s.problems.length ? " · ⚠" : ""}{!show.sequences.some((x) => x.id === s.id) ? " · not saved" : ""}</div>
+                </div>
+              );
               return (
                 <div key={s.id} onClick={() => select(s.id)} style={{
                   padding: "8px 14px", cursor: "pointer", borderLeft: `3px solid ${on ? C.ember : "transparent"}`,
@@ -428,10 +467,15 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 </div>
               );
             })}
-            <div style={{ padding: "10px 14px" }}>
+            {phone && !landscape && (
+              <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), flex: "none", height: 40 }}
+                title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New</button>
+            )}
+            </div>
+            {!(phone && !landscape) && <div style={{ padding: "10px 14px" }}>
               <button onClick={newSequence} disabled={!outNodes.length} style={{ ...btn(false, !outNodes.length), width: "100%" }}
                 title={outNodes.length ? "" : "No board has an output yet — assign pins in Nodes & Channels"}>+ New sequence</button>
-            </div>
+            </div>}
           </div>}
 
           {/* Sequences: the editor. Show: the triggers (the graph's row view). */}
@@ -440,8 +484,8 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <input value={draft.name} maxLength={23} placeholder="Name this sequence"
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: 230, ...sys(700, 13, C.t1) }} />
-                  <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ ...field, width: phone ? undefined : 230, flex: phone ? "1 1 160px" : undefined, minWidth: 0, ...sys(700, phone ? 16 : 13, C.t1) }} />
+                  {!phone && <span style={mono(500, 11, C.t5)}>#{draft.id} · {secs(lengthMs(draft))} s</span>}
                   <label title="Ambient: loops by itself while the show is Ambient or Armed — porch lights, a fog burst every few minutes. Every board repeats its part on the same beat."
                     style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, draft.ambient ? C.amber : C.t4) }}>
                     <Toggle small on={!!draft.ambient} onClick={() => setDraft({ ...draft, ambient: !draft.ambient })} /> Ambient loop
@@ -461,19 +505,36 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                     style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", ...sys(600, 11.5, live ? C.emberT : C.t4) }}>
                     <Toggle small on={live} onClick={() => setLive(!live)} /> Live preview
                   </label>
-                  <div style={{ flex: 1 }} />
+                  {!phone && <div style={{ flex: 1 }} />}
                   {dirty && <span style={mono(600, 11, C.amber)}>unsaved</span>}
-                  <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={btn(false, !dirty || !!busy)}>Revert</button>
-                  <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={btn(true, !dirty || !!busy)}>Save to boards</button>
-                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || anyOff}
-                    title={dirty ? "Save first" : anyOff ? "The show is off on some boards — switch to Ambient or Armed" : "Play on every board now"}
-                    style={btn(false, dirty || !saved || !!busy || anyOff)}>▶ Play</button>
+                  {/* On a phone the actions are their own row: Save and Play wide, the rest small. */}
+                  {phone && <span style={{ flex: "1 1 100%", height: 0 }} />}
+                  <button onClick={() => select(draft.id)} disabled={!dirty || !!busy} style={{ ...btn(false, !dirty || !!busy), ...(phone ? { height: 40 } : {}) }}>Revert</button>
+                  <button onClick={() => void saveSeq()} disabled={!dirty || !!busy} style={{ ...btn(true, !dirty || !!busy), ...(phone ? { height: 40, flex: "1 1 auto" } : {}) }}>Save to boards</button>
+                  <button onClick={() => void play()} disabled={dirty || !saved || !!busy || bridgeOff}
+                    title={dirty ? "Save first" : !saved ? "Not on any board yet — save first" : bridgeOff ? `The show is off on ${nameOf(usbNode ?? "")} (the board the console is on) — switch to Ambient or Armed` : offBoards.length ? `Play now — ${names(offBoards)} ${offBoards.length === 1 ? "is" : "are"} off and won't join in` : "Play on every board now"}
+                    style={{ ...btn(false, dirty || !saved || !!busy || bridgeOff), ...(phone ? { height: 40, flex: "1 1 auto" } : {}) }}>▶ Play</button>
                   <button onClick={() => void del()} disabled={!!busy}
-                    style={{ ...btn(false, !!busy), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
+                    style={{ ...btn(false, !!busy), ...(phone ? { height: 40 } : {}), ...(confirmDelete ? { background: C.redBg, border: `1px solid ${C.red}`, color: C.red } : {}) }}>
                     {confirmDelete ? "Really delete?" : "Delete"}
                   </button>
                 </div>
                 {draft.problems.map((p) => <div key={p} style={{ ...mono(500, 11, C.amber), marginTop: 6 }}>⚠ {p}</div>)}
+                {saved && saved.unconfirmed.length > 0 && (() => {
+                  const pulling = saved.unconfirmed.filter(catchingUp);
+                  const back = saved.unconfirmed.filter((n) => entries[n] && !isMissing(entries[n]) && !pulling.includes(n));
+                  const away = saved.unconfirmed.filter((n) => !entries[n] || isMissing(entries[n]));
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, ...mono(500, 11, C.amber) }}>
+                      {pulling.length > 0 && <span><Spinner size={10} /> {names(pulling)} {pulling.length === 1 ? "is" : "are"} picking this up from the bridge…</span>}
+                      {away.length > 0 && <span>☾ {names(away)} {away.length === 1 ? "is" : "are"} asleep or out of range — the bridge holds it; {away.length === 1 ? "it picks" : "they pick"} it up when next awake.</span>}
+                      {back.length > 0 && <>
+                        <span>⚠ {names(back)} {back.length === 1 ? "is" : "are"} awake but {back.length === 1 ? "hasn't" : "haven't"} picked this up.</span>
+                        <button onClick={() => void resend(back)} disabled={!!busy} style={btn(true, !!busy)}>Send to {names(back)} now</button>
+                      </>}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ marginTop: 12 }}>
                   <LandscapeHint what="timeline">The timeline is easier sideways. Turn the phone for tracks and keyframes; the step table below works either way.</LandscapeHint>
@@ -502,14 +563,14 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                         if (o) patchStep(i, { node: e.target.value, kind: o.kind, index: o.index });
                       }}>
                         {outNodes.map((n) => <option key={n} value={n}>{nameOf(n)}</option>)}
-                        {!outNodes.includes(st.node) && <option value={st.node}>{nameOf(st.node)} (gone)</option>}
+                        {!outNodes.includes(st.node) && <option value={st.node}>{nameOf(st.node)} ({entries[st.node] ? "pins not read yet" : "not on the mesh"})</option>}
                       </select>
                       <select value={`${st.kind}_${st.index}`} style={{ ...field, color: exists ? C.t1 : C.amber }} onChange={(e) => {
                         const o = outs.find((x) => `${x.kind}_${x.index}` === e.target.value);
                         if (o) patchStep(i, { kind: o.kind, index: o.index, value: o.kind === st.kind ? st.value : o.kind === "RELAY" ? 1 : 500 });
                       }}>
                         {outs.map((o) => <option key={`${o.kind}_${o.index}`} value={`${o.kind}_${o.index}`}>{o.kind}_{o.index}{o.label ? ` · ${o.label}` : ""}</option>)}
-                        {!exists && <option value={`${st.kind}_${st.index}`}>{st.kind}_{st.index} (not on this board)</option>}
+                        {!exists && <option value={`${st.kind}_${st.index}`}>{st.kind}_{st.index} ({outputs[st.node] ? "not on this board" : "board not read yet"})</option>}
                       </select>
                       <ValueInput kind={st.kind} value={st.value} onChange={(v) => {
                         patchStep(i, { value: v });
@@ -566,12 +627,12 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
                 <button onClick={() => void saveTriggers()} disabled={!rulesDirty || !!busy} style={btn(true, !rulesDirty || !!busy)}>Save triggers</button>
               </div>
               {sensors.length === 0 && (
-                <div style={{ ...sys(400, 12, C.t4), marginTop: 8 }}>
+                <Hint style={{ marginTop: 8 }}>
                   No sensor inputs yet. Assign a pin to <b>Sensor / button input</b> in Nodes &amp; Channels — a PIR on VP/VN/D34/D35 is a good start.
-                </div>
+                </Hint>
               )}
               {graphView && (
-                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: phone ? "60vh" : "calc(100vh - 230px)", minHeight: phone ? 320 : 460 }}>
+                <div style={{ display: "flex", flexDirection: "column", marginTop: 8, height: phone ? (landscape ? "calc(100dvh - 215px)" : "60vh") : "calc(100vh - 230px)", minHeight: phone ? (landscape ? 160 : 300) : 460 }}>
                   <LandscapeHint what="graph">The show graph is easier sideways. Turn the phone, or use List for the same rules as rows.</LandscapeHint>
                   <GraphEditor rules={rules} show={show} sensors={sensors} nameOf={nameOf} activity={conn.activity} onChange={setRules}
                     onFire={async (seq) => { try { const r = await conn.link.request("cue", { seq }); return r.ok ? null : (r.error ?? "refused"); } catch (e) { return (e as Error).message; } }} />
@@ -591,7 +652,7 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
           </div>
 
           {/* activity */}
-          {!seqSection && <div style={{ width: phone ? "100%" : 250, maxHeight: phone ? "40vh" : undefined, flex: "none", borderLeft: phone ? undefined : `1px solid ${C.b1}`, borderTop: phone ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
+          {!seqSection && <div style={{ width: phone && !landscape ? "100%" : phone ? 200 : 250, maxHeight: phone && !landscape ? "40vh" : undefined, flex: "none", borderLeft: phone && !landscape ? undefined : `1px solid ${C.b1}`, borderTop: phone && !landscape ? `1px solid ${C.b1}` : undefined, background: C.panel, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ ...label, padding: "12px 14px 6px" }}>ACTIVITY</div>
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
               {conn.activity.length === 0 && <div style={sys(400, 11.5, C.t5)}>Sensor changes and cues appear here as they happen.</div>}

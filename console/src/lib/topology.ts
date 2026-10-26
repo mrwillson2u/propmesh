@@ -3,7 +3,7 @@
 // and the USB node reports its own via `mesh`. Pure functions — the
 // Yard view recomputes this on every connection change.
 import { NodeRole } from "./proto_gen";
-import { isMissing, type Connection, type Entry } from "./connection";
+import { isMissing, isHidden, type Connection, type Entry } from "./connection";
 import { linkStyle } from "./mesh";
 
 export interface TopoNode {
@@ -42,7 +42,7 @@ export interface Topology {
 }
 
 export function buildTopology(c: Connection, now = Date.now()): Topology {
-  const entries = Object.values(c.entries);
+  const entries = Object.values(c.entries).filter((e) => !isHidden(e.node)); // hidden boards are off the map too
   const ids = new Set(entries.map((e) => e.node));
   const roleOf = (e: Entry) => (e.usb ? e.hello?.role ?? 0 : e.hb?.role ?? 0);
 

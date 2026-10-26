@@ -22,6 +22,8 @@ export interface NodeHello {
   relay?: boolean; // a battery repeater: relays while the show runs (docs §6m)
   drift_ppm?: number; // its sleep clock's measured error, corrected for (§6m)
   awake_ms?: number; // how long its last wake lasted
+  batt_mv_per_h?: number; // the board's own drain measurement, mV per hour, positive = draining (firmware 2026-10-24+)
+  batt_span_h?: number; // hours of readings behind it
   pending?: boolean; // a fresh OTA image not yet proven
   board: string; // key into BOARDS
   name: string;
@@ -326,8 +328,35 @@ class WsLink extends LineLink {
 
 export const DEFAULT_WIFI_URL = "ws://propmesh.local:81";
 
+// The bridge's LAN address, as its `mesh` status last reported it. An
+// mDNS name (propmesh.local) resolves only on the home network; from a
+// phone on Tailscale (the server routes the LAN) the name fails and the
+// IP works — so a .local address that fails is retried at the last IP.
+const IP_KEY = "propmesh.bridge.ip";
+export function rememberBridgeIp(ip: string | undefined) {
+  if (!ip) return;
+  try { localStorage.setItem(IP_KEY, ip); } catch { /* private mode */ }
+}
+export function bridgeIp(): string | null {
+  try { return localStorage.getItem(IP_KEY); } catch { return null; }
+}
+
 // Connect to a bridge on WiFi. `address` may be a host, host:port, or a ws:// URL.
 export async function connectWifi(address: string): Promise<{ link: NodeLink; hello: NodeHello }> {
+  try {
+    return await connectWifiOnce(address);
+  } catch (e) {
+    // A name that didn't resolve or answer: the bridge's last known IP,
+    // if there is one and the address wasn't already an IP.
+    const ip = bridgeIp();
+    if (!ip || /^\d+\.\d+\.\d+\.\d+/.test(address.replace(/^wss?:\/\//, "")) || address.includes(ip)) throw e;
+    try {
+      const r = await connectWifiOnce(`ws://${ip}:81`);
+      return r;
+    } catch { throw e; }  // the original error names the address the user typed
+  }
+}
+async function connectWifiOnce(address: string): Promise<{ link: NodeLink; hello: NodeHello }> {
   let url = address.trim() || DEFAULT_WIFI_URL;
   if (!/^wss?:\/\//.test(url)) url = "ws://" + url;
   if (!/:\d+$/.test(url.replace(/\/$/, ""))) url = url.replace(/\/$/, "") + ":81";
@@ -394,7 +423,13 @@ const SIM_LOCAL = SIM_LOCAL_ID;
 const SIM_REMOTES = [
   { node: "5c0ffee1", hops: 0, rssi: -54, nbrs: [{ node: SIM_LOCAL_ID, rssi: -55 }, { node: "5c0ffee2", rssi: -77 }] },
   { node: "5c0ffee2", hops: 1, rssi: -77, nbrs: [{ node: "5c0ffee1", rssi: -79 }] },
+  // A battery board: awake for 25 s after the page loads, then asleep
+  // (no heartbeats) until its next check-in, 2 min later, for 20 s —
+  // the real sleep pattern at a small scale, so the list's asleep /
+  // remembered states can be seen without hardware.
+  { node: "5c0ffee3", hops: 0, rssi: -61, nbrs: [{ node: SIM_LOCAL_ID, rssi: -62 }], sleeps: true },
 ];
+const SIM_SLEEP_CYCLE_MS = 120000, SIM_SLEEP_CHECKIN_MS = 20000;
 
 // A step on the wire: [t, kind, index, value] or [..., dur, ease_in, ease_out].
 type SimStep = [number, string, number, number] | [number, string, number, number, number, number, number];
@@ -441,6 +476,7 @@ class SimLink implements NodeLink {
   // the node reports the build the URL named (its last path segment).
   private builds = new Map<string, string>();
   private ota = new Map<string, { until: number; build: string }>();
+  private resets = new Map<string, string>(); // why a node last restarted, for its hello
   private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
   private rx = new Map<string, { size: number; written: number }>(); // an image arriving over the mesh
 
@@ -475,10 +511,16 @@ class SimLink implements NodeLink {
       const o = this.ota.get(r.node);
       if (o && Date.now() >= o.until) { this.builds.set(r.node, o.build); this.ota.delete(r.node); this.bootAt.set(r.node, Date.now()); }
       if (o) return; // off the mesh while it downloads and reboots
+      if (r.sleeps) {
+        // On the wall clock, like a real board's check-in grid: awake for
+        // the first 20 s of every 2 min, so a page opened mid-cycle meets
+        // it asleep (and, once remembered, on the list anyway).
+        if (Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) return; // asleep
+      }
       const hb: Heartbeat = {
         node: r.node, board: 0, role: simRole(n.cfg), fw: 3,
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
-        batt: n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
+        batt: r.sleeps || n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
       };
       this.events.emit({ evt: "heartbeat", ...hb });
@@ -490,13 +532,18 @@ class SimLink implements NodeLink {
   async request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
     const node = (body.node as string | undefined) ?? SIM_LOCAL;
     const n = this.nodes.get(node);
+    // A sleeping board hears nothing: the request times out, as on the mesh.
+    if (SIM_REMOTES.find((r) => r.node === node)?.sleeps && Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return { ok: false, error: `no reply from node ${node}` };
+    }
     if (node !== SIM_LOCAL) await new Promise((r) => setTimeout(r, 120)); // mesh round trip
     if (!n) return { ok: false, error: `no reply from node ${node}` };
     switch (cmd) {
       case "hello": {
         const o = this.ota.get(node);
         if (o && Date.now() >= o.until) { this.builds.set(node, o.build); this.ota.delete(node); this.bootAt.set(node, Date.now()); }
-        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? 300000, sleeps: true, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
+        return { ok: true, node, fw: 4, build: this.builds.get(node) ?? "sim0001", board: this.boardId, ble: true, name: n.cfg.name, reset: this.resets.get(node) ?? "power on", bridge: !!n.cfg.bridge, role: simRole(n.cfg), ...(n.cfg.power === "battery" || SIM_REMOTES.find((r) => r.node === node)?.sleeps ? { power: "battery" as const, checkin_ms: n.cfg.sleep?.checkin_ms ?? SIM_SLEEP_CYCLE_MS, sleeps: true, batt_mv_per_h: 4.2, batt_span_h: 51, ...(n.cfg.sleep?.relay ? { relay: true } : {}) } : {}), armed: n.armed, ...this.modeStatus(n) };
       }
       case "ota": {
         if (!body.url || !body.ssid) return { ok: false, error: "ota needs url and ssid" };
@@ -523,7 +570,12 @@ class SimLink implements NodeLink {
         this.rx.delete(node);
         if (!r) return { ok: false, error: "no update in progress" };
         if (r.written !== r.size) return { ok: false, error: "image incomplete" };
-        this.ota.set(node, { until: Date.now() + 2500, build: String(body.build ?? "meshnew").slice(0, 12) });
+        const sent = String(body.build ?? "meshnew").slice(0, 12);
+        // A test hook: an image named "rollback…" runs, browns out and the
+        // board comes back on the build it had — what a weak supply does.
+        const back = /^rollback/.test(sent) ? this.builds.get(node) ?? "sim0001" : sent;
+        if (back !== sent) this.resets.set(node, "brownout (supply sagged)");
+        this.ota.set(node, { until: Date.now() + 2500, build: back });
         return { ok: true };
       }
       case "ota_abort":

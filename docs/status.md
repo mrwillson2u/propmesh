@@ -52,6 +52,22 @@ on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
+- **Battery drain rate on a C6 candle (2026-10-24).** Flash a candle
+  with a build from `console/node-list` (or the next dev build), run
+  it on its cell for two nights, then `python3 tools/bridge.py ask
+  <id> hello` while it is awake: expect `batt_mv_per_h` and
+  `batt_span_h`, and the Nodes row to read "about N nights left (from
+  2 days of readings)". Compare the rate with the candle's measured
+  drain in generic-boards §6n. Both firmware builds pass; nothing has
+  run on a board. `docs/console-nodes-list.md` §8.
+
+- **A lit candle's `state` value (2026-10-24).** Colin saw a lit candle
+  read as "out" when its pins page opened. With a candle visibly lit,
+  `python3 tools/bridge.py ask <candle id> state` — CANDLE_1 non-zero
+  means the console showed a stale read (the page now re-reads every
+  5 s, fixed); zero means the firmware lights it past the runtime
+  value (a firmware fix). `docs/console-nodes-list.md` §5.
+
 Run these with the boards in hand. Protocol: write out what to watch,
 **wait for Colin's "go"**, make tests self-announcing (CLAUDE.md).
 
@@ -126,6 +142,34 @@ After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
 
 ## 3. Open bugs and loose ends
+
+- **Sequences save / play audit (2026-10-24 evening):** every
+  board-away scenario is listed with before/after in
+  `docs/console-show-sync.md` §2; fixes built and run in the simulator
+  (§3e), the bridge-copy pull proved on the yard (§3c). Also there:
+  §3b the floods "forgotten" (no sender on the mesh; the bridge's copy
+  now stands in), §3d firmware updates running outside the panel and a
+  rollback read as success (Candle 1), and §4 **loops as Show rules**
+  (Colin's ask; proposal, waiting on him before the rule format
+  changes). Bridge heap min hit 17.3 KB during tonight's updates (§3d).
+
+- **"Nothing turned on at the scheduled time" (2026-10-24):** the
+  schedule worked — every board armed at sunset−60 — but no board holds
+  a sequence or rule, so there was nothing to play. Needs an ambient
+  loop for the candles (generic-boards §6e note, candle page). Also
+  seen: Candle 1 and Candle 2 not heard by the bridge at all tonight;
+  Candle 3 (mains) rebuilt its radio at 14:44 after 121 s unheard; the
+  bridge rebuilt its own at 21:02 the night before with 15.8 KB free.
+
+- **Node list overhaul (2026-10-24)** — built: the roster (boards
+  remembered per browser, on the list at connect, asleep or not
+  heard), name order, Arrange mode, zzz with sleep age, hide / forget,
+  live `state` on a board's page, the list-beside-editor layout (phone:
+  list → page → back), battery low / critical / overdue / ran-out
+  marks, the ⚠ alarm, and the drain-rate estimate (firmware log in RTC
+  memory + console forecast; bench test above). Next: the heartbeat
+  output summary for a live second line per board.
+  `docs/console-nodes-list.md`.
 
 - **C6 SuperMini crash-loop on its first real run (2026-10-15) —
   cause found, fix built, not yet on the board.** e076df14 on the release
@@ -250,6 +294,18 @@ tunnel for that). No login: anyone on the home network can open it.
 - Service: `~/.config/systemd/user/propmesh-console.service`
   (`python3 -m http.server` on 0.0.0.0:5180; linger is on, so it starts
   at boot). `systemctl --user status propmesh-console`.
+- **From anywhere, over Tailscale (checked 2026-10-24):** the server
+  (`ubuntubot`, 100.115.150.41, `ubuntubot.llama-arctic.ts.net`) is a
+  subnet router for 192.168.175.0/24 and the route is approved, so a
+  phone on the tailnet reaches both the console and the bridge. Open
+  **http://100.115.150.41:5180** (or `http://ubuntubot:5180` with
+  MagicDNS). The bridge's mDNS name `propmesh.local` does not resolve
+  off the home network: the console remembers the bridge's LAN IP from
+  its `mesh` status (`propmesh.bridge.ip`) and retries a failed `.local`
+  address there by itself; or type `ws://192.168.175.209:81`. The
+  phone's Tailscale app must have "use subnet routes" on (default on
+  iOS). Web Serial still needs https or localhost, so USB flashing is
+  not possible this way.
 - Update after merging to dev: `~/bin/propmesh-console-update`.
   If Chrome says "address unreachable" for that page while Safari or
   `curl` loads it, quit Chrome fully (Cmd-Q) and reopen: its network
