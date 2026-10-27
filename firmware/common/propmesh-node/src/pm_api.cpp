@@ -97,6 +97,7 @@ static void cmd_hello(JsonObject resp) {
     if (pm_sleep_hold_left_ms()) resp["hold_s"] = pm_sleep_hold_left_ms() / 1000;  // the setup window or a console hold, seconds left
     resp["sleeps"] = pm_sleep_supported();  // false: a mains-board build (DevKit) — leaf only, never sleeps
   }
+  if (pm_mesh_is_low_power()) resp["radio_low"] = true;  // radio capped at 13 dBm (pm_mesh_low_power)
   resp["ble"] = pm_ble_available();  // false: built without Bluetooth — can't drive floods
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;

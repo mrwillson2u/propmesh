@@ -47,6 +47,10 @@ uint32_t pm_mesh_tx_stuck_ms();
 // `role` is pm_node_role_t flags; PM_NODE_ROLE_RELAY enables rebroadcast,
 // PM_NODE_ROLE_CONDUCTOR makes this node the mesh time authority.
 bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role);
+// Cap the radio at 13 dBm (true) or give it the driver's full power; set
+// before pm_mesh_init to apply from the first frame (pm_mesh.cpp).
+void pm_mesh_low_power(bool low);
+bool pm_mesh_is_low_power();
 
 // This node's id (last 4 bytes of the efuse MAC).
 uint32_t pm_node_id();

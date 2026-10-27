@@ -388,6 +388,26 @@ uint32_t pm_mesh_tx_stuck_ms() {
   return millis() - s_stats.tx_done_ms;
 }
 
+// Low radio power (2026-10-26): some C6 SuperMinis (Candle 1, the
+// lantern) trip their brownout detector at full transmit power after a
+// normal restart — on USB power too. The framework then lowers the power
+// after that brownout reset, so the board runs on, but a new image reset
+// that way before it confirms is rolled back by the bootloader. The node
+// asks for 13 dBm while an image is on probation, and for good once the
+// board has browned out (pm_mesh_low_power); the cap is applied each time
+// the radio starts.
+#define LOW_QDBM 52           // 0.25 dBm units: 13 dBm
+static bool s_low;            // wanted
+static int8_t s_full_qdbm;    // the driver's own maximum, read before lowering it
+static void apply_power() {
+  int8_t q = 0;
+  if (esp_wifi_get_max_tx_power(&q) != ESP_OK) return;
+  if (s_low && q > LOW_QDBM) { s_full_qdbm = q; esp_wifi_set_max_tx_power(LOW_QDBM); }
+  else if (!s_low && s_full_qdbm && q < s_full_qdbm) esp_wifi_set_max_tx_power(s_full_qdbm);
+}
+void pm_mesh_low_power(bool low) { s_low = low; if (WiFi.getMode() != WIFI_OFF) apply_power(); }
+bool pm_mesh_is_low_power() { return s_low; }
+
 bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   s_net_id = net_id;
   s_role = role;
@@ -411,6 +431,7 @@ bool pm_mesh_init(uint8_t channel, uint16_t net_id, uint8_t role) {
   WiFi.disconnect();  // no AP association yet (a bridge joins WiFi later — pm_wifi)
   esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   s_channel = channel;
+  apply_power();
 
   if (esp_now_init() != ESP_OK) return false;
 
@@ -451,6 +472,7 @@ bool pm_mesh_recover(uint8_t ch) {
   delay(50);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
+  apply_power();
   if (esp_now_init() != ESP_OK) return false;
   esp_now_peer_info_t peer = {};
   memcpy(peer.peer_addr, BCAST, 6);
