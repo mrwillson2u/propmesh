@@ -389,13 +389,13 @@ uint32_t pm_mesh_tx_stuck_ms() {
 }
 
 // Low radio power (2026-10-26): some C6 SuperMinis (Candle 1, the
-// lantern) trip their brownout detector at full transmit power after a
-// normal restart — on USB power too. The framework then lowers the power
-// after that brownout reset, so the board runs on, but a new image reset
-// that way before it confirms is rolled back by the bootloader. The node
-// asks for 13 dBm while an image is on probation, and for good once the
-// board has browned out (pm_mesh_low_power); the cap is applied each time
-// the radio starts.
+// lantern) trip the chip's brownout detector on their first full-power
+// frames after a restart — on USB power too — then reset and boot again
+// normally (why the second boot survives isn't known). A confirmed image
+// shrugs that off; a new one on probation is rolled back by the
+// bootloader, so no update could stick. So the radio runs at 13 dBm while
+// an image is unconfirmed and goes to the driver's full power once it is
+// (Colin, 2026-10-26: a reboot per wake is preferable to less range).
 #define LOW_QDBM 52           // 0.25 dBm units: 13 dBm
 static bool s_low;            // wanted
 static int8_t s_full_qdbm;    // the driver's own maximum, read before lowering it

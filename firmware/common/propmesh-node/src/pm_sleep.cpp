@@ -369,6 +369,12 @@ void pm_sleep_loop() {
   bool off = pm_show_mode() == PM_MODE_OFF;
   set_show_tier(!off && !pm_sleep_holding());
   if (!off || pm_sleep_holding()) return;
+  // "Off" for want of a clock is not off: the schedule may have the board
+  // in a window right now. Candle 1 booted a second time after its wake
+  // brownout with no wall clock, waited 6 s for a beacon that came at
+  // 10 s, and slept through the show (2026-10-26). Wait for the clock (up
+  // to pm_show's minute), then decide.
+  if (pm_show_clock_pending()) return;
   if (pm_ota_state() == PM_OTA_DOWNLOADING || pm_ota_state() == PM_OTA_CONNECTING || pm_ota_state() == PM_OTA_REBOOTING) return;
   // A new image is confirmed only after 20 s up (main confirm_image). A
   // board that slept sooner — 6 s after the update's restart — booted the

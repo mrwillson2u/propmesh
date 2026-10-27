@@ -233,10 +233,9 @@ void setup() {
   // Powered generic nodes relay; pm_node_apply adds bridge + conductor.
   // Start on the channel the mesh was last found on (docs §6d).
   uint8_t ch = pm_store_channel_load();
-  // Radio power (pm_mesh_low_power): a board that browned out at full
-  // power remembers it; a new image on probation runs low until confirmed.
-  if (esp_reset_reason() == ESP_RST_BROWNOUT) pm_store_radio_low_save();
-  pm_mesh_low_power(pm_store_radio_low() || pm_ota_pending());
+  // Radio power (pm_mesh_low_power): a new image on probation runs at
+  // 13 dBm until it is confirmed (confirm_image) — a brownout would roll it back.
+  pm_mesh_low_power(pm_ota_pending());
   mesh_up = pm_mesh_init(ch ? ch : PM_CHANNEL, PM_NET_ID, PM_NODE_ROLE_RELAY);
   pm_mesh_set_fresh(ch == 0);  // never followed a bridge: search for one properly (docs §6d)
   pm_mesh_on_channel([](uint8_t c) { pm_store_channel_save(c); Serial.printf("mesh: now on channel %u\n", c); });
@@ -357,7 +356,7 @@ static void confirm_image() {
   if (done || millis() < 20000) return;
   done = true;
   pm_ota_mark_valid();
-  if (pm_mesh_is_low_power() && !pm_store_radio_low()) pm_mesh_low_power(false);
+  pm_mesh_low_power(false);
 }
 
 // Heap forensics (docs §6j): a sample after every step, numbered so a

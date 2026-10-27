@@ -16,8 +16,6 @@ bool pm_store_save(const PmNodeConfig &cfg);
 // The WiFi channel the mesh was last found on (docs §6d); 0 = none saved.
 uint8_t pm_store_channel_load();
 void pm_store_channel_save(uint8_t ch);
-bool pm_store_radio_low();       // browned out at full radio power: run at 13 dBm
-void pm_store_radio_low_save();
 
 // The color last sent to each flood light, by BRMesh light number
 // (docs §6a). The lights can't be asked and keep their color through a

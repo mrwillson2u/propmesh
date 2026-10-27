@@ -374,13 +374,19 @@ static void apply_mode(uint8_t next) {
   pm_link_event(evt);
 }
 
+// The show is off only because the board has no clock yet (eval_mode); it
+// may well be inside a window. pm_sleep_loop keeps the board awake then.
+static bool clock_pending;
+bool pm_show_clock_pending() { return clock_pending; }
+
 static void eval_mode() {
   const PmWallClock &w = pm_wall();
   int64_t utc_s = w.utc_ok ? pm_wall_utc_ms() / 1000 : 0;
   bool scheduled = sched.active() && w.ok();
   if (scheduled) last_ev = scheduler.eval(sched, utc_s, w.tz_at(utc_s));
   uint8_t next;
-  if (sched.active() && !w.ok() && !keeper.holding() && millis() < CLOCK_WAIT_MS) {
+  clock_pending = sched.active() && !w.ok() && !keeper.holding() && millis() < CLOCK_WAIT_MS;
+  if (clock_pending) {
     next = PM_MODE_OFF;
     mode_reason = "waiting for the clock";
   } else {

@@ -25,6 +25,7 @@ void pm_show_fire(uint16_t sequence, uint32_t offset_ms = 0);
 // more active than the schedule's). arm(on) = armed / off.
 void pm_show_set_mode(uint8_t mode);  // PmMode
 uint8_t pm_show_mode();
+bool pm_show_clock_pending();  // off only for want of a clock — don't sleep on it
 // An output set by hand from the console (not a sequence preview): it
 // comes back on when the show returns from off. All off by hand clears.
 void pm_show_hand_set(uint8_t kind, uint8_t index, int32_t value);

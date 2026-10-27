@@ -59,15 +59,6 @@ void pm_store_channel_save(uint8_t ch) {
   f.close();
 }
 
-// The board has browned out at full radio power (pm_mesh_low_power).
-static const char *LOW_PATH = "/radio_low";
-bool pm_store_radio_low() { return LittleFS.exists(LOW_PATH); }
-void pm_store_radio_low_save() {
-  if (pm_store_radio_low()) return;
-  File f = LittleFS.open(LOW_PATH, "w");
-  if (f) { f.print(1); f.close(); }
-}
-
 bool pm_store_load(PmNodeConfig &out) {
   out = PmNodeConfig();
   File f = LittleFS.open(PATH, "r");

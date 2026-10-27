@@ -488,8 +488,9 @@ export function batteryState(en: Entry, now = Date.now()): BatteryState | null {
   const quiet = now - en.seen;
   if (en.offAt) return { level: "ok", mv, text: "", alarm: false };  // switched off on purpose: not a battery problem
   const overdue = period > 0 ? quiet > 3 * period + MISSING_MS : quiet > 6 * 3600000;
-  const brownout = !!en.hello.reset && /brownout/i.test(en.hello.reset);
-  if ((overdue && mv !== undefined && mv < BATT_OUT_MV) || (overdue && brownout) || quiet > 36 * 3600000)
+  // Not the reset reason: Candle 1 says "brownout" at every wake (its first
+  // full-power frames trip the detector; it reboots and runs on, 2026-10-26).
+  if ((overdue && mv !== undefined && mv < BATT_OUT_MV) || quiet > 36 * 3600000)
     return { level: "out", mv, text: "ran out?", alarm: true };
   if (overdue) return { level: "overdue", mv, text: "overdue", alarm: false };
   if (mv === undefined) return { level: "ok", text: "", alarm: false };
