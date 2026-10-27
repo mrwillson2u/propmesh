@@ -152,16 +152,18 @@ Run these with the boards in hand. Protocol: write out what to watch,
 After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
 
-### Lantern update, and Candle 1's range at 13 dBm
+### Lantern update; Candle 1 over a night
 
-Candle 1 browned out at full radio power on every restart (USB too);
-ec0c892 runs such boards at 13 dBm and its update now sticks
+Candle 1 browns out and reboots once on every wake (its own board; USB
+too); 179c024 caps the radio only while a new image is on probation,
+and a board waiting for its clock no longer sleeps
 (docs/console-nodes-list.md, end of §9). To do:
 1. Firmware → My own build →
    `http://ubuntubot.local:5180/firmware-test/esp32-c6-supermini/firmware.bin`
-   → Load image → Update the Lantern. Watch for **✓ updated — now ec0c892@check-ins**.
-2. Over the next evening, watch Candle 1's row for "missed check-in" —
-   7 dB less range on a link that was already weak.
+   → Load image → Update the Lantern (not heard by the bridge since
+   17:36 — is it on?). Watch for **✓ updated — now 179c024@check-ins**.
+2. Tomorrow evening, check Candle 1 is armed through the window
+   (its row shows the mode) and that its check-ins land.
 
 ## 3. Open bugs and loose ends
 

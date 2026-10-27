@@ -552,18 +552,45 @@ A confirmed image shrugs that off; a new one on probation is rolled
 back by the bootloader, so no update could stick on Candle 1 or the
 lantern.
 
-Fix, `pm_mesh_low_power` (ec0c892): the radio runs at **13 dBm while a
-new image is on probation**, back to full power once it confirms; and
-a board that has **ever browned out keeps 13 dBm for good** (a
-`/radio_low` file; hello says `radio_low: true`). A first try that went
-back to full power 3 s in browned out at the 3 s mark — the trip isn't
-only at start-up. Result: Candle 1 updated over the mesh
-(474 s), restarted on ec0c892, confirmed, slept, and woke at 18:49 still
-on it, reset reason "deep sleep". Hosted for **My own build** at
-`http://<server>:5180/firmware-test/esp32-c6-supermini/firmware.bin`.
+Fix, `pm_mesh_low_power` (ec0c892, then 179c024): the radio runs at
+**13 dBm while a new image is on probation** and goes to the driver's
+full power once it confirms (hello says `radio_low: true` meanwhile).
+Result: Candle 1 updated over the mesh (474 s), restarted, confirmed,
+slept, and woke at 18:49 still on the new build. ec0c892 also kept
+13 dBm for good on a board that had ever browned out; Colin chose the
+reboot over the lost range ("I'd rather have a reboot if that is all it
+really does"), so 179c024 drops that and the `/radio_low` flag (a stale
+file on Candle 1 is ignored). Why the second boot survives at full power
+is not known — an earlier note here said the framework lowers the
+power after a brownout; that was a guess, withdrawn.
 
-Open: 13 dBm is 7 dB less range, and Candle 1's link was already weak
-(−59 to −81 dBm at the bridge). Watch it for missed check-ins; to clear
-the flag on a board after a hardware fix, delete `/radio_low` (no
-console control yet). The lantern still needs the update (it was on
-`90196f0+60e656`, an old uncommitted build).
+**What the reboot per wake costs, and the bug it uncovered.**
+- The board's "last restart" always reads "brownout", so that field
+  says nothing about a real crash on Candle 1. The console used it as a
+  hint for "ran out?"; it no longer does (connection.ts `batteryState`).
+- ~1–2 s of a ~10 s check-in window, and a little battery.
+- **It slept through the show.** The second boot is a plain reset, not
+  a timer wake, so the wall clock isn't restored from the RTC; the show
+  reads "waiting for the clock" — which is mode *off* — and a battery
+  board sleeps 6 s after any ordinary boot when the show is off. Candle
+  1's log at 17:49: boot, "waiting for the clock", asleep 10 s later,
+  never armed; at 17:54 the beacon came at 10 s and it went armed. So
+  a board could sleep through a window whether or not it held a
+  sequence. 179c024: `pm_sleep_loop` doesn't sleep while
+  `pm_show_clock_pending()` (up to pm_show's 60 s wait). This fix is
+  for every board, not only brownout ones: any plain reset inside a
+  window had the same 6 s race.
+- Not a downside of the choice but noted: Candle 1's hello at its
+  17:39:53 wake (up 1 s) gave `utc_s` 65 min behind the bridge; by
+  19:36 it was right. Unexplained; worth a look if a board ever fires
+  at the wrong time.
+
+Should a board without a sequence sleep during the show? No: armed or
+ambient is not off, so it stays awake and listens for cues; only the
+clock bug above put them to sleep. Tonight they are all in ambient
+(manual, to 23:00) and awake.
+
+Hosted for **My own build** (every board type behind one URL):
+`http://<server>:5180/firmware-test/esp32-c6-supermini/firmware.bin`.
+The lantern still needs it (on `90196f0+60e656`, an old uncommitted
+build) and was not heard by the bridge 17:36–19:50.
