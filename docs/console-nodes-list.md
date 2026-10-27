@@ -592,5 +592,9 @@ clock bug above put them to sleep. Tonight they are all in ambient
 
 Hosted for **My own build** (every board type behind one URL):
 `http://<server>:5180/firmware-test/esp32-c6-supermini/firmware.bin`.
-The lantern still needs it (on `90196f0+60e656`, an old uncommitted
-build) and was not heard by the bridge 17:36–19:50.
+The lantern (on `90196f0+60e656`, an old uncommitted build) couldn't be
+reached over the mesh — one heartbeat at 00:20 on 10-27, then nothing
+for two slots — so it was flashed over USB on the server (esptool,
+bootloader + partitions + boot_app0 + app) at 00:38 and booted on
+179c024@check-ins. A USB flash isn't on probation, so nothing to roll
+back. Both C6 boards that rolled back are now on the branch build.

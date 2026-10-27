@@ -158,12 +158,12 @@ Candle 1 browns out and reboots once on every wake (its own board; USB
 too); 179c024 caps the radio only while a new image is on probation,
 and a board waiting for its clock no longer sleeps
 (docs/console-nodes-list.md, end of §9). To do:
-1. Firmware → My own build →
-   `http://ubuntubot.local:5180/firmware-test/esp32-c6-supermini/firmware.bin`
-   → Load image → Update the Lantern (not heard by the bridge since
-   17:36 — is it on?). Watch for **✓ updated — now 179c024@check-ins**.
-2. Tomorrow evening, check Candle 1 is armed through the window
-   (its row shows the mode) and that its check-ins land.
+1. ~~Update the Lantern~~ — done over USB 2026-10-27 00:38, booted on
+   179c024@check-ins.
+2. This evening, check Candle 1 and the Lantern are armed through the
+   window (the row shows the mode) and that their check-ins land. The
+   "don't sleep while waiting for the clock" fix hasn't run on hardware
+   inside a window yet.
 
 ## 3. Open bugs and loose ends
 
