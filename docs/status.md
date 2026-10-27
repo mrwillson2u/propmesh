@@ -152,6 +152,17 @@ Run these with the boards in hand. Protocol: write out what to watch,
 After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
 
+### Update rollback on Candle 1 and the lantern: supply or firmware?
+
+Both roll back every update and report "brownout" on ordinary check-in
+wakes (docs/console-nodes-list.md, end of §9). Decide which side:
+1. Plug Candle 1 into USB power (a charger is fine).
+2. Firmware → My own build →
+   `http://ubuntubot.local:5180/firmware-test/esp32-c6-supermini/firmware.bin`
+   → Load image → Update Candle 1.
+3. Watch its row: **✓ updated — now b171708@check-ins** = the battery
+   path is the cause; **✕ rolled back** = firmware.
+
 ## 3. Open bugs and loose ends
 
 - **Sequences save / play audit (2026-10-24 evening):** every
