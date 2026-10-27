@@ -538,3 +538,19 @@ message no longer says "a weak supply usually": it names the confirm
 and the last restart reason. Candle 1 reports "brownout" as its last
 restart at an ordinary 16:29:52 check-in wake, so that field isn't
 evidence about the update; worth a look on the bench separately.
+
+**Later: the hosted build fails on them too (2026-10-26, 17:40).** Both
+boards report **"brownout (supply sagged)" as the reason for ordinary
+check-in wakes** (Candle 1: up 1 s at 17:39:53; the lantern too), while
+Candle 3, on its charger, reports "deep sleep". Likely story, not yet
+proven: on these two supplies the chip browns out as the radio starts
+on every wake. A confirmed image shrugs that off (it just boots
+again); a new image is still on probation, and a reset of any kind
+before it confirms makes the bootloader roll it back. That fits
+"rolls back on any build, at 4 V". The lantern is still on
+`90196f0+60e656`, a local build that was never committed (older than
+all of this). Test that decides it (status.md, waiting for Colin's go):
+the same update with the board on USB power. Confirms there → the
+battery path (wiring, holder, no bulk capacitor; a 470–1000 µF across
+the board's supply input is the usual cure); rolls back there too →
+firmware.
