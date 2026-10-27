@@ -152,16 +152,16 @@ Run these with the boards in hand. Protocol: write out what to watch,
 After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
 
-### Update rollback on Candle 1 and the lantern: supply or firmware?
+### Lantern update, and Candle 1's range at 13 dBm
 
-Both roll back every update and report "brownout" on ordinary check-in
-wakes (docs/console-nodes-list.md, end of §9). Decide which side:
-1. Plug Candle 1 into USB power (a charger is fine).
-2. Firmware → My own build →
+Candle 1 browned out at full radio power on every restart (USB too);
+ec0c892 runs such boards at 13 dBm and its update now sticks
+(docs/console-nodes-list.md, end of §9). To do:
+1. Firmware → My own build →
    `http://ubuntubot.local:5180/firmware-test/esp32-c6-supermini/firmware.bin`
-   → Load image → Update Candle 1.
-3. Watch its row: **✓ updated — now b171708@check-ins** = the battery
-   path is the cause; **✕ rolled back** = firmware.
+   → Load image → Update the Lantern. Watch for **✓ updated — now ec0c892@check-ins**.
+2. Over the next evening, watch Candle 1's row for "missed check-in" —
+   7 dB less range on a link that was already weak.
 
 ## 3. Open bugs and loose ends
 

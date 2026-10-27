@@ -539,18 +539,31 @@ and the last restart reason. Candle 1 reports "brownout" as its last
 restart at an ordinary 16:29:52 check-in wake, so that field isn't
 evidence about the update; worth a look on the bench separately.
 
-**Later: the hosted build fails on them too (2026-10-26, 17:40).** Both
-boards report **"brownout (supply sagged)" as the reason for ordinary
-check-in wakes** (Candle 1: up 1 s at 17:39:53; the lantern too), while
-Candle 3, on its charger, reports "deep sleep". Likely story, not yet
-proven: on these two supplies the chip browns out as the radio starts
-on every wake. A confirmed image shrugs that off (it just boots
-again); a new image is still on probation, and a reset of any kind
-before it confirms makes the bootloader roll it back. That fits
-"rolls back on any build, at 4 V". The lantern is still on
-`90196f0+60e656`, a local build that was never committed (older than
-all of this). Test that decides it (status.md, waiting for Colin's go):
-the same update with the board on USB power. Confirms there → the
-battery path (wiring, holder, no bulk capacitor; a 470–1000 µF across
-the board's supply input is the usual cure); rolls back there too →
-firmware.
+**Later: the real cause — the board browns out at full radio power
+(2026-10-26, 17:40–18:50).** Colin: power is fine, and Candle 1 was on
+USB when its update failed. Its serial log on USB, every boot (5 of 5):
+boot, mode line, then `E BOD: Brownout detector was triggered` about
+1 s in, a restart, and a second boot that runs normally (it reports
+"brownout" as its reset reason from then on — that was the "brownout"
+on ordinary wakes). A test build capped at 13 dBm booted clean 2 of 2.
+So the board itself, a C6 SuperMini, can't take its first full-power
+frames after a restart; Candle 3 (same board type, same config) can.
+A confirmed image shrugs that off; a new one on probation is rolled
+back by the bootloader, so no update could stick on Candle 1 or the
+lantern.
+
+Fix, `pm_mesh_low_power` (ec0c892): the radio runs at **13 dBm while a
+new image is on probation**, back to full power once it confirms; and
+a board that has **ever browned out keeps 13 dBm for good** (a
+`/radio_low` file; hello says `radio_low: true`). A first try that went
+back to full power 3 s in browned out at the 3 s mark — the trip isn't
+only at start-up. Result: Candle 1 updated over the mesh
+(474 s), restarted on ec0c892, confirmed, slept, and woke at 18:49 still
+on it, reset reason "deep sleep". Hosted for **My own build** at
+`http://<server>:5180/firmware-test/esp32-c6-supermini/firmware.bin`.
+
+Open: 13 dBm is 7 dB less range, and Candle 1's link was already weak
+(−59 to −81 dBm at the bridge). Watch it for missed check-ins; to clear
+the flag on a board after a hardware fix, delete `/radio_low` (no
+console control yet). The lantern still needs the update (it was on
+`90196f0+60e656`, an old uncommitted build).
