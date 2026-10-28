@@ -245,11 +245,39 @@ the console read them. On 10-24 an update stream alone took the heap to
 then: heap 74 KB, send errors flat. Candle 2 stayed on 179c024, and its
 29 % partial image is dropped by its 10-min session timeout.
 
-Not yet known: how much the bridge's new copy code adds to that peak.
-Each reply it watches costs a few KB briefly. Next: measure an update
-with one candle awake and the rest asleep, slower pacing, and the heap
-watched; or update the candles over USB. Colin decides; nothing runs
-until he says go.
+**Second mute, 16:00–16:02.** The radio rebuild at 15:54 didn't hold.
+The radio stuck again around 16:00, and the mute watch rebooted the
+bridge at 16:02:08. Its last words: "neighbors heard but none hear us
+for 121 s; send errors 359 (last ESP_ERR_ESPNOW_NO_MEM); inflight 4;
+heap 69952/45044; alloc fails 9". It was off WiFi too: no ping
+16:00:36–16:02:04. The heap was back to 70 KB by then, so a radio that
+has stuck once can stick again with memory to spare. For §6j: after a
+NO_MEM mute, prefer a reboot to a rebuild. Colin restarted it by hand
+at about 16:04.
+
+*Correction:* the `pull_index` / `pull_seq` / `pull_rules` requests in
+the bridge's heap ring at 15:56 were not candles pulling their show.
+They were the console: the Show view reads a board's part from the
+bridge's copy when the board doesn't answer, and it reconnected just
+after the candles were let sleep. The candles' sync stamps matched the
+bridge's at 15:38.
+
+**Fix before any more updates (a55da1c, Colin asked; bridge flashed
+16:17).** The bridge turns work away when memory runs low, with "bridge
+busy", which the console and `bridge.py` retry:
+- An OTA chunk waits below 64 KB free, as well as below a 44 KB block,
+  which was the only test before.
+- Any other request for a board waits below 40 KB free, and so do the
+  bridge's own show and board copy replies.
+- The copies stay out of the way below 56 KB free and while an update
+  is streaming.
+
+**Gentle run (Colin: "over the mesh gently"), from 16:18.** One candle
+at a time, caught at its own check-in; only that candle is held. Pace
+150 ms. The bridge's memory is read every 25 chunks. The run stops on a
+radio rebuild, on 30 more send errors, or on two window lows under
+20 KB, and by 17:05 at the latest (show window ≈ 17:12). Order:
+Candles 2, 6, 4, 3, 5, then 1. Results below when done.
 
 ## 3. Open bugs and loose ends
 
