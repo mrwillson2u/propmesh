@@ -45,6 +45,8 @@ bool pm_link_busy_with(uint32_t dst);
 // `dst` answered a console request that holds a battery board awake (not
 // background polling) within the last `ms` (pm_copies leaves it awake).
 bool pm_link_console_recent(uint32_t dst, uint32_t ms);
+// An OTA chunk passed through within the last `ms`.
+bool pm_link_ota_recent(uint32_t ms);
 
 // Tell the mesh (and the local console) that an input changed.
 void pm_link_input(uint8_t index, bool active);

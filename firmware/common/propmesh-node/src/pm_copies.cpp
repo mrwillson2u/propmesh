@@ -26,6 +26,13 @@
 #define RETRY_MS 30000          // a visit that got no answer: not again before this
 #define CONSOLE_RECENT_MS 600000  // a console request this recent keeps a board awake
 #define WAKE_MIN 10             // "stay awake next time", minutes
+// The copies matter least of the bridge's work: below this much free, or
+// while an update streams through, they wait (2026-10-28: an update with
+// other load ran the bridge out of memory). A missed hello or settings
+// read only delays a copy; a missed save is caught at delivery, which
+// compares against the board itself.
+#define COPIES_FREE_BYTES 56000
+static bool quiet() { return ESP.getFreeHeap() < COPIES_FREE_BYTES || pm_link_ota_recent(10000); }
 
 enum : uint8_t { F_COPY = 1, F_WAIT = 2, F_STUCK = 4, F_WAKE = 8, F_FULL = 16, F_HELLO = 32 };
 struct Slot {
@@ -376,7 +383,7 @@ void pm_copies_heard(uint32_t node, bool stamps, uint32_t cfg_at, bool sleeping)
   if (!s) return;
   uint32_t t = now_s();
   if (t) s->seen_s = t;
-  if (sleeping || v.id || (int32_t)(millis() - s->not_before_ms) < 0) return;
+  if (sleeping || v.id || (int32_t)(millis() - s->not_before_ms) < 0 || quiet()) return;
   if ((s->flags & F_FULL) && !(s->flags & (F_WAIT | F_WAKE))) return;  // no room for a new copy
   if (pm_link_busy_with(node)) return;  // a console is talking to it: not now
   PmCopyState st = {};
@@ -413,6 +420,9 @@ void pm_copies_observe(uint32_t node, const char *req, size_t req_len, const cha
   const char *cmd = q["cmd"] | "";
   bool hello = !strcmp(cmd, "hello"), get = !strcmp(cmd, "get_config"), set = !strcmp(cmd, "set_config");
   if (!hello && !get && !set) return;
+  // A save is worth keeping up with unless memory is really short; a
+  // hello or a read comes round again.
+  if (set ? ESP.getFreeHeap() < 40000 : quiet()) return;
   JsonDocument r;
   if (deserializeJson(r, reply, reply_len) || !(r["ok"] | false)) return;
   Slot *s = find(node, true);

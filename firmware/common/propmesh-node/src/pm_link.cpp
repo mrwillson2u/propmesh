@@ -198,6 +198,23 @@ void pm_link_request(const char *json, size_t len, int8_t from) {
 // when both land at once the WiFi driver's own allocations fail and the
 // radio wedges (docs §6j, 2026-10-23). The sender retries in a moment.
 #define BUSY_BLOCK_BYTES 44000
+// And below this much free in all an OTA chunk waits too: at 15:50 on
+// 2026-10-28 the bridge had 74 KB free and a 69 KB block, took chunks for
+// Candle 2, and other traffic on top (six candles awake, a console
+// reconnecting, the router's bursts) ran it down to 3.9 KB; the WiFi
+// driver's receive buffers failed, the radio went mute, and a reboot
+// cleared it. Any other request for a board waits below BUSY_FREE_BYTES,
+// and so do the bridge's own heavier replies (show and board copies),
+// rather than piling up Pending slots and reassembly buffers.
+#define OTA_FREE_BYTES 64000
+#define BUSY_FREE_BYTES 40000
+static uint32_t s_last_ota_ms;  // an OTA chunk was taken: the copies keep out of the way (pm_copies)
+bool pm_link_ota_recent(uint32_t ms) { return s_last_ota_ms && millis() - s_last_ota_ms < ms; }
+// Local commands that read files into large documents.
+static bool heavy_local(const char *cmd) {
+  return !strncmp(cmd, "pull_", 5) || !strcmp(cmd, "get_copies") || !strcmp(cmd, "get_copy");
+}
+static const char BUSY_MSG[] = "bridge busy — low memory, try again in a moment";
 
 static void request_inner(const char *json, size_t len, int8_t from) {
   // Routing needs three fields. Parsing the whole request copies its
@@ -216,14 +233,18 @@ static void request_inner(const char *json, size_t len, int8_t from) {
 
   const char *node = req["node"] | "";
   uint32_t dst = *node ? strtoul(node, nullptr, 16) : pm_node_id();
+  uint32_t free_now = ESP.getFreeHeap();
   if (dst == pm_node_id()) {
+    if (free_now < BUSY_FREE_BYTES && heavy_local(cmd)) return reply_error(has_id, id, BUSY_MSG);
     if (deserializeJson(req, json, len)) return reply_error(has_id, id, "not JSON");
     JsonDocument resp;
     pm_api_handle(req.as<JsonObjectConst>(), resp.to<JsonObject>());
     return emit(resp);
   }
-  if (!strcmp(cmd, "ota_data") && ESP.getMaxAllocHeap() < BUSY_BLOCK_BYTES)
-    return reply_error(has_id, id, "bridge busy — low memory, try again in a moment");
+  if (!strcmp(cmd, "ota_data")) {
+    if (ESP.getMaxAllocHeap() < BUSY_BLOCK_BYTES || free_now < OTA_FREE_BYTES) return reply_error(has_id, id, BUSY_MSG);
+    s_last_ota_ms = millis() ? millis() : 1;
+  } else if (free_now < BUSY_FREE_BYTES) return reply_error(has_id, id, BUSY_MSG);
   bool mirrored = !strncmp(cmd, "set_", 4) || !strcmp(cmd, "delete_sequence");
   if (mirrored && deserializeJson(req, json, len)) return reply_error(has_id, id, "not JSON");
 
