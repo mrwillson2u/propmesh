@@ -607,3 +607,24 @@ restart that runs normally. So three of the C6 SuperMinis (Candles 1
 and 2, and the lantern by its reports) brown out at full power after a
 restart; Candle 3 doesn't. A USB flash isn't on probation, so it runs
 at full power at once and keeps the image regardless.
+
+**Floods went dark after the Cloffice Repeater's update (2026-10-27,
+~22:05).** The repeater is the only board holding the flood lights. On
+any restart inside a show it boots without a clock, the show reads
+"waiting for the clock" (mode off), and that was applied as a real
+show-off: `pm_channels_all_off` sent "off" to every flood. The by-hand
+flood colors lived in RAM only, so when the clock came and the show
+went back on there was nothing to restore. Not new with this build —
+any restart of a flood board in a window did it. Fix (pm_show
+`eval_mode`): the boot's first wait for the clock just reports off and
+switches nothing; the floods keep the state they hold themselves.
+
+**The Floods panel forgot each light's color when it was off** (Colin:
+"the controls are reset to red dark"). A light at value 0 has no hue,
+and the picker started at red. The panel now keeps the last color each
+light was lit with (`propmesh.floods.lastLit` in this browser; from
+the sliders and from what the boards report), and an off light's
+picker shows that color at brightness 0, so raising the brightness
+brings it back. Kept per browser, not on the boards: a phone and a
+laptop each remember their own. Simulator: hue kept across a reload,
+brightness up restores it, swatch not red.

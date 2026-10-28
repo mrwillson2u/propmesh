@@ -378,6 +378,7 @@ static void apply_mode(uint8_t next) {
 // may well be inside a window. pm_sleep_loop keeps the board awake then.
 static bool clock_pending;
 bool pm_show_clock_pending() { return clock_pending; }
+static bool clock_waited;  // the boot's wait for the clock has begun
 
 static void eval_mode() {
   const PmWallClock &w = pm_wall();
@@ -389,6 +390,12 @@ static void eval_mode() {
   if (clock_pending) {
     next = PM_MODE_OFF;
     mode_reason = "waiting for the clock";
+    // At boot this is not the show going off: switching everything off
+    // here sent "off" to the flood lights — which keep their own state
+    // through the board's restart — and nothing turned them back on
+    // (the Cloffice Repeater's update, 2026-10-27). Just say off; the
+    // outputs this board drives are off at boot anyway.
+    if (!clock_waited) { clock_waited = true; mode = PM_MODE_OFF; }
   } else {
     next = keeper.update(scheduled, last_ev, utc_s, sched.manual_max_min);
     mode_reason = keeper.holding() ? "manual" : scheduled ? "schedule" : sched.active() ? "no clock" : "no schedule";

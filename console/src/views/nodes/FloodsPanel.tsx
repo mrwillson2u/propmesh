@@ -34,6 +34,14 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const [finding, setFinding] = useState(false);
   const [from, setFrom] = useState<string | null>(null);
   const [values, setValues] = useState<Record<number, number>>({});
+  // The last color each light was lit with, kept in this browser: a light
+  // switched off (by hand or by the show) reads value 0, and its picker used
+  // to come back as red (Colin, 2026-10-27).
+  const [lastLit, setLastLit] = useState<Record<number, number>>(() => readLastLit());
+  const noteLit = (light: number, v: number) => {
+    if (!(v & 0xffffff)) return;
+    setLastLit((x) => { if (x[light] === v) return x; const n = { ...x, [light]: v }; writeLastLit(n); return n; });
+  };
   const [askTick, setAskTick] = useState<string | null>(null); // ticking a battery board: say what it costs first
 
   const known = Object.values(entries).filter(isReachable);
@@ -85,6 +93,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
       setCopy(viaBridge ? await readFloodsCopy(link) : null);
       const sent = await readLastSent(cfgs);
       setValues((v) => ({ ...sent, ...Object.fromEntries(Object.entries(v).filter(([k]) => sent[+k] === undefined)) }));
+      for (const [k, v] of Object.entries(sent)) noteLit(+k, v);
     } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readConfigs, readLastSent, viaBridge]);
@@ -134,6 +143,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const queued = useRef(new Map<number, number>());
   const fire = (light: number, v: number) => {
     setValues((x) => ({ ...x, [light]: v }));
+    noteLit(light, v);
     if (inFlight.current.get(light)) { queued.current.set(light, v); return; }
     inFlight.current.set(light, true);
     Promise.all(curSenders.filter(online).map((n) =>
@@ -267,7 +277,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
             onChange={(e) => setLabels((x) => ({ ...x, [l.number]: e.target.value }))} style={{ ...field, width: 160, flex: "none" }} />
           <span title="What the sending boards last sent. The lights can't be asked — BRMesh is one-way — so this is wrong if the light missed a command or was set from the BRMesh app."
             style={{ display: "contents" }}>
-            <ColorPicker value={values[l.number] ?? 0} onChange={(v) => fire(l.number, v)} white />
+            <ColorPicker value={values[l.number] ?? 0} last={lastLit[l.number]} onChange={(v) => fire(l.number, v)} white />
           </span>
           <button onClick={() => fire(l.number, 0)} style={btn()}>Off</button>
           <button onClick={() => setRemoved((r) => [...r, l.number])} title="Forget this light (reset it to pair it again)" style={{ ...btn(), width: 30, padding: 0 }}>✕</button>
@@ -281,4 +291,12 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
       )}
     </div>
   );
+}
+
+const LAST_LIT_KEY = "propmesh.floods.lastLit";
+function readLastLit(): Record<number, number> {
+  try { return JSON.parse(localStorage.getItem(LAST_LIT_KEY) ?? "{}") ?? {}; } catch { return {}; }
+}
+function writeLastLit(v: Record<number, number>) {
+  try { localStorage.setItem(LAST_LIT_KEY, JSON.stringify(v)); } catch { /* private window: fine, just not remembered */ }
 }

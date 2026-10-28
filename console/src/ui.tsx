@@ -140,13 +140,23 @@ function fromHsv(h: number, s: number, v: number) {
   return (f(5) << 16) | (f(3) << 8) | f(1);
 }
 
-export function ColorPicker({ value, onChange, white }: { value: number; onChange: (v: number) => void; white?: boolean }) {
+// `last`: the last color this output was lit with, so an output that is
+// off shows (and brightens back to) its own color, not red (Colin, 2026-10-27).
+export function ColorPicker({ value, onChange, white, last }: { value: number; onChange: (v: number) => void; white?: boolean; last?: number }) {
   const rgb = value & 0xffffff, w = colorWhite(value);
   const cur = toHsv(rgb);
   // Either a color or a white level, never both.
   const emit = (newRgb: number, newW = 0) => onChange(newW ? newW << 24 : newRgb & 0xffffff);
   // Hue and saturation survive "off" (black), so brightness can bring the color back.
-  const [hs, setHs] = useState({ h: cur.h, s: rgb ? cur.s : 1 });
+  const seed = rgb || (last ?? 0) & 0xffffff;
+  const [hs, setHs] = useState(() => { const x = toHsv(seed); return { h: x.h, s: seed ? x.s : 1 }; });
+  useEffect(() => {
+    // The remembered color arrives after the panel loads.
+    if (rgb || !last || !(last & 0xffffff)) return;
+    const x = toHsv(last & 0xffffff);
+    setHs({ h: x.h, s: x.s });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [last]);
   useEffect(() => {
     if (!rgb || fromHsv(hs.h, hs.s, toHsv(rgb).v) === rgb) return;
     const x = toHsv(rgb);
