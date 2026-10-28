@@ -225,11 +225,31 @@ awake and renewed without asking. Two causes:
    firmware sleep again after (8cb5982, console deployed).
 Not the WiFi or ESP-NOW libraries, and not the hardware.
 
-**Candles updated to 8cb5982 (in progress).** Colin said queue them.
-The five awake candles plus Candle 5 were held 15 min and are being
-updated over the mesh one at a time, highest battery first, with
-Candle 1 (3.79 V) last. Results below when done. The Lantern was
-asleep and is not in this run.
+**Candle updates: stopped — the bridge ran out of memory (15:55).**
+Colin said queue them. Six candles were held awake 15 min and Candle 2's
+update started at 15:50. It stalled at 27 %, and Colin's console couldn't
+connect. The bridge had not restarted (01ab9ea, up 9 min), but:
+
+| bridge at 15:55 | value |
+|---|---|
+| heap low since boot | 3.9 KB, then 3.3 KB |
+| failed allocations | 9: the WiFi driver's 2308-byte receive buffer, 5 at boot and the rest at 556 s up |
+| send errors | 191, `ESP_ERR_ESPNOW_NO_MEM` |
+| radio rebuilds | 1, at about 15:54:20 |
+
+This is §6j's "bridge goes mute" failure. The load was the update stream
+plus six candles awake at once, all pulling their show copies from the
+bridge (`pull_index` / `pull_seq` / `pull_rules` in its heap ring) while
+the console read them. On 10-24 an update stream alone took the heap to
+17.3 KB. The queue was stopped and the candles released at 15:56. Since
+then: heap 74 KB, send errors flat. Candle 2 stayed on 179c024, and its
+29 % partial image is dropped by its 10-min session timeout.
+
+Not yet known: how much the bridge's new copy code adds to that peak.
+Each reply it watches costs a few KB briefly. Next: measure an update
+with one candle awake and the rest asleep, slower pacing, and the heap
+watched; or update the candles over USB. Colin decides; nothing runs
+until he says go.
 
 ## 3. Open bugs and loose ends
 
