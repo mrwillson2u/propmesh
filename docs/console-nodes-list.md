@@ -543,6 +543,27 @@ logic in `pm_copies_core.h` (host tests `test_copies`).
   announced to every console as `{"evt":"copy", node, what, rev, ...}`.
   Every board's hello now carries `fs_used` / `fs_total`. A bridge's
   hello carries `copies: 1`.
+- *Console at work (fixed 2026-10-28, found on the first run).* The
+  bridge first counted a console request toward "a console is working on
+  this board" when it was sent. Requests to a sleeping board never
+  arrive, yet they counted. After a console reload had asked every
+  board, the bridge left Candles 1–4 and 6 held 10 min after their first
+  visit. Now the count starts when the board answers, which is when its
+  hold begins. A visit skips the release only for a console request
+  answered during the visit itself: an older one would show in the
+  hello as a hold, and the visit only goes ahead without one.
+- *Surveys (console, fixed 2026-10-28).* The Show, Yard and Floods views
+  read every board at once, and the Schedule panel reads one. Any such
+  request held a battery board 10 min, and the views re-read whenever a
+  board is heard, goes quiet or moves its sync stamp. So six candles
+  waking in one slot held each other up, again and again. That predates
+  the copies; Colin noticed it on the first bridge run. Survey reads
+  (`lib/survey.ts`) now carry `bg`, so newer boards hold 3 s. An older
+  battery board that is free gets a hello first and a release after.
+  The survey leaves alone a board in its setup window, a sensor wake, a
+  sync pull or a console hold, which all show in the hello, and one that
+  is wanted awake ("stay awake next time", a queued update, its page
+  open).
 - *The console* checks the bridge's hello for `copies`. With it, the
   console reads the list on connect, so boards this browser never met
   join as remembered. It fetches a board's copy when its page opens and

@@ -188,6 +188,49 @@ The candles don't need the new build for this. With it, a delivery
 skips one read. docs/console-nodes-list.md §9 "Settings kept on the
 bridge".
 
+*Run 2026-10-28, afternoon (show off).* The bridge (321553bc, DevKit)
+was updated over WiFi with `tools/bridge.py ota`, which took 98 s. It
+was on ee66b9b, whose firmware tree is the same as dev at PR #55. It is
+now on 95e5a36@check-ins, confirmed at 20 s, at normal radio power.
+Step 1 passed: hello has `copies: 1` and `fs_used` 53248 of 131072.
+
+| bridge memory | heap | `heap_win_min` | `heap_min` |
+|---|---|---|---|
+| before, ee66b9b, up 46.7 h after a crash, 3 consoles | 57476 | 47636 | 2564 |
+| after, 95e5a36, up 23 s, 2 consoles | 86188 | 49136 | 8164 |
+
+The old build was already under the 70 KB rule.
+
+Within 90 s of the restart the bridge had copies of six boards (Candles
+1–4 and 6, the Repeater) and a seventh, c51c54dc (named Candle 5 by
+15:25), at the 15:20 slot. The copies hold no floods key and no
+password. Over the next seven minutes heap stayed 69–86 KB; the
+short-window minimum dipped to about 28 KB twice, the same lows as on
+10-24 before this change; no send errors.
+
+**Candles held awake: found and fixed.** Colin saw most candles held
+awake and renewed without asking. Two causes:
+1. *Mine:* the bridge counted "a console is working on this board" when
+   a request was sent, not when the board answered. The console reload
+   at 15:19:36 had asked every board, so after the first visits the
+   bridge left Candles 1–4 and 6 held 10 min. Candle 5, unknown to that
+   console, was released and slept. Now counted on the answer, and a
+   visit skips the release only for a console request answered during
+   the visit (01ab9ea; the bridge was flashed again at ~15:47).
+2. *Older, console:* the Show, Yard and Floods views read every board
+   (settings, show, sequences) whenever a board is heard, goes quiet or
+   moves a sync stamp, and any such request holds a battery board
+   10 min. Six candles waking in one slot renewed each other's holds.
+   Survey reads now carry `bg` and let a free battery board on old
+   firmware sleep again after (8cb5982, console deployed).
+Not the WiFi or ESP-NOW libraries, and not the hardware.
+
+**Candles updated to 8cb5982 (in progress).** Colin said queue them.
+The five awake candles plus Candle 5 were held 15 min and are being
+updated over the mesh one at a time, highest battery first, with
+Candle 1 (3.79 V) last. Results below when done. The Lantern was
+asleep and is not in this run.
+
 ## 3. Open bugs and loose ends
 
 - **Sequences save / play audit (2026-10-24 evening):** every
