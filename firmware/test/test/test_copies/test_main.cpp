@@ -107,13 +107,31 @@ static void test_plan_stuck_is_left_alone() {
   TEST_ASSERT_FALSE(pm_copy_plan(s).any);
 }
 
+static void test_old_board_visit_rules() {
+  TEST_ASSERT_TRUE(pm_copy_old_go(true, 0, false));     // a plain timer check-in
+  TEST_ASSERT_TRUE(pm_copy_old_go(true, 5, false));     // the dwell after a reset (Candle 1 at every wake)
+  TEST_ASSERT_FALSE(pm_copy_old_go(true, 19, false));   // a sync pull
+  TEST_ASSERT_FALSE(pm_copy_old_go(true, 59, false));   // a sensor wake
+  TEST_ASSERT_FALSE(pm_copy_old_go(true, 177, false));  // the setup window: don't stretch 3 min to 10
+  TEST_ASSERT_TRUE(pm_copy_old_go(true, 590, false));   // a leftover 10-min hold nobody uses
+  TEST_ASSERT_FALSE(pm_copy_old_go(true, 590, true));   // ... unless a console is at work
+  TEST_ASSERT_TRUE(pm_copy_old_go(false, 177, true));   // mains: always
+}
+
+static void test_setup_window() {
+  TEST_ASSERT_FALSE(pm_copy_setup_window(0));
+  TEST_ASSERT_FALSE(pm_copy_setup_window(5));    // the dwell after a reset is not someone switching it on
+  TEST_ASSERT_FALSE(pm_copy_setup_window(59));
+  TEST_ASSERT_TRUE(pm_copy_setup_window(177));
+  TEST_ASSERT_FALSE(pm_copy_setup_window(590));
+}
+
 static void test_release_rules() {
-  TEST_ASSERT_TRUE(pm_copy_release(true, 0, false, false));
-  TEST_ASSERT_TRUE(pm_copy_release(true, 590, false, false));   // a visit's own hold, left over
-  TEST_ASSERT_FALSE(pm_copy_release(true, 170, false, false));  // setup window after a power-on
-  TEST_ASSERT_FALSE(pm_copy_release(true, 0, true, false));     // a console is working on it
-  TEST_ASSERT_FALSE(pm_copy_release(true, 0, false, true));     // stay awake next time
-  TEST_ASSERT_FALSE(pm_copy_release(false, 0, false, false));   // mains: never asked
+  TEST_ASSERT_TRUE(pm_copy_release(false, true, false, false));   // an older battery board: release
+  TEST_ASSERT_FALSE(pm_copy_release(true, true, false, false));   // a newer one held 3 s per request: nothing to undo
+  TEST_ASSERT_FALSE(pm_copy_release(false, true, true, false));   // a console is working on it
+  TEST_ASSERT_FALSE(pm_copy_release(false, true, false, true));   // stay awake next time
+  TEST_ASSERT_FALSE(pm_copy_release(false, false, false, false)); // mains: never asked
 }
 
 int main() {
@@ -128,6 +146,8 @@ int main() {
   RUN_TEST(test_plan_stamped_send_skips_read);
   RUN_TEST(test_plan_older_board_reads_then_compares);
   RUN_TEST(test_plan_stuck_is_left_alone);
+  RUN_TEST(test_old_board_visit_rules);
+  RUN_TEST(test_setup_window);
   RUN_TEST(test_release_rules);
   return UNITY_END();
 }

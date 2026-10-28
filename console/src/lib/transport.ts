@@ -609,17 +609,21 @@ class SimLink implements NodeLink {
     if (!waiting && !read && !c?.wake) return;
     this.visiting.add(node);
     try {
-      const h = await this.handle("hello", { node });
-      if (!h.ok) return;
-      this.store(node, h as Record<string, unknown>);
-      const holdS = (h.hold_s as number | undefined) ?? 0;
-      let woke = false;
-      if (c?.wake) {
-        if (!holdS) await this.handle("hold_awake", { node, min: 10 });
-        this.copies[node].wake = false; woke = true; this.saveCopies(); this.announce(node, "wake");
+      // The sim's boards report a settings stamp, so they are "newer"
+      // boards: requests marked bg, no release (firmware pm_copies). The
+      // hello only for the copy's first list fields, or a wake request.
+      if (!c?.hello || c?.wake) {
+        const h = await this.handle("hello", { node, bg: true });
+        if (!h.ok) return;
+        this.store(node, h as Record<string, unknown>);
+        const holdS = (h.hold_s as number | undefined) ?? 0;
+        if (c?.wake) {
+          if (!(holdS > 60 && holdS <= 185)) await this.handle("hold_awake", { node, min: 10 });
+          this.copies[node].wake = false; this.saveCopies(); this.announce(node, "wake");
+        }
       }
       if (read) {
-        const g = await this.handle("get_config", { node });
+        const g = await this.handle("get_config", { node, bg: true });
         if (g.ok) this.store(node, undefined, g.config as NodeConfig, (g.at as number | undefined) ?? 0);
       }
       const w = this.copies[node]?.waiting;
@@ -628,12 +632,11 @@ class SimLink implements NodeLink {
         if (now === w.at) { this.store(node, undefined, w.config, w.at); delete this.copies[node].waiting; this.saveCopies(); this.announce(node, "delivered"); }
         else if (w.base_at && now !== w.base_at) { w.stuck = true; w.error = "its settings changed since this edit (another console, or the board itself) — check them and save again"; this.saveCopies(); this.announce(node, "stuck", w.error); }
         else {
-          const s = await this.handle("set_config", { node, config: w.config, at: w.at, keep_floods: true });
+          const s = await this.handle("set_config", { node, config: w.config, at: w.at, keep_floods: true, bg: true });
           if (!s.ok) { w.stuck = true; w.error = `the board refused it: ${s.error ?? "no reason given"}`; this.saveCopies(); this.announce(node, "stuck", w.error); }
           else { this.store(node, undefined, w.config, w.at); delete this.copies[node].waiting; this.saveCopies(); this.announce(node, "delivered"); }
         }
       }
-      if (SIM_REMOTES.find((x) => x.node === node)?.sleeps && !woke && !(holdS > 0 && holdS <= 185)) await this.handle("hold_awake", { node, min: 0 });
     } finally { this.visiting.delete(node); }
   }
   private copyCmd(cmd: string, body: Record<string, unknown>): Reply {

@@ -605,7 +605,10 @@ function holdNow(node: string) {
   void target(c.link, node).request("hello").then((h) => {
     if (!h.ok) return;
     patch(node, { hello: h as unknown as NodeHello, seen: Date.now() });
-    if ((h.hold_s as number | undefined) && (h.hold_s as number) > 0) { stayAwakeNext(node, false); return; }
+    // The setup window, not the 6 s dwell after a reset that Candles 1 and 2
+    // and the Lantern show at every wake (it spent their request unheld).
+    const hold = (h.hold_s as number | undefined) ?? 0;
+    if (hold > 60 && hold <= 185) { stayAwakeNext(node, false); return; }
     sendHold(node);
   }).catch(() => sendHold(node));
 }

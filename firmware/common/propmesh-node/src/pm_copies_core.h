@@ -133,15 +133,33 @@ inline PmSendVerdict pm_copy_verdict(const PmCopyState &s, JsonVariantConst have
   return pm_settings_hold(base, have) ? PM_SEND_GO : PM_SEND_CLASH;
 }
 
-// After a visit: let a battery board sleep again, unless something else
-// wants it up. `hold_s` is what its hello said before the visit (hello
-// doesn't hold a board): the setup window after a power-on (3 min), a
-// sensor wake or a sync pull is at most that. A longer hold with no
-// console behind it is a visit's own, left over from a missed release.
-// A console request to it in the last 10 min (a page open, an update
-// streaming) or the bridge's own "stay awake next time" keeps it up too.
-inline bool pm_copy_release(bool battery, uint32_t hold_s, bool console_recent, bool woke_it) {
-  if (!battery || woke_it || console_recent) return false;
-  if (hold_s > 0 && hold_s <= 185) return false;
-  return true;
+// Holds a board reports in its hello (`hold_s`), by where they come from
+// (pm_sleep.cpp): the dwell after a reset (BOOT_DWELL_MS, 6 s — Candles 1
+// and 2 and the Lantern reset once at every wake), a sensor wake
+// (SENSOR_HOLD_MS, 60 s), a sync pull (20 s), and the setup window after a
+// power-on (PM_SETUP_HOLD_MS, 180 s). A plain timer wake reports none.
+#define PM_DWELL_S 6
+#define PM_SENSOR_S 60
+#define PM_SETUP_S 185
+
+// Switched on by hand: someone is there, setting it up.
+inline bool pm_copy_setup_window(uint32_t hold_s) { return hold_s > PM_SENSOR_S && hold_s <= PM_SETUP_S; }
+
+// Boards from 2026-10-28 on take a request marked "bg" (the bridge's
+// visit) as background: a 3 s hold, never the console's 10 min. An older
+// board holds 10 min for any request, so a visit has to release it after
+// — and a release (hold 3 s) would cut short a hold someone else wanted.
+// So an older battery board is visited only when nothing else holds it.
+inline bool pm_copy_old_go(bool battery, uint32_t hold_s, bool console_recent) {
+  if (!battery) return true;
+  if (hold_s <= PM_DWELL_S) return true;            // a plain check-in, or the dwell after a reset
+  if (hold_s > PM_SETUP_S) return !console_recent;  // a 10-min hold nobody is using: the release ends it
+  return false;  // a sensor wake, a sync pull or the setup window: at a later check-in
+}
+
+// After a visit: let it sleep again. Only an older battery board needs it,
+// and not when a console is working on it or the visit held it for
+// "stay awake next time".
+inline bool pm_copy_release(bool honors_bg, bool battery, bool console_recent, bool woke_it) {
+  return !honors_bg && battery && !woke_it && !console_recent;
 }

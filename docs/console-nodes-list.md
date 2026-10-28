@@ -497,12 +497,33 @@ logic in `pm_copies_core.h` (host tests `test_copies`).
   "full" (event `copy`, what `full`).
 - *A visit* happens only when a board needs one: a change waiting,
   "stay awake next time", no copy yet, or a stamp that doesn't match.
-  It skips a board a console is already talking to. Afterwards a battery
-  board is let sleep again, except in these cases:
-  - its setup window after a power-on (`hold_s` ≤ 185 before the visit);
-  - a console request to it in the last 10 min;
-  - the bridge just held it for "stay awake next time".
-  A visit that gets no answer waits 30 s before trying again.
+  It skips a board a console is already talking to. A visit that gets no
+  answer waits 30 s before trying again.
+- *Holds (corrected before the first flash, 2026-10-28).* Any console
+  request holds a battery board awake 10 min. The first version let the
+  board go after its visit unless its hello showed any hold up to 3 min,
+  meant for the setup window. But Candles 1 and 2 and the Lantern reset
+  once at every wake and show the 6 s dwell after a reset as a hold. They
+  would have stayed up 10 min after each visit. The setup window would
+  have stretched from 3 min to 10, which Colin objected to on 10-26. Now:
+  - *Boards from 2026-10-28 on* take a request marked `bg` as
+    background: a 3 s hold, enough for the visit's next request. Nothing
+    is released, so no other hold is ever cut short. The bridge asks such
+    a board for its hello only the first time, or for "stay awake next
+    time".
+  - *Older boards* ignore `bg`, so the bridge releases them after the
+    visit with `hold_awake {min: 0}`. A visit goes ahead only when
+    nothing else holds the board: no hold, or up to the 6 s dwell after a
+    reset. It also goes ahead for a 10-min hold no console has used in
+    10 min, which the release then ends. A sensor wake (60 s), a sync
+    pull (20 s), the setup window or a console at work waits for a later
+    check-in. No release follows a visit for "stay awake next time".
+  - *"Stay awake next time"* is spent only in the setup window, a hold of
+    60–185 s. The console's own version (`holdNow`) treated any hold as
+    the setup window, so it spent the request on Candles 1 and 2 and the
+    Lantern without holding them. Fixed the same way.
+  - The browser copy follows the same rules: `bg` for newer boards, and a
+    later check-in when an older board is held.
 - *Safety.* A waiting change is sent only if the board still has what
   it was edited from: the stamps match, or, without stamps, the settings
   compare equal, ignoring floods and defaults. Otherwise the change is
@@ -528,21 +549,22 @@ logic in `pm_copies_core.h` (host tests `test_copies`).
   keeps nothing in the browser. Without it, the browser copy above runs
   as before, so today's bridge behaves exactly as it does now.
 - *Tested.*
-  - Host tests: `test_copies`, 11 cases, covering the copy's contents,
-    settings comparison, the visit plan, the send verdict and the
-    release rule.
+  - Host tests: `test_copies`, 13 cases, covering the copy's contents,
+    settings comparison, the visit plan, the send verdict, the hold rules
+    for older boards, the setup window and the release rule.
   - Builds: all four boards. DevKit static RAM is 68.9 KB.
-  - Simulator: the sim's bridge keeps copies the same way, 16 checks. It
+  - Simulator: the sim's bridge keeps copies the same way, 17 checks. It
     read the copy at a check-in, kept nothing in the browser, and stored
     the waiting change on the bridge. A second console with an empty
     browser listed the asleep board and showed the waiting name. The
-    bridge delivered it at the next check-in, and the row cleared. With
-    a bridge without copies, the browser fallback ran.
+    bridge delivered it at the next check-in, the row cleared, and the
+    list name followed. With a bridge without copies, the browser
+    fallback ran.
 - *Not tested:* nothing has run on hardware. Not yet measured on the
   bridge: its flash use and its `heap_win_min` during a visit (the
   70 KB rule). "No tab open" can't be shown in the simulator, because
   its bridge lives in the page.
-  One race to watch: a battery board held by "Update when awake" could
+  One race to watch, older boards only: a board held by "Update when awake" could
   be released by a visit that finishes before the console's hold
   arrives, since a release overrides any hold. A visit only happens when
   the board needs one, and a console request in the last 10 min blocks

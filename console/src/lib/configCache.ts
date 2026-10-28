@@ -37,6 +37,12 @@ let storeFor: string | null = null; // the bridge whose boards these are
 let version = 0;
 const listeners = new Set<() => void>();
 const busy = new Set<string>(); // a check-in visit in progress
+const notBefore = new Map<string, number>(); // held by something else at its last check-in: not before then (ms)
+// Holds a board reports in hello (`hold_s`), as firmware pm_copies_core.h
+// reads them: up to the 6 s dwell after a reset is a plain wake; more is
+// a sensor wake, a sync pull, the setup window or a console at work.
+export const HOLD_DWELL_S = 6;
+export const inSetupWindow = (holdS: number) => holdS > 60 && holdS <= 185;
 
 function ensure() {
   const bridge = getConnection()?.hello.node ?? null;
@@ -236,17 +242,27 @@ async function visit(node: string) {
   if (!c || !en || en.usb || busy.has(node)) return;
   const w = store.waiting[node];
   if (store.cached[node] && (!w || w.stuck)) return; // nothing to do: don't keep it awake
+  if ((notBefore.get(node) ?? 0) > Date.now()) return;
   busy.add(node);
   const battery = en.hello?.power === "battery";
+  // A board from 2026-10-28 on reports a settings stamp, and takes a
+  // request marked "bg" as background: 3 s, not the 10 min any other
+  // request holds it. An older battery board has to be let sleep after.
+  const honorsBg = en.hb?.cfg_at !== undefined;
   // Decided now, before those flows clear their own flags.
-  let keep = !battery || wantsAwake(node) || otaBusy(otaJobs()[node]);
+  const keep = honorsBg || !battery || wantsAwake(node) || otaBusy(otaJobs()[node]);
+  let release = !keep;
   const t = target(c.link, node);
   try {
-    if (battery && !keep) {
-      const h = await t.request("hello"); // background: holds nothing
-      if (h.ok && ((h.hold_s as number | undefined) ?? 0) > 0) keep = true; // switched on by hand, or already held
+    if (!keep) {
+      // Held by something else (a sensor wake, a sync pull, the setup
+      // window, another console): a release would cut it short, and not
+      // releasing would stretch it to 10 min. A later check-in, then.
+      const h = await t.request("hello", { bg: true }); // background: holds nothing
+      const hold = h.ok ? ((h.hold_s as number | undefined) ?? 0) : 0;
+      if (hold > HOLD_DWELL_S) { release = false; notBefore.set(node, Date.now() + (hold + 5) * 1000); return; }
     }
-    const r = await t.request("get_config");
+    const r = await t.request("get_config", { bg: true });
     if (!r.ok) throw new Error(r.error ?? "get_config failed");
     const have = r.config as NodeConfig;
     noteConfig(node, have);
@@ -260,7 +276,7 @@ async function visit(node: string) {
         // The floods part is the board's own: keep its key and lights.
         const send: NodeConfig = { ...now.config, channels: [...now.config.channels.filter((x) => x.kind !== "BLE_LIGHT"), ...have.channels.filter((x) => x.kind === "BLE_LIGHT")] };
         if (have.brmesh_key) send.brmesh_key = have.brmesh_key;
-        const s = await t.request("set_config", { config: send });
+        const s = await t.request("set_config", { config: send, bg: true });
         if (!s.ok) setWaiting(node, { stuck: true, error: `the board refused it: ${s.error ?? "no reason given"}` });
         else {
           noteConfig(node, send);
@@ -274,6 +290,6 @@ async function visit(node: string) {
     if (store.waiting[node]) setWaiting(node, { error: `not delivered yet: ${(e as Error).message}` });
   } finally {
     busy.delete(node);
-    if (battery && !keep) void t.request("hold_awake", { min: 0 }).catch(() => undefined);
+    if (release) void t.request("hold_awake", { min: 0 }).catch(() => undefined);
   }
 }

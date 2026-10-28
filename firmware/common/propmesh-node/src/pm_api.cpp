@@ -450,7 +450,11 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
   // but not for the console's background polling (hello, mesh, state,
   // ota_status), which would keep a battery board up for as long as a
   // console is open (2026-10-11).
-  if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
+  // A request marked "bg" is the bridge's own visit at a check-in
+  // (pm_copies): it holds 3 s, enough for the visit's next request, and
+  // never stretches a battery board's wake to 10 min (2026-10-28).
+  if (req["bg"] | false) pm_sleep_hold(3000);
+  else if (strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble"))
     pm_sleep_hold(600000);
   if (!strcmp(cmd, "hold_awake")) { pm_sleep_hold((uint32_t)(req["min"] | 10) * 60000UL); resp["hold_s"] = pm_sleep_hold_left_ms() / 1000; return; }  // min 0 = release
   // The console's Power off: outputs off, then off until reset or a power

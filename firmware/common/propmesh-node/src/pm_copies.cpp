@@ -27,7 +27,7 @@
 #define CONSOLE_RECENT_MS 600000  // a console request this recent keeps a board awake
 #define WAKE_MIN 10             // "stay awake next time", minutes
 
-enum : uint8_t { F_COPY = 1, F_WAIT = 2, F_STUCK = 4, F_WAKE = 8, F_FULL = 16 };
+enum : uint8_t { F_COPY = 1, F_WAIT = 2, F_STUCK = 4, F_WAKE = 8, F_FULL = 16, F_HELLO = 32 };
 struct Slot {
   uint32_t id;
   uint32_t at;        // the copy's stamp
@@ -126,6 +126,7 @@ static void store(Slot &s, JsonObjectConst hello, JsonObjectConst config, bool h
       changed = true;
     }
   }
+  bool reread = false;  // only the "last read" time is new
   if (has_config) {
     JsonDocument c;
     pm_copy_config(config, c.to<JsonObject>());
@@ -134,10 +135,25 @@ static void store(Slot &s, JsonObjectConst hello, JsonObjectConst config, bool h
       d["config"] = c;
       d["at"] = at;
       changed = true;
+      // The list shows the name and power from the hello: keep them in
+      // step with settings that were just delivered, with no console to ask.
+      if (d["hello"].is<JsonObject>()) {
+        JsonObject h = d["hello"];
+        h["name"] = c["name"] | "";
+        h["bridge"] = c["bridge"] | false;
+        if (!strcmp(c["power"] | "", "battery")) {
+          h["power"] = "battery";
+          if (!c["sleep"]["checkin_ms"].isNull()) h["checkin_ms"] = c["sleep"]["checkin_ms"];
+          if (c["sleep"]["relay"] | false) h["relay"] = true; else h.remove("relay");
+        } else { h.remove("power"); h.remove("checkin_ms"); h.remove("relay"); }
+      }
     }
-    d["read"] = now_s();
+    // "As last read" stays honest without a flash write per read: at most hourly.
+    uint32_t t = now_s();
+    if (t && (changed || t - (d["read"] | 0UL) > 3600)) { d["read"] = t; reread = !changed; }
   }
-  if (!changed) return;
+  if (!changed && !reread) return;
+  if (reread) { write_doc(p, d, false); return; }  // same settings: no new rev, no news
   d["rev"] = s.rev + 1;
   if (!write_doc(p, d, !had)) {
     if (!(s.flags & F_FULL)) { s.flags |= F_FULL; announce(s, "full"); }
@@ -146,6 +162,7 @@ static void store(Slot &s, JsonObjectConst hello, JsonObjectConst config, bool h
   s.flags &= ~F_FULL;
   s.rev++;
   if (has_config || (d["config"].is<JsonObject>())) s.flags |= F_COPY;
+  if (d["hello"].is<JsonObject>()) s.flags |= F_HELLO;
   s.at = d["at"] | 0UL;
   announce(s, "copy");
 }
@@ -208,14 +225,24 @@ static void on_hello(const char *json, size_t len, void *) {
   if (d["ok"] | false) store(*s, d.as<JsonObjectConst>(), JsonObjectConst(), false, 0);
   // A board in its setup window was just switched on by hand: the person
   // is there, so "stay awake next time" is spent rather than stretching
-  // 3 min to 10 (Colin, 2026-10-26).
-  if (v.plan.wake && v.hold_s > 0) {
+  // 3 min to 10 (Colin, 2026-10-26). Not the 6 s dwell after a reset,
+  // which Candles 1 and 2 and the Lantern show at every wake.
+  bool spent = false;
+  if (v.plan.wake && pm_copy_setup_window(v.hold_s)) {
     s->flags &= ~F_WAKE;
     save_wake();
     v.plan.wake = false;
-    v.woke = true;
+    spent = true;
     announce(*s, "wake");
   }
+  // An older board holds 10 min for any request: visit it only when
+  // nothing else holds it (pm_copy_old_go), else at a later check-in —
+  // not at its next heartbeat, which comes while the same hold runs.
+  if (!v.st.stamps && !v.plan.wake && (spent ? v.battery : !pm_copy_old_go(v.battery, v.hold_s, pm_link_console_recent(v.id, CONSOLE_RECENT_MS)))) {
+    s->not_before_ms = millis() + (v.hold_s + 5) * 1000UL;
+    return end_visit(false);  // only a hello was asked, which holds nothing: nothing to release
+  }
+  if (spent) v.woke = true;
   step_next();
 }
 static void on_wake(const char *json, size_t len, void *) {
@@ -287,6 +314,7 @@ static void deliver(Slot &s) {
   // is handed back the ones it has, which this visit just read.
   JsonDocument req;
   req["cmd"] = "set_config";
+  req["bg"] = true;  // a newer board: a 3 s hold, not 10 min (pm_api)
   req["at"] = s.want_at;
   JsonObject cfg = req["config"].to<JsonObject>();
   for (JsonPairConst kv : w["config"].as<JsonObjectConst>()) cfg[kv.key()] = kv.value();
@@ -312,19 +340,24 @@ static void step_next() {
   for (;;) {
     v.step = (Step)(v.step + 1);
     switch (v.step) {
-      case V_HELLO: return (void)ask("{\"cmd\":\"hello\"}", on_hello);
+      case V_HELLO:
+        // Needed for an older board (its battery and hold decide the visit),
+        // for "stay awake next time" (the setup window spends it), and for
+        // the copy's list fields the first time.
+        if (v.st.stamps && !v.plan.wake && (s->flags & F_HELLO)) continue;
+        return (void)ask("{\"cmd\":\"hello\",\"bg\":true}", on_hello);
       case V_WAKE:
         if (!v.plan.wake) continue;
         { char q[48]; snprintf(q, sizeof(q), "{\"cmd\":\"hold_awake\",\"min\":%d}", WAKE_MIN); return (void)ask(q, on_wake); }
       case V_READ:
         if (!v.plan.read) continue;
-        return (void)ask("{\"cmd\":\"get_config\"}", on_read);
+        return (void)ask("{\"cmd\":\"get_config\",\"bg\":true}", on_read);
       case V_SEND:
         if (!v.plan.send || !(s->flags & F_WAIT) || (s->flags & F_STUCK)) continue;
         return deliver(*s);
       case V_RELEASE: {
         bool woke_recent = v.woke || (s->woke_ms && millis() - s->woke_ms < WAKE_MIN * 60000UL);
-        if (!pm_copy_release(v.battery, v.hold_s, pm_link_console_recent(v.id, CONSOLE_RECENT_MS), woke_recent)) return end_visit(false);
+        if (!pm_copy_release(v.st.stamps, v.battery, pm_link_console_recent(v.id, CONSOLE_RECENT_MS), woke_recent)) return end_visit(false);
         return (void)ask("{\"cmd\":\"hold_awake\",\"min\":0}", on_released);
       }
       default: return end_visit(false);
@@ -511,7 +544,7 @@ void pm_copies_begin() {
   File dir = LittleFS.open("/m");
   if (!dir || !dir.isDirectory()) return;
   JsonDocument cf, wf;
-  cf["at"] = true; cf["rev"] = true; cf["config"] = true;
+  cf["at"] = true; cf["rev"] = true; cf["config"] = true; cf["hello"] = true;
   wf["base_at"] = true; wf["at"] = true; wf["stuck"] = true;
   for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
     String n = f.name();
@@ -529,6 +562,7 @@ void pm_copies_begin() {
       s->at = d["at"] | 0UL;
       s->rev = d["rev"] | 0UL;
       if (!d["config"].isNull()) s->flags |= F_COPY;
+      if (!d["hello"].isNull()) s->flags |= F_HELLO;
     } else {
       s->flags |= F_WAIT;
       if (d["stuck"] | false) s->flags |= F_STUCK;
