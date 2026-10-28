@@ -279,6 +279,19 @@ radio rebuild, on 30 more send errors, or on two window lows under
 20 KB, and by 17:05 at the latest (show window ≈ 17:12). Order:
 Candles 2, 6, 4, 3, 5, then 1. Results below when done.
 
+*Found during the run (16:36): the survey fix had a loop.* Candles 1, 3,
+4 and 5 had been awake the whole time: Candle 1 for 77 min, Candle 5 for
+3.5 h. Each had about 570 s of hold left, renewed together at about
+16:36:20, when the bridge's heap ring shows the console's Show view
+reloading. The 8cb5982 survey let a board sleep again only if it was
+free, and left a held board alone. But an old-firmware candle ignores
+`bg`, so every survey read renewed its 10 min, and the next survey found
+it held again. Fixed in 6bd3740 (console deployed at 16:38): a held old
+battery board is not asked at all, and the view uses its last copy.
+Candles 1, 3 and 5 were released at 16:38. Candle 4 is next in the run.
+A console tab loaded before 16:38 still runs the old survey until it is
+reloaded.
+
 ## 3. Open bugs and loose ends
 
 - **Sequences save / play audit (2026-10-24 evening):** every
