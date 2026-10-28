@@ -598,3 +598,12 @@ for two slots — so it was flashed over USB on the server (esptool,
 bootloader + partitions + boot_app0 + app) at 00:38 and booted on
 179c024@check-ins. A USB flash isn't on probation, so nothing to roll
 back. Both C6 boards that rolled back are now on the branch build.
+
+**Candle 2 (e0771e84), 2026-10-27 22:01.** The mesh update didn't stick
+on it either (on `7d8ea74`), so it was flashed over USB on the server
+the same way. Its first boot on 179c024 shows the same pattern as
+Candle 1: `E BOD: Brownout detector was triggered` about 1 s in, then a
+restart that runs normally. So three of the C6 SuperMinis (Candles 1
+and 2, and the lantern by its reports) brown out at full power after a
+restart; Candle 3 doesn't. A USB flash isn't on probation, so it runs
+at full power at once and keeps the image regardless.
