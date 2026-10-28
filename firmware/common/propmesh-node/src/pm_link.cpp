@@ -40,6 +40,7 @@ struct Pending {
   bool has_console_id;
   int8_t client;         // who asked: PM_FROM_SERIAL or a WebSocket slot
   pm_ask_cb_t cb;        // set: this node's own request (pm_link_ask), reply goes here
+  bool holds;            // a console request that holds a battery board awake (not background polling)
   void *ctx;
   char *text;
   size_t len;
@@ -158,11 +159,17 @@ static void on_wake_reply(uint32_t src) {
   for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
 }
 
-// Who a console last worked on, and when (pm_link_console_recent).
+// Who a console last worked on, and when (pm_link_console_recent): the
+// moment the board ANSWERED a request that holds it, which is when its
+// 10-min hold began. Counting at send time also counted requests to a
+// sleeping board that never arrived (2026-10-28: a console reload asked
+// every board, and the bridge then left boards held after its visits).
 static struct { uint32_t id; uint32_t ms; } s_touch[8];
-static void touch(uint32_t dst, const char *cmd) {
-  // The same list the firmware counts as background (pm_api): it doesn't hold a board.
-  if (!strcmp(cmd, "hello") || !strcmp(cmd, "mesh") || !strcmp(cmd, "state") || !strcmp(cmd, "ota_status") || !strcmp(cmd, "ble")) return;
+// The same list the firmware counts as background (pm_api): it doesn't hold a board.
+static bool holds_board(const char *cmd) {
+  return strcmp(cmd, "hello") && strcmp(cmd, "mesh") && strcmp(cmd, "state") && strcmp(cmd, "ota_status") && strcmp(cmd, "ble");
+}
+static void touch(uint32_t dst) {
   int slot = 0;
   for (int i = 0; i < 8; i++) {
     if (s_touch[i].id == dst) { slot = i; break; }
@@ -240,7 +247,7 @@ static void request_inner(const char *json, size_t len, int8_t from) {
   p->has_console_id = has_id;
   p->client = from;
   p->cb = nullptr;
-  touch(dst, cmd);
+  p->holds = holds_board(cmd);
   if (pm_mesh_is_leaf(dst) && !leaf_awake(dst)) {
     p->waiting_wake = true;
     start_wake(dst);
@@ -273,6 +280,7 @@ bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, voi
   p->has_console_id = false;
   p->cb = cb;
   p->ctx = ctx;
+  p->holds = false;  // this node's own requests are not a console at work
   p->waiting_wake = false;
   send_chunked(PM_MSG_TYPE_API_REQ, dst, p->req_id, p->text, p->len);
   return true;
@@ -378,6 +386,7 @@ static void on_api(const RxFrame &f) {
     for (Pending &p : s_pending) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
       if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(msg, n, ctx); return; }
+      if (p.holds) touch(p.dst);  // it answered: its 10-min hold for the console runs from now
       if (s_out) s_out(msg, n, p.client);  // the target's reply, verbatim, to whoever asked
       pm_copies_observe(p.dst, p.text, p.len, msg, n);  // the bridge's copy follows (pm_copies)
       drop(p);

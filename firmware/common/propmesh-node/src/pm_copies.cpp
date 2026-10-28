@@ -192,6 +192,7 @@ static struct {
   PmVisitPlan plan;
   bool battery, woke;
   uint32_t hold_s;
+  uint32_t started_ms;  // a console request answered since then wants the board up
   JsonDocument *have;  // the board's settings, when read this visit (with its floods key)
 } v;
 
@@ -357,7 +358,11 @@ static void step_next() {
         return deliver(*s);
       case V_RELEASE: {
         bool woke_recent = v.woke || (s->woke_ms && millis() - s->woke_ms < WAKE_MIN * 60000UL);
-        if (!pm_copy_release(v.st.stamps, v.battery, pm_link_console_recent(v.id, CONSOLE_RECENT_MS), woke_recent)) return end_visit(false);
+        // Only a console request answered DURING this visit: one from
+        // before it would show in the hello as a hold, and the visit only
+        // goes ahead without one (pm_copy_old_go).
+        bool console_now = pm_link_console_recent(v.id, millis() - v.started_ms + 1000);
+        if (!pm_copy_release(v.st.stamps, v.battery, console_now, woke_recent)) return end_visit(false);
         return (void)ask("{\"cmd\":\"hold_awake\",\"min\":0}", on_released);
       }
       default: return end_visit(false);
@@ -393,6 +398,7 @@ void pm_copies_heard(uint32_t node, bool stamps, uint32_t cfg_at, bool sleeping)
   v.battery = false;
   v.woke = false;
   v.hold_s = 0;
+  v.started_ms = millis();
   v.have = nullptr;
   step_next();
 }
