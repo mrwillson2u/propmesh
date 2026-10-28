@@ -3,7 +3,7 @@
 // choose which boards send. lib/floods.ts holds the model.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "../../lib/tokens";
-import { ColorPicker, Confirm, Spinner, mono, sys } from "../../ui";
+import { ColorPicker, Confirm, Spinner, WHITE_MAX, mono, sys } from "../../ui";
 import { isAway } from "../../lib/show";
 import { deriveFloods, mismatched, syncFloods, readFloodsCopy, type FloodsState, type FloodsCopy } from "../../lib/floods";
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
@@ -39,7 +39,7 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   // to come back as red (Colin, 2026-10-27).
   const [lastLit, setLastLit] = useState<Record<number, number>>(() => readLastLit());
   const noteLit = (light: number, v: number) => {
-    if (!(v & 0xffffff)) return;
+    if (!v) return;  // a color at its brightness, or a white level — whatever "on" was
     setLastLit((x) => { if (x[light] === v) return x; const n = { ...x, [light]: v }; writeLastLit(n); return n; });
   };
   const [askTick, setAskTick] = useState<string | null>(null); // ticking a battery board: say what it costs first
@@ -279,7 +279,11 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
             style={{ display: "contents" }}>
             <ColorPicker value={values[l.number] ?? 0} last={lastLit[l.number]} onChange={(v) => fire(l.number, v)} white />
           </span>
-          <button onClick={() => fire(l.number, 0)} style={btn()}>Off</button>
+          {/* On brings back the last color at its last brightness (or white
+              level); Off keeps it for next time (Colin, 2026-10-27). */}
+          {(values[l.number] ?? 0)
+            ? <button onClick={() => fire(l.number, 0)} title="Switch off — its color and brightness are kept for On" style={{ ...btn(), width: 52 }}>Off</button>
+            : <button onClick={() => fire(l.number, lastLit[l.number] || DEFAULT_ON)} title={lastLit[l.number] ? "Switch on at its last color and brightness" : "Switch on (warm white)"} style={{ ...btn(true), width: 52 }}>On</button>}
           <button onClick={() => setRemoved((r) => [...r, l.number])} title="Forget this light (reset it to pair it again)" style={{ ...btn(), width: 30, padding: 0 }}>✕</button>
         </div>
       ))}
@@ -294,6 +298,8 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
 }
 
 const LAST_LIT_KEY = "propmesh.floods.lastLit";
+// On for a light never lit from this browser: full warm white.
+const DEFAULT_ON = WHITE_MAX << 24;
 function readLastLit(): Record<number, number> {
   try { return JSON.parse(localStorage.getItem(LAST_LIT_KEY) ?? "{}") ?? {}; } catch { return {}; }
 }

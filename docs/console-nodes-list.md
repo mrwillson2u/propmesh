@@ -628,3 +628,12 @@ picker shows that color at brightness 0, so raising the brightness
 brings it back. Kept per browser, not on the boards: a phone and a
 laptop each remember their own. Simulator: hue kept across a reload,
 brightness up restores it, swatch not red.
+
+**On / Off per light (2026-10-27).** Colin: "Can the floods toggle so I
+can turn them on and it saves the last brightness also?" Each light's
+Off button becomes **On** while it is off; On sends the last value it
+was lit with — color at its brightness, or a warm-white level — and a
+light never lit from this browser comes on full warm white. The
+remembered value now includes white (it was color-only). Simulator: off
+→ On after a reload restores hue 120 at 35 %; a white light restores
+its white level.
