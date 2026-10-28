@@ -9,6 +9,7 @@ import { deriveFloods, mismatched, syncFloods, readFloodsCopy, type FloodsState,
 import { LABEL_MAX, type NodeConfig } from "../../lib/nodeConfig";
 import { target, type NodeLink } from "../../lib/transport";
 import { isMissing, type Entry, isReachable } from "../../lib/connection";
+import { surveyAsk, surveyBegin, surveyEnd } from "../../lib/survey";
 import { BleFinder } from "./PinEditor";
 
 const btn = (primary = false, disabled = false): React.CSSProperties => ({
@@ -58,10 +59,11 @@ export default function FloodsPanel({ link, entries }: { link: NodeLink; entries
   const readConfigs = useCallback(async () => {
     const out: Record<string, NodeConfig> = {};
     await Promise.all(known.map(async (en) => {
+      const sv = await surveyBegin(link, en);  // a free battery board on old firmware sleeps again after
       try {
-        const r = await target(link, en.usb ? null : en.node).request("get_config");
+        const r = await surveyAsk(link, sv, "get_config");
         if (r.ok) out[en.node] = r.config as NodeConfig;
-      } catch { /* shown as not answering */ }
+      } catch { /* shown as not answering */ } finally { surveyEnd(link, sv); }
     }));
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps

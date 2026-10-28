@@ -17,6 +17,10 @@ import { adoptFromBridge, bridgeKeepsCopies, getConnection, onCopyEvent, onHeart
 import { otaBusy, otaJobs } from "./otaJobs";
 import { EMPTY_CONFIG, type NodeConfig } from "./nodeConfig";
 import { editStamp, target, type NodeHello } from "./transport";
+import { setSurveyKeep } from "./survey";
+
+// A survey must not let a board sleep that these want awake (lib/survey).
+setSurveyKeep((node) => wantsAwake(node) || otaBusy(otaJobs()[node]) || getConnection()?.selected === node);
 
 export interface Waiting {
   config: NodeConfig;   // what to send (no floods key; the board's own is kept)

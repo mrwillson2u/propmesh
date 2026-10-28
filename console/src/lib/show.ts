@@ -10,6 +10,7 @@ import type { ChannelKindName } from "./boards_gen";
 import type { NodeConfig } from "./nodeConfig";
 import type { Entry } from "./connection";
 import type { ModeStatus } from "./schedule";
+import { surveyAsk, surveyBegin, surveyEnd } from "./survey";
 
 // Easing = how much of a ramp is spent speeding up (ease_in %) and
 // slowing down (ease_out %), cruising in between (firmware pm_ramp.h).
@@ -204,9 +205,10 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
     return true;
   };
   await Promise.all(entries.map(async (en) => {
+    const sv = await surveyBegin(link, en);  // a free battery board on old firmware sleeps again after
     try {
-      const cfg = await ask(link, en, "get_config");
-      const sh = await ask(link, en, "get_show");
+      const cfg = await surveyAsk(link, sv, "get_config");
+      const sh = await surveyAsk(link, sv, "get_show");
       if (!cfg.ok || !sh.ok) throw new Error(cfg.error ?? sh.error);
       show.configs[en.node] = cfg.config as NodeConfig;
       show.armed[en.node] = !!sh.armed;
@@ -216,7 +218,7 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
       for (const r of (sh.rules as Record<string, unknown>[]) ?? []) show.rules.push(normalizeRule(en.node, r));
       // Parts one at a time: each can be up to ~4 kB over the mesh.
       for (const sum of (sh.sequences as { id: number; name: string; problem?: string }[]) ?? []) {
-        const part = await ask(link, en, "get_sequence", { seq: sum.id });
+        const part = await surveyAsk(link, sv, "get_sequence", { seq: sum.id });
         if (!part.ok) continue;
         addPart(en.node, part.sequence as Parameters<typeof addPart>[1], sum.problem ? `${en.hello?.name || en.node}: ${sum.problem}` : undefined);
       }
@@ -248,6 +250,8 @@ export async function loadShow(link: NodeLink, entries: Entry[], prev: Show | nu
         if (fromLast || kept) { show.fromLast.push(en.node); if (prev?.modes[en.node]) show.modes[en.node] = prev.modes[en.node]; }
         else show.unreachable.push(en.node);
       }
+    } finally {
+      surveyEnd(link, sv);
     }
   }));
   // The floods: one pseudo-node in the pickers, and each sender's copy of a

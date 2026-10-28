@@ -4,6 +4,7 @@
 // from this device, and previews what the windows mean today.
 import { editStamp, target, type NodeLink, type Reply } from "./transport";
 import type { Entry } from "./connection";
+import { surveyAsk, surveyBegin, surveyEnd } from "./survey";
 
 export type Mode = "off" | "ambient" | "armed";
 export const MODES: Mode[] = ["off", "ambient", "armed"];
@@ -150,11 +151,12 @@ export const hhmm = (ms: number, tzMin?: number) => {
 // One copy for everyone: the first board that has a schedule.
 export async function loadSchedule(link: NodeLink, entries: Entry[]): Promise<Schedule | null> {
   for (const en of entries) {
+    const sv = await surveyBegin(link, en);  // a free battery board on old firmware sleeps again after
     try {
-      const r = await ask(link, en, "get_schedule");
+      const r = await surveyAsk(link, sv, "get_schedule");
       const s = r.ok ? (r.schedule as Schedule) : null;
       if (s && s.windows?.length) return s;
-    } catch { /* try the next board */ }
+    } catch { /* try the next board */ } finally { surveyEnd(link, sv); }
   }
   return null;
 }

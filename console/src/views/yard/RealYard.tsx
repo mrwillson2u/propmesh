@@ -10,6 +10,7 @@ import { mono, sys, Toggle, Sheet, Hint } from "../../ui";
 import { useLayout } from "../../lib/layout";
 import { BOARDS } from "../../lib/boards_gen";
 import { counts, getConnection, useConnection, type Connection, checkinText, isReachable } from "../../lib/connection";
+import { surveyAsk, surveyBegin, surveyEnd } from "../../lib/survey";
 import { buildTopology, type TopoLink, type TopoNode } from "../../lib/topology";
 import { PropArt, PropIcon } from "../../lib/propIcons";
 import { useProps } from "../../lib/propStore";
@@ -105,10 +106,11 @@ function useFloods(conn: Connection): YardFlood[] {
       const out: Record<string, NodeConfig> = {};
       for (const en of known) {
         if (en.hello?.bridge) continue;
+        const sv = await surveyBegin(conn.link, en);  // a free battery board on old firmware sleeps again after
         try {
-          const r = await target(conn.link, en.usb ? null : en.node).request("get_config");
+          const r = await surveyAsk(conn.link, sv, "get_config");
           if (r.ok) out[en.node] = r.config as NodeConfig;
-        } catch { /* not answering: its lights still show through another sender */ }
+        } catch { /* not answering: its lights still show through another sender */ } finally { surveyEnd(conn.link, sv); }
       }
       if (live) setCfgs(out);
       if (conn.hello.bridge) { const c = await readFloodsCopy(conn.link); if (live) setCopy(c); }

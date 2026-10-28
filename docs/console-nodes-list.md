@@ -786,3 +786,25 @@ light never lit from this browser comes on full warm white. The
 remembered value now includes white (it was color-only). Simulator: off
 → On after a reload restores hue 120 at 35 %; a white light restores
 its white level.
+
+**The full-power brownout is a known hardware class (research 2026-10-28,
+Colin asked).** Not the WiFi or ESP-NOW libraries and not the firmware:
+SuperMini boards carry a small 3.3 V regulator, and the cheap ones a
+200 mA part (XC6206) where better boards use 500 mA (ME6211). A WiFi
+transmit burst peaks near 500 mA, the 3.3 V rail dips below the chip's
+own brownout threshold, and the detector resets it. The dip is after the
+regulator, so the LiPo doesn't help and USB shows it too (Candle 1's
+serial log on USB, 2026-10-27); Candle 3 never does it, which is
+part-to-part variation. ESP-IDF issue #13624 describes the same symptom
+on a C6: a reset when WiFi starts after a deep-sleep wake, then a normal
+start after the reset. Fixes in use elsewhere: a transmit-power cap
+(the C3 SuperMini crowd uses 8.5 dBm permanently; ours is 13 dBm during
+probation only), or a 10–100 µF capacitor across the board's 5 V and
+GND near the module — the cheap thing to try on Candle 1 first. Sources:
+<https://github.com/espressif/esp-idf/issues/13624>,
+<https://www.universal-solder.ca/troubleshooting-esp32-brownout/>,
+<https://mischianti.org/esp32-c3-plus-mini-1-esp32-c3_mini_v1-high-resolution-pinout-datasheet-schema-and-specs/>,
+<https://www.electromaker.io/project/view/esp32-c3-super-mini-wifi-fix-3-methods-that-work>,
+<https://esp32.com/viewtopic.php?p=65718>. None is an official
+Espressif statement; the datasheet figure for the C6's peak current was
+not checked.
