@@ -18,7 +18,7 @@ import PinGuide from "./PinGuide";
 import Pinout from "./Pinout";
 import type { NodeHello, NodeTarget } from "../../lib/transport";
 import { useConnection, type LocalMesh } from "../../lib/connection";
-import { cachedConfig, dropWaiting, noteConfig, queueConfig, useConfigCache, waitingConfig } from "../../lib/configCache";
+import { cachedConfig, copiesOnBridge, dropWaiting, noteConfig, queueConfig, useConfigCache, waitingConfig, wantCopy } from "../../lib/configCache";
 
 // Fixed tracks for the short columns; options and test share what is
 // left, so a narrow window squeezes them instead of clipping the test
@@ -110,6 +110,10 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved,
   const cache = useConfigCache();
   const copy = cache.cached[hello.node];
   const waiting = cache.waiting[hello.node];
+  const onBridge = !!cache.bridge;
+  // The bridge has a copy this page hasn't fetched yet.
+  const fetchingCopy = onBridge && !copy && cache.summary?.[hello.node]?.config !== false;
+  useEffect(() => { if (live === false || away) wantCopy(hello.node); }, [live, away, hello.node, cache.summary?.[hello.node]?.rev]);
   const edited = live === false && basis !== null && JSON.stringify(draft) !== JSON.stringify(basis);
   const showCopy = () => {
     const c = cachedConfig(hello.node), w = waitingConfig(hello.node);
@@ -125,8 +129,11 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved,
   useEffect(() => {
     if (live !== false || edited) return;
     showCopy();
+  // `live` too: a copy can land in a render before this page's own switch
+  // to the copy has applied (the store's update is synchronous), and the
+  // page then never showed it (2026-10-28).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [copy?.at, waiting?.at, !!waiting]);
+  }, [live, copy?.at, copy?.rev, waiting?.at, !!waiting]);
 
   // ---- load -----------------------------------------------------------
 
@@ -162,7 +169,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved,
         }
         setJoining(0);
         // Asleep after all: show the copy kept here, if there is one.
-        if (/no reply/i.test(msg) && cachedConfig(hello.node)) { showCopy(); return; }
+        if (/no reply/i.test(msg) && (copiesOnBridge() || cachedConfig(hello.node))) { showCopy(); return; }
         setError(msg);
       }
     }
@@ -204,13 +211,16 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved,
   // ---- save -----------------------------------------------------------
 
   // Asleep: saved here, sent at its next check-in.
-  const saveForLater = () => {
-    queueConfig(hello.node, draft, applied);
-    setBasis(draft);
+  const saveForLater = async () => {
+    setBusy(true);
     setError(null);
+    const err = await queueConfig(hello.node, draft, applied);
+    setBusy(false);
+    if (err) { setError(`Not saved: ${err}`); return; }
+    setBasis(draft);
   };
   const save = async () => {
-    if (!live || away) { saveForLater(); return; }
+    if (!live || away) { await saveForLater(); return; }
     setBusy(true);
     setError(null);
     try {
@@ -345,15 +355,15 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved,
           ? <button disabled={!dirty || hasErrors || busy || !loaded} onClick={save} style={btn(true, !dirty || hasErrors || busy || !loaded)}>
               {busy ? "Saving…" : "Save to node"}
             </button>
-          : <button disabled={!dirty || hasErrors || !loaded || (!edited && !!waiting)} onClick={saveForLater} style={btn(true, !dirty || hasErrors || !loaded || (!edited && !!waiting))}
-              title="Kept in this browser and sent when the board next checks in — keep a console open">
+          : <button disabled={!dirty || hasErrors || !loaded || (!edited && !!waiting)} onClick={() => void saveForLater()} style={btn(true, !dirty || hasErrors || !loaded || (!edited && !!waiting))}
+              title={onBridge ? "Kept on the bridge and sent when the board next checks in" : "Kept in this browser and sent when the board next checks in — keep a console open"}>
               Save for next check-in
             </button>}
         {!applied.bridge && live && <button onClick={allOff} style={btn()}>All off</button>}
       </div>
 
       {live === false && (
-        <AsleepCopy name={hello.name || hello.node} copyAt={copy?.at} waiting={waiting} next={next} away={away}
+        <AsleepCopy name={hello.name || hello.node} copyAt={copy?.at} waiting={waiting} next={next} away={away} onBridge={onBridge} fetching={fetchingCopy}
           onDiscard={() => { dropWaiting(hello.node); }} onLive={() => void load(2)} />
       )}
       <Health hello={hello} />
@@ -1167,8 +1177,8 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal, onReread }: 
 
 // Above an asleep board's settings: where they came from, and what is
 // waiting for its next check-in (lib/configCache).
-function AsleepCopy({ name, copyAt, waiting, next, away, onDiscard, onLive }: {
-  name: string; copyAt?: number; waiting?: { at: number; error?: string; stuck?: boolean }; next: Date | null; away: boolean;
+function AsleepCopy({ name, copyAt, waiting, next, away, onBridge, fetching, onDiscard, onLive }: {
+  name: string; copyAt?: number; waiting?: { at: number; error?: string; stuck?: boolean }; next: Date | null; away: boolean; onBridge: boolean; fetching: boolean;
   onDiscard: () => void; onLive: () => void;
 }) {
   const t = (ms: number) => new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -1176,12 +1186,16 @@ function AsleepCopy({ name, copyAt, waiting, next, away, onDiscard, onLive }: {
   return (
     <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 6, ...sys(400, 12, C.t3), lineHeight: 1.5 }}>
       {copyAt
-        ? <span>☾ These are its settings as last read, {t(copyAt)}, kept in this browser. Changes you save here go out at its next check-in{at}; keep a console open until then.</span>
-        : <span>☾ No copy of {name}'s settings in this browser yet. One is read at its next check-in{at}, and this page then shows it.</span>}
+        ? onBridge
+          ? <span>☾ These are its settings as last read, {t(copyAt)}, kept on the bridge. Changes you save here go out at its next check-in{at}, with or without a console open.</span>
+          : <span>☾ These are its settings as last read, {t(copyAt)}, kept in this browser. Changes you save here go out at its next check-in{at}; keep a console open until then.</span>
+        : fetching
+          ? <span style={{ display: "flex", alignItems: "center", gap: 8 }}><Spinner /> Reading the bridge's copy of {name}'s settings…</span>
+          : <span>☾ No copy of {name}'s settings {onBridge ? "on the bridge" : "in this browser"} yet. One is read at its next check-in{at}, and this page then shows it.</span>}
       {waiting && (
         <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={mono(600, 11.5, waiting.stuck ? C.red : C.emberT)}>
-            {waiting.stuck ? "✕ not sent" : "⏳ waiting for its next check-in"} — saved here {t(waiting.at)}{waiting.error ? `; ${waiting.error}` : ""}
+            {waiting.stuck ? "✕ not sent" : "⏳ waiting for its next check-in"} — saved {onBridge ? "on the bridge" : "here"} {t(waiting.at)}{waiting.error ? `; ${waiting.error}` : ""}
           </span>
           <button onClick={onDiscard} style={btn()}>Discard</button>
         </span>

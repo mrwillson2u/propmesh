@@ -18,6 +18,7 @@ const char *pm_reset_reason();  // main.cpp
 #include <esp_heap_caps.h>
 #include "pm_lastwords.h"
 #include "pm_sync.h"
+#include "pm_copies.h"
 
 static const pm_board_t *board;
 
@@ -101,6 +102,9 @@ static void cmd_hello(JsonObject resp) {
   resp["ble"] = pm_ble_available();  // false: built without Bluetooth — can't drive floods
   resp["name"] = pm_channels_config().name;
   resp["bridge"] = pm_channels_config().bridge;
+  resp["fs_used"] = (uint32_t)LittleFS.usedBytes();   // the flash area copies and show files share
+  resp["fs_total"] = (uint32_t)LittleFS.totalBytes();
+  if (pm_copies_active()) resp["copies"] = 1;  // keeps every board's settings for the console (pm_copies)
   resp["role"] = pm_role();
   resp["armed"] = pm_show_armed();
   pm_show_put_mode(resp);  // mode, why, next change: the console polls hello for it
@@ -111,6 +115,24 @@ static void cmd_set_config(JsonObjectConst req, JsonObject resp) {
   PmNodeConfig &cfg = scratch();
   const char *err = pm_config_from_json(req["config"], cfg);
   if (err) return fail(resp, err);
+  // From the bridge's copy of these settings (pm_copies), which never
+  // holds the floods key: keep this board's own key and lights, which the
+  // Floods tab owns. Older boards ignore the flag, so the bridge only sets
+  // it for boards that report a settings stamp (firmware 2026-10-28 on).
+  if (req["keep_floods"] | false) {
+    const PmNodeConfig &now = pm_channels_config();
+    uint8_t n = 0;
+    for (uint8_t i = 0; i < cfg.channel_count; i++)
+      if (cfg.channels[i].kind != PM_CHANNEL_KIND_BLE_LIGHT) cfg.channels[n++] = cfg.channels[i];
+    for (uint8_t i = 0; i < now.channel_count; i++) {
+      if (now.channels[i].kind != PM_CHANNEL_KIND_BLE_LIGHT) continue;
+      if (n >= PM_MAX_CHANNELS) return fail(resp, "too many channels with this board's flood lights");
+      cfg.channels[n++] = now.channels[i];
+    }
+    cfg.channel_count = n;
+    cfg.has_brmesh_key = now.has_brmesh_key;
+    memcpy(cfg.brmesh_key, now.brmesh_key, sizeof(cfg.brmesh_key));
+  }
   // The console never sees the WiFi password: no "pass" means keep ours.
   if (cfg.wifi_ssid[0] && !cfg.wifi_pass[0] && !strcmp(cfg.wifi_ssid, pm_channels_config().wifi_ssid))
     pm_copy(cfg.wifi_pass, pm_channels_config().wifi_pass, sizeof(cfg.wifi_pass));
@@ -235,7 +257,7 @@ static void on_paired(uint8_t number, const char *type) {
   c.light_id = number;
   snprintf(c.label, sizeof(c.label), "flood %u (%s)", number, type);
   if (pm_validate(*board, cfg).errors) return;
-  if (pm_store_save(cfg)) pm_node_apply(cfg);
+  if (pm_store_save(cfg)) { pm_node_apply(cfg); pm_sync_config_changed(0); }
   Serial.printf("ble: paired light %u (%s) as BLE_LIGHT_%u\n", number, type, index);
 }
 
@@ -311,6 +333,7 @@ static void cmd_ble_pair(JsonObjectConst req, JsonObject resp) {
     cfg.has_brmesh_key = true;
     if (!pm_store_save(cfg)) return fail(resp, "could not save the new key to flash");
     pm_node_apply(cfg);
+    pm_sync_config_changed(0);
   }
   pm_ble_set_key(cfg.brmesh_key);
 
@@ -484,8 +507,10 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
     LittleFS.remove("/yard.json");
     LittleFS.rename("/yard.tmp", "/yard.json");
   }
-  else if (!strcmp(cmd, "get_config"))
+  else if (!strcmp(cmd, "get_config")) {
     pm_config_to_json(pm_channels_config(), resp["config"].to<JsonObject>());
+    resp["at"] = pm_sync_cfg_at();  // the stamp the bridge's copy is checked against (pm_copies)
+  }
   else if (!strcmp(cmd, "set_config")) cmd_set_config(req, resp);
   else if (!strcmp(cmd, "set")) cmd_set(req, resp);
   // {"cmd":"candle","index":1,"event":"gust"|"sputter"} — the console's test
@@ -581,5 +606,6 @@ static void api_handle_inner(JsonObjectConst req, JsonObject resp) {
     resp["last_opcode"] = b.last_opcode;
   }
   else if (pm_sync_handle(cmd, req, resp)) {}
+  else if (pm_copies_handle(cmd, req, resp)) {}
   else if (!pm_show_handle(cmd, req, resp)) fail(resp, "unknown command");
 }

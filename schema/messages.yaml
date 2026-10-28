@@ -109,6 +109,7 @@ messages:
       - {name: neighbors, type: "Neighbor[8]", note: "first neighbor_count valid"}
       - {name: channel, type: u8, note: "WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's."}
       - {name: listen_ms, type: u16, note: "a battery board in its show tier listens a window every listen_ms; senders repeat into it. 0 = always listening"}
+      - {name: cfg_at, type: u32, note: "UTC s its pin settings were last set (the at of the set_config that made them); 0 = unknown. Absent before 2026-10-28: the bridge then reads the settings to know (pm_copies)"}
 
   Time:
     type: TIME

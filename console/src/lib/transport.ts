@@ -12,6 +12,9 @@ import { ease } from "./ease";
 export interface NodeHello {
   node: string; // 8 hex digits
   fw: number;
+  copies?: number; // a bridge that keeps every board's settings and waiting changes (firmware pm_copies, 2026-10-28)
+  fs_used?: number; // its flash area, bytes used / total
+  fs_total?: number;
   build?: string; // git commit the firmware was built from; "+hash" = uncommitted edits, "@branch" = not the published branch
   built?: number; // UTC seconds the image was built (firmware from 2026-10-24); orders builds, which commit names can't
   power?: "battery"; // on battery (a leaf; sleeps if its build can)
@@ -53,6 +56,7 @@ export interface NodeHello {
 // A heartbeat heard on the mesh, as the USB node reports it.
 export interface Heartbeat {
   node: string;
+  cfg_at?: number; // UTC s its settings were last set (firmware from 2026-10-28)
   board: number; // BoardType
   role: number; // NodeRole flags
   fw: number;
@@ -431,6 +435,14 @@ const SIM_REMOTES = [
   { node: "5c0ffee3", hops: 0, rssi: -61, nbrs: [{ node: SIM_LOCAL_ID, rssi: -62 }], sleeps: true },
 ];
 const SIM_SLEEP_CYCLE_MS = 120000, SIM_SLEEP_CHECKIN_MS = 20000;
+// The bridge's copies (firmware pm_copies_core.h): the hello fields kept,
+// and the commands its bridge answers.
+const SIM_COPY_HELLO = ["node", "fw", "build", "built", "board", "power", "checkin_ms", "relay", "sleeps", "ble", "name", "bridge", "role"];
+const SIM_COPY_CMDS = new Set(["get_copies", "get_copy", "queue_config", "cancel_config", "stay_awake", "forget_copy"]);
+interface SimCopy {
+  hello?: Record<string, unknown>; config?: NodeConfig; at: number; read?: number; rev: number; wake?: boolean;
+  waiting?: { config: NodeConfig; base_at: number; at: number; saved: number; stuck?: boolean; error?: string };
+}
 
 // A step on the wire: [t, kind, index, value] or [..., dur, ease_in, ease_out].
 type SimStep = [number, string, number, number] | [number, string, number, number, number, number, number];
@@ -488,6 +500,11 @@ class SimLink implements NodeLink {
     return Date.now() % SIM_SLEEP_CYCLE_MS > SIM_SLEEP_CHECKIN_MS;
   }
   private bootAt = new Map<string, number>(); // uptime restarts after a simulated update
+  private cfgAt = new Map<string, number>();  // each board's settings stamp (heartbeat cfg_at)
+  // The bridge's copies (firmware pm_copies), as the sim's bridge keeps them.
+  private copies: Record<string, SimCopy> = (() => { try { return JSON.parse(localStorage.getItem(SIM_KEY + "copies") ?? "{}"); } catch { return {}; } })();
+  private visiting = new Set<string>();
+  private keepsCopies = (() => { try { return localStorage.getItem(SIM_KEY + "nocopies") !== "1"; } catch { return true; } })();
   private rx = new Map<string, { size: number; written: number }>(); // an image arriving over the mesh
 
   constructor(private boardId: string) {
@@ -535,14 +552,124 @@ class SimLink implements NodeLink {
         up: Math.round((Date.now() - (this.bootAt.get(r.node) ?? Date.now() - 600000 * (i + 1))) / 1000), heap: 190 - 7 * i,
         batt: r.sleeps || n.cfg.channels.some((c) => c.kind === "BATTERY") ? 3870 : 0, hops: r.hops, rssi: r.rssi + Math.round(Math.random() * 4 - 2),
         nbrs: r.nbrs.map((x) => ({ ...x, rssi: x.rssi + Math.round(Math.random() * 4 - 2) })),
+        cfg_at: this.cfgAt.get(r.node) ?? 0,
       };
       this.events.emit({ evt: "heartbeat", ...hb });
+      if (!goingNow) void this.visit(r.node);
     });
     setTimeout(beat, 300);
     this.timers.push(setInterval(beat, 5000));
   }
 
+  // The sim's bridge keeps copies like firmware pm_copies: the copy follows
+  // the console's traffic, and a board's check-in delivers what waits.
   async request(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
+    const node = (body.node as string | undefined) ?? SIM_LOCAL;
+    if (node === SIM_LOCAL && SIM_COPY_CMDS.has(cmd)) return this.keepsCopies ? this.copyCmd(cmd, body) : { ok: false, error: "unknown command" };
+    const r = await this.handle(cmd, body);
+    if (!this.keepsCopies || !r.ok) return r;
+    if (node === SIM_LOCAL && cmd === "hello") return { ...r, copies: 1 };
+    if (node !== SIM_LOCAL) this.observe(node, cmd, body, r);
+    return r;
+  }
+  private saveCopies() { try { localStorage.setItem(SIM_KEY + "copies", JSON.stringify(this.copies)); } catch { /* private mode */ } }
+  private announce(node: string, what: string, error?: string) {
+    const c = this.copies[node];
+    this.events.emit({ evt: "copy", node, what, rev: c?.rev ?? 0, at: c?.at ?? 0, waiting: !!c?.waiting, ...(c?.waiting?.stuck ? { stuck: true } : {}), ...(c?.wake ? { wake: true } : {}), ...(error ? { error } : {}) });
+  }
+  private store(node: string, hello?: Record<string, unknown>, config?: NodeConfig, at = 0) {
+    const c = this.copies[node] ?? (this.copies[node] = { rev: 0, at: 0 });
+    let changed = false;
+    if (hello) {
+      const h: Record<string, unknown> = {};
+      for (const k of SIM_COPY_HELLO) if (hello[k] !== undefined) h[k] = hello[k];
+      if (JSON.stringify(h) !== JSON.stringify(c.hello)) { c.hello = h; changed = true; }
+    }
+    if (config) {
+      const { brmesh_key: _k, ...rest } = structuredClone(config);
+      if (JSON.stringify(rest) !== JSON.stringify(c.config) || c.at !== at) { c.config = rest as NodeConfig; c.at = at; changed = true; }
+      c.read = Math.floor(Date.now() / 1000);
+    }
+    if (!changed) return;
+    c.rev++;
+    this.saveCopies();
+    this.announce(node, "copy");
+  }
+  private observe(node: string, cmd: string, body: Record<string, unknown>, r: Reply) {
+    if (cmd === "hello") this.store(node, r as Record<string, unknown>);
+    else if (cmd === "get_config") this.store(node, undefined, r.config as NodeConfig, (r.at as number | undefined) ?? 0);
+    else if (cmd === "set_config") this.store(node, undefined, body.config as NodeConfig, (body.at as number | undefined) ?? 0);
+  }
+  private async visit(node: string) {
+    if (!this.keepsCopies || this.visiting.has(node)) return;
+    const c = this.copies[node];
+    const boardAt = this.cfgAt.get(node) ?? 0;
+    const waiting = c?.waiting && !c.waiting.stuck;
+    const read = !c?.config || c.at !== boardAt;
+    if (!waiting && !read && !c?.wake) return;
+    this.visiting.add(node);
+    try {
+      const h = await this.handle("hello", { node });
+      if (!h.ok) return;
+      this.store(node, h as Record<string, unknown>);
+      const holdS = (h.hold_s as number | undefined) ?? 0;
+      let woke = false;
+      if (c?.wake) {
+        if (!holdS) await this.handle("hold_awake", { node, min: 10 });
+        this.copies[node].wake = false; woke = true; this.saveCopies(); this.announce(node, "wake");
+      }
+      if (read) {
+        const g = await this.handle("get_config", { node });
+        if (g.ok) this.store(node, undefined, g.config as NodeConfig, (g.at as number | undefined) ?? 0);
+      }
+      const w = this.copies[node]?.waiting;
+      if (w && !w.stuck) {
+        const now = this.cfgAt.get(node) ?? 0;
+        if (now === w.at) { this.store(node, undefined, w.config, w.at); delete this.copies[node].waiting; this.saveCopies(); this.announce(node, "delivered"); }
+        else if (w.base_at && now !== w.base_at) { w.stuck = true; w.error = "its settings changed since this edit (another console, or the board itself) — check them and save again"; this.saveCopies(); this.announce(node, "stuck", w.error); }
+        else {
+          const s = await this.handle("set_config", { node, config: w.config, at: w.at, keep_floods: true });
+          if (!s.ok) { w.stuck = true; w.error = `the board refused it: ${s.error ?? "no reason given"}`; this.saveCopies(); this.announce(node, "stuck", w.error); }
+          else { this.store(node, undefined, w.config, w.at); delete this.copies[node].waiting; this.saveCopies(); this.announce(node, "delivered"); }
+        }
+      }
+      if (SIM_REMOTES.find((x) => x.node === node)?.sleeps && !woke && !(holdS > 0 && holdS <= 185)) await this.handle("hold_awake", { node, min: 0 });
+    } finally { this.visiting.delete(node); }
+  }
+  private copyCmd(cmd: string, body: Record<string, unknown>): Reply {
+    const id = body.for as string | undefined;
+    if (cmd === "get_copies") {
+      return { ok: true, copies: Object.entries(this.copies).map(([node, c]) => ({
+        node, hello: c.hello, read: c.read, at: c.at, rev: c.rev, config: !!c.config, ...(c.wake ? { wake: true } : {}),
+        ...(c.waiting ? { waiting: { at: c.waiting.at, saved: c.waiting.saved, ...(c.waiting.stuck ? { stuck: true, error: c.waiting.error } : {}) } } : {}),
+      })), fs_used: 40960, fs_total: 131072 };
+    }
+    const c = id ? this.copies[id] : undefined;
+    if (!id || (!c && cmd !== "stay_awake")) return { ok: false, error: "no copy of that board on the bridge" };
+    switch (cmd) {
+      case "get_copy":
+        if (body.waiting) return c!.waiting ? { ok: true, waiting: { config: c!.waiting.config, at: c!.waiting.at, saved: c!.waiting.saved, stuck: c!.waiting.stuck, error: c!.waiting.error }, rev: c!.rev } : { ok: false, error: "nothing waiting" };
+        return c!.config ? { ok: true, hello: c!.hello, config: c!.config, at: c!.at, read: c!.read, rev: c!.rev } : { ok: false, error: "no copy of its settings yet" };
+      case "queue_config": {
+        if (!c!.config) return { ok: false, error: "no copy of its settings yet — it is read at the board's next check-in" };
+        if (body.rev !== undefined && body.rev !== c!.rev) return { ok: false, error: "its settings changed since this page opened — reopen it", rev: c!.rev };
+        const { brmesh_key: _k, ...cfg } = structuredClone(body.config as NodeConfig);
+        const at = (body.at as number | undefined) || Math.floor(Date.now() / 1000);
+        c!.waiting = { config: cfg as NodeConfig, base_at: c!.at, at, saved: Math.floor(Date.now() / 1000) };
+        this.saveCopies(); this.announce(id, "waiting");
+        return { ok: true, at };
+      }
+      case "cancel_config": delete c!.waiting; this.saveCopies(); this.announce(id, "cancelled"); return { ok: true };
+      case "stay_awake": {
+        const e = this.copies[id] ?? (this.copies[id] = { rev: 0, at: 0 });
+        e.wake = body.on !== false; this.saveCopies(); this.announce(id, "wake"); return { ok: true };
+      }
+      case "forget_copy": delete this.copies[id]; this.saveCopies(); return { ok: true };
+    }
+    return { ok: false, error: "unknown command" };
+  }
+
+  private async handle(cmd: string, body: Record<string, unknown> = {}): Promise<Reply> {
     const node = (body.node as string | undefined) ?? SIM_LOCAL;
     const n = this.nodes.get(node);
     // A sleeping board hears nothing: the request times out, as on the mesh.
@@ -611,7 +738,7 @@ class SimLink implements NodeLink {
       case "get_config": {
         // Like the board: the WiFi password is never sent back, only pass_set.
         const { wifi, ...rest } = n.cfg;
-        return { ok: true, config: wifi ? { ...rest, wifi: { ssid: wifi.ssid, pass_set: !!wifi.pass } } : rest };
+        return { ok: true, config: wifi ? { ...rest, wifi: { ssid: wifi.ssid, pass_set: !!wifi.pass } } : rest, at: this.cfgAt.get(node) ?? 0 };
       }
       case "set_config": {
         const cfg = structuredClone(body.config as NodeConfig);
@@ -620,8 +747,11 @@ class SimLink implements NodeLink {
         if (cfg.wifi) delete cfg.wifi.pass_set;
         const issues = validate(BOARDS[this.boardId], cfg);
         if (issues.some((i) => i.error)) return { ok: false, error: "invalid config", issues };
+        // keep_floods (the bridge's delivery): this board's own key and lights stay.
+        if (body.keep_floods) { cfg.channels = [...cfg.channels.filter((c) => c.kind !== "BLE_LIGHT"), ...n.cfg.channels.filter((c) => c.kind === "BLE_LIGHT")]; if (n.cfg.brmesh_key) cfg.brmesh_key = n.cfg.brmesh_key; }
         n.cfg = cfg;
         n.values.clear();
+        this.cfgAt.set(node, (body.at as number | undefined) || Math.floor(Date.now() / 1000));
         try { localStorage.setItem(SIM_KEY + node, JSON.stringify(cfg)); } catch { /* private mode */ }
         return { ok: true, issues };
       }

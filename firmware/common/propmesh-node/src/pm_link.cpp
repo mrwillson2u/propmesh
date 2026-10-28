@@ -7,6 +7,7 @@
 #include "pm_mesh.h"
 #include "pm_reassembly.h"
 #include "pm_show.h"
+#include "pm_copies.h"
 
 // Per attempt; a lost chunk costs one attempt, not the request.
 #define REMOTE_TIMEOUT_MS 900
@@ -157,6 +158,27 @@ static void on_wake_reply(uint32_t src) {
   for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
 }
 
+// Who a console last worked on, and when (pm_link_console_recent).
+static struct { uint32_t id; uint32_t ms; } s_touch[8];
+static void touch(uint32_t dst, const char *cmd) {
+  // The same list the firmware counts as background (pm_api): it doesn't hold a board.
+  if (!strcmp(cmd, "hello") || !strcmp(cmd, "mesh") || !strcmp(cmd, "state") || !strcmp(cmd, "ota_status") || !strcmp(cmd, "ble")) return;
+  int slot = 0;
+  for (int i = 0; i < 8; i++) {
+    if (s_touch[i].id == dst) { slot = i; break; }
+    if ((int32_t)(s_touch[i].ms - s_touch[slot].ms) < 0) slot = i;  // the oldest
+  }
+  s_touch[slot] = { dst, millis() ? millis() : 1 };
+}
+bool pm_link_console_recent(uint32_t dst, uint32_t ms) {
+  for (auto &t : s_touch) if (t.id == dst && t.ms && millis() - t.ms < ms) return true;
+  return false;
+}
+bool pm_link_busy_with(uint32_t dst) {
+  for (Pending &p : s_pending) if (p.used && p.dst == dst) return true;
+  return false;
+}
+
 static void request_inner(const char *json, size_t len, int8_t from);
 void pm_link_request(const char *json, size_t len, int8_t from) {
   s_reply_to = from;
@@ -217,6 +239,8 @@ static void request_inner(const char *json, size_t len, int8_t from) {
   p->console_id = id;
   p->has_console_id = has_id;
   p->client = from;
+  p->cb = nullptr;
+  touch(dst, cmd);
   if (pm_mesh_is_leaf(dst) && !leaf_awake(dst)) {
     p->waiting_wake = true;
     start_wake(dst);
@@ -288,8 +312,9 @@ static void on_frame(const pm_frame_header_t *hdr, const uint8_t *payload,
 }
 
 static void on_heartbeat(const RxFrame &f) {
-  // Pre-2026-10-07 boards send one byte less (no channel): still shown.
-  if (f.len < sizeof(pm_heartbeat_t) - 1) return;
+  // Older boards send fewer fields (channel 2026-10-07, listen_ms
+  // 2026-10-11, cfg_at 2026-10-28): still shown, read by field.
+  if (f.len < offsetof(pm_heartbeat_t, channel)) return;
   pm_heartbeat_t hb = {};
   memcpy(&hb, f.payload, f.len < sizeof(hb) ? f.len : sizeof(hb));
   JsonDocument doc;
@@ -307,6 +332,8 @@ static void on_heartbeat(const RxFrame &f) {
   doc["rssi"] = f.rssi;                      // last hop only
   if (hb.channel) doc["ch"] = hb.channel;
   if (hb.listen_ms) doc["listen"] = hb.listen_ms;  // a battery board listening in windows
+  bool stamps = f.len >= offsetof(pm_heartbeat_t, cfg_at) + sizeof(uint32_t);
+  if (stamps) doc["cfg_at"] = hb.cfg_at;
   JsonArray nb = doc["nbrs"].to<JsonArray>();
   for (uint8_t i = 0; i < hb.neighbor_count && i < PM_MAX_NEIGHBORS; i++) {
     JsonObject o = nb.add<JsonObject>();
@@ -315,6 +342,8 @@ static void on_heartbeat(const RxFrame &f) {
     o["rssi"] = hb.neighbors[i].rssi;
   }
   emit(doc);
+  // The bridge's copies: a board awake at its check-in may have something waiting.
+  pm_copies_heard(f.hdr.src_id, stamps, hb.cfg_at, hb.role & PM_NODE_ROLE_SLEEPING);
 }
 
 static void on_state(const RxFrame &f) {
@@ -350,6 +379,7 @@ static void on_api(const RxFrame &f) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
       if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(msg, n, ctx); return; }
       if (s_out) s_out(msg, n, p.client);  // the target's reply, verbatim, to whoever asked
+      pm_copies_observe(p.dst, p.text, p.len, msg, n);  // the bridge's copy follows (pm_copies)
       drop(p);
       return;
     }

@@ -25,6 +25,7 @@
 #include "pm_lastwords.h"
 #include "pm_radio.h"
 #include "pm_sync.h"
+#include "pm_copies.h"
 
 #ifndef PM_CHANNEL
 #define PM_CHANNEL 1
@@ -150,6 +151,7 @@ static void send_heartbeat(uint8_t extra_role) {
   // rather than send the mesh chasing a scan.
   hb.channel = (pm_wifi_configured() && !pm_wifi_connected()) ? 0 : pm_mesh_channel();
   hb.listen_ms = pm_sleep_listen_ms();  // a sleepy leaf: senders repeat into its window (docs §6f)
+  hb.cfg_at = pm_sync_cfg_at();  // the bridge's copy of its settings is current while this matches (pm_copies)
   pm_send(PM_MSG_TYPE_HEARTBEAT, &hb, sizeof(hb));
 }
 
@@ -245,6 +247,7 @@ void setup() {
   pm_node_apply(cfg);
   pm_show_begin();
   pm_sync_begin();
+  pm_copies_begin();  // a bridge's copies of every board's settings (pm_copies)
   pm_sleep_after_boot(cfg);  // a sensor woke us: run its triggers
 
   char id[9];

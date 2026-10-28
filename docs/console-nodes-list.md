@@ -463,35 +463,90 @@ pins only if the page had been open since the board was last awake.
   page errors. The "changed underneath" and refusal paths are not
   exercised. Not yet run on a real candle.
 
-**Proposed: the bridge holds the copies (Colin, 2026-10-28; not built).**
-The bridge would do the job `lib/configCache.ts` does today, so any
-console that connects sees every board's last hello and settings, and a
-saved change goes out at the board's next check-in with no tab open.
-- *Bridge firmware only.* Every board already answers `get_config`,
-  `set_config` and `hold_awake`. The bridge already asks boards things
-  itself (`pm_link_ask`) and knows when a leaf is awake. So the bridge
-  hears a heartbeat, reads or sends the settings, and releases the board.
-  The candles need no reflash. A board-side pull, like `pull_seq`, would
-  mean reflashing every board for no gain here.
-- *Stored on the bridge:* `/m/roster.json` holds every board's last hello.
-  `/m/<node>_c.json` holds its settings, and the change waiting for it
-  with the copy it was edited from. The floods key and WiFi password are
-  never stored in these.
-- *New commands:* `get_roster`, `get_copy`, `queue_config` and
-  `cancel_config`. The console reads them on connect and keeps its local
-  copy as a fallback for older bridge builds.
-- *"Stay awake next time" moves too.* The bridge keeps that list, so the
-  hold no longer needs a tab open. "Update when awake" still does: the
-  1.4 MB image doesn't fit on the bridge.
-- *Limits to check first.* The storage area is 128 KB (`min_spiffs`), in
-  4 KB blocks, and each file takes at least one block. The sequence copies
-  already use some of it, and today's bridge doesn't report how much.
-  About ten boards fit easily, but this is the number to measure: add
-  `fs_used` / `fs_total` to hello first. Each visit uses a few KB of heap
-  briefly and adds no static buffer, but `heap_win_min` on the bridge
-  must be checked afterwards (the 70 KB rule).
-- *Size:* about a day of bridge firmware, half a day of console work, and
-  a bench run on the bridge.
+**Settings kept on the bridge (built 2026-10-28; simulator and host
+tests only).** Colin's follow-up: the bridge does what
+`lib/configCache.ts` did in the browser. Every console that connects
+sees the same list and settings, and a change goes out at the board's
+check-in with no tab open. Firmware `pm_copies.cpp`, with the decision
+logic in `pm_copies_core.h` (host tests `test_copies`).
+- *The most efficient split (Colin asked for it, reflash or not).* The
+  copy follows the console's own traffic as it passes the bridge: an
+  accepted hello, `get_config` or `set_config`. Boards built from
+  2026-10-28 on stamp their settings (the `at` of the `set_config` that
+  made them, kept in `/sync.json`). They report the stamp in every
+  heartbeat (`cfg_at`, appended to schema Heartbeat) and in `get_config`.
+  So the bridge knows its copy is current without asking.
+  - *Nothing waiting:* the bridge sends nothing at all.
+  - *A change waiting:* hello, `set_config` with `keep_floods`, then
+    `hold_awake {min: 0}`. The board keeps its own floods key and lights,
+    so the change needs no read first.
+  - *An older board without the stamp:* read once for the copy. To
+    deliver a change, the bridge reads it again, compares, and hands the
+    board back its own floods key and lights.
+  The candles therefore need the new firmware only to drop that one
+  read, and can take it with their next update.
+- *Stored* in `/m`, beside the show copies:
+  - `<node>_c.json`: the hello's list fields, the settings without the
+    floods key or any WiFi password, their stamp, and `rev`.
+  - `<node>_w.json`: the waiting change and the copy it was edited from.
+  - `wake.json`: the "stay awake next time" list.
+  RAM holds one small slot per board (32), so a heartbeat is decided
+  without touching flash. Flash is written only when something changes.
+  The copies stop growing when less than 24 KB of the 128 KB area is
+  left, so the sequence copies keep room. Each board then reads
+  "full" (event `copy`, what `full`).
+- *A visit* happens only when a board needs one: a change waiting,
+  "stay awake next time", no copy yet, or a stamp that doesn't match.
+  It skips a board a console is already talking to. Afterwards a battery
+  board is let sleep again, except in these cases:
+  - its setup window after a power-on (`hold_s` ≤ 185 before the visit);
+  - a console request to it in the last 10 min;
+  - the bridge just held it for "stay awake next time".
+  A visit that gets no answer waits 30 s before trying again.
+- *Safety.* A waiting change is sent only if the board still has what
+  it was edited from: the stamps match, or, without stamps, the settings
+  compare equal, ignoring floods and defaults. Otherwise the change is
+  marked "✕ not sent". A refusal is marked the same way. A board that
+  already has the change just clears it. `queue_config` carries the
+  `rev` the page edited, so a second console editing an older copy is
+  told to reopen the page.
+- *"Stay awake next time"* is kept on the bridge too (`stay_awake`).
+  The bridge holds the board at its check-in whether or not a console is
+  open. "Update when awake" still runs from the console tab: the image
+  doesn't fit on the bridge.
+- *Commands* (to the bridge): `get_copies {from}`, paged with `more`,
+  which returns each board's hello, stamps, `rev`, wake flag and waiting
+  summary, plus `fs_used` / `fs_total`. Also `get_copy {for, waiting?}`,
+  `queue_config {for, config, rev, at}`, `cancel_config {for}`,
+  `stay_awake {for, on}` and `forget_copy {for}`. Each change is
+  announced to every console as `{"evt":"copy", node, what, rev, ...}`.
+  Every board's hello now carries `fs_used` / `fs_total`. A bridge's
+  hello carries `copies: 1`.
+- *The console* checks the bridge's hello for `copies`. With it, the
+  console reads the list on connect, so boards this browser never met
+  join as remembered. It fetches a board's copy when its page opens and
+  keeps nothing in the browser. Without it, the browser copy above runs
+  as before, so today's bridge behaves exactly as it does now.
+- *Tested.*
+  - Host tests: `test_copies`, 11 cases, covering the copy's contents,
+    settings comparison, the visit plan, the send verdict and the
+    release rule.
+  - Builds: all four boards. DevKit static RAM is 68.9 KB.
+  - Simulator: the sim's bridge keeps copies the same way, 16 checks. It
+    read the copy at a check-in, kept nothing in the browser, and stored
+    the waiting change on the bridge. A second console with an empty
+    browser listed the asleep board and showed the waiting name. The
+    bridge delivered it at the next check-in, and the row cleared. With
+    a bridge without copies, the browser fallback ran.
+- *Not tested:* nothing has run on hardware. Not yet measured on the
+  bridge: its flash use and its `heap_win_min` during a visit (the
+  70 KB rule). "No tab open" can't be shown in the simulator, because
+  its bridge lives in the page.
+  One race to watch: a battery board held by "Update when awake" could
+  be released by a visit that finishes before the console's hold
+  arrives, since a release overrides any hold. A visit only happens when
+  the board needs one, and a console request in the last 10 min blocks
+  the release.
 
 **Asleep, off, or out of range (console).** `presence()` in
 `connection.ts`. A battery board checks in on a UTC grid, so its silence

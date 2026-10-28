@@ -23,5 +23,10 @@ void pm_sync_loop();
 bool pm_sync_handle(const char *cmd, JsonObjectConst req, JsonObject resp);
 // set_config succeeded with this request: note the floods stamp.
 void pm_sync_config_saved(JsonObjectConst req);
+// This board's pin settings changed: `at` is the stamp the console sent
+// with them (0 = none: now). Reported in every heartbeat (cfg_at), so the
+// bridge knows whether its copy is current (pm_copies).
+void pm_sync_config_changed(uint32_t at);
+uint32_t pm_sync_cfg_at();
 // For hello: what this board has synced.
 void pm_sync_status(JsonObject out);

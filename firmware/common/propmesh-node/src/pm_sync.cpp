@@ -17,7 +17,7 @@
 // show_synced: the conductor's show_at this board last caught up to.
 // floods_at: the floods copy this board holds.
 static const char *SYNC_PATH = "/sync.json";
-static uint32_t show_synced, floods_at;
+static uint32_t show_synced, floods_at, cfg_at;
 
 static uint32_t now_s() { return pm_wall().utc_ok ? (uint32_t)(pm_wall_utc_ms() / 1000) : 0; }
 
@@ -25,6 +25,7 @@ static void save_sync() {
   JsonDocument d;
   d["show_synced"] = show_synced;
   d["floods_at"] = floods_at;
+  d["cfg_at"] = cfg_at;
   File f = LittleFS.open(SYNC_PATH, "w");
   if (!f) return;
   serializeJson(d, f);
@@ -142,6 +143,9 @@ static void mirror_scan() {
   if (!dir || !dir.isDirectory()) { LittleFS.mkdir("/m"); return; }
   for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
     String n = f.name();
+    // Only the show's own files: the board copies (pm_copies) are larger
+    // and scanned there.
+    if (!n.endsWith("_i.json") && n != "floods.json" && !n.endsWith("/floods.json")) { f.close(); continue; }
     JsonDocument d;
     bool ok = !deserializeJson(d, f);
     f.close();
@@ -196,7 +200,16 @@ bool pm_sync_handle(const char *cmd, JsonObjectConst req, JsonObject resp) {
   return true;
 }
 
+void pm_sync_config_changed(uint32_t at) {
+  if (!at) at = now_s();
+  if (at == cfg_at) return;
+  cfg_at = at;
+  save_sync();
+}
+uint32_t pm_sync_cfg_at() { return cfg_at; }
+
 void pm_sync_config_saved(JsonObjectConst req) {
+  pm_sync_config_changed(req["at"] | 0UL);
   // The console (or a sync) gave this board a floods key: that copy's stamp.
   if (!*(req["config"]["brmesh_key"] | "")) return;
   uint32_t at = req["at"] | 0UL;
@@ -380,6 +393,7 @@ void pm_sync_begin() {
   if (read_json(SYNC_PATH, d)) {
     show_synced = d["show_synced"] | 0UL;
     floods_at = d["floods_at"] | 0UL;
+    cfg_at = d["cfg_at"] | 0UL;
   }
   mirror_scan();
   pm_mesh_on_stamps(on_stamps);
@@ -392,6 +406,7 @@ void pm_sync_status(JsonObject out) {
   out["mode_at"] = mine.mode_at;
   out["show_synced"] = is_bridge() ? mirror_show_at : show_synced;
   out["floods_at"] = is_bridge() ? mirror_floods_at : floods_at;
+  out["cfg_at"] = cfg_at;
 }
 
 void pm_sync_loop() {

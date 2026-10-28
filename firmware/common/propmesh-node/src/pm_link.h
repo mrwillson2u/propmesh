@@ -40,6 +40,12 @@ bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, voi
 
 void pm_link_loop();
 
+// A request to `dst` is in flight (a console's, or this node's own).
+bool pm_link_busy_with(uint32_t dst);
+// A console sent `dst` a request that holds a battery board awake (not
+// background polling) within the last `ms` (pm_copies leaves it awake).
+bool pm_link_console_recent(uint32_t dst, uint32_t ms);
+
 // Tell the mesh (and the local console) that an input changed.
 void pm_link_input(uint8_t index, bool active);
 

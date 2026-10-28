@@ -96,6 +96,7 @@ typedef struct {
     pm_neighbor_t neighbors[8];  // first neighbor_count valid
     uint8_t channel;  // WiFi channel the sender is on; 0 = unknown (pre-2026-10-07 firmware). Nodes follow the bridge's.
     uint16_t listen_ms;  // a battery board in its show tier listens a window every listen_ms; senders repeat into it. 0 = always listening
+    uint32_t cfg_at;  // UTC s its pin settings were last set (the at of the set_config that made them); 0 = unknown. Absent before 2026-10-28: the bridge then reads the settings to know (pm_copies)
 } pm_heartbeat_t;
 
 typedef struct {

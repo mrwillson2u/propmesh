@@ -102,6 +102,7 @@ export function hideNode(node: string, hide: boolean) {
 // Forget a board for good: off the roster and the list. It comes back
 // on its next heartbeat, as any new board would.
 export function forgetNode(node: string) {
+  if (bridgeKeepsCopies() && current) void target(current.link, null).request("forget_copy", { for: node }).catch(() => undefined);
   const boards = { ...roster.boards }; delete boards[node];
   roster = { boards, hidden: roster.hidden.filter((n) => n !== node), order: roster.order.filter((n) => n !== node), wake: roster.wake.filter((n) => n !== node) };
   saveRoster();
@@ -202,6 +203,25 @@ export function useConnection(): Connection | null {
 }
 
 export const getConnection = () => current;
+// The bridge keeps every board's settings and waiting changes (firmware
+// pm_copies, 2026-10-28): the console reads them there instead of keeping
+// its own (lib/configCache).
+export const bridgeKeepsCopies = () => !!current?.hello.copies;
+export interface CopyEvent { node: string; what: string; rev: number; at: number; waiting: boolean; stuck?: boolean; wake?: boolean; error?: string }
+const copySubs = new Set<(e: CopyEvent) => void>();
+export function onCopyEvent(cb: (e: CopyEvent) => void) { copySubs.add(cb); return () => { copySubs.delete(cb); }; }
+// A board the bridge knows that this browser hasn't met: on the list as
+// remembered, like the roster's. Its wake list replaces this browser's.
+export function adoptFromBridge(node: string, hello: NodeHello | undefined, seenMs: number, wake: boolean) {
+  if (!current || node === current.hello.node) return;
+  const en = current.entries[node];
+  if (!en && hello) {
+    current = { ...current, entries: { ...current.entries, [node]: { node, usb: false, hello, seen: seenMs, firstSeen: Date.now(), helloTries: 0, remembered: true } } };
+    remember(node, hello, seenMs);
+  } else if (en?.remembered && seenMs > en.seen) patch(node, { seen: seenMs });
+  if (wake !== roster.wake.includes(node)) roster = { ...roster, wake: wake ? [...roster.wake, node] : roster.wake.filter((n) => n !== node) };
+  changed();
+}
 export const connectionError = () => lastError;
 
 // A board that announced it was going to sleep is quiet at once; `seen`
@@ -296,7 +316,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
         remember(hb.node, was?.hello, Date.now(), hb.batt, hb.rssi);
         if (sleeping) return;
         heartbeatSubs.forEach((cb) => { try { cb(hb.node, was); } catch { /* a listener's problem */ } });
-        if (roster.wake.includes(hb.node)) holdNow(hb.node);
+        if (roster.wake.includes(hb.node) && !bridgeKeepsCopies()) holdNow(hb.node);  // a bridge with copies holds it itself
         // A hidden board that speaks again is back on the list.
         if (roster.hidden.includes(hb.node)) hideNode(hb.node, false);
         if (prev && hb.up < prev.up) refreshHello(hb.node);
@@ -305,6 +325,13 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       const node = (e.node as string | undefined) ?? hello.node;
       inputSubs.get(node)?.forEach((cb) => cb(e.kind as string, e.index as number, e.value as number));
       log({ at: Date.now(), kind: "input", node, index: e.index as number, value: e.value as number });
+    } else if (e.evt === "copy") {
+      // The bridge's copies moved (firmware pm_copies): its "stay awake
+      // next time" list is the one that counts.
+      const node = e.node as string;
+      const on = !!e.wake;
+      if (on !== roster.wake.includes(node)) { roster = { ...roster, wake: on ? [...roster.wake, node] : roster.wake.filter((n) => n !== node) }; saveRoster(); changed(); }
+      copySubs.forEach((cb) => { try { cb(e as unknown as CopyEvent); } catch { /* a listener's problem */ } });
     } else if (e.evt === "mode") {
       log({ at: Date.now(), kind: "mode", node: e.node as string, mode: e.mode as Mode, reason: e.reason as string });
     } else if (e.evt === "cue") {
@@ -564,6 +591,9 @@ export const wantsAwake = (node: string) => roster.wake.includes(node);
 export function stayAwakeNext(node: string, on = true) {
   roster = { ...roster, wake: on ? [...new Set([...roster.wake, node])] : roster.wake.filter((n) => n !== node) };
   saveRoster(); changed();
+  // A bridge that keeps copies holds the board itself at its check-in, with
+  // or without a console open.
+  if (bridgeKeepsCopies() && current) void target(current.link, null).request("stay_awake", { for: node, on }).catch(() => undefined);
 }
 function holdNow(node: string) {
   const c = current;

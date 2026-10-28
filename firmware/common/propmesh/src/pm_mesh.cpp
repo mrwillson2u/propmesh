@@ -194,9 +194,11 @@ static void on_recv(const esp_now_recv_info_t *info, const uint8_t *data,
   }
 
   // A battery board tells how often it listens: senders repeat into that.
-  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= sizeof(pm_heartbeat_t)) {
-    pm_heartbeat_t hb;
-    memcpy(&hb, payload, sizeof(hb));
+  // By field, not by the struct's size: boards with fewer fields (cfg_at
+  // was appended 2026-10-28) must still count.
+  if (hdr.msg_type == PM_MSG_TYPE_HEARTBEAT && plen >= offsetof(pm_heartbeat_t, listen_ms) + sizeof(uint16_t)) {
+    pm_heartbeat_t hb = {};
+    memcpy(&hb, payload, plen < sizeof(hb) ? plen : sizeof(hb));
     if (hb.listen_ms) note_leaf(hdr.src_id, hb.listen_ms, now_ms);
   }
 

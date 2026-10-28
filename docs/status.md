@@ -165,17 +165,28 @@ and a board waiting for its clock no longer sleeps
    "don't sleep while waiting for the clock" fix hasn't run on hardware
    inside a window yet.
 
-### Settings for a sleeping candle (console only, 2026-10-28)
+### Settings kept on the bridge (2026-10-28, branch `sleep/check-ins`)
 
-No reflash needed: reload the console at :5180. Watch for:
-1. Open a sleeping candle's page. It shows its pins, read at its last
-   check-in. A board never read in this browser shows "No copy… yet",
-   then fills in after its next check-in.
-2. Rename it and press **Save for next check-in**. Its row reads
-   "⏳ settings waiting".
-3. At its next check-in the row clears, the new name shows, and the
-   candle goes back to sleep on time. It must not stay awake 10 min.
-docs/console-nodes-list.md §9 "Settings for a sleeping board".
+The console is already live at :5180. With today's bridge it keeps the
+copies in the browser, as before. The bridge needs the new build to
+keep them itself. Flash **the bridge** with the hosted DevKit build
+(Firmware panel → the bridge → My own build), or over USB. Then:
+1. Its row reads normally. `python3 tools/bridge.py --host 192.168.175.209
+   ask hello` shows `copies: 1` and `fs_used` / `fs_total`. Note both
+   numbers in the docs.
+2. Open a sleeping candle's page. It reads "kept on the bridge". A
+   candle never read shows "No copy… on the bridge yet" until its next
+   check-in.
+3. Rename it, press **Save for next check-in**, then **close every
+   console tab**.
+4. After its next check-in, open the console. The new name shows and
+   nothing is waiting. The candle went back to sleep on time and did
+   not stay awake 10 min (its next check-in lands).
+5. While a console is open, `bridge.py ask mesh` on the bridge, or its
+   row, shows `heap_win_min` still ≥ 70 KB.
+The candles don't need the new build for this. With it, a delivery
+skips one read. docs/console-nodes-list.md §9 "Settings kept on the
+bridge".
 
 ## 3. Open bugs and loose ends
 
