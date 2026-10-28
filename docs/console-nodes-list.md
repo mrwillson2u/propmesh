@@ -421,6 +421,48 @@ console tab stays open. Boards on the same period wake in the same
 slot, so with a 5 min check-in and a ~3.5 min transfer the queue moves
 one board per check-in.
 
+**Settings for a sleeping board (console, built 2026-10-28).** Option 2
+of the 2026-10-26 plan, put off then in favor of "Stay awake next time"
+and built once Colin found an asleep board's page still blank: it showed
+pins only if the page had been open since the board was last awake.
+`lib/configCache.ts`; no firmware or protocol change.
+- *The copy.* This browser keeps each board's settings, per bridge, under
+  `propmesh.configs.<bridge id>`. It is written whenever the page reads or
+  saves them. A board heard with no copy yet is read once at its next
+  check-in. The floods key is left out of the copy, since it lives only on
+  the boards, and the board never sends the WiFi password.
+- *The page.* An asleep or remembered board's page shows the copy, with
+  "as last read, Wed 1:16 PM". Pins, sleep settings and the name can be
+  edited. The test controls wait for the board to be awake, and **Save for
+  next check-in** replaces **Save to node**. A board held awake for the
+  console opens live by itself. An awake one offers "It's awake — read
+  its live settings".
+- *Delivery.* The change waits in the browser ("⏳ settings waiting" on
+  the row). At the board's next heartbeat the console runs three steps:
+  1. It reads the board's settings and updates the copy.
+  2. It sends the change, keeping the board's own floods key and lights,
+     which the Floods tab owns.
+  3. It lets the board sleep again with `hold_awake {min: 0}`, since any
+     console request holds a battery board 10 min.
+  It does not release the board when something else wants it up: the
+  setup window after a power-on (hello's `hold_s`), "stay awake next
+  time", or a queued update.
+- *Safety.* The change is sent only if the board still has the settings
+  it was edited from. Otherwise it reads "✕ not sent — its settings
+  changed since this edit" and waits for a fresh save. A refusal stops it
+  the same way. A missed wake leaves it waiting for the next check-in. A
+  board that already has the change, after a save whose reply was lost,
+  just clears it.
+- *Limits.* Like Update when awake, it needs a console tab open; nothing
+  is stored on the bridge. The copy is per browser, so a phone and a
+  laptop each keep their own.
+- *Tested:* in the simulator against its sleeping board. The copy was
+  read at a check-in, without a key or password, and shown while asleep.
+  A rename saved while asleep was delivered at the next check-in and
+  cleared from the row, and after a reload the copy was still shown. No
+  page errors. The "changed underneath" and refusal paths are not
+  exercised. Not yet run on a real candle.
+
 **Asleep, off, or out of range (console).** `presence()` in
 `connection.ts`. A battery board checks in on a UTC grid, so its silence
 is predictable:

@@ -1926,6 +1926,10 @@ console shows "next check-in HH:MM:SS" for a sleeping board (roster
 tooltip, Yard) from the same grid (`nextCheckin` in `lib/connection.ts`).
 **Not built yet:** queueing a console request to go out in the slot —
 today you still retry by hand, but now you know when.
+*(Since built in the console, without a protocol change: pin settings
+saved for an asleep board go out at its next heartbeat —
+[`console-nodes-list.md`](console-nodes-list.md) §9 "Settings for a
+sleeping board"; firmware updates likewise, "Update when awake".)*
 
 **Shorter check-ins and drift self-correction (built 2026-10-14; host
 tests and builds only).**

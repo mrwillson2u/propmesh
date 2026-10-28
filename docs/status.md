@@ -165,6 +165,18 @@ and a board waiting for its clock no longer sleeps
    "don't sleep while waiting for the clock" fix hasn't run on hardware
    inside a window yet.
 
+### Settings for a sleeping candle (console only, 2026-10-28)
+
+No reflash needed: reload the console at :5180. Watch for:
+1. Open a sleeping candle's page. It shows its pins, read at its last
+   check-in. A board never read in this browser shows "No copy… yet",
+   then fills in after its next check-in.
+2. Rename it and press **Save for next check-in**. Its row reads
+   "⏳ settings waiting".
+3. At its next check-in the row clears, the new name shows, and the
+   candle goes back to sleep on time. It must not stay awake 10 min.
+docs/console-nodes-list.md §9 "Settings for a sleeping board".
+
 ## 3. Open bugs and loose ends
 
 - **Sequences save / play audit (2026-10-24 evening):** every

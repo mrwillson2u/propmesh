@@ -18,6 +18,7 @@ import PinGuide from "./PinGuide";
 import Pinout from "./Pinout";
 import type { NodeHello, NodeTarget } from "../../lib/transport";
 import { useConnection, type LocalMesh } from "../../lib/connection";
+import { cachedConfig, dropWaiting, noteConfig, queueConfig, useConfigCache, waitingConfig } from "../../lib/configCache";
 
 // Fixed tracks for the short columns; options and test share what is
 // left, so a narrow window squeezes them instead of clipping the test
@@ -55,11 +56,17 @@ export interface EditorProps {
   onInput: (cb: (kind: string, index: number, value: number) => void) => () => void;
   // The node's name or bridge flag changed on save — the roster shows them.
   onSaved: (cfg: NodeConfig) => void;
+  // Can't be asked right now: asleep, or remembered and not heard yet.
+  // The page then shows this browser's copy of its settings, and a save
+  // waits for its next check-in (lib/configCache).
+  away?: boolean;
+  held?: boolean;     // awake and held for the console (stay awake next time, setup window)
+  next?: Date | null; // its next check-in, when it is asleep on the grid
 }
 
 // Editor for one generic-board node: name, bridge mode, pin
 // assignments, save, test fire.
-export default function PinEditor({ node, hello, board, where, onInput, onSaved }: EditorProps) {
+export default function PinEditor({ node, hello, board, where, onInput, onSaved, away = false, held = false, next = null }: EditorProps) {
   const conn = useConnection();
   // On a phone each pin is a card whose parts wrap, not a six-column row
   // (docs/console-phone.md §5); the column headings go with the columns.
@@ -94,6 +101,32 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   const issues = useMemo(() => validate(board, draft), [board, draft]);
   const hasErrors = issues.some((i) => i.error);
   const dirty = JSON.stringify(draft) !== JSON.stringify(applied);
+  // live: read from the board this visit. Otherwise the page shows the
+  // copy kept here, and `basis` is what the draft started from (a change
+  // already waiting, or the copy) — so a delivery or a fresh copy can
+  // replace an untouched draft without losing edits in progress.
+  const [live, setLive] = useState<boolean | null>(null); // null: still finding out
+  const [basis, setBasis] = useState<NodeConfig | null>(null);
+  const cache = useConfigCache();
+  const copy = cache.cached[hello.node];
+  const waiting = cache.waiting[hello.node];
+  const edited = live === false && basis !== null && JSON.stringify(draft) !== JSON.stringify(basis);
+  const showCopy = () => {
+    const c = cachedConfig(hello.node), w = waitingConfig(hello.node);
+    setLive(false);
+    setError(null);
+    setValues({});
+    if (!c) { setLoaded(false); return; }
+    const a = { ...EMPTY_CONFIG, ...c.config };
+    const d = w ? { ...EMPTY_CONFIG, ...w.config } : a;
+    setApplied(a); setDraft(d); setBasis(d); setNodeIssues(null); setLoaded(true);
+  };
+  // A copy arrived or a waiting change went out while this page shows the copy.
+  useEffect(() => {
+    if (live !== false || edited) return;
+    showCopy();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [copy?.at, waiting?.at, !!waiting]);
 
   // ---- load -----------------------------------------------------------
 
@@ -110,6 +143,9 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         const st = await node.request("state");
         if (!cfg.ok) throw new Error(cfg.error ?? "get_config failed");
         const config = { ...EMPTY_CONFIG, ...(cfg.config as NodeConfig) };
+        noteConfig(hello.node, config);
+        setLive(true);
+        setBasis(null);
         setApplied(config);
         setDraft(config);
         setValues(toValues(st.channels));
@@ -125,13 +161,21 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
           continue;
         }
         setJoining(0);
+        // Asleep after all: show the copy kept here, if there is one.
+        if (/no reply/i.test(msg) && cachedConfig(hello.node)) { showCopy(); return; }
         setError(msg);
       }
     }
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void load(); }, [hello.node]);
+  useEffect(() => { if (away) showCopy(); else void load(); }, [hello.node]);
+  // Held awake for the console (stay awake next time): open it live, unless
+  // edits are in progress here.
+  useEffect(() => {
+    if (live === false && held && !away && !edited) void load(2);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [held, away]);
 
   useEffect(() => onInput((kind, index, value) =>
     setValues((v) => ({ ...v, [`${kind}_${index}`]: value }))), [onInput]);
@@ -159,7 +203,14 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
 
   // ---- save -----------------------------------------------------------
 
+  // Asleep: saved here, sent at its next check-in.
+  const saveForLater = () => {
+    queueConfig(hello.node, draft, applied);
+    setBasis(draft);
+    setError(null);
+  };
   const save = async () => {
+    if (!live || away) { saveForLater(); return; }
     setBusy(true);
     setError(null);
     try {
@@ -169,6 +220,8 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         setError(`Node refused the config: ${r.error}`);
         return;
       }
+      noteConfig(hello.node, draft);
+      dropWaiting(hello.node);
       setApplied(draft);
       setCal(null); // the node re-applied its pins: the servo is limp again
       onSaved(draft);
@@ -208,6 +261,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
   // `us` drives a servo's raw pulse width (calibration) instead of a
   // value between its end stops.
   const fire = (c: ChannelCfg, value: number, us?: number) => {
+    if (!live) return;
     const key = channelCode(c);
     if (us === undefined) setValues((v) => ({ ...v, [key]: value }));
     if (inFlight.current[key]) {
@@ -285,13 +339,23 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         <div style={{ flex: 1 }} />
         {dirty && <span style={mono(600, 11, C.amber)}>unsaved changes</span>}
         {busy && <Spinner color={C.emberT} />}
-        <button disabled={!dirty || busy} onClick={() => { setDraft(applied); setNodeIssues(null); }} style={btn(false, !dirty || busy)}>Revert</button>
-        <button disabled={!dirty || hasErrors || busy || !loaded} onClick={save} style={btn(true, !dirty || hasErrors || busy || !loaded)}>
-          {busy ? "Saving…" : "Save to node"}
-        </button>
-        {!applied.bridge && <button onClick={allOff} style={btn()}>All off</button>}
+        <button disabled={!dirty || busy} onClick={() => { setDraft(applied); setNodeIssues(null); }} style={btn(false, !dirty || busy)}
+          title={live === false && waiting ? "Back to the settings the board has; the waiting change stays until you save or discard it" : undefined}>Revert</button>
+        {live && !away
+          ? <button disabled={!dirty || hasErrors || busy || !loaded} onClick={save} style={btn(true, !dirty || hasErrors || busy || !loaded)}>
+              {busy ? "Saving…" : "Save to node"}
+            </button>
+          : <button disabled={!dirty || hasErrors || !loaded || (!edited && !!waiting)} onClick={saveForLater} style={btn(true, !dirty || hasErrors || !loaded || (!edited && !!waiting))}
+              title="Kept in this browser and sent when the board next checks in — keep a console open">
+              Save for next check-in
+            </button>}
+        {!applied.bridge && live && <button onClick={allOff} style={btn()}>All off</button>}
       </div>
 
+      {live === false && (
+        <AsleepCopy name={hello.name || hello.node} copyAt={copy?.at} waiting={waiting} next={next} away={away}
+          onDiscard={() => { dropWaiting(hello.node); }} onLive={() => void load(2)} />
+      )}
       <Health hello={hello} />
       {askBattery && (
         <Confirm title="This board sends to the floods" okLabel="Put it on battery" onCancel={() => setAskBattery(false)}
@@ -317,7 +381,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         </div>
       )}
 
-      {!loaded && !error && (
+      {!loaded && !error && live !== false && (
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "14px 16px", ...mono(500, 11.5, C.t4) }}>
           <Spinner /> Reading pin assignments from {hello.name || hello.node}{where.startsWith("mesh") ? " over the mesh" : ""}…
         </div>
@@ -346,7 +410,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
         <Pinout board={board} cfg={draft} />
         <PinGuide board={board} cfg={draft} />
         {!phone && <div style={{ display: "grid", gridTemplateColumns: ROW, gap: 10, padding: "9px 0", font: "700 10px system-ui", letterSpacing: ".09em", color: C.t5, borderBottom: `1px solid ${C.b1}` }}>
-          <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{dirty ? " (SAVE FIRST)" : ""}</span>
+          <span>PIN</span><span>FUNCTION</span><span>CHANNEL</span><span>NAME</span><span>OPTIONS</span><span>TEST{!live ? " (WHEN AWAKE)" : dirty ? " (SAVE FIRST)" : ""}</span>
         </div>}
         {board.pins.map((pin) => {
           const ci = draft.channels.findIndex((c) => c.pins.includes(pin.gpio));
@@ -401,7 +465,7 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
                       <input value={c.label} maxLength={LABEL_MAX} placeholder="what is it?"
                         onChange={(e) => patch(ci, { label: e.target.value })} style={{ ...field, flex: phone ? "1 1 100%" : undefined, minWidth: 0 }} />
                       <span className="pm-opts" style={{ display: "contents" }}><Options c={c} pin={pin} in2={c.kind === "MOTOR" || c.kind === "SPI_STRIP" || c.kind === "CANDLE" ? freePins(c, 1) : []} onChange={(p) => patch(ci, p)} reading={values[channelCode(c)]} /></span>
-                      <span className="pm-test" style={{ display: "contents" }}><Test c={c} value={values[channelCode(c)]} disabled={dirty} onFire={(v) => fire(c, v)} onReread={reread}
+                      <span className="pm-test" style={{ display: "contents" }}><Test c={c} value={values[channelCode(c)]} disabled={dirty || !live} onFire={(v) => fire(c, v)} onReread={reread}
                         onCandle={(event, chz, ms, burst) => node.request("candle", { index: c.index, event, ...(chz !== undefined ? { chz } : {}), ...(ms ? { ms } : {}), ...(burst ? { burst } : {}) }).then((r) => { if (!r.ok) setError(`${channelCode(c)}: ${r.error}`); })}
                         onSwing={(chz, kick_ms) => patch(ci, { candle: { ...(c.candle ?? CANDLE_DEFAULTS), swing_chz: chz, kick_ms } })}
                         cal={c.kind !== "SERVO" ? undefined : {
@@ -1098,5 +1162,31 @@ function Test({ c, value, disabled, onFire, onCandle, onSwing, cal, onReread }: 
       {calBtn}
       {readout(limp ? "limp" : c.kind === "MOTOR" ? `${v > 0 ? "+" : ""}${Math.round(v / 10)}%` : `${Math.round(v / 10)}%`)}
     </span>
+  );
+}
+
+// Above an asleep board's settings: where they came from, and what is
+// waiting for its next check-in (lib/configCache).
+function AsleepCopy({ name, copyAt, waiting, next, away, onDiscard, onLive }: {
+  name: string; copyAt?: number; waiting?: { at: number; error?: string; stuck?: boolean }; next: Date | null; away: boolean;
+  onDiscard: () => void; onLive: () => void;
+}) {
+  const t = (ms: number) => new Date(ms).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const at = next ? ` at ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+  return (
+    <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.b1}`, display: "flex", flexDirection: "column", gap: 6, ...sys(400, 12, C.t3), lineHeight: 1.5 }}>
+      {copyAt
+        ? <span>☾ These are its settings as last read, {t(copyAt)}, kept in this browser. Changes you save here go out at its next check-in{at}; keep a console open until then.</span>
+        : <span>☾ No copy of {name}'s settings in this browser yet. One is read at its next check-in{at}, and this page then shows it.</span>}
+      {waiting && (
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={mono(600, 11.5, waiting.stuck ? C.red : C.emberT)}>
+            {waiting.stuck ? "✕ not sent" : "⏳ waiting for its next check-in"} — saved here {t(waiting.at)}{waiting.error ? `; ${waiting.error}` : ""}
+          </span>
+          <button onClick={onDiscard} style={btn()}>Discard</button>
+        </span>
+      )}
+      {!away && <span><button onClick={onLive} style={btn()}>It's awake — read its live settings</button></span>}
+    </div>
   );
 }

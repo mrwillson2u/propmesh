@@ -5,6 +5,7 @@ import { C, MONO } from "./lib/tokens";
 import { useMesh } from "./lib/mesh";
 import { useSettings } from "./lib/settings";
 import { armAll, counts, getConnection, openConnection, showState, stopAll, useConnection, batteryAlarms } from "./lib/connection";
+import { startConfigCache } from "./lib/configCache";
 import { connectSim, reconnectLast } from "./lib/transport";
 import { Logo, StopOctagon, mono } from "./ui";
 import { useLayout } from "./lib/layout";
@@ -51,6 +52,9 @@ export default function App() {
   const mesh = useMesh();
   const { demo } = useSettings();
   const conn = useConnection();
+  // Copies of each board's pin settings, so a sleeping board's page can
+  // be edited; changes saved then go out at its next check-in.
+  useEffect(() => { if (conn) startConfigCache(); }, [conn?.hello.node]);
   // A reloaded page reconnects the way it was last connected (no clicks).
   const [autoState, setAutoState] = useState<"idle" | "trying" | "failed">("idle");
   useEffect(() => {

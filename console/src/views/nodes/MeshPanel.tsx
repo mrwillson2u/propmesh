@@ -16,6 +16,7 @@ import FloodsPanel from "./FloodsPanel";
 import OtaPanel from "./OtaPanel";
 import { FLOODS, FLOODS_NAME } from "../../lib/floods";
 import { useOtaJobs } from "../../lib/otaJobs";
+import { useConfigCache } from "../../lib/configCache";
 import {
   closeConnection, connectionError, isMissing, onInput, openConnection, refreshHello, select,
   useConnection, type Entry, checkinText, orderedEntries, getRoster, hideNode, forgetNode, setOrder, batteryState, nextCheckin, batteryForecast, nextShowEnd,
@@ -50,7 +51,7 @@ function BoardBar({ en, conn, now, phone }: { en: Entry; conn: NonNullable<Retur
   if (pres.kind === "off") line = <span>⏻ Switched off from the console{en.offAt ? ` at ${new Date(en.offAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. It shows up again by itself when it is turned back on.</span>;
   else if (missing && battery && pres.kind === "asleep") line = (
     <>
-      <span style={{ flex: "1 1 220px" }}>☾ Asleep{next ? ` — next check-in ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. {wantsAwake(en.node) ? `It will stay awake ${STAY_AWAKE_MIN} min when it checks in, and this page then works.` : "Changes made now wait for it to be awake."}</span>
+      <span style={{ flex: "1 1 220px" }}>☾ Asleep{next ? ` — next check-in ${next.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}. {wantsAwake(en.node) ? `It will stay awake ${STAY_AWAKE_MIN} min when it checks in, and this page then works live.` : "Settings saved below go out at its next check-in."}</span>
       {wantsAwake(en.node)
         ? <button onClick={() => stayAwakeNext(en.node, false)} style={b()}>Cancel</button>
         : <button onClick={() => stayAwakeNext(en.node, true)} style={b(true)}>⏰ Stay awake next time</button>}
@@ -114,6 +115,7 @@ export default function MeshPanel() {
   const [askHide, setAskHide] = useState<Entry | null>(null); // a sleeping board about to be hidden
   const [arrange, setArrange] = useState(false); // the order is being changed
   const otaJobs = useOtaJobs(); // an update in progress shows on the board's row
+  const configs = useConfigCache(); // a settings change waiting for a board's check-in shows on its row
   const [wifiAddr, setWifiAddr] = useState(() => { try { return localStorage.getItem("propmesh.bridge") ?? DEFAULT_WIFI_URL; } catch { return DEFAULT_WIFI_URL; } });
   const link = conn?.link ?? null;
   const entries = conn?.entries ?? {};
@@ -238,6 +240,8 @@ export default function MeshPanel() {
     else if (missing && pres.text) facts.push(<span key="m" style={{ color: presColor }}>{pres.text}</span>);
     else if (missing) facts.push(<span key="m" style={{ color: C.red }}>not heard for {ago(now - en.seen)}</span>);
     else if (en.hb && !en.usb) facts.push(<span key="r">{en.hb.hops === 0 ? "direct" : `${en.hb.hops + 1} hops`} · {en.hb.rssi} dBm</span>);
+    const w = configs.waiting[en.node];
+    if (w) facts.push(<span key="cw" style={{ color: w.stuck ? C.red : C.emberT }} title={w.error}>{w.stuck ? "✕ settings not sent" : "⏳ settings waiting"}</span>);
     if (missing && wantsAwake(en.node)) facts.push(<span key="w" style={{ color: C.emberT }}>⏰ stays awake at next check-in</span>);
     if (held) facts.push(<span key="h" style={{ color: C.emberT }}>awake for you · {mmss((en.holdUntil ?? 0) - now)} left</span>);
     if (listening) facts.push(<span key="l" title="listening in windows between cues">☾ {en.hb!.listen} ms</span>);
@@ -371,8 +375,11 @@ export default function MeshPanel() {
           {sel.node} runs board profile “{sel.hello.board}”, which this console doesn't know — rebuild it after running tools/genboards.py.
         </div>
       )}
-      {sel?.hello && selBoard && !sel.remembered && (
+      {sel?.hello && selBoard && (
         <PinEditor key={sel.node}
+          away={!!sel.remembered || isMissing(sel, now)}
+          held={!isMissing(sel, now) && (sel.holdUntil ?? 0) > now}
+          next={nextCheckin(sel.hello.checkin_ms, now)}
           node={target(link, sel.usb ? null : sel.node)}
           hello={sel.hello}
           board={selBoard}
