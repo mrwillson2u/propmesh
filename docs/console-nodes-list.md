@@ -463,6 +463,36 @@ pins only if the page had been open since the board was last awake.
   page errors. The "changed underneath" and refusal paths are not
   exercised. Not yet run on a real candle.
 
+**Proposed: the bridge holds the copies (Colin, 2026-10-28; not built).**
+The bridge would do the job `lib/configCache.ts` does today, so any
+console that connects sees every board's last hello and settings, and a
+saved change goes out at the board's next check-in with no tab open.
+- *Bridge firmware only.* Every board already answers `get_config`,
+  `set_config` and `hold_awake`. The bridge already asks boards things
+  itself (`pm_link_ask`) and knows when a leaf is awake. So the bridge
+  hears a heartbeat, reads or sends the settings, and releases the board.
+  The candles need no reflash. A board-side pull, like `pull_seq`, would
+  mean reflashing every board for no gain here.
+- *Stored on the bridge:* `/m/roster.json` holds every board's last hello.
+  `/m/<node>_c.json` holds its settings, and the change waiting for it
+  with the copy it was edited from. The floods key and WiFi password are
+  never stored in these.
+- *New commands:* `get_roster`, `get_copy`, `queue_config` and
+  `cancel_config`. The console reads them on connect and keeps its local
+  copy as a fallback for older bridge builds.
+- *"Stay awake next time" moves too.* The bridge keeps that list, so the
+  hold no longer needs a tab open. "Update when awake" still does: the
+  1.4 MB image doesn't fit on the bridge.
+- *Limits to check first.* The storage area is 128 KB (`min_spiffs`), in
+  4 KB blocks, and each file takes at least one block. The sequence copies
+  already use some of it, and today's bridge doesn't report how much.
+  About ten boards fit easily, but this is the number to measure: add
+  `fs_used` / `fs_total` to hello first. Each visit uses a few KB of heap
+  briefly and adds no static buffer, but `heap_win_min` on the bridge
+  must be checked afterwards (the 70 KB rule).
+- *Size:* about a day of bridge firmware, half a day of console work, and
+  a bench run on the bridge.
+
 **Asleep, off, or out of range (console).** `presence()` in
 `connection.ts`. A battery board checks in on a UTC grid, so its silence
 is predictable:
