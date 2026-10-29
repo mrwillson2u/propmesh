@@ -302,8 +302,12 @@ reloaded.
 | 3 | b171708 | a55da1c | 842 s, `ota_end`: "no update in progress", yet booted the new build |
 | 5, 1 | 179c024 | not run: after the show | — |
 
-At 150 ms pacing a transfer takes 9–14 min, against about 3.5 min at the
-old 60 ms. The bridge stayed up throughout: no radio rebuild, no send
+A transfer took 9–14 min at 150 ms pacing. The 15:50 run at 60 ms went
+at about the same rate (~8.5 min an image), so the pace was not the
+limit; the "about 3.5 min" said here at first was a 1.28 MB image
+through a USB bridge on 10-07, not comparable with the C6's 1.83 MB
+through WiFi (corrected 2026-10-29; where the time goes: generic-boards
+§6c). The bridge stayed up throughout: no radio rebuild, no send
 errors, window lows down to 33 KB. But its WiFi receive-buffer failures
 rose from 8 to 30, so the driver dropped some incoming frames during
 bursts. The guards kept that from turning into a mute.
@@ -315,7 +319,65 @@ console tab was still on the old code. The candles were released at
 17:08 so they sleep until the window. Every console tab and phone needs
 a reload.
 
+*After the show (read 2026-10-29 00:18).* The bridge, up 8 h on
+a55da1c, had rebuilt its radio once at about 23:27 with no last words,
+and its heap had touched 472 bytes (`heap_min`); 70 failed allocations,
+all the WiFi driver's 2308-byte receive buffer; 3 consoles attached,
+65–77 KB free, largest block 41 KB. Under a55da1c's 44 KB block line
+that bridge would have refused every OTA chunk.
+
+### Faster updates and the update window (2026-10-29, branch `sleep/check-ins`)
+
+Colin asked for faster uploads, and for the bridge to manage the rest
+of the mesh's traffic while an update runs. Built, **not run on the
+yard yet**; design and numbers in generic-boards §6c "Through the WiFi
+bridge, and the update window". Only the bridge needs the new firmware.
+- Chunks go straight to a board the bridge hears at −86 dBm or better
+  (TTL 0, frames 4 ms apart instead of 15): ~85 ms a chunk on the air
+  instead of ~400, and the relays stay quiet. Unanswered in 500 ms, the
+  chunk is resent the old way.
+- While a transfer runs, reads for other boards go one at a time (at
+  most 3 waiting; past 3.5 s, "bridge busy"), the bridge's copy visits
+  wait, and consoles are told (`evt: updating`). The Show view holds
+  its reloads until the update is over.
+- Memory lines: 56 KB free (was 64) and a 16 KB block (was 44).
+- `ota_end` gets 2.5 s before the bridge resends it; "no update in
+  progress" after the last chunk counts as taken, settled by the build.
+- Consoles no longer ask a board that said it was going to sleep for its
+  hello every 15 s.
+
+**Bench test, waiting for Colin's go:**
+1. Flash the bridge over WiFi from the server: `python3 tools/bridge.py
+   --host 192.168.175.209 ota 321553bc
+   firmware/node/.pio/build/esp32-devkit-v1/firmware.bin` (~100 s; the
+   consoles reconnect after it restarts). `ask hello` shows the new
+   build.
+2. Reload every console tab and phone.
+3. Update Candle 5, then Candle 1, each at its check-in, with the
+   scratchpad's gentle runner at the 60 ms pace. Keep one console on the
+   Show view.
+Watch:
+- Time per image: about 3 min for a candle the bridge hears directly
+  (Candle 1 was at −79 dBm); Candle 6 (−89) would stay by flood at about
+  9 min.
+- `mesh.update` after each: `direct_ok` / `direct` at 80 % or better
+  means the direct links hold.
+- The bridge: no radio rebuild, `tx_err` flat, window low above 20 KB.
+- The Show view reads "A firmware update is running on Candle 5: this
+  page reads the boards again when it's done." and reloads when it is.
+Stop if the radio rebuilds, send errors climb, or the window low is
+under 20 KB twice (the runner stops itself on all three).
+
 ## 3. Open bugs and loose ends
+
+- **A follower skips a sequence whose pull got no answer (found
+  2026-10-29, not fixed).** In `pm_sync_loop` the part's index moves on
+  when the request goes out (`q_ids[q_i++]`); if `pull_seq` gets no reply
+  after the link's three tries, the next part is fetched, and at the end
+  the board records the show as synced. It then lacks that sequence until
+  the next show edit. Needs three lost replies in a row, so it is rare.
+  The fix (fetch the same part again after a timeout) is on the boards,
+  so it reaches each one with its next update.
 
 - **Sequences save / play audit (2026-10-24 evening):** every
   board-away scenario is listed with before/after in

@@ -605,6 +605,84 @@ bonus for when the laptop's network happens to reach.
   to every board at once, so N boards take the time of one.
   Console: `lib/ota.ts` (`streamImage`), image from `ota_serve.py`'s URL
   (CORS) or a local .bin.
+- **Through the WiFi bridge, and the update window (built 2026-10-29,
+  not yet run on the yard).** Colin's ask after the bridge ran out of
+  memory mid-update on 10-28 (§6j, status.md): faster uploads, and manage
+  the rest of the mesh's traffic while one runs, rather than slowing the
+  upload for it.
+  - *Where the time went (10-28, a C6 image, 1,826,624 bytes = 677
+    chunks).* Each chunk is a ~3.7 KB request = 21 mesh frames, and the
+    bridge waits 15 ms after each (`CHUNK_GAP_MS`) so the relays'
+    rebroadcasts don't land on the next frame: ~400 ms on the air before
+    the board writes anything. Per chunk overall 0.8–1.2 s: Candle 2 in
+    536 s, Candle 4 649 s, Candle 3 842 s with `bridge.py`'s pace at
+    150 ms; the 15:50 run at 60 ms went at the same rate (4 % per ~20 s,
+    ~8.5 min an image), so the pace was not the limit. The rest is
+    resends and "bridge busy" waits. The 3.5 min above is a 1.28 MB image
+    through a USB bridge, not comparable. The relays also send every frame
+    of the image again, so it floods the whole yard: 21 × (relays) frames
+    a chunk that every board, the bridge included, must receive.
+  - *Straight to the board.* An `ota_data` for a board the bridge hears
+    directly at −86 dBm or better (smoothed, its neighbor table) goes out
+    with TTL 0: no relay rebroadcasts, so the frames go 4 ms apart (the
+    send queue still sends one at a time as the radio finishes) —
+    ~85 ms a chunk instead of ~400 — and the rest of the yard stays
+    quiet. Not answered in 500 ms, it is resent the usual way, through
+    the relays, under the same request number, so the board's reassembly
+    (2 s) keeps the frames it got and the flood fills the gaps; this
+    resend is not one of the three tries. Two direct misses in a row and
+    the next 30 chunks go by flood before direct is tried again
+    (`pm_update_core.h`). Old boards need nothing: TTL 0 is ordinary.
+    On 10-29 at 00:20 the bridge heard the Repeater at −71, Candle 1 −79,
+    Candle 4 −82, Candle 3 −83 and Candle 6 −89, so 1, 3 and 4 would go
+    direct and 6 by flood. Expected with the 60 ms pace: ~0.2–0.25 s a
+    chunk, ~2.5–3 min a C6 image *if* the direct links hold. **Not
+    measured yet.** `mesh.update` counts `direct` and `direct_ok`, so
+    the first run says how well they hold.
+  - *The update window.* From the first chunk until 15 s after the last
+    (`pm_link.cpp`):
+    - reads for other boards (`hello`, `state`, `get_*`, `ota_status`)
+      go one at a time, oldest first; at most 3 waiting or in flight, so
+      the chunks keep request slots; one that can't start within 3.5 s
+      is answered "bridge busy — a firmware update is running" (the
+      console gives up at 6 s anyway). Actions (a cue, `all_off`, a pin
+      test, a save) and anything for the board being updated go straight
+      out. At 15:50 on 10-28 the Show view's survey of every board, six
+      requests at once with replies up to 4.3 KB each, sat on top of the
+      chunks.
+    - the bridge's own copy visits wait (`pm_copies` `quiet()`).
+    - consoles hear `{"evt":"updating","node","on"}` at the start and the
+      end (with `chunks`, `direct`, `direct_ok`, `s`); `hello.updating`
+      and `mesh.update` say the same for a console that connects midway.
+      The Show view keeps what it shows and reads the boards again when
+      the update is over.
+    - boards' own pulls from the bridge (`pull_*`, `get_schedule`) are
+      answered as before: a follower skips a part whose pull fails
+      (`pm_sync`), so turning those away would lose sequences.
+  - *Memory lines, revised.* An OTA chunk waits below 56 KB free (was
+    64 KB, which refused most chunks with three consoles attached: they
+    idle the bridge at 65–70 KB) or below a 16 KB largest block (was 44 KB:
+    set when free and largest block were the same number; after a radio
+    rebuild the block sat at 41 KB with 65 KB free, which would have
+    refused every chunk). The block line now only guards fragmentation
+    (a chunk's pieces are 4 KB); the free line is a router burst (40 KB)
+    plus the rest of a chunk, now that the window holds the other
+    traffic back.
+  - *`ota_end` gets 2.5 s before the bridge resends it.* The board checks
+    the whole image and switches its boot partition before answering; a
+    resend then found the transfer closed, and the "no update in
+    progress" it got read as a failure although Candles 3 and 6 had both
+    taken the image (10-28). The console now takes that answer as "taken,
+    settled by the build it comes back on", and `bridge.py` says so.
+  - *Consoles stop asking sleeping boards.* Every console asked every
+    heard board `hello` every 15 s, including boards that had said they
+    were going to sleep; each one timed out on the bridge after 2.7 s of a
+    request slot. A board that said so is now not asked until it is heard
+    again; one gone quiet without saying so is asked once a minute.
+  - *Tested:* host tests (`test_update`: which requests wait, the direct
+    choice and its back-off), all four board builds (DevKit static RAM
+    68.9 KB). *Not tested:* any of it on the bridge. Bench steps:
+    status.md.
 - **Over WiFi (bonus):** below.
 
 - **Serve:** `python3 tools/ota_serve.py --build` builds, then serves
