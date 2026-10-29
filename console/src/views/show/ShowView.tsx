@@ -210,7 +210,20 @@ function Editor({ conn, section }: { conn: Connection; section: Section }) {
   // for good — Colin, 2026-10-24).
   const knownKey = known.map((e) => e.node).sort().join(",");
   const heardKey = known.filter((e) => !isMissing(e)).map((e) => e.node).sort().join(",");
-  useEffect(() => { if (known.length) void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [knownKey, heardKey, syncKey]);
+  // While the bridge streams a firmware image it sends reads for other
+  // boards one at a time (firmware 2026-10-29), and a reload here asks
+  // every board for its settings, show and parts: the page keeps what it
+  // has and reads again once the update is over.
+  const updating = conn.updating;
+  useEffect(() => {
+    if (!known.length) return;
+    if (updating && showRef.current) {
+      if (!msgRef.current || msgFromLoad.current) loadMsg({ text: `A firmware update is running on ${nameOf(updating)}: this page reads the boards again when it's done.` });
+      return;
+    }
+    void load();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [knownKey, heardKey, syncKey, updating]);
 
   const saved = show?.sequences.find((s) => s.id === sel) ?? null;
   const dirty = !!draft && !sameSequence(draft, saved);

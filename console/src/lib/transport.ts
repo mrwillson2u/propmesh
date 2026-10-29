@@ -13,6 +13,7 @@ export interface NodeHello {
   node: string; // 8 hex digits
   fw: number;
   copies?: number; // a bridge that keeps every board's settings and waiting changes (firmware pm_copies, 2026-10-28)
+  updating?: string; // a bridge streaming a firmware image to this board right now: other reads wait (firmware 2026-10-29)
   fs_used?: number; // its flash area, bytes used / total
   fs_total?: number;
   build?: string; // git commit the firmware was built from; "+hash" = uncommitted edits, "@branch" = not the published branch

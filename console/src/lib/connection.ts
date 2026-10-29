@@ -23,6 +23,12 @@ const LOCAL_MESH_MS = 5000;
 // what it last told them (2026-10-09: a page refresh after STOP ALL showed
 // the show as running).
 const REFRESH_HELLO_MS = 15000;
+// A board gone quiet without saying it was going to sleep (out of range,
+// off, older firmware) is asked this often instead: each hello to a board
+// that doesn't answer holds one of the bridge's six request slots for
+// 2.7 s before it gives up. One that said it was going to sleep isn't asked
+// at all until it is heard again (2026-10-29).
+const QUIET_HELLO_MS = 60000;
 
 export interface Entry {
   node: string;
@@ -170,6 +176,10 @@ export interface Connection {
   selected: string | null; // the node open in Nodes & Channels
   selectedAt: number; // when select() last chose it; 0 = the connect-time default (a phone shows the list, not a page)
   local?: LocalMesh;
+  // The board the bridge is streaming a firmware image to (its update
+  // window, firmware 2026-10-29): it sends reads for other boards one at a
+  // time meanwhile, so views hold their reloads until it's over.
+  updating?: string;
   lastEvent: number; // ms timestamp of the last heartbeat heard
   activity: Activity[];
 }
@@ -275,7 +285,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
   const t = Date.now();
   lastError = null;
   current = {
-    link, hello, selected: hello.node, selectedAt: 0, lastEvent: t, activity: [],
+    link, hello, selected: hello.node, selectedAt: 0, lastEvent: t, activity: [], updating: hello.updating,
     entries: { [hello.node]: { node: hello.node, usb: true, hello, seen: t, firstSeen: t, helloTries: 0 } },
   };
   // Everyone this browser has met on this mesh, from the roster, before
@@ -293,7 +303,7 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       current = { ...current, reconnecting: true, local: current.local && { ...current.local, stale: "no answer" } };
       changed();
     } else if (e.evt === "reconnected") {
-      current = { ...current, reconnecting: false };
+      current = { ...current, reconnecting: false, updating: undefined };  // the next `mesh` says if it still is
       helloAt.clear();  // ask everyone again: the bridge restarted, maybe into new firmware
       meshAt = 0;
       changed();
@@ -332,6 +342,9 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       const on = !!e.wake;
       if (on !== roster.wake.includes(node)) { roster = { ...roster, wake: on ? [...roster.wake, node] : roster.wake.filter((n) => n !== node) }; saveRoster(); changed(); }
       copySubs.forEach((cb) => { try { cb(e as unknown as CopyEvent); } catch { /* a listener's problem */ } });
+    } else if (e.evt === "updating") {
+      const node = e.node as string;
+      if ((e.on ? node : undefined) !== current.updating) { current = { ...current, updating: e.on ? node : undefined }; changed(); }
     } else if (e.evt === "mode") {
       log({ at: Date.now(), kind: "mode", node: e.node as string, mode: e.mode as Mode, reason: e.reason as string });
     } else if (e.evt === "cue") {
@@ -351,9 +364,10 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
     const now = Date.now();
     for (const en of Object.values(current.entries)) {
       if (en.remembered) continue; // not heard yet this session: nothing to ask
+      if (!en.usb && en.sleptAt && en.sleptAt >= en.seen) continue; // said it was going to sleep: its next heartbeat brings it back
       const last = helloAt.get(en.node);
       const due = en.usb ? last === undefined || now - last > 5000
-        : last === undefined || now - last > (en.hello ? REFRESH_HELLO_MS : HELLO_RETRY_MS);
+        : last === undefined || now - last > (isMissing(en, now) ? QUIET_HELLO_MS : en.hello ? REFRESH_HELLO_MS : HELLO_RETRY_MS);
       if (!due) continue;
       helloAt.set(en.node, now);
       if (!en.usb && !en.hello) patch(en.node, { helloTries: en.helloTries + 1 });
@@ -372,7 +386,8 @@ export function openConnection(link: NodeLink, hello: NodeHello) {
       meshAt = now;
       link.request("mesh").then((r) => {
         if (!r.ok || !current) return;
-        current = { ...current, local: r as unknown as LocalMesh };
+        const u = r.update as { on?: boolean; node?: string } | undefined;
+        current = { ...current, local: r as unknown as LocalMesh, updating: u?.on ? u.node : undefined };
         rememberBridgeIp((r as unknown as LocalMesh).ip);
         changed();
       }).catch(() => {

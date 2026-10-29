@@ -129,10 +129,12 @@ async function send(node: NodeTarget, img: Image, chunk: number, start: number, 
     if (transient(err)) { lastErr = err; await new Promise((r) => setTimeout(r, 500)); continue; }
     throw new Error(err || "the board refused a chunk");
   }
-  // If ota_end's reply is lost, the retry finds the transfer already
-  // closed — the board took the image and is rebooting. The panel then
-  // waits for it to come back with the new build, which settles it.
-  let tries = 0;
-  const end = await retrying(() => { tries++; return node.request("ota_end", { build: img.build }); }, signal);
-  if (!end.ok && !(tries > 1 && /no update in progress/.test(end.error ?? ""))) throw new Error(end.error ?? "the board refused the image");
+  // If ota_end's reply is lost, a retry finds the transfer already closed:
+  // the board took the image and is rebooting. The bridge's own resend does
+  // the same within one request, so this can be the first answer (Candles
+  // 3 and 6, 2026-10-28: "no update in progress", both had taken it). The
+  // panel then waits for the board to come back with the new build, which
+  // settles it either way.
+  const end = await retrying(() => node.request("ota_end", { build: img.build }), signal);
+  if (!end.ok && !/no update in progress/.test(end.error ?? "")) throw new Error(end.error ?? "the board refused the image");
 }
