@@ -90,6 +90,7 @@ inline const char *pm_config_from_json(JsonVariantConst root, PmNodeConfig &out)
       f.flame10 = fj["flame10"] | f.flame10;  f.noise = fj["noise"] | f.noise;
       f.smoke_speed = fj["smoke_speed"] | f.smoke_speed;  f.smoke_dim = fj["smoke_dim"] | f.smoke_dim;
       f.smoke_scale = fj["smoke_scale"] | f.smoke_scale;
+      f.from_top = fj["from_top"] | f.from_top;
     }
     JsonVariantConst cj = jc["candle"];
     if (!cj.isNull()) {
@@ -179,6 +180,7 @@ inline void pm_config_to_json(const PmNodeConfig &cfg, JsonObject root, bool sec
           fj["brightness"] = f.brightness;  fj["speed"] = f.speed;  fj["flame10"] = f.flame10;
           fj["noise"] = f.noise;  fj["smoke_speed"] = f.smoke_speed;  fj["smoke_dim"] = f.smoke_dim;
           fj["smoke_scale"] = f.smoke_scale;
+          if (f.from_top) fj["from_top"] = true;
         }
         break;
       case PM_CHANNEL_KIND_BLE_LIGHT:

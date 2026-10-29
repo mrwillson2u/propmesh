@@ -76,7 +76,8 @@ export default function PinEditor({ node, hello, board, where, onInput, onSaved 
     if (drawer?.gpio === gpio || !el) { setDrawer(null); return; }
     const items: [string, string][] = [];
     el.querySelectorAll<HTMLElement>(".pm-opts label[title], .pm-test [title]").forEach((n) => {
-      const name = (n.tagName === "LABEL" ? n.firstChild?.textContent : n.textContent)?.trim() ?? "";
+      // A label's name is its first text; a checkbox's label starts with the box.
+      const name = (n.tagName === "LABEL" ? n.firstChild?.textContent?.trim() || n.textContent : n.textContent)?.trim() ?? "";
       const text = n.getAttribute("title") ?? "";
       if (name && text && !items.some(([k]) => k === name)) items.push([name, text]);
     });
@@ -962,8 +963,11 @@ function FireOptions({ f, onChange }: { f: FireCfg; onChange: (p: Partial<FireCf
       <span style={{ ...sys(700, 9.5, C.amber), letterSpacing: ".08em" }}>FIRE</span>
       {field("w", "columns", "Columns of pixels, side by side around the prop. columns × height = pixel count.", 60)}
       {field("h", "height", "Pixels per column, bottom to top. The flame is seeded at the bottom.", 255)}
-      <label style={optLabel} title="Serpentine wiring: the first column runs bottom to top, the next top to bottom, and so on (the lantern). Off: every column starts at the bottom.">
+      <label style={optLabel} title="Serpentine wiring: each column runs back the other way from the one before (the lantern). Off: every column runs the same way as the first.">
         <input type="checkbox" checked={f.zigzag} onChange={(e) => onChange({ zigzag: e.target.checked })} /> zigzag
+      </label>
+      <label style={optLabel} title="The strip's data wire comes in at the top, so the first column runs top to bottom. Tick it if the flames burn downward. Off: the strip starts at the bottom (the lantern).">
+        <input type="checkbox" checked={!!f.from_top} onChange={(e) => onChange({ from_top: e.target.checked || undefined })} /> starts at top
       </label>
       {field("brightness", "brightness", "Overall level, 0–255.")}
       {field("speed", "speed", "How fast the flames move. Small matrices want small values (the lantern: 2).")}
