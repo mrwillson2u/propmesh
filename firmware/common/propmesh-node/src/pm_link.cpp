@@ -8,6 +8,7 @@
 #include "pm_reassembly.h"
 #include "pm_show.h"
 #include "pm_copies.h"
+#include "pm_update_core.h"
 
 // Per attempt; a lost chunk costs one attempt, not the request.
 #define REMOTE_TIMEOUT_MS 900
@@ -19,6 +20,20 @@
 // k's relays land on top of chunk k+1. 6 ms lost a chunk in 80 % of
 // 9-chunk messages on a 3-board bench (2026-10-05).
 #define CHUNK_GAP_MS 15
+// A chunk sent straight to the board being updated (TTL 0, no relay
+// rebroadcasts to wait out): the gap only paces the send queue, which
+// sends one frame at a time as the radio finishes the last (~2.5 ms).
+#define DIRECT_GAP_MS 4
+// A direct chunk unanswered this long is resent the usual way, through
+// the relays. The board answers ~100-200 ms after the first frame (a
+// flash sector erase is most of it), so this is generous.
+#define DIRECT_TIMEOUT_MS 500
+// ota_end: the board checks the whole image and switches its boot
+// partition before it answers, which can outlast REMOTE_TIMEOUT_MS. A
+// resend then reached a board whose transfer was already closed, and its
+// "no update in progress" read as a failure although the board had taken
+// the image and booted it (Candles 3 and 6, 2026-10-28).
+#define SLOW_TIMEOUT_MS 2500
 #define RX_QUEUE_DEPTH 24
 #define API_FIXED (sizeof(pm_api_request_t) - PM_API_CHUNK)
 
@@ -41,6 +56,10 @@ struct Pending {
   int8_t client;         // who asked: PM_FROM_SERIAL or a WebSocket slot
   pm_ask_cb_t cb;        // set: this node's own request (pm_link_ask), reply goes here
   bool holds;            // a console request that holds a battery board awake (not background polling)
+  bool gated;            // a read for another board during an update: one at a time (gate_loop)
+  bool queued;           // ...and still waiting its turn: not sent yet; sent_ms is when it arrived
+  bool direct;           // this try went straight to the board (TTL 0), not through the relays
+  bool slow;             // ota_end: give the board SLOW_TIMEOUT_MS before resending
   void *ctx;
   char *text;
   size_t len;
@@ -71,17 +90,18 @@ static void node_hex(char out[9], uint32_t id) {
 
 // --- sending -------------------------------------------------------------
 
-static bool send_frame(pm_msg_type_t type, const void *p, uint8_t len) {
+static bool send_frame(pm_msg_type_t type, const void *p, uint8_t len, uint8_t ttl = PM_DEFAULT_TTL) {
   // esp_now_send refuses when its TX buffer is full; it drains in ~1 ms.
   for (int i = 0; i < 5; i++) {
-    if (pm_send(type, p, len)) return true;
+    if (pm_send(type, p, len, ttl)) return true;
     delay(2);
   }
   return false;
 }
 
 static bool send_chunked(pm_msg_type_t type, uint32_t dst, uint16_t req_id,
-                         const char *text, size_t len) {
+                         const char *text, size_t len, uint8_t ttl = PM_DEFAULT_TTL,
+                         uint32_t gap_ms = CHUNK_GAP_MS) {
   uint8_t chunks = pm_api_chunk_count(len);
   if (!chunks) return false;
   pm_api_request_t f;  // API_RESP has the identical layout
@@ -95,13 +115,14 @@ static bool send_chunked(pm_msg_type_t type, uint32_t dst, uint16_t req_id,
     f.chunks = chunks;
     f.len = (uint8_t)n;
     memcpy(f.data, text + off, n);
-    ok &= send_frame(type, &f, API_FIXED + n);
-    if (c + 1 < chunks) delay(CHUNK_GAP_MS);
+    ok &= send_frame(type, &f, API_FIXED + n, ttl);
+    if (c + 1 < chunks) delay(gap_ms);
   }
   return ok;
 }
 
 static void drop(Pending &p);
+static void send_pending(Pending &p);
 
 static void reply_error(bool has_id, long long id, const char *why) {
   JsonDocument doc;
@@ -149,14 +170,14 @@ static void wake_loop() {
   s_wake.next_ms += WAKE_GAP_MS;
   if (!--s_wake.left) {
     // Burst over without an answer: send what's waiting anyway.
-    for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == s_wake.dst) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
+    for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == s_wake.dst) { p.waiting_wake = false; p.sent_ms = millis(); send_pending(p); }
   }
 }
 // The leaf answered the wake: it's awake for 10 min — release its queue.
 static void on_wake_reply(uint32_t src) {
   mark_awake(src);
   if (s_wake.left && s_wake.dst == src) s_wake.left = 0;
-  for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len); }
+  for (Pending &p : s_pending) if (p.used && p.waiting_wake && p.dst == src) { p.waiting_wake = false; p.sent_ms = millis(); send_pending(p); }
 }
 
 // Who a console last worked on, and when (pm_link_console_recent): the
@@ -192,29 +213,160 @@ void pm_link_request(const char *json, size_t len, int8_t from) {
   request_inner(json, len, from);
   s_reply_to = PM_TO_ALL;
 }
-// Below this much contiguous free heap the bridge turns an OTA chunk away
-// ("bridge busy") instead of forwarding it: a chunk in flight costs about
-// 25 KB and the router's once-a-minute multicast burst about 40 KB, and
-// when both land at once the WiFi driver's own allocations fail and the
-// radio wedges (docs §6j, 2026-10-23). The sender retries in a moment.
-#define BUSY_BLOCK_BYTES 44000
-// And below this much free in all an OTA chunk waits too: at 15:50 on
-// 2026-10-28 the bridge had 74 KB free and a 69 KB block, took chunks for
-// Candle 2, and other traffic on top (six candles awake, a console
-// reconnecting, the router's bursts) ran it down to 3.9 KB; the WiFi
-// driver's receive buffers failed, the radio went mute, and a reboot
-// cleared it. Any other request for a board waits below BUSY_FREE_BYTES,
-// and so do the bridge's own heavier replies (show and board copies),
-// rather than piling up Pending slots and reassembly buffers.
-#define OTA_FREE_BYTES 64000
+// The bridge turns an OTA chunk away ("bridge busy") instead of
+// forwarding it when it is short of memory: a chunk in flight costs about
+// 25 KB (the socket's buffers, the request's copy, the reply) and the
+// router's once-a-minute multicast burst about 40 KB, and when both land
+// at once the WiFi driver's own allocations fail and the radio wedges
+// (docs §6j, 2026-10-23). The sender retries in a moment.
+// Free in all: at 15:50 on 2026-10-28 the bridge had 74 KB free, took
+// chunks for Candle 2, and other traffic on top (six candles awake, every
+// board surveyed, a console reconnecting, the router's bursts) ran it down
+// to 3.9 KB; the radio went mute and a reboot cleared it. That other
+// traffic is now held back during an update (the update window, below),
+// so the line is a burst plus the rest of a chunk: 56 KB. 64 KB, the first
+// figure, refused most chunks with three consoles attached (65-70 KB idle).
+// The largest block only guards against a fragmented heap: the chunk's
+// pieces are 4 KB each. 44 KB, the first figure, came from when free and
+// largest block were the same number; after a radio rebuild the block sat
+// at 41 KB with 65 KB free, which refused every chunk (2026-10-29).
+#define BUSY_BLOCK_BYTES 16000
+#define OTA_FREE_BYTES 56000
+// Any other request for a board waits below this, and so do the bridge's
+// own heavier replies (show and board copies), rather than piling up
+// Pending slots and reassembly buffers.
 #define BUSY_FREE_BYTES 40000
-static uint32_t s_last_ota_ms;  // an OTA chunk was taken: the copies keep out of the way (pm_copies)
-bool pm_link_ota_recent(uint32_t ms) { return s_last_ota_ms && millis() - s_last_ota_ms < ms; }
 // Local commands that read files into large documents.
 static bool heavy_local(const char *cmd) {
   return !strncmp(cmd, "pull_", 5) || !strcmp(cmd, "get_copies") || !strcmp(cmd, "get_copy");
 }
 static const char BUSY_MSG[] = "bridge busy — low memory, try again in a moment";
+
+// --- the update window ---------------------------------------------------------
+// While a firmware image streams through the bridge, the rest of the
+// mesh's traffic is managed around it instead of the upload being slowed
+// for it (Colin, 2026-10-29). From the first chunk until UPDATE_WINDOW_MS
+// after the last:
+//  - reads for other boards (pm_upd_waits_turn: hello, state, get_*) go
+//    one at a time, in the order they came; one that can't start within
+//    GATE_WAIT_MS is answered busy (the console gives up at 6 s anyway).
+//    A console's survey of every board used to put six requests and
+//    their replies on top of the chunks. Actions (a cue, all_off, a pin
+//    test, a save) go straight out, as always.
+//  - the bridge's own visits wait (pm_copies).
+//  - consoles hear {"evt":"updating"} at the start and the end, so they
+//    can hold their own reloads; `hello` and `mesh` say so too.
+//  - each chunk goes straight to the board when the bridge hears it well
+//    (pm_update_core.h): TTL 0, so the relays don't rebroadcast it and
+//    the frames need no gap for them — ~85 ms a chunk instead of ~400,
+//    and the image doesn't flood the whole mesh. Unanswered, it is resent
+//    the usual way, with the same request number, so the board's
+//    reassembly keeps what it already got and the flood fills the rest.
+#define UPDATE_WINDOW_MS 15000
+#define GATE_WAIT_MS 3500
+// Reads waiting or in flight at once, of the six request slots: the rest
+// stay free for the chunks and for actions. More are answered busy at once.
+#define GATE_MAX 3
+static const char GATE_MSG[] = "bridge busy — a firmware update is running; reads of other boards go one at a time";
+static struct {
+  uint32_t dst;  // the board being updated (kept after the window, for `mesh`)
+  bool on;
+  uint32_t since_ms, last_ms;
+  uint32_t chunks, direct, direct_ok, gated, turned_away;
+  PmDirect d;
+} s_upd;
+
+static void update_event(bool on) {
+  JsonDocument e;
+  char hex[9];
+  node_hex(hex, s_upd.dst);
+  e["evt"] = "updating";
+  e["node"] = hex;
+  e["on"] = on;
+  if (!on) {
+    e["s"] = (s_upd.last_ms - s_upd.since_ms) / 1000;
+    e["chunks"] = s_upd.chunks;
+    e["direct"] = s_upd.direct;
+    e["direct_ok"] = s_upd.direct_ok;
+  }
+  pm_link_event(e);
+}
+// An OTA chunk was taken for `dst`: open the window, or keep it open.
+static void note_update(uint32_t dst) {
+  uint32_t now = millis() ? millis() : 1;
+  if (!s_upd.on || s_upd.dst != dst) {
+    if (s_upd.on) update_event(false);  // another board's transfer: the last one's window ends here
+    s_upd = {};
+    s_upd.dst = dst;
+    s_upd.on = true;
+    s_upd.since_ms = now;
+    update_event(true);
+  }
+  s_upd.last_ms = now;
+}
+static bool direct_for(uint32_t dst) {
+  pm_neighbor_t nb[PM_MAX_NEIGHBORS];
+  uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);
+  bool heard = false;
+  int8_t rssi = -127;
+  for (uint8_t i = 0; i < n; i++) if (nb[i].node_id == dst) { heard = true; rssi = nb[i].rssi; break; }
+  bool d = pm_direct_choose(s_upd.d, heard, rssi);
+  if (d) s_upd.direct++;
+  return d;
+}
+uint32_t pm_link_updating() { return s_upd.on ? s_upd.dst : 0; }
+void pm_link_update_status(JsonObject out) {
+  if (!s_upd.dst) return;
+  char hex[9];
+  node_hex(hex, s_upd.dst);
+  JsonObject u = out["update"].to<JsonObject>();
+  u["node"] = hex;
+  u["on"] = s_upd.on;
+  u["s"] = ((s_upd.on ? millis() : s_upd.last_ms) - s_upd.since_ms) / 1000;
+  u["chunks"] = s_upd.chunks;
+  u["direct"] = s_upd.direct;        // sent straight to the board
+  u["direct_ok"] = s_upd.direct_ok;  // ...and answered without the relays
+  u["gated"] = s_upd.gated;          // reads for other boards that waited their turn
+  u["turned_away"] = s_upd.turned_away;  // ...and were answered busy instead
+}
+
+static void send_pending(Pending &p) {
+  if (p.direct) send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len, 0, DIRECT_GAP_MS);
+  else send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len);
+}
+static void dispatch(Pending &p) {
+  p.queued = false;
+  p.sent_ms = millis();
+  if (pm_mesh_is_leaf(p.dst) && !leaf_awake(p.dst)) {
+    p.waiting_wake = true;
+    start_wake(p.dst);
+    return;
+  }
+  send_pending(p);
+}
+// The reads waiting their turn: the oldest goes when none is in flight;
+// one that waited too long is answered busy. When the window closes,
+// everything still waiting goes.
+static void gate_loop() {
+  uint32_t now = millis();
+  Pending *next = nullptr;
+  bool busy = false;
+  for (Pending &p : s_pending) {
+    if (!p.used || !p.gated) continue;
+    if (!s_upd.on) { p.gated = false; if (p.queued) dispatch(p); continue; }
+    if (!p.queued) { busy = true; continue; }
+    if ((uint32_t)(now - p.sent_ms) >= GATE_WAIT_MS) {
+      s_upd.turned_away++;
+      s_reply_to = p.client;
+      reply_error(p.has_console_id, p.console_id, GATE_MSG);
+      s_reply_to = PM_TO_ALL;
+      drop(p);
+      continue;
+    }
+    if (!next || (int32_t)(p.sent_ms - next->sent_ms) < 0) next = &p;
+  }
+  if (next && !busy) dispatch(*next);
+}
 
 static void request_inner(const char *json, size_t len, int8_t from) {
   // Routing needs three fields. Parsing the whole request copies its
@@ -241,9 +393,10 @@ static void request_inner(const char *json, size_t len, int8_t from) {
     pm_api_handle(req.as<JsonObjectConst>(), resp.to<JsonObject>());
     return emit(resp);
   }
-  if (!strcmp(cmd, "ota_data")) {
+  bool ota = !strcmp(cmd, "ota_data");
+  if (ota) {
     if (ESP.getMaxAllocHeap() < BUSY_BLOCK_BYTES || free_now < OTA_FREE_BYTES) return reply_error(has_id, id, BUSY_MSG);
-    s_last_ota_ms = millis() ? millis() : 1;
+    note_update(dst);
   } else if (free_now < BUSY_FREE_BYTES) return reply_error(has_id, id, BUSY_MSG);
   bool mirrored = !strncmp(cmd, "set_", 4) || !strcmp(cmd, "delete_sequence");
   if (mirrored && deserializeJson(req, json, len)) return reply_error(has_id, id, "not JSON");
@@ -254,7 +407,7 @@ static void request_inner(const char *json, size_t len, int8_t from) {
   if (mirrored && (pm_role() & PM_NODE_ROLE_BRIDGE)) pm_show_mirror(dst, req.as<JsonObjectConst>());
   Pending *p = nullptr;
   for (Pending &q : s_pending) if (!q.used) { p = &q; break; }
-  if (!p) return reply_error(has_id, id, "bridge busy — too many requests in flight");
+  if (!p) return reply_error(has_id, id, s_upd.on && !ota ? GATE_MSG : "bridge busy — too many requests in flight");
   p->text = (char *)malloc(len);
   if (!p->text) return reply_error(has_id, id, "out of memory");
   memcpy(p->text, json, len);
@@ -263,18 +416,27 @@ static void request_inner(const char *json, size_t len, int8_t from) {
   p->dst = dst;
   p->req_id = ++s_next_req;
   p->tries = 1;
-  p->sent_ms = millis();
   p->console_id = id;
   p->has_console_id = has_id;
   p->client = from;
   p->cb = nullptr;
   p->holds = holds_board(cmd);
-  if (pm_mesh_is_leaf(dst) && !leaf_awake(dst)) {
-    p->waiting_wake = true;
-    start_wake(dst);
+  p->waiting_wake = false;
+  p->direct = ota && direct_for(dst);
+  if (ota) s_upd.chunks++;
+  p->slow = !strcmp(cmd, "ota_end");
+  p->gated = !ota && s_upd.on && dst != s_upd.dst && pm_upd_waits_turn(cmd);
+  p->queued = p->gated;  // gate_loop sends it when it is its turn
+  if (p->gated) {
+    uint8_t n = 0;
+    for (Pending &q : s_pending) if (q.used && q.gated) n++;
+    if (n > GATE_MAX) { s_upd.turned_away++; drop(*p); return reply_error(has_id, id, GATE_MSG); }
+    s_upd.gated++;
+    p->sent_ms = millis();
+    gate_loop();
     return;
   }
-  send_chunked(PM_MSG_TYPE_API_REQ, dst, p->req_id, p->text, p->len);
+  dispatch(*p);
 }
 
 static void drop(Pending &p) {
@@ -282,6 +444,7 @@ static void drop(Pending &p) {
   p.text = nullptr;
   p.cb = nullptr;
   p.used = false;
+  p.gated = p.queued = p.direct = p.slow = p.waiting_wake = false;
 }
 
 bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, void *ctx) {
@@ -303,14 +466,27 @@ bool pm_link_ask(uint32_t dst, const char *json, size_t len, pm_ask_cb_t cb, voi
   p->ctx = ctx;
   p->holds = false;  // this node's own requests are not a console at work
   p->waiting_wake = false;
-  send_chunked(PM_MSG_TYPE_API_REQ, dst, p->req_id, p->text, p->len);
+  p->gated = p->queued = p->direct = p->slow = false;
+  send_pending(*p);
   return true;
 }
 
 static void retry_pending() {
   uint32_t now = millis();
   for (Pending &p : s_pending) {
-    if (!p.used || p.waiting_wake || (uint32_t)(now - p.sent_ms) < REMOTE_TIMEOUT_MS) continue;
+    if (!p.used || p.waiting_wake || p.queued) continue;
+    if ((uint32_t)(now - p.sent_ms) < (p.direct ? DIRECT_TIMEOUT_MS : p.slow ? SLOW_TIMEOUT_MS : REMOTE_TIMEOUT_MS)) continue;
+    if (p.direct) {
+      // Not answered straight: the usual way now, through the relays. The
+      // same request number, so the board's reassembly (2 s) merges what
+      // it already has with the copy the flood brings. Not counted as one
+      // of the three tries.
+      p.direct = false;
+      pm_direct_missed(s_upd.d);
+      p.sent_ms = now;
+      send_pending(p);
+      continue;
+    }
     if (p.tries >= REMOTE_TRIES) {
       if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(nullptr, 0, ctx); continue; }
       char hex[9], why[48];
@@ -324,7 +500,7 @@ static void retry_pending() {
     }
     p.tries++;
     p.sent_ms = now;
-    send_chunked(PM_MSG_TYPE_API_REQ, p.dst, p.req_id, p.text, p.len);
+    send_pending(p);
   }
 }
 
@@ -407,6 +583,7 @@ static void on_api(const RxFrame &f) {
     for (Pending &p : s_pending) {
       if (!p.used || p.req_id != a.req_id || p.dst != f.hdr.src_id) continue;
       if (p.cb) { pm_ask_cb_t cb = p.cb; void *ctx = p.ctx; drop(p); cb(msg, n, ctx); return; }
+      if (p.direct) { pm_direct_answered(s_upd.d); s_upd.direct_ok++; }
       if (p.holds) touch(p.dst);  // it answered: its 10-min hold for the console runs from now
       if (s_out) s_out(msg, n, p.client);  // the target's reply, verbatim, to whoever asked
       pm_copies_observe(p.dst, p.text, p.len, msg, n);  // the bridge's copy follows (pm_copies)
@@ -458,6 +635,11 @@ void pm_link_loop() {
     }
   }
   retry_pending();
+  if (s_upd.on && (uint32_t)(millis() - s_upd.last_ms) > UPDATE_WINDOW_MS) {
+    s_upd.on = false;
+    update_event(false);
+  }
+  gate_loop();
 }
 
 void pm_link_input(uint8_t index, bool active) {

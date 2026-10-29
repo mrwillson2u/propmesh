@@ -32,7 +32,7 @@
 // read only delays a copy; a missed save is caught at delivery, which
 // compares against the board itself.
 #define COPIES_FREE_BYTES 56000
-static bool quiet() { return ESP.getFreeHeap() < COPIES_FREE_BYTES || pm_link_ota_recent(10000); }
+static bool quiet() { return ESP.getFreeHeap() < COPIES_FREE_BYTES || pm_link_updating(); }
 
 enum : uint8_t { F_COPY = 1, F_WAIT = 2, F_STUCK = 4, F_WAKE = 8, F_FULL = 16, F_HELLO = 32 };
 struct Slot {

@@ -19,6 +19,7 @@ const char *pm_reset_reason();  // main.cpp
 #include "pm_lastwords.h"
 #include "pm_sync.h"
 #include "pm_copies.h"
+#include "pm_link.h"
 
 static const pm_board_t *board;
 
@@ -105,6 +106,11 @@ static void cmd_hello(JsonObject resp) {
   resp["fs_used"] = (uint32_t)LittleFS.usedBytes();   // the flash area copies and show files share
   resp["fs_total"] = (uint32_t)LittleFS.totalBytes();
   if (pm_copies_active()) resp["copies"] = 1;  // keeps every board's settings for the console (pm_copies)
+  if (uint32_t u = pm_link_updating()) {  // a firmware image streaming through this bridge: consoles hold their reloads
+    char uid[9];
+    snprintf(uid, sizeof(uid), "%08lx", (unsigned long)u);
+    resp["updating"] = uid;
+  }
   resp["role"] = pm_role();
   resp["armed"] = pm_show_armed();
   pm_show_put_mode(resp);  // mode, why, next change: the console polls hello for it
@@ -211,6 +217,7 @@ static void cmd_mesh(JsonObject resp) {
   resp["heap_max_block"] = ESP.getMaxAllocHeap();
   resp["heap_min"] = ESP.getMinFreeHeap();
   heap_report(resp);
+  pm_link_update_status(resp);  // the update window: chunks, direct sends, reads that waited (pm_link)
   if (pm_mesh_unheard_ms()) resp["unheard_s"] = pm_mesh_unheard_ms() / 1000;  // neighbors heard, none hear us
   pm_neighbor_t nb[PM_MAX_NEIGHBORS];
   uint8_t n = pm_neighbor_snapshot(nb, PM_MAX_NEIGHBORS);

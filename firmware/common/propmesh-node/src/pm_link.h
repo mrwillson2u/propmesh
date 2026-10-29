@@ -45,8 +45,9 @@ bool pm_link_busy_with(uint32_t dst);
 // `dst` answered a console request that holds a battery board awake (not
 // background polling) within the last `ms` (pm_copies leaves it awake).
 bool pm_link_console_recent(uint32_t dst, uint32_t ms);
-// An OTA chunk passed through within the last `ms`.
-bool pm_link_ota_recent(uint32_t ms);
+// The board a firmware image is streaming to through this bridge, while
+// the update window is open (0 = none): other traffic is held back for it.
+uint32_t pm_link_updating();
 
 // Tell the mesh (and the local console) that an input changed.
 void pm_link_input(uint8_t index, bool active);
@@ -54,6 +55,8 @@ void pm_link_input(uint8_t index, bool active);
 // Send an {"evt":...} document up to the console.
 #include <ArduinoJson.h>
 void pm_link_event(JsonDocument &evt);
+// The current (or last) update through this bridge, for `mesh`: "update".
+void pm_link_update_status(JsonObject out);
 
 // Highest node id heard since the last call to reset — the election in
 // firmware/node uses it to decide who becomes conductor when no bridge

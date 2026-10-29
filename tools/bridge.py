@@ -190,6 +190,16 @@ def cmd_ota(b, a):
         b = Bridge(a.host)
         end_reply = b.ask("ota_end", node=a.node, timeout=12)
     print("end:", end_reply, f"after {time.time() - t0:.0f} s", flush=True)
+    if end_reply and "no update in progress" in (end_reply.get("error") or ""):
+        print("  (the board had already closed the transfer: it took the image if it comes back on a new build)")
+    try:  # the bridge's update window (firmware 2026-10-29): how the chunks went
+        u = (b.ask("mesh", timeout=8) or {}).get("update")
+        if u:
+            print(f"  bridge: {u.get('chunks')} chunks, {u.get('direct')} sent straight to the board, "
+                  f"{u.get('direct_ok')} answered that way; {u.get('gated')} reads for other boards waited their turn, "
+                  f"{u.get('turned_away')} were told to try later", flush=True)
+    except OSError:
+        pass
     t_end = time.time()
     time.sleep(15)
     for _ in range(8):
