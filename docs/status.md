@@ -368,6 +368,24 @@ Watch:
 Stop if the radio rebuilds, send errors climb, or the window low is
 under 20 KB twice (the runner stops itself on all three).
 
+### Fire strips that start at the top (2026-10-29, branch `fire/starts-at-top`)
+
+Colin's strip (cut in half into two zigzag columns, data in at the top)
+burned upside down: the layout assumed every strip starts at the
+bottom. A fire strip's FIRE row now has **starts at top**. Built and
+host-tested, **not run on a strip yet**; generic-boards §6h "Starts at
+top". The console is deployed; the board driving the strip needs this
+firmware (on `sleep/check-ins` too, so the yard's images carry it).
+
+**Bench test, waiting for Colin's go:**
+1. Update the strip's board: over WiFi once the bridge has the new
+   build (above), or over USB.
+2. On its page, FIRE → tick **starts at top** → **Save to node** →
+   **Burn**.
+Watch: both columns seeded at the bottom, flames rising, the
+white-yellow pixels at the bottom. On a phone, the pin's ⓘ drawer lists
+zigzag and starts at top (checkboxes were missing from it before).
+
 ## 3. Open bugs and loose ends
 
 - **A follower skips a sequence whose pull got no answer (found
