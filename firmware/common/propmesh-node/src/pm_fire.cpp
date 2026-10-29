@@ -35,13 +35,10 @@ void PmFire::end() {
   n = 0;
 }
 
-// Column x, row y (0 = top, h-1 = bottom, where the fire is seeded) ->
-// pixel. Columns start at the bottom; with zigzag, odd columns run back
-// down (the lantern: {3,4, 2,5, 1,6, 0,7}).
+// Column x, row y -> pixel: pm_fire_pixel (pm_config.h, host-tested).
 uint16_t PmFire::xy(uint8_t x, uint8_t y) const {
   if (x >= c.w || y >= c.h) return n;  // off the matrix: a guard pixel the caller ignores
-  bool down = c.zigzag && (x & 1);
-  return (uint16_t)x * c.h + (down ? y : (c.h - 1 - y));
+  return pm_fire_pixel(c, x, y);
 }
 
 void PmFire::update(uint32_t now, PmPixels &out) {

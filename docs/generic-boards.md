@@ -1304,12 +1304,29 @@ losing its look, and fire becomes something any strip can do.
   (both sides): `fire_matrix` — columns × height ≠ pixels, or height
   < 2. Config JSON: `"order"`, `"effect"`, `"fire": {w, h, zigzag,
   brightness, speed, flame10, noise, smoke_speed, smoke_dim,
-  smoke_scale}`.
+  smoke_scale, from_top}`.
+- **Starts at top (2026-10-29, not yet run on a strip).** The layout
+  assumed the strip's first pixel is at the bottom. A strip fed from
+  above (the first case: one strip cut in half into two zigzag
+  columns, data in at the top) burned upside down: seeded at the top,
+  flames running down. **starts at top** in the FIRE row (`from_top` in the JSON)
+  turns the first column the other way, and zigzag still alternates
+  from there, so every layout fed from above is the bottom-fed one
+  upside down. The mapping is `pm_fire_pixel` in `pm_config.h`,
+  host-tested against the lantern's table and the same table upside
+  down. `from_top` is written only when ticked, so no other board's
+  stored settings change. A board on older firmware ignores it, and
+  its flames stay upside down until it is updated. The phone's ⓘ
+  drawer used to skip every checkbox (it named a setting by its
+  label's first text, and a checkbox label starts with the box), so
+  zigzag, starts at top and the candle's swing the flame were missing
+  there. Fixed in the same change.
 - **Bench test (to do) — the lantern:** flash `esp32-c6-supermini`,
   Connect, assign GPIO 20 = SPI_STRIP with clock 19, pixels 8, order
   BGR, effect fire (defaults load the lantern's 2×4 zigzag) → Save →
   **Burn**. Watch for: the same flame as the old sketch (seeded at the
-  bottom, rising, smoke veils). If columns look upside down, toggle
+  bottom, rising, smoke veils). If the flames burn downward, tick
+  starts at top; if only every other column runs the wrong way, toggle
   zigzag; if colors are off, order. Then a cue with the strip at a
   color → out, fired from another board.
 

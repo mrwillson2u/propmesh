@@ -33,10 +33,10 @@ enum { PM_ORDER_GRB = 0, PM_ORDER_RGB = 1, PM_ORDER_BGR = 2 };
 enum { PM_EFFECT_SOLID = 0, PM_EFFECT_FIRE = 1 };
 
 // Fire2023 (pm_fire.h) on a strip laid out as a w × h matrix of vertical
-// columns, bottom to top — the lantern prop's values are the defaults.
+// columns — the lantern prop's values are the defaults.
 struct PmFireCfg {
   uint8_t w = 2, h = 4;
-  bool zigzag = true;         // odd columns run top to bottom (serpentine)
+  bool zigzag = true;         // each column runs back the other way (serpentine)
   uint8_t brightness = 128;   // output scale 0-255
   uint8_t speed = 2;          // how fast the flame noise moves
   uint8_t flame10 = 30;       // flame height × 10 (3.0): higher = taller flames
@@ -44,7 +44,17 @@ struct PmFireCfg {
   uint8_t smoke_speed = 25;
   uint8_t smoke_dim = 250;    // smoke thickness: lower = brighter flames
   uint8_t smoke_scale = 125;
+  bool from_top = false;      // the strip starts at the top (its data comes in from above)
 };
+
+// Column x, row y (0 = top, h-1 = bottom, where the fire is seeded) ->
+// pixel. The first column starts at the bottom, or with from_top at the
+// top; with zigzag each column runs back the other way (the lantern, rows
+// top to bottom: {3,4, 2,5, 1,6, 0,7}).
+inline uint16_t pm_fire_pixel(const PmFireCfg &f, uint8_t x, uint8_t y) {
+  bool down = (f.zigzag && (x & 1)) != f.from_top;
+  return (uint16_t)x * f.h + (down ? y : (f.h - 1 - y));
+}
 
 // CANDLE (pm_candle_core.h): an electric candle's LED and the coil that
 // swings its flame, from the candle sketch in reference/ (docs §6n).

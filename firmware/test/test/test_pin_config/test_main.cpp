@@ -400,6 +400,53 @@ static void test_battery_repeater_setting_round_trips() {
   TEST_ASSERT_TRUE(mains["sleep"].isNull());
 }
 
+// --- fire layout -----------------------------------------------------
+
+// The lantern's 2 × 4 zigzag, rows top to bottom (docs §6h), and the same
+// strip fed from the top: the table upside down.
+static void test_fire_layout_lantern_and_from_top() {
+  static const uint16_t lantern[4][2] = {{3, 4}, {2, 5}, {1, 6}, {0, 7}};
+  PmFireCfg f;
+  for (uint8_t y = 0; y < 4; y++)
+    for (uint8_t x = 0; x < 2; x++) TEST_ASSERT_EQUAL_UINT16(lantern[y][x], pm_fire_pixel(f, x, y));
+  f.from_top = true;
+  for (uint8_t y = 0; y < 4; y++)
+    for (uint8_t x = 0; x < 2; x++) TEST_ASSERT_EQUAL_UINT16(lantern[3 - y][x], pm_fire_pixel(f, x, y));
+}
+
+// No zigzag: every column runs the way the first one does.
+static void test_fire_layout_columns_without_zigzag() {
+  PmFireCfg f;
+  f.w = 3; f.h = 5; f.zigzag = false;
+  TEST_ASSERT_EQUAL_UINT16(0, pm_fire_pixel(f, 0, 4));   // bottom of the first column
+  TEST_ASSERT_EQUAL_UINT16(10, pm_fire_pixel(f, 2, 4));  // bottom of the third
+  TEST_ASSERT_EQUAL_UINT16(14, pm_fire_pixel(f, 2, 0));
+  f.from_top = true;
+  TEST_ASSERT_EQUAL_UINT16(0, pm_fire_pixel(f, 0, 0));   // top of the first column
+  TEST_ASSERT_EQUAL_UINT16(10, pm_fire_pixel(f, 2, 0));
+  TEST_ASSERT_EQUAL_UINT16(14, pm_fire_pixel(f, 2, 4));
+}
+
+// Written only when on, so every other board's stored settings read as before.
+static void test_fire_from_top_round_trips() {
+  PmChannelCfg s = ch(PM_CHANNEL_KIND_LED_STRIP, 1, 13);
+  s.pixels = 8;
+  s.effect = PM_EFFECT_FIRE;
+  PmNodeConfig c = cfg({s});
+  JsonDocument plain;
+  pm_config_to_json(c, plain.to<JsonObject>());
+  TEST_ASSERT_TRUE(plain["channels"][0]["fire"]["from_top"].isNull());
+
+  c.channels[0].fire.from_top = true;
+  JsonDocument doc;
+  pm_config_to_json(c, doc.to<JsonObject>());
+  TEST_ASSERT_TRUE(doc["channels"][0]["fire"]["from_top"].as<bool>());
+  PmNodeConfig back;
+  TEST_ASSERT_NULL(pm_config_from_json(doc.as<JsonVariantConst>(), back));
+  TEST_ASSERT_TRUE(back.channels[0].fire.from_top);
+  TEST_ASSERT_TRUE(back.channels[0].fire.zigzag);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_plain_config_is_clean);
@@ -437,5 +484,8 @@ int main() {
   RUN_TEST(test_ble_light_json);
   RUN_TEST(test_wifi_password_kept_in_flash_not_shown);
   RUN_TEST(test_battery_repeater_setting_round_trips);
+  RUN_TEST(test_fire_layout_lantern_and_from_top);
+  RUN_TEST(test_fire_layout_columns_without_zigzag);
+  RUN_TEST(test_fire_from_top_round_trips);
   return UNITY_END();
 }

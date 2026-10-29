@@ -29,11 +29,12 @@ export interface ChannelCfg {
 export type ColorOrder = "grb" | "rgb" | "bgr";
 export type StripEffect = "solid" | "fire";
 
-// Fire2023 on a strip laid out as w × h vertical columns, bottom to top
-// (firmware pm_fire.h). The lantern prop's values are the defaults.
+// Fire2023 on a strip laid out as w × h vertical columns (firmware
+// pm_fire.h; the layout is pm_fire_pixel in pm_config.h). The lantern
+// prop's values are the defaults.
 export interface FireCfg {
   w: number; h: number;
-  zigzag: boolean; // odd columns run top to bottom (serpentine wiring)
+  zigzag: boolean; // each column runs back the other way (serpentine wiring)
   brightness: number; // 0–255
   speed: number; // flame noise speed
   flame10: number; // flame height × 10 — taller flames with higher values
@@ -41,6 +42,7 @@ export interface FireCfg {
   smoke_speed: number;
   smoke_dim: number; // smoke thickness: lower = brighter flames
   smoke_scale: number;
+  from_top?: boolean; // the strip starts at the top (data comes in from above); absent = at the bottom
 }
 export const FIRE_DEFAULTS: FireCfg = { w: 2, h: 4, zigzag: true, brightness: 128, speed: 2, flame10: 30, noise: 0, smoke_speed: 25, smoke_dim: 250, smoke_scale: 125 };
 
