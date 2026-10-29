@@ -292,6 +292,29 @@ Candles 1, 3 and 5 were released at 16:38. Candle 4 is next in the run.
 A console tab loaded before 16:38 still runs the old survey until it is
 reloaded.
 
+*Run result (stopped 17:07 for the show window):*
+
+| Candle | Before | After | Transfer |
+|---|---|---|---|
+| 2 | 179c024 | a55da1c | 536 s |
+| 6 | 09f5b19 | not confirmed; asleep at −92 dBm at 17:08 | 803 s, `ota_end`: "no update in progress" |
+| 4 | 179c024 | a55da1c | 649 s |
+| 3 | b171708 | a55da1c | 842 s, `ota_end`: "no update in progress", yet booted the new build |
+| 5, 1 | 179c024 | not run: after the show | — |
+
+At 150 ms pacing a transfer takes 9–14 min, against about 3.5 min at the
+old 60 ms. The bridge stayed up throughout: no radio rebuild, no send
+errors, window lows down to 33 KB. But its WiFi receive-buffer failures
+rose from 8 to 30, so the driver dropped some incoming frames during
+bursts. The guards kept that from turning into a mute.
+
+At 17:08 every candle that answered had been held 10 min again within
+the last 30 s, including the three on a55da1c, which honor `bg`. Only
+console code from before 15:44 sends those non-background reads, so some
+console tab was still on the old code. The candles were released at
+17:08 so they sleep until the window. Every console tab and phone needs
+a reload.
+
 ## 3. Open bugs and loose ends
 
 - **Sequences save / play audit (2026-10-24 evening):** every
