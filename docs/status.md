@@ -388,6 +388,19 @@ zigzag and starts at top (checkboxes were missing from it before).
 
 ## 3. Open bugs and loose ends
 
+- **The bridge crashed at 14:49 on 2026-10-29 (cause unknown, not
+  fixed).** Read at 15:05: `reset: crash` (a software panic,
+  `ESP_RST_PANIC`), up 976 s, still on a55da1c. It had been up about
+  22.5 h, with a second radio rebuild at 00:28 after the one at 23:27
+  (its last words: `ESP_ERR_ESPNOW_NO_MEM`, 91 failed allocations, 40.9 KB
+  largest block). Within 16 minutes of the restart its free memory had
+  already touched 3,292 B (`heap_min`), though idle it sits at 84 KB free
+  with an 81.9 KB block (window low 78.4 KB, 3 consoles attached). That
+  is the receive-buffer burst of generic-boards §6j again. A panic
+  leaves no record without a serial log, so what crashed is not known.
+  Next: catch the backtrace on USB, or keep the panic's cause across the
+  reboot so `hello` can report it.
+
 - **A follower skips a sequence whose pull got no answer (found
   2026-10-29, not fixed).** In `pm_sync_loop` the part's index moves on
   when the request goes out (`q_ids[q_i++]`); if `pull_seq` gets no reply
