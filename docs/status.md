@@ -52,16 +52,12 @@ on the next `dev` → `main`.
 
 ## 2. Bench tests waiting for Colin
 
-- **Sleep management on a candle (2026-10-26, branch `sleep/check-ins`).**
-  Flash one C6 candle with the branch build. Watch for: (1) after
-  switching it on, its row reads "awake for you · 2:59 left" and it
-  stays reachable 3 min before sleeping; (2) once asleep, **⏰ Stay awake
-  next time** on its page → at its next check-in (≤ 5 min) it reads
-  "awake for you · 10:00 left"; (3) **⏻ Power off** → its LED goes out,
-  the row reads "switched off", and it only comes back with reset or a
-  power cycle; (4) unplug another candle while asleep → within one
-  check-in its row reads "off or unplugged? (signal was …)".
-  `docs/console-nodes-list.md` §9.
+- ~~**Sleep management on a candle**~~ — **ran 2026-10-26 on Candle 3:
+  tests 1–4 worked** (setup window, stay awake next time, power off,
+  "off or unplugged?"). The follow-ups built that afternoon (the
+  SLEEPING announcement, mark as off, no false missed check-ins) have
+  been on the candles since; the check that no false "missed" shows
+  across a few slots is not recorded. `docs/console-nodes-list.md` §9.
 
 - **Battery drain rate on a C6 candle (2026-10-24).** Flash a candle
   with a build from `console/node-list` (or the next dev build), run
@@ -151,6 +147,26 @@ Run these with the boards in hand. Protocol: write out what to watch,
 
 After each: update `status` / `status_note` in `boards/<board>.yaml`
 (shown on the site) and the table above.
+
+### Branch `sleep/check-ins`: what's left before its PR (2026-10-30)
+
+The branch is PR #58 (open: the node list) plus 37 commits: sleep
+management, the image-probation and clock-wait fixes, floods, settings
+kept on the bridge, the bridge's memory guards, the update window and
+the fire option. Most of it has run on the yard boards since 10-26..28.
+Before its PR into `dev`:
+1. The update-window test (below): the only bridge firmware on the
+   branch that has never run.
+2. Settings kept on the bridge, steps 2–5 (below): a change delivered
+   at a check-in with every console tab closed.
+3. Candle 1 and the Lantern armed through a window (below): a look at
+   their rows during one, for the clock-wait fix.
+4. The fire strip (below), or the PR says it is untested.
+The PR will name what stays open: the bridge crash of 10-29 (§3; the dev
+build also reset with a crash, on 10-26), the drain-rate estimate (two
+nights on a cell), and the floods On/Off button (simulator only). #58
+can merge first; the branch's PR then shows only the 37. The fire
+commit is also on `fire/starts-at-top`; one of the two goes.
 
 ### Lantern update; Candle 1 over a night
 
