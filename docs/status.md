@@ -427,7 +427,14 @@ zigzag and starts at top (checkboxes were missing from it before).
     seconds. Its next hello gives the reset reason and last words. If it
     stays silent, read its boot log on the server's USB.
   - Also not heard on 10-30: Candle 3 (last 00:10), Candle 5 (last 09:40)
-    and the Lantern (last 15:00 on 10-29).
+    and the Lantern (last 15:00 on 10-29) — Colin: those are unplugged
+    or out of range, nothing to chase.
+  - 18:57: Colin unplugged and replugged Candle 4's cell (the reset
+    button was out of reach), with USB connected. Not heard by 19:02:
+    nothing in the watch log, no answer to a direct hello, the bridge's
+    copy still has no `seen`. With USB connected the chip never lost
+    power, so this was not a restart. Next: both USB and cell out for
+    5 s, or the reset button.
 
 - **The bridge crashed at 14:49 on 2026-10-29 (cause unknown, not
   fixed).** Read at 15:05: `reset: crash` (a software panic,
