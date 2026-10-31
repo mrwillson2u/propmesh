@@ -435,6 +435,27 @@ zigzag and starts at top (checkboxes were missing from it before).
     copy still has no `seen`. With USB connected the chip never lost
     power, so this was not a restart. Next: both USB and cell out for
     5 s, or the reset button.
+  - **On the server's USB (plugged in 18:56): never enumerates.** The
+    kernel log (`journalctl -k`) shows port 3-5.2 — the same hub port
+    that flashed the Lantern (10-27 00:38) and Candle 2 (10-27 22:01)
+    as Espressif 303a:1001 → `ttyACM0` — looping since 18:56:13 at about
+    one try every 2–3 s: "new full-speed USB device" → "device
+    descriptor read/64, error -32" → "Device not responding to setup
+    address" → "unable to enumerate USB device" → "attempt power cycle",
+    with not one success in 14 min and no `/dev/ttyACM*`, through the
+    cell replug too. So the board pulls the USB data line up (something
+    is powered) but never answers the first request. The C6's
+    USB-Serial/JTAG is hardware that answers on its own, even under a
+    firmware boot loop (it keeps the connection across chip resets), so
+    this is not the firmware: either the USB path (a cable or connector
+    with one bad data line gives exactly this log) or the board itself
+    (power or chip), which would also fit the 8 dB drop after the 03:34
+    restart. Deep sleep should show no device at all (the USB block is
+    powered down), so this also argues against a ⏻ Power off — not
+    checked on a board. Discriminators: another cable on this board;
+    this cable on another C6; the red power LED; BOOT held while
+    plugging in (ROM download mode still enumerates as 303a:1001 if the
+    chip is alive). No boot log can be read until it enumerates.
 
 - **The bridge crashed at 14:49 on 2026-10-29 (cause unknown, not
   fixed).** Read at 15:05: `reset: crash` (a software panic,
