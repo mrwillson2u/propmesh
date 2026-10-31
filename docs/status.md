@@ -404,6 +404,31 @@ zigzag and starts at top (checkboxes were missing from it before).
 
 ## 3. Open bugs and loose ends
 
+- **Candle 4 (c516df70) silent since 03:48 on 2026-10-29 (cause not
+  known).** Read 2026-10-30 18:50 from the watch log
+  (`~/propmesh-logs/bridge-watch.log`; the awake stretches come from the
+  uptime in each 2-min sample) and the bridge:
+  - The night before, it was awake 10.3 h straight, from 17:10 to 03:30,
+    long past the show window's end at 22:58. Candles 1, 2, 3 and 5 were
+    awake 5–13 h past it the same night, most likely held by a console
+    tab still on the code from before the 10-28 fixes. On the night of
+    10-29 every candle slept at 22:58.
+  - At 03:34 it restarted, came back 8 dB weaker (−78 → −87 dBm), and
+    was last heard 13 min later.
+  - Since then nothing: the bridge's copy has no `seen` since its
+    restart at 14:49 on 10-29, and on 10-30 at 18:50 neither the bridge,
+    the Repeater nor Candle 1 heard it.
+  - Colin, 18:55: plugged in, in range, the cell at 4.0 V. So it is not
+    a flat cell now. The firmware has no low-battery lockout, and a
+    check-in sleep is capped at ~5 min, so the only state it can't leave
+    by itself is ⏻ Power off; the other candidate is a board that hung
+    while its cell ran down. Plugging in USB restarts neither.
+  - Next: press its reset button, or unplug the cell and USB for a few
+    seconds. Its next hello gives the reset reason and last words. If it
+    stays silent, read its boot log on the server's USB.
+  - Also not heard on 10-30: Candle 3 (last 00:10), Candle 5 (last 09:40)
+    and the Lantern (last 15:00 on 10-29).
+
 - **The bridge crashed at 14:49 on 2026-10-29 (cause unknown, not
   fixed).** Read at 15:05: `reset: crash` (a software panic,
   `ESP_RST_PANIC`), up 976 s, still on a55da1c. It had been up about
